@@ -443,11 +443,9 @@ class MessageHistory:
                     content, 
                     tool_calls=tool_calls, 
                     tool_outputs=tool_outputs,
-                    agent_id=agent_id
+                    agent_id=agent_id,
+                    system_prompt=message.get("system_prompt", None)
                 )
-            elif role == "system":
-                # Handle system message
-                return self.add_system_prompt(content, agent_id=agent_id)
             else:
                 logger.warning(f"Unknown message role: {role}")
                 # Default to user message if role is unknown

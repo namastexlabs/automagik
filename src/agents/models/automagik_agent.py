@@ -1,10 +1,6 @@
 import logging
-import asyncio
-from typing import Dict, Optional, Union, List, Any, TypeVar, Generic
+from typing import Dict, Optional, Union,  Any, TypeVar, Generic
 from abc import ABC, abstractmethod
-
-from pydantic_ai.settings import ModelSettings
-from pydantic_ai.usage import UsageLimits
 
 from src.memory.message_history import MessageHistory
 from src.agents.models.dependencies import BaseDependencies
@@ -14,21 +10,10 @@ from src.agents.models.response import AgentResponse
 from src.agents.common.prompt_builder import PromptBuilder
 from src.agents.common.memory_handler import MemoryHandler
 from src.agents.common.tool_registry import ToolRegistry
-from src.agents.common.message_parser import (
-    parse_user_message,
-    format_message_for_db
-)
 from src.agents.common.session_manager import (
-    create_context,
     validate_agent_id,
-    validate_user_id,
-    extract_multimodal_content
 )
 from src.agents.common.dependencies_helper import (
-    parse_model_settings,
-    create_model_settings,
-    create_usage_limits,
-    get_model_name,
     close_http_client
 )
 
@@ -318,16 +303,17 @@ class AutomagikAgent(ABC, Generic[T]):
             from src.agents.common.message_parser import format_message_for_db
             
             # Save user message
-            user_db_message = format_message_for_db("user", content)
-            message_history.add_message(user_db_message)
+            user_db_message = format_message_for_db(role="user", content=content, agent_id=self.db_id)
+            message_history.add_message(message=user_db_message)
             
             # Save agent response
             agent_db_message = format_message_for_db(
-                "assistant", 
-                response.text,
-                response.tool_calls,
-                response.tool_outputs,
-                getattr(response, "system_prompt", None)
+                role="assistant", 
+                content=response.text,
+                tool_calls=response.tool_calls,
+                tool_outputs=response.tool_outputs,
+                system_prompt=getattr(response, "system_prompt", None),
+                agent_id=self.db_id
             )
             message_history.add_message(agent_db_message)
                 

@@ -132,7 +132,8 @@ def extract_all_messages(result: Any) -> List[Dict[str, Any]]:
 
 def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dict[str, Any]]] = None, 
                           tool_outputs: Optional[List[Dict[str, Any]]] = None,
-                          system_prompt: Optional[str] = None) -> Dict[str, Any]:
+                          system_prompt: Optional[str] = None,
+                          agent_id: Optional[int] = None) -> Dict[str, Any]:
     """Format a message for database storage.
     
     Args:
@@ -141,13 +142,14 @@ def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dic
         tool_calls: Optional list of tool calls
         tool_outputs: Optional list of tool outputs
         system_prompt: Optional system prompt
-        
+        agent_id: Optional agent ID
     Returns:
         Formatted message dictionary
     """
     message = {
         "role": role,
-        "content": content
+        "content": content,
+        "agent_id": agent_id
     }
     
     if tool_calls:
