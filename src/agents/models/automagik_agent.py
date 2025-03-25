@@ -276,7 +276,7 @@ class AutomagikAgent(ABC, Generic[T]):
         # Update context
         new_context = create_context(
             agent_id=self.db_id, 
-            user_id=self.dependencies.user_id,
+            user_id=user_id,
             session_id=session_id,
             additional_context=context
         )

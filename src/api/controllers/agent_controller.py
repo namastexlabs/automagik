@@ -78,9 +78,10 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         
         # Get or create session based on request parameters
         session_id, message_history = await get_or_create_session(
-            request.session_id, 
-            request.session_name, 
-            agent_id
+            session_id=request.session_id, 
+            session_name=request.session_name, 
+            agent_id=agent_id,
+            user_id=request.user_id
         )
         
         # For agents that don't exist, avoid creating any messages in the database
@@ -150,9 +151,11 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         response_content = None
         try:
             if content:
-                # Pass just the content and message_history to the agent
                 response_content = await agent.process_message(
-                    content, 
+                    user_message=content, 
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    user_id=request.user_id,
                     message_history=message_history if message_history else None
                 )
             else:
@@ -208,14 +211,14 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         raise HTTPException(status_code=500, detail=f"Failed to run agent: {str(e)}") 
     
     
-async def get_or_create_session(session_id=None, session_name=None, agent_id=None):
+async def get_or_create_session(session_id=None, session_name=None, agent_id=None, user_id=None):
     """Helper function to get or create a session based on provided parameters"""
     if session_id:
         # Validate and use existing session by ID
         if not safe_uuid(session_id):
             raise HTTPException(status_code=400, detail=f"Invalid session ID format: {session_id}")
         
-        history = MessageHistory(session_id=session_id)
+        history = MessageHistory(session_id=session_id, user_id=user_id)
         
         # Verify session exists
         if not history.get_session_info():
@@ -230,21 +233,22 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
         if session:
             # Use existing session
             session_id = str(session.id)
-            return session_id, MessageHistory(session_id=session_id)
+            return session_id, MessageHistory(session_id=session_id, user_id=user_id)
         else:
             # Create new named session
             session_id = generate_uuid()
             session = Session(
                 id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
                 name=session_name,
-                agent_id=agent_id
+                agent_id=agent_id,
+                user_id=user_id
             )
             
             if not create_session(session):
                 logger.error(f"Failed to create session with name {session_name}")
                 raise HTTPException(status_code=500, detail="Failed to create session")
             
-            return str(session_id), MessageHistory(session_id=str(session_id))
+            return str(session_id), MessageHistory(session_id=str(session_id), user_id=user_id)
 
     else:
         # Create temporary session
