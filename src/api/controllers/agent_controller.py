@@ -51,6 +51,7 @@ async def list_agent_templates() -> List[AgentInfo]:
         logger.error(f"Error listing agent templates: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list agent templates: {str(e)}")
 
+
 async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[str, Any]:
     """
     Run an agent with the specified parameters
@@ -73,58 +74,18 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Try to get the agent from the database to get its ID
         agent_db = get_agent_by_name(db_agent_name)
         agent_id = agent_db.id if agent_db else None
-        
         # Process session information
-        if request.session_id:
-            # Use existing session
-            if not safe_uuid(request.session_id):
-                raise HTTPException(status_code=400, detail=f"Invalid session ID format: {request.session_id}")
-            
-            session_id = request.session_id
-            message_history = MessageHistory(session_id=session_id)
-            
-            # Verify session exists
-            session_info = message_history.get_session_info()
-            if not session_info:
-                raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
-        elif request.session_name:
-            # Check for existing session with name
-            session = get_session_by_name(request.session_name)
-            
-            if session:
-                # Use existing session
-                session_id = str(session.id)
-                message_history = MessageHistory(session_id=session_id)
-            else:
-                # Create new session
-                session_id = generate_uuid()
-                # Create a new Session object
-                session = Session(
-                    id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
-                    name=request.session_name,
-                    agent_id=agent_id
-                )
-                
-                # Use repository function to create the session
-                created_id = create_session(session)
-                
-                # If session creation fails, log error and return 500
-                if not created_id:
-                    logger.error(f"Failed to create session with name {request.session_name}")
-                    raise HTTPException(status_code=500, detail="Failed to create session")
-                
-                message_history = MessageHistory(session_id=str(session_id))
-        else:
-            # Create temporary session (will be lost after response)
-            session_id = str(uuid.uuid4())
-            # Use no_auto_create=True for temporary sessions to avoid database entries
-            message_history = MessageHistory(session_id=session_id, no_auto_create=True)
-            
-            # For agents that don't exist, avoid creating any messages in the database
-            # since nonexistent agents should return 404
-            if agent_name.startswith("nonexistent_") or "_nonexistent_" in agent_name:
-                raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
         
+        # Get or create session based on request parameters
+        session_id, message_history = await get_or_create_session(
+            request.session_id, 
+            request.session_name, 
+            agent_id
+        )
+        
+        # For agents that don't exist, avoid creating any messages in the database
+        if agent_name.startswith("nonexistent_") or "_nonexistent_" in agent_name:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
         # Initialize the agent - strip '_agent' suffix for factory
         factory = AgentFactory()
         agent_type = agent_name.replace('_agent', '') if agent_name.endswith('_agent') else agent_name
@@ -185,42 +146,18 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             history_messages, _ = message_history.get_messages(page=1, page_size=100, sort_desc=False)
             messages = history_messages
         
-        # Add the current message if provided
-        if content:
-            # Create message with combined_content
-            message_data = {
-                "id": str(uuid.uuid4()),
-                "role": "user",
-                "content": content,
-                "multimodal_content": multimodal_content if multimodal_content else None,
-                "created_at": datetime.now().isoformat()
-            }
-            
-            # Add message to history
-            user_message = MessageModel(**message_data)
-            messages.append(user_message)
-            
-            if message_history:
-                message_history.add_message({
-                    "id": message_data["id"],
-                    "role": message_data["role"],
-                    "content": message_data["content"],
-                    "multimodal_content": message_data["multimodal_content"],
-                    "created_at": message_data["created_at"]
-                })
-        
         # Run the agent
         response_content = None
         try:
             if content:
                 # Pass just the content and message_history to the agent
-                response_content = await agent.run(
+                response_content = await agent.process_message(
                     content, 
-                    message_history_obj=message_history if message_history else None
+                    message_history=message_history if message_history else None
                 )
             else:
                 # No content, run with empty string
-                response_content = await agent.run("")
+                response_content = await agent.process_message("")
         except Exception as e:
             logger.error(f"Agent execution error: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}")
@@ -269,3 +206,47 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
     except Exception as e:
         logger.error(f"Error running agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to run agent: {str(e)}") 
+    
+    
+async def get_or_create_session(session_id=None, session_name=None, agent_id=None):
+    """Helper function to get or create a session based on provided parameters"""
+    if session_id:
+        # Validate and use existing session by ID
+        if not safe_uuid(session_id):
+            raise HTTPException(status_code=400, detail=f"Invalid session ID format: {session_id}")
+        
+        history = MessageHistory(session_id=session_id)
+        
+        # Verify session exists
+        if not history.get_session_info():
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        
+        return session_id, history
+
+    elif session_name:
+        # Try to find existing session by name
+        session = get_session_by_name(session_name)
+        
+        if session:
+            # Use existing session
+            session_id = str(session.id)
+            return session_id, MessageHistory(session_id=session_id)
+        else:
+            # Create new named session
+            session_id = generate_uuid()
+            session = Session(
+                id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
+                name=session_name,
+                agent_id=agent_id
+            )
+            
+            if not create_session(session):
+                logger.error(f"Failed to create session with name {session_name}")
+                raise HTTPException(status_code=500, detail="Failed to create session")
+            
+            return str(session_id), MessageHistory(session_id=str(session_id))
+
+    else:
+        # Create temporary session
+        temp_session_id = str(uuid.uuid4())
+        return temp_session_id, MessageHistory(session_id=temp_session_id, no_auto_create=True)

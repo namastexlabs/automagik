@@ -1,5 +1,5 @@
-from .prompt import SIMPLE_AGENT_PROMPT
+from .prompt import AGENT_PROMPT
 
 __all__ = [
-    'SIMPLE_AGENT_PROMPT'
+    'AGENT_PROMPT'
 ] 

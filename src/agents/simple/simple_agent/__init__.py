@@ -9,7 +9,7 @@ import os
 import logging
 import traceback
 
-from src.agents.simple.simple_agent.prompts.prompt import SIMPLE_AGENT_PROMPT
+from src.agents.simple.simple_agent.prompts.prompt import AGENT_PROMPT
 
 # Setup logging first
 logger = logging.getLogger(__name__)

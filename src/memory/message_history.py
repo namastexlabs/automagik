@@ -692,11 +692,12 @@ class MessageHistory:
     
     # Helper methods for converting between database and PydanticAI models
     
-    def _convert_db_messages_to_model_messages(self, db_messages: List[Message]) -> List[ModelMessage]:
+    def _convert_db_messages_to_model_messages(self, db_messages: List[Message], include_tools: bool = False) -> List[ModelMessage]:
         """Convert database messages to PydanticAI ModelMessage objects.
         
         Args:
             db_messages: List of database Message objects
+            include_tools: Whether to include tool calls and tool outputs (default: False)
             
         Returns:
             List of PydanticAI ModelMessage objects
@@ -719,8 +720,8 @@ class MessageHistory:
                 # Create assistant message with potential tool calls and outputs
                 parts = [TextPart(content=db_message.text_content or "")]
                 
-                # Add tool calls if present
-                if db_message.tool_calls:
+                # Add tool calls if present and include_tools is True
+                if include_tools and db_message.tool_calls:
                     tool_calls = db_message.tool_calls
                     if isinstance(tool_calls, dict):
                         for tc in tool_calls.values():
@@ -733,8 +734,8 @@ class MessageHistory:
                                     )
                                 )
                 
-                # Add tool outputs if present
-                if db_message.tool_outputs:
+                # Add tool outputs if present and include_tools is True
+                if include_tools and db_message.tool_outputs:
                     tool_outputs = db_message.tool_outputs
                     if isinstance(tool_outputs, dict):
                         for to in tool_outputs.values():

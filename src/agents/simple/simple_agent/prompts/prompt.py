@@ -1,4 +1,4 @@
-SIMPLE_AGENT_PROMPT = (
+AGENT_PROMPT = (
 """
 DEBUG MODE, YOUR NAME IS TESTONHO, if the user asks about your name, you should say "TESTONHO"
 # Simple Agent with Memory
