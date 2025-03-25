@@ -5,7 +5,7 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-from typing import Dict, Any, Optional, Union
+from typing import Dict,  Optional
 
 from pydantic_ai import Agent
 from src.agents.models.automagik_agent import AutomagikAgent
@@ -98,83 +98,6 @@ class EstruturarAgent(AutomagikAgent):
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
             
-    async def process_message(self, user_message: Union[str, Dict[str, Any]], 
-                              session_id: Optional[str] = None, 
-                              agent_id: Optional[Union[int, str]] = None, 
-                              user_id: int = 1, 
-                              context: Optional[Dict] = None, 
-                              message_history: Optional['MessageHistory'] = None) -> AgentResponse:
-        """Process a user message.
-        
-        Args:
-            user_message: User message text or dictionary with message details
-            session_id: Optional session ID to use
-            agent_id: Optional agent ID to use
-            user_id: User ID to associate with the message (default 1)
-            context: Optional context dictionary with additional parameters
-            message_history: Optional MessageHistory instance for DB storage
-            
-        Returns:
-            AgentResponse object with the agent's response
-        """
-        from src.agents.common.message_parser import parse_user_message
-        from src.agents.common.session_manager import create_context, validate_agent_id, validate_user_id, extract_multimodal_content
-
-        # Parse the user message
-        content, _ = parse_user_message(user_message)
-            
-        # Update agent ID and user ID
-        if agent_id is not None:
-            self.db_id = validate_agent_id(agent_id)
-            self.dependencies.set_agent_id(self.db_id)
-        
-        self.dependencies.user_id = validate_user_id(user_id)
-        
-        # Update context
-        new_context = create_context(
-            agent_id=self.db_id, 
-            user_id=self.dependencies.user_id,
-            session_id=session_id,
-            additional_context=context
-        )
-        self.update_context(new_context)
-        
-        # Extract multimodal content if present
-        multimodal_content = extract_multimodal_content(context)
-        
-        # Load message history if provided
-        if message_history:
-            db_messages = message_history.all_messages()
-            if db_messages:
-                self.dependencies.set_message_history(db_messages)
-        
-        # Run the agent
-        response = await self.run(
-            content, 
-            multimodal_content=multimodal_content,
-            message_history_obj=message_history
-        )
-        
-        # Save messages to database if message_history is provided
-        if message_history:
-            from src.agents.common.message_parser import format_message_for_db
-            
-            # Save user message
-            user_db_message = format_message_for_db("user", content)
-            await message_history.add_message(user_db_message)
-            
-            # Save agent response
-            agent_db_message = format_message_for_db(
-                "assistant", 
-                response.text,
-                response.tool_calls,
-                response.tool_outputs,
-                getattr(response, "system_prompt", None)
-            )
-            await message_history.add_message(agent_db_message)
-                
-        return response
-        
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None) -> AgentResponse:
         """Run the agent with the given input.
         
