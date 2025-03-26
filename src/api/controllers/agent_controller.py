@@ -142,7 +142,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         if request.messages:
             # Use provided messages
             messages = request.messages
-        elif message_history and not getattr(request, "no_history", False):
+        elif message_history:
             # Use message history
             history_messages, _ = message_history.get_messages(page=1, page_size=100, sort_desc=False)
             messages = history_messages
@@ -156,7 +156,10 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     session_id=session_id,
                     agent_id=agent_id,
                     user_id=request.user_id,
-                    message_history=message_history if message_history else None
+                    message_history=message_history if message_history else None,
+                    channel_payload=request.channel_payload,
+                    context=request.context,
+                    message_limit=request.message_limit
                 )
             else:
                 # No content, run with empty string

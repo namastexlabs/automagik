@@ -204,14 +204,14 @@ class MessageHistory:
             # Return a basic system message as fallback
             return ModelRequest(parts=[SystemPromptPart(content=content)])
     
-    def add(self, content: str, agent_id: Optional[int] = None, context: Optional[Dict] = None) -> ModelMessage:
+    def add(self, content: str, agent_id: Optional[int] = None, context: Optional[Dict] = None, channel_payload: Optional[Dict] = None) -> ModelMessage:
         """Add a user message to the history.
         
         Args:
             content: The message content.
             agent_id: Optional agent ID associated with the message.
             context: Optional context data to include with the message.
-            
+            channel_payload: Optional channel payload to include with the message.
         Returns:
             The created user message.
         """
@@ -226,6 +226,7 @@ class MessageHistory:
                 text_content=content,
                 message_type="text",
                 context=context,
+                channel_payload=channel_payload,
                 created_at=datetime.now(UTC),
                 updated_at=datetime.now(UTC)
             )
@@ -434,7 +435,7 @@ class MessageHistory:
             
             if role == "user":
                 # Handle user message
-                return self.add(content, agent_id=agent_id)
+                return self.add(content, agent_id=agent_id, channel_payload=message.get("channel_payload", None))
             elif role == "assistant":
                 # Handle assistant message with potential tool calls and outputs
                 tool_calls = message.get("tool_calls", [])
@@ -449,7 +450,7 @@ class MessageHistory:
             else:
                 logger.warning(f"Unknown message role: {role}")
                 # Default to user message if role is unknown
-                return self.add(content, agent_id=agent_id)
+                return self.add(content, agent_id=agent_id, channel_payload=message.get("channel_payload", None))
         except Exception as e:
             logger.error(f"Error adding message: {str(e)}")
             # Create a basic message as fallback

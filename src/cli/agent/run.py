@@ -233,13 +233,7 @@ async def run_agent(
                     headers={"x-api-key": settings.AM_API_KEY} if settings.AM_API_KEY else {},
                     timeout=10
                 )
-                if session_response.status_code == 200:
-                    session_data = session_response.json()
-                    if session_data.get("exists", False):
-                        # It's an existing session, add preserve_system_prompt flag
-                        payload["preserve_system_prompt"] = True
-                        if debug_mode:
-                            typer.echo("Adding preserve_system_prompt flag for existing session")
+               
             except Exception as e:
                 if debug_mode:
                     typer.echo(f"Error checking session: {str(e)}")

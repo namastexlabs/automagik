@@ -7,6 +7,7 @@ import urllib.parse
 import uuid
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from pathlib import Path
 
 import psycopg2
 import psycopg2.extensions
@@ -53,6 +54,77 @@ def safe_uuid(value: Any) -> Any:
     if isinstance(value, uuid.UUID):
         return str(value)
     return value
+
+
+def check_migrations(cursor) -> Tuple[bool, List[str]]:
+    """Check if all migrations are applied.
+    
+    Returns:
+        Tuple of (is_healthy, list_of_pending_migrations)
+    """
+    try:
+        # Get the migrations directory path
+        migrations_dir = Path("src/db/migrations")
+        if not migrations_dir.exists():
+            logger.warning("No migrations directory found")
+            return True, []
+        
+        # Get all SQL files and sort them by name (which includes timestamp)
+        migration_files = sorted(migrations_dir.glob("*.sql"))
+        
+        if not migration_files:
+            return True, []
+        
+        # Create migrations table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS migrations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                applied_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        
+        # Get list of already applied migrations
+        cursor.execute("SELECT name FROM migrations")
+        applied_migrations = {row[0] for row in cursor.fetchall()}
+        
+        # Check for pending migrations
+        pending_migrations = []
+        for migration_file in migration_files:
+            migration_name = migration_file.name
+            if migration_name not in applied_migrations:
+                pending_migrations.append(migration_name)
+        
+        return len(pending_migrations) == 0, pending_migrations
+        
+    except Exception as e:
+        logger.error(f"Error checking migrations: {e}")
+        return False, []
+
+
+def verify_database_health() -> bool:
+    """Verify database health and migrations status.
+    
+    Returns:
+        bool: True if database is healthy, False otherwise
+    """
+    try:
+        with get_db_cursor(commit=False) as cursor:
+            is_healthy, pending_migrations = check_migrations(cursor)
+            
+            if not is_healthy:
+                logger.warning("Database migrations are not up to date!")
+                logger.warning("Pending migrations:")
+                for migration in pending_migrations:
+                    logger.warning(f"  - {migration}")
+                logger.warning("\nPlease run 'automagik-agents db init' to apply pending migrations.")
+                return False
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"Failed to verify database health: {e}")
+        return False
 
 
 def get_db_config() -> Dict[str, Any]:
@@ -158,6 +230,12 @@ def get_connection_pool() -> ThreadedConnectionPool:
                 logger.info(
                     "Successfully connected to PostgreSQL database with UTF8 encoding"
                 )
+                
+                # Verify database health after successful connection
+                if not verify_database_health():
+                    logger.error("Database health check failed. Please run 'automagik-agents db init' to apply pending migrations.")
+                    raise Exception("Database migrations are not up to date")
+                
                 break
             except psycopg2.Error as e:
                 if attempt < max_retries - 1:

@@ -227,7 +227,9 @@ class AutomagikAgent(ABC, Generic[T]):
     
     @abstractmethod
     async def run(self, input_text: str, *, multimodal_content=None, 
-                 system_message=None, message_history_obj=None) -> AgentResponse:
+                 system_message=None, message_history_obj=None,
+                 channel_payload: Optional[Dict] = None,
+                 message_limit: Optional[int] = None) -> AgentResponse:
         """Run the agent with the given input.
         
         Args:
@@ -246,7 +248,9 @@ class AutomagikAgent(ABC, Generic[T]):
                               agent_id: Optional[Union[int, str]] = None, 
                               user_id: int = 1, 
                               context: Optional[Dict] = None, 
-                              message_history: Optional['MessageHistory'] = None) -> AgentResponse:
+                              message_history: Optional['MessageHistory'] = None,
+                              channel_payload: Optional[Dict] = None,
+                              message_limit: Optional[int] = None,) -> AgentResponse:
         """Process a user message.
         
         Args:
@@ -285,17 +289,13 @@ class AutomagikAgent(ABC, Generic[T]):
         # Extract multimodal content if present
         multimodal_content = extract_multimodal_content(context)
         
-        # Load message history if provided
-        if message_history:
-            db_messages = message_history.all_messages()
-            if db_messages:
-                self.dependencies.set_message_history(db_messages)
-        
         # Run the agent
         response = await self.run(
             content, 
             multimodal_content=multimodal_content,
-            message_history_obj=message_history
+            message_history_obj=message_history,
+            channel_payload=channel_payload,
+            message_limit=message_limit,
         )
         
         # Save messages to database if message_history is provided
@@ -303,7 +303,7 @@ class AutomagikAgent(ABC, Generic[T]):
             from src.agents.common.message_parser import format_message_for_db
             
             # Save user message
-            user_db_message = format_message_for_db(role="user", content=content, agent_id=self.db_id)
+            user_db_message = format_message_for_db(role="user", content=content, agent_id=self.db_id, channel_payload=channel_payload)
             message_history.add_message(message=user_db_message)
             
             # Save agent response

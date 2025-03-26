@@ -133,7 +133,8 @@ def extract_all_messages(result: Any) -> List[Dict[str, Any]]:
 def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dict[str, Any]]] = None, 
                           tool_outputs: Optional[List[Dict[str, Any]]] = None,
                           system_prompt: Optional[str] = None,
-                          agent_id: Optional[int] = None) -> Dict[str, Any]:
+                          agent_id: Optional[int] = None,
+                          channel_payload: Optional[Dict] = None) -> Dict[str, Any]:
     """Format a message for database storage.
     
     Args:
@@ -160,6 +161,9 @@ def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dic
     
     if system_prompt:
         message["system_prompt"] = system_prompt
+    
+    if channel_payload:
+        message["channel_payload"] = channel_payload
     
     return message
 

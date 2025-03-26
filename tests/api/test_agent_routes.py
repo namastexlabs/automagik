@@ -54,7 +54,6 @@ def test_run_agent_simple(client):
     request_data = {
         "message_content": "Hello, agent! This is a test message.",
         "message_type": "text",
-        "no_history": True
     }
     
     response = client.post(f"/api/v1/agent/{test_agent}/run", json=request_data)

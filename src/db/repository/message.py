@@ -143,6 +143,10 @@ def create_message(message: Message) -> Optional[uuid.UUID]:
         if tool_outputs is not None and not isinstance(tool_outputs, str):
             tool_outputs = json.dumps(tool_outputs)
             
+        channel_payload = message.channel_payload
+        if channel_payload is not None and not isinstance(channel_payload, str):
+            channel_payload = json.dumps(channel_payload)
+        
         # Handle context and system_prompt
         context = message.context
         if context is not None and not isinstance(context, str):
@@ -158,11 +162,11 @@ def create_message(message: Message) -> Optional[uuid.UUID]:
             INSERT INTO messages (
                 id, session_id, user_id, agent_id, role, text_content, 
                 message_type, raw_payload, tool_calls, tool_outputs,
-                context, system_prompt, created_at, updated_at
+                context, system_prompt, created_at, updated_at, channel_payload
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, 
                 %s, %s, %s, %s,
-                %s, %s, %s, %s
+                %s, %s, %s, %s, %s
             )
             RETURNING id
         """
@@ -171,7 +175,7 @@ def create_message(message: Message) -> Optional[uuid.UUID]:
             message.id, message.session_id, message.user_id, message.agent_id,
             message.role, message.text_content, message.message_type,
             raw_payload, tool_calls, tool_outputs,
-            context, system_prompt, created_at, updated_at
+            context, system_prompt, created_at, updated_at, channel_payload
         ]
         
         # Log the SQL query and parameters for debugging

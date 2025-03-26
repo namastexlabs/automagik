@@ -98,7 +98,9 @@ class SimpleAgent(AutomagikAgent):
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
         
-    async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None) -> AgentResponse:
+    async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
+                 channel_payload: Optional[Dict] = None,
+                 message_limit: Optional[int] = 20) -> AgentResponse:
         """Run the agent with the given input.
         
         Args:
@@ -120,7 +122,7 @@ class SimpleAgent(AutomagikAgent):
         # Get message history in PydanticAI format
         pydantic_message_history = []
         if message_history_obj:
-            pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=20)
+            pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
         
         # Prepare user input (handle multimodal content)
         user_input = input_text

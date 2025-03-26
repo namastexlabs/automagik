@@ -89,10 +89,8 @@ class AgentRunRequest(BaseResponseModel):
     message_limit: Optional[int] = 10  # Default to last 10 messages
     session_origin: Optional[Literal["web", "whatsapp", "automagik-agent", "telegram", "discord", "slack", "cli"]] = "automagik-agent"  # Origin of the session
     agent_id: Optional[Any] = None  # Agent ID to store with messages, can be int or string
-    preserve_system_prompt: Optional[bool] = False  # Whether to preserve the existing system prompt
     parameters: Optional[Dict[str, Any]] = None  # Agent parameters
     messages: Optional[List[Any]] = None  # Optional message history
-    no_history: Optional[bool] = False  # Whether to ignore message history
 
 class AgentInfo(BaseResponseModel):
     """Information about an available agent."""

@@ -88,6 +88,7 @@ class Message(BaseDBModel):
     mime_type: Optional[str] = Field(None, description="MIME type")
     message_type: Optional[str] = Field(None, description="Message type")
     raw_payload: Optional[Dict[str, Any]] = Field(None, description="Raw message payload")
+    channel_payload: Optional[Dict[str, Any]] = Field(None, description="Channel-specific payload data")
     tool_calls: Optional[Dict[str, Any]] = Field(None, description="Tool calls")
     tool_outputs: Optional[Dict[str, Any]] = Field(None, description="Tool outputs")
     system_prompt: Optional[str] = Field(None, description="System prompt")

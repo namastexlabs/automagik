@@ -6,9 +6,77 @@ import typer
 import logging
 from dotenv import load_dotenv
 import psycopg2
+from pathlib import Path
 
 # Create the database command group
 db_app = typer.Typer()
+
+def apply_migrations(cursor, logger=None):
+    """Apply all SQL migrations from the migrations directory."""
+    if logger is None:
+        logger = logging.getLogger("apply_migrations")
+    
+    try:
+        # Get the migrations directory path
+        migrations_dir = Path("src/db/migrations")
+        if not migrations_dir.exists():
+            logger.info("No migrations directory found, skipping migrations")
+            return
+        
+        # Get all SQL files and sort them by name (which includes timestamp)
+        migration_files = sorted(migrations_dir.glob("*.sql"))
+        
+        if not migration_files:
+            logger.info("No migration files found")
+            return
+        
+        logger.info(f"Found {len(migration_files)} migration files")
+        
+        # Create migrations table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS migrations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                applied_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        
+        # Get list of already applied migrations
+        cursor.execute("SELECT name FROM migrations")
+        applied_migrations = {row[0] for row in cursor.fetchall()}
+        
+        # Apply each migration that hasn't been applied yet
+        for migration_file in migration_files:
+            migration_name = migration_file.name
+            
+            if migration_name in applied_migrations:
+                logger.info(f"Migration {migration_name} already applied, skipping")
+                continue
+            
+            logger.info(f"Applying migration: {migration_name}")
+            
+            # Read and execute the migration file
+            with open(migration_file, 'r') as f:
+                migration_sql = f.read()
+            
+            # Execute the migration
+            cursor.execute(migration_sql)
+            
+            # Record the migration as applied
+            cursor.execute(
+                "INSERT INTO migrations (name) VALUES (%s)",
+                (migration_name,)
+            )
+            
+            logger.info(f"Successfully applied migration: {migration_name}")
+        
+        logger.info("All migrations applied successfully")
+        
+    except Exception as e:
+        logger.error(f"Error applying migrations: {e}")
+        import traceback
+        logger.error(f"Detailed error: {traceback.format_exc()}")
+        raise
 
 @db_app.callback()
 def db_callback(
@@ -100,6 +168,26 @@ def db_init(
         db_host, db_port, db_name, db_user, db_password, 
         logger=logger, force=force
     )
+    
+    # Apply migrations
+    try:
+        conn = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            dbname=db_name,
+            user=db_user,
+            password=db_password
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
+        
+        apply_migrations(cursor, logger)
+        
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"❌ Failed to apply migrations: {e}")
+        return
     
     if force:
         typer.echo("✅ Database initialization completed!")
