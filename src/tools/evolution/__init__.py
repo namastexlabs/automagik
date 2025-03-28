@@ -11,11 +11,22 @@ from src.tools.evolution.tool import (
     get_chat_history_description
 )
 
+# Import from contact tool module
+from src.tools.evolution.contact_tool import (
+    send_contact,
+    send_business_contact,
+    send_personal_contact,
+    get_send_contact_description
+)
+
 # Import schema models
 from src.tools.evolution.schema import (
     Message,
     SendMessageResponse,
-    GetChatHistoryResponse
+    GetChatHistoryResponse,
+    Contact,
+    SendContactRequest,
+    SendContactResponse
 )
 
 # Import interface
@@ -29,15 +40,22 @@ __all__ = [
     # Tool functions
     'send_message',
     'get_chat_history',
+    'send_contact',
+    'send_business_contact',
+    'send_personal_contact',
     
     # Description functions
     'get_send_message_description',
     'get_chat_history_description',
+    'get_send_contact_description',
     
     # Schema models
     'Message',
     'SendMessageResponse',
     'GetChatHistoryResponse',
+    'Contact',
+    'SendContactRequest',
+    'SendContactResponse',
     
     # Interface
     'EvolutionTools',
