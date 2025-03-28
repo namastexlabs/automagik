@@ -45,10 +45,22 @@ class WhitelistConfig:
         # Default whitelist phone numbers (without country code)
         self._whitelist = [
             # Add your whitelisted numbers here (format: "5511999999999")
-            "5527998722679",  # Example number
-            "5527997482360",
-            "351913034963",
-            "556291352860",  # Added from logs
+            "5531995400658", "351913034963", "5531997110019", "5531972465316", "5531999911072", "5538998806612",
+            "5538999766612", "5531999286612", "5531998852688", "5531984597690", "5531998227449",
+            "5531995324579", "17814967681", "5531997174121", "5531999923252", "5531992936659",
+            "5531995587304", "5531999552655", "5531995128972", "5531999760420", "5538999868512",
+            "5531996018154", "5531971819210", "5531999862792", "5511984047855", "5535999732815",
+            "5531999698052", "5535984435710", "5531996024087", "5531997774130", "5531971802601",
+            "5531996606947", "5531982169954", "5531995452182", "5535984460072", "5531984816224",
+            "5535999504860", "5548996331826", "5531998752512", "5531994874620", "5512991186670",
+            "5531999155352", "5531997714239", "5531999562760", "5535998396581", "5531997673031",
+            "5535999719189", "5535998481957", "5512981472259", "5516991252858", "5535997459566",
+            "5531997442499", "5531997279437", "5531995084900", "5531988619630", "5531997281729",
+            "5538998913783", "5531997746887", "5531985804618", "5531996489909", "5538999930501",
+            "5531971525840", "5531998270262", "5531996295460", "5535997052218", "5531988753828",
+            "5531997275288", "5531997627474", "5531999465814", "5531995606163", "5531997571637",
+            "5531993798965", "5535998060654", "5531996303065", "5531997714557", "5531999274715",
+            "5531997970138", "5527998722679", "5527997482360", "556291352860"
         ]
         
     @property
@@ -307,22 +319,23 @@ class EstruturarAgent(AutomagikAgent):
                     evolution_data = self._extract_evolution_data(channel_payload) or {}
                     
                     # Get Evolution API credentials
-                    api_key = evolution_data.get("api_key", "9B10B90426EA-45D6-9EB3-97723B34F302")
+                    api_key = evolution_data.get("api_key", "5E03C326135F-440A-931B-CC472B5BFDEF")
                     base_url = evolution_data.get("base_url", "http://localhost:8080")
-                    instance_name = evolution_data.get("instance_name", "victorEvo")
+                    instance_name = evolution_data.get("instance_name", "raphael")
                     
                     # Get contact information
-                    contact_name = "Raphael Valdetaro"
-                    contact_phone = "351913034963"
-                    contact_display = "+351 913 034 963"
+                    contact_name = "Rafael Pereira - Engenheiro Civil"
+                    contact_phone = "5535997463187"
+                    contact_display = "+55 35 99746-3187"
                     
                     # Clean recipient number
                     clean_recipient = sender_number.split("@")[0] if "@" in sender_number else sender_number
                     if "@s.whatsapp.net" not in clean_recipient:
                         clean_recipient = f"{clean_recipient}@s.whatsapp.net"
                     
-                    # Import only the function we need
+                    # Import necessary functions
                     from src.tools.evolution.contact_tool import send_contact
+                    from src.tools.evolution.tool import send_message
                     from pydantic_ai import RunContext
                     
                     # Create minimal RunContext just to satisfy the function signature
@@ -341,8 +354,54 @@ class EstruturarAgent(AutomagikAgent):
                         prompt="Contact tool"
                     )
                     
+                    # First send a text message
+                    welcome_message = "Olá, tudo bem? Esse número de telefone é utilizado exclusivamente para fins comerciais da Estruturar Engenharia. Por gentileza, contate Rafael através deste contato para assuntos pessoais."
+                    
+                    # Send the welcome message directly using Evolution API REST call
+                    logger.info(f"Sending welcome message to {clean_recipient}")
+                    try:
+                        # Format base URL
+                        formatted_base_url = base_url.rstrip('/')
+                        if not formatted_base_url.startswith(('http://', 'https://')):
+                            formatted_base_url = f"http://{formatted_base_url}"
+                        
+                        # Prepare the recipient (remove @s.whatsapp.net if present)
+                        formatted_recipient = clean_recipient
+                        if "@" in formatted_recipient:
+                            formatted_recipient = formatted_recipient.split("@")[0]
+                        
+                        # Create the Evolution API request
+                        message_url = f"{formatted_base_url}/message/sendText/{instance_name}"
+                        message_headers = {
+                            "apikey": api_key,
+                            "Content-Type": "application/json"
+                        }
+                        message_payload = {
+                            "number": formatted_recipient,
+                            "text": welcome_message
+                        }
+                        
+                        # Import requests
+                        import requests
+                        
+                        # Send the message request
+                        logger.info(f"Sending text message via Evolution API to {formatted_recipient}")
+                        message_response = requests.post(
+                            message_url,
+                            headers=message_headers,
+                            json=message_payload
+                        )
+                        message_response.raise_for_status()
+                        logger.info(f"Welcome message sent successfully: {message_response.text}")
+                        
+                        # Add a small delay before sending the contact
+                        import asyncio
+                        await asyncio.sleep(1)
+                    except Exception as msg_error:
+                        logger.error(f"Error sending welcome message: {str(msg_error)}")
+                    
                     # Call send_contact directly 
-                    logger.info(f"Directly sending business contact to {clean_recipient}")
+                    logger.info(f"Directly sending personal contact to {clean_recipient}")
                     contact_result = await send_contact(
                         ctx=ctx,
                         instance_name=instance_name,
@@ -362,12 +421,12 @@ class EstruturarAgent(AutomagikAgent):
                     
                     # Create tool call record
                     tool_calls = [{
-                        "name": "send_business_contact",
+                        "name": "send_personal_contact",
                         "arguments": {"recipient_number": sender_number}
                     }]
                     
                     tool_outputs = [{
-                        "name": "send_business_contact",
+                        "name": "send_personal_contact",
                         "content": str(contact_result)
                     }]
                     
@@ -380,11 +439,11 @@ class EstruturarAgent(AutomagikAgent):
                         metadata={
                             "is_whitelisted": True,
                             "sender_number": sender_number,
-                            "action": "sent_business_contact_directly"
+                            "action": "sent_personal_contact_directly"
                         }
                     )
                 except Exception as e:
-                    logger.error(f"Error sending business contact directly: {str(e)}")
+                    logger.error(f"Error sending personal contact directly: {str(e)}")
                     logger.error(traceback.format_exc())
                     
                     # Return empty response even on error to avoid sending a text message
