@@ -14,6 +14,12 @@ from .tool import (
     get_chat_history_description
 )
 
+from .contact_tool import (
+    send_business_contact,
+    send_personal_contact,
+    get_send_contact_description
+)
+
 logger = logging.getLogger(__name__)
 
 class EvolutionTools:
@@ -79,6 +85,40 @@ class EvolutionTools:
         if result.get("success", False) and "messages" in result:
             return result["messages"]
         return []
+        
+    async def send_business_contact(self, phone: str) -> Dict[str, Any]:
+        """Send business contact information to a phone number.
+
+        Args:
+            phone: The phone number to send the contact to
+
+        Returns:
+            Response data from the API
+        """
+        # Create a mock RunContext
+        ctx = RunContext({})
+        
+        # Call the actual implementation
+        result = await send_business_contact(ctx, phone)
+        
+        return result
+        
+    async def send_personal_contact(self, phone: str) -> Dict[str, Any]:
+        """Send personal contact information to a phone number.
+
+        Args:
+            phone: The phone number to send the contact to
+
+        Returns:
+            Response data from the API
+        """
+        # Create a mock RunContext
+        ctx = RunContext({})
+        
+        # Call the actual implementation
+        result = await send_personal_contact(ctx, phone)
+        
+        return result
 
 # Create Evolution tool instances
 evolution_send_message_tool = Tool(
@@ -93,8 +133,22 @@ evolution_get_chat_history_tool = Tool(
     function=get_chat_history
 )
 
+evolution_send_business_contact_tool = Tool(
+    name="evolution_send_business_contact",
+    description="Send business contact information to a WhatsApp user.",
+    function=send_business_contact
+)
+
+evolution_send_personal_contact_tool = Tool(
+    name="evolution_send_personal_contact",
+    description="Send personal contact information to a WhatsApp user.",
+    function=send_personal_contact
+)
+
 # Group all Evolution tools
 evolution_tools = [
     evolution_send_message_tool,
-    evolution_get_chat_history_tool
+    evolution_get_chat_history_tool,
+    evolution_send_business_contact_tool,
+    evolution_send_personal_contact_tool
 ] 
