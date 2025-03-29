@@ -269,24 +269,26 @@ class EstruturarAgent(AutomagikAgent):
                 if event_type == "send.message" and "contactMessage" in str(channel_payload.get("data", {}).get("message", {})):
                     logger.info("Ignoring webhook for contact we just sent")
                     return AgentResponse(
-                        text="",
+                        text="AUTOMAGIK:IGNORE_CONTACT_EVENT",
                         success=True,
                         metadata={
                             "is_whitelisted": True,
                             "sender_number": sender_number,
-                            "action": "ignored_contact_webhook"
+                            "action": "ignored_contact_webhook",
+                            "should_ignore": True
                         }
                     )
                 # Also ignore message status updates
                 elif event_type == "messages.update":
                     logger.info("Ignoring message status update webhook")
                     return AgentResponse(
-                        text="",
+                        text="AUTOMAGIK:IGNORE_STATUS_UPDATE",
                         success=True,
                         metadata={
                             "is_whitelisted": True,
                             "sender_number": sender_number,
-                            "action": "ignored_status_update"
+                            "action": "ignored_status_update",
+                            "should_ignore": True
                         }
                     )
                 # Only process messages.upsert that are not from us
@@ -298,12 +300,13 @@ class EstruturarAgent(AutomagikAgent):
                     if from_me:
                         logger.info("Ignoring message sent by us")
                         return AgentResponse(
-                            text="",
+                            text="AUTOMAGIK:IGNORE_SELF_MESSAGE",
                             success=True,
                             metadata={
                                 "is_whitelisted": True,
                                 "sender_number": sender_number,
-                                "action": "ignored_self_message"
+                                "action": "ignored_self_message",
+                                "should_ignore": True
                             }
                         )
             
@@ -431,43 +434,47 @@ class EstruturarAgent(AutomagikAgent):
                         "content": str(contact_result)
                     }]
                     
-                    # Return empty response to avoid sending a text message
+                    # Return response with EMPTY text to avoid duplicate messages
                     return AgentResponse(
-                        text="",  # Empty text to avoid duplicate messages
+                        text="AUTOMAGIK:CONTACT_SENT_SUCCESSFULLY",
                         success=True,
                         tool_calls=tool_calls,
                         tool_outputs=tool_outputs,
+                        raw_message=all_messages,
                         metadata={
                             "is_whitelisted": True,
                             "sender_number": sender_number,
-                            "action": "sent_personal_contact_directly"
+                            "action": "sent_business_contact_directly",
+                            "should_ignore": False  # We actually want a response to confirm contact was sent
                         }
                     )
                 except Exception as e:
                     logger.error(f"Error sending personal contact directly: {str(e)}")
                     logger.error(traceback.format_exc())
                     
-                    # Return empty response even on error to avoid sending a text message
+                    # Fallback response if the tool call fails - sending empty message to avoid duplicate texts
                     return AgentResponse(
-                        text="",
+                        text="AUTOMAGIK:ERROR_SENDING_CONTACT",
                         success=False,
                         metadata={
                             "is_whitelisted": True,
                             "sender_number": sender_number,
                             "error": str(e),
-                            "action": "silent_error"
+                            "action": "silent_fallback",
+                            "should_ignore": True
                         }
                     )
             else:
                 # Not whitelisted - don't respond
                 logger.info(f"Sender {sender_number} is not in whitelist, not responding")
                 return AgentResponse(
-                    text="",  # Empty response
+                    text="AUTOMAGIK:IGNORE_NON_WHITELISTED_USER",  # Special code for omni-hub to identify
                     success=True,
                     metadata={
                         "is_whitelisted": False,
                         "sender_number": sender_number,
-                        "action": "no_response"
+                        "action": "no_response",
+                        "should_ignore": True
                     }
                 )
         
