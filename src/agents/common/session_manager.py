@@ -27,14 +27,14 @@ def create_run_id() -> str:
     return f"run-{uuid.uuid4()}"
 
 def create_context(agent_id: Optional[Union[int, str]] = None, 
-                  user_id: Optional[int] = None,
+                  user_id: Optional[Union[uuid.UUID, str]] = None,
                   session_id: Optional[str] = None,
                   additional_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Create a context dictionary for an agent run.
     
     Args:
         agent_id: Optional agent ID
-        user_id: Optional user ID
+        user_id: Optional user ID (UUID or string)
         session_id: Optional session ID
         additional_context: Optional dictionary with additional context
         
@@ -107,23 +107,27 @@ def validate_agent_id(agent_id: Optional[Union[int, str]]) -> Optional[Union[int
     logger.warning(f"Invalid agent_id type: {type(agent_id)}")
     return None
 
-def validate_user_id(user_id: Optional[Union[int, str]]) -> Optional[int]:
+def validate_user_id(user_id: Optional[Union[uuid.UUID, str]]) -> Optional[uuid.UUID]:
     """Validate and normalize a user ID.
     
     Args:
-        user_id: User ID to validate
+        user_id: User ID to validate (UUID or string)
         
     Returns:
-        Normalized user ID or None if invalid
+        Normalized user ID (UUID) or None if invalid
     """
     if user_id is None:
         return None
     
-    # Convert to int if possible
+    # If already a UUID, return it
+    if isinstance(user_id, uuid.UUID):
+        return user_id
+    
+    # Try to convert string to UUID
     try:
-        return int(user_id)
-    except (ValueError, TypeError):
-        logger.warning(f"Invalid user_id: {user_id}")
+        return uuid.UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        logger.warning(f"Invalid user_id format: {user_id}")
         return None
 
 def extract_multimodal_content(context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
