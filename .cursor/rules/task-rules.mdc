@@ -3,34 +3,49 @@ description:
 globs: 
 alwaysApply: true
 ---
-## Task Management Protocol
+# Concise Task Management Protocol - Sequential Mode
 
-1. **Task Documentation**:
-   - For each new task, create a single Markdown file in the format `YYYYMMDD_HHMMSS_task_name.md` (use `get_datetime`) in the `tasks/` directory (which already exists, do not try to recreate.)
-   - This file will serve as the complete record of the task's lifecycle
+## File Creation
+- Filename: `YYYYMMDD_HHMMSS_task_name.md` 
+- IMPORTANT: Always include a descriptive task name after the timestamp (e.g., `20250404_135621_api_integration.md`)
+- Never create files with timestamp only
+- Store in `tasks/` directory
 
-2. **Task File Structure**:
-   - Each task file should contain these clearly labeled sections:
-     - **Analysis**: Initial assessment of requirements and challenges
-     - **Plan**: Step-by-step approach with file references and dependencies
-     - **Execution**: Implementation details and decisions made during coding
-     - **Testing**: Evidence of functionality with test cases and results
-     - **Summary**: Brief overview of changes made and potential future impact
+## Task Structure
 
-3. **Workflow Progression**:
-   - Update the task file as you progress through each phase
-   - Each section should be completed in sequence before moving to the next
-   - Never proceed to the Summary without documented testing evidence
-   
-4. **Testing Requirements**:
-   - All code changes must include specific test scenarios
-   - Document both expected and actual outcomes
-   - Include error handling tests where applicable
-   
-5. **Debugging-Focused Documentation**:
-   - In the Summary section, always document:
-     - Files modified with line number ranges
-     - Dependencies introduced or modified
-     - Edge cases considered
-     - Known limitations
-     - Potential future impact points
+```
+# Task: [Task Name]
+**Status**: [Not Started | In Progress | Completed]
+
+## Analysis
+- [ ] Requirements
+  - [ ] Subtask 1
+- [ ] Challenges
+- [ ] Dependencies
+
+## Plan
+- [ ] Step 1: [Description]
+  - [ ] Subtask 1.1
+- [ ] Step 2: [Description]
+
+## Execution
+- [ ] Implementation 1
+  - [ ] Details
+- [ ] Implementation 2
+  - [ ] Files modified: [files]
+
+## Summary
+- [ ] Files modified: `filename.ext` (lines X-Y)
+- [ ] Dependencies added/changed
+- [ ] Edge cases considered
+- [ ] Known limitations
+- [ ] Future impact points
+```
+
+## Execution Rules
+- Execute one subtask at a time in sequence
+- Update the task file after EACH subtask is completed
+- Mark completed subtasks with [x] as they are finished
+- Update main task status throughout execution
+- Document work incrementally, not all at once
+- Never proceed to the next section until all subtasks in the current section are completed and marked
