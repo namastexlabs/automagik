@@ -5,10 +5,9 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-from typing import Dict, Any, Optional, Union, Tuple
+from typing import Dict, Optional
 
 from pydantic_ai import Agent
-from src.agents.common import memory_handler
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
@@ -29,7 +28,6 @@ from src.agents.common.message_parser import (
 )
 from src.agents.common.dependencies_helper import (
     parse_model_settings,
-    create_model_settings,
     create_usage_limits,
     get_model_name,
     add_system_message_to_history
