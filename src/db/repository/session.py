@@ -53,7 +53,7 @@ def get_session_by_name(name: str) -> Optional[Session]:
 
 
 def list_sessions(
-    user_id: Optional[int] = None, 
+    user_id: Optional[uuid.UUID] = None, 
     agent_id: Optional[int] = None,
     page: Optional[int] = None,
     page_size: Optional[int] = None,
@@ -62,7 +62,7 @@ def list_sessions(
     """List sessions with optional filtering and pagination.
     
     Args:
-        user_id: Filter by user ID
+        user_id: Filter by user ID (UUID)
         agent_id: Filter by agent ID
         page: Page number (1-based, optional)
         page_size: Number of items per page (optional)
@@ -82,7 +82,7 @@ def list_sessions(
         
         if user_id is not None:
             conditions.append("user_id = %s")
-            params.append(user_id)
+            params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
         
         if agent_id is not None:
             conditions.append("agent_id = %s")

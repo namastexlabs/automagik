@@ -2,21 +2,22 @@
 
 import json
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+import uuid
+from typing import List, Optional, Dict, Any, Tuple, Union
 import copy
 
-from src.db.connection import execute_query
+from src.db.connection import execute_query, safe_uuid, generate_uuid
 from src.db.models import User
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 
-def get_user(user_id: int) -> Optional[User]:
+def get_user(user_id: Union[uuid.UUID, str]) -> Optional[User]:
     """Get a user by ID.
     
     Args:
-        user_id: The user ID
+        user_id: The user ID (UUID or string)
         
     Returns:
         User object if found, None otherwise
@@ -24,7 +25,7 @@ def get_user(user_id: int) -> Optional[User]:
     try:
         result = execute_query(
             "SELECT * FROM users WHERE id = %s",
-            (user_id,)
+            (safe_uuid(user_id),)
         )
         return User.from_db_row(result[0]) if result else None
     except Exception as e:
@@ -56,15 +57,18 @@ def get_user_by_identifier(identifier: str) -> Optional[User]:
     """Get a user by ID, email, or phone number.
     
     Args:
-        identifier: The user ID, email, or phone number
+        identifier: The user ID (UUID string), email, or phone number
         
     Returns:
         User object if found, None otherwise
     """
     try:
-        # First check if it's an ID
-        if identifier.isdigit():
-            return get_user(int(identifier))
+        # First check if it's a UUID
+        try:
+            uuid_obj = uuid.UUID(identifier)
+            return get_user(uuid_obj)
+        except ValueError:
+            pass
         
         # Try email
         user = get_user_by_email(identifier)
@@ -113,14 +117,14 @@ def list_users(page: int = 1, page_size: int = 100) -> Tuple[List[User], int]:
         return [], 0
 
 
-def create_user(user: User) -> Optional[int]:
+def create_user(user: User) -> Optional[uuid.UUID]:
     """Create a new user.
     
     Args:
         user: The user to create
         
     Returns:
-        The created user ID if successful, None otherwise
+        The created user ID (UUID) if successful, None otherwise
     """
     try:
         # Check if user with this email already exists
@@ -134,16 +138,21 @@ def create_user(user: User) -> Optional[int]:
         # Prepare user data
         user_data_json = json.dumps(user.user_data) if user.user_data else None
         
+        # Generate UUID if not provided
+        if not user.id:
+            user.id = generate_uuid()
+        
         # Insert the user
         result = execute_query(
             """
             INSERT INTO users (
-                email, phone_number, user_data, created_at, updated_at
+                id, email, phone_number, user_data, created_at, updated_at
             ) VALUES (
-                %s, %s, %s, NOW(), NOW()
+                %s, %s, %s, %s, NOW(), NOW()
             ) RETURNING id
             """,
             (
+                user.id,
                 user.email,
                 user.phone_number,
                 user_data_json
@@ -158,14 +167,14 @@ def create_user(user: User) -> Optional[int]:
         return None
 
 
-def update_user(user: User) -> Optional[int]:
+def update_user(user: User) -> Optional[uuid.UUID]:
     """Update an existing user.
     
     Args:
         user: The user to update
         
     Returns:
-        The updated user ID if successful, None otherwise
+        The updated user ID (UUID) if successful, None otherwise
     """
     try:
         if not user.id:
@@ -205,7 +214,7 @@ def update_user(user: User) -> Optional[int]:
         return None
 
 
-def delete_user(user_id: int) -> bool:
+def delete_user(user_id: uuid.UUID) -> bool:
     """Delete a user.
     
     Args:
@@ -217,7 +226,7 @@ def delete_user(user_id: int) -> bool:
     try:
         execute_query(
             "DELETE FROM users WHERE id = %s",
-            (user_id,),
+            (safe_uuid(user_id),),
             fetch=False
         )
         logger.info(f"Deleted user with ID {user_id}")
@@ -227,17 +236,21 @@ def delete_user(user_id: int) -> bool:
         return False
 
 
-def ensure_default_user_exists(user_id: int = 1, email: str = "admin@automagik") -> bool:
+def ensure_default_user_exists(user_id: Optional[uuid.UUID] = None, email: str = "admin@automagik") -> bool:
     """Ensures a default user exists in the database, creating it if necessary.
     
     Args:
-        user_id: The default user ID
+        user_id: The default user ID, defaults to a random UUID if None
         email: The default user email
     
     Returns:
         True if user already existed or was created successfully, False otherwise
     """
     try:
+        # Generate a proper UUID if not provided
+        if user_id is None:
+            user_id = generate_uuid()
+            
         # Check if user exists
         user = get_user(user_id)
         if user:
@@ -264,7 +277,7 @@ def ensure_default_user_exists(user_id: int = 1, email: str = "admin@automagik")
         return False
 
 
-def update_user_data(user_id: int, data_updates: Dict[str, Any], path: Optional[str] = None) -> bool:
+def update_user_data(user_id: uuid.UUID, data_updates: Dict[str, Any], path: Optional[str] = None) -> bool:
     """Update specific fields in a user's user_data JSONB without affecting other existing fields.
     
     This function allows updating nested dictionary values while preserving the rest of the structure.
@@ -323,7 +336,7 @@ def update_user_data(user_id: int, data_updates: Dict[str, Any], path: Optional[
             SET user_data = %s, updated_at = NOW()
             WHERE id = %s
             """,
-            (json.dumps(current_data), user_id),
+            (json.dumps(current_data), safe_uuid(user_id)),
             fetch=False
         )
         
