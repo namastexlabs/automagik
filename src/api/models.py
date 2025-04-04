@@ -87,7 +87,7 @@ class AgentRunRequest(BaseResponseModel):
     session_name: Optional[str] = None  # Optional friendly name for the session
     user_id: Optional[int] = 1  # User ID is now an integer with default value 1
     message_limit: Optional[int] = 10  # Default to last 10 messages
-    session_origin: Optional[Literal["web", "whatsapp", "automagik-agent", "telegram", "discord", "slack", "cli"]] = "automagik-agent"  # Origin of the session
+    session_origin: Optional[Literal["web", "whatsapp", "automagik-agent", "telegram", "discord", "slack", "cli", "app", "manychat"]] = "automagik-agent"  # Origin of the session
     agent_id: Optional[Any] = None  # Agent ID to store with messages, can be int or string
     parameters: Optional[Dict[str, Any]] = None  # Agent parameters
     messages: Optional[List[Any]] = None  # Optional message history
