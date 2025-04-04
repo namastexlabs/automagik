@@ -52,7 +52,7 @@ class FlashinhoAgent(AutomagikAgent):
         
         # Configure dependencies
         self.dependencies = AutomagikAgentsDependencies(
-            model_name='google-gla:gemini-2.5-flash',
+            model_name='google-gla:gemini-2.0-flash',
             model_settings=parse_model_settings(config)
         )
         
