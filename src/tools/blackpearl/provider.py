@@ -768,4 +768,16 @@ class BlackpearlProvider:
         Returns:
             Registration result with codigo_cliente_omie
         """
-        return await self._request("GET", f"/api/v1/cadastro/finalizar/{cliente_id}/") 
+        import logging
+        from src.config import settings
+        
+        logger = logging.getLogger(__name__)
+        
+        # Check if environment is development
+        is_development = settings.AM_ENV == "development"
+        development_param = "?development=true" if is_development else ""
+        
+        if is_development:
+            logger.warning("Development mode detected: Will not send data to OMIE")
+            
+        return await self._request("GET", f"/api/v1/cadastro/finalizar/{cliente_id}/{development_param}")
