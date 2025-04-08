@@ -167,13 +167,13 @@ class StanEmailAgent(AutomagikAgent):
         tool_calls.append(fetch_tool_call)
         
         # Execute the tool
-        result = await fetch_emails(None, fetch_input)
+        email_agent_result = await fetch_emails(None, fetch_input)
         
         
         
         # Process the results - extract threads for each unread email
-        if result.get('success', False):
-            emails = result.get('emails', [])
+        if email_agent_result.get('success', False):
+            emails = email_agent_result.get('emails', [])
             logger.info(f"Found {len(emails)} unread Stan lead emails")
                 
             if len(emails) == 0:
@@ -182,9 +182,11 @@ class StanEmailAgent(AutomagikAgent):
                     success=True,
                     tool_calls=tool_calls,
                     tool_outputs=[],
-                    raw_message=result,
+                    raw_message=email_agent_result,
                     system_prompt=AGENT_PROMPT,
                 )
+                
+            user_info = None
                 
             # Collect all threads
             all_threads = []
@@ -243,7 +245,7 @@ class StanEmailAgent(AutomagikAgent):
             self.context['unread_threads'] = all_threads
             logger.info(f"Processed {len(all_threads)} unique email threads in total")
         else:
-            logger.error(f"Failed to fetch emails: {result.get('error')}")
+            logger.error(f"Failed to fetch emails: {email_agent_result.get('error')}")
 
         
         # Initialize the agent
@@ -254,25 +256,25 @@ class StanEmailAgent(AutomagikAgent):
             # Process each thread
             for thread in self.context['unread_threads']:
                 thread_info = thread['full_thread_body']
-                result = await self._agent_instance.run(
+                email_agent_result = await self._agent_instance.run(
                     user_prompt=f"Extract information from the following email thread: {thread_info}"
                 )
                     
                 # Update the thread with extracted information
                 black_pearl_client = None
-                if result.data and result.data.black_pearl_client_id: 
-                    black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=result.data.black_pearl_client_id)
+                if email_agent_result.data and email_agent_result.data.black_pearl_client_id: 
+                    black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
                     black_pearl_contact = await blackpearl.get_contato(ctx=self.context, contato_id=black_pearl_client.contatos[0])
                     
-                    thread['extracted_info'] = result.data
+                    thread['extracted_info'] = email_agent_result.data
                     thread['black_pearl_client'] = black_pearl_client
                     thread['black_pearl_contact'] = black_pearl_contact
                     
                     # Update contato and cliente with extracted information
-                    black_pearl_contact.status_aprovacao = result.data.approval_status
-                    black_pearl_client.status_aprovacao = result.data.approval_status
-                    black_pearl_client.valor_limite_credito = result.data.credit_score
-                    black_pearl_contact.detalhes_aprovacao = result.data.extra_information
+                    black_pearl_contact.status_aprovacao = email_agent_result.data.approval_status
+                    black_pearl_client.status_aprovacao = email_agent_result.data.approval_status
+                    black_pearl_client.valor_limite_credito = email_agent_result.data.credit_score
+                    black_pearl_contact.detalhes_aprovacao = email_agent_result.data.extra_information
                     
                     # Extract user_id from wpp_session_id which has format "userid_agentid"
                     user_id = black_pearl_contact.wpp_session_id.split('_')[0] if black_pearl_contact.wpp_session_id else None
@@ -286,7 +288,6 @@ class StanEmailAgent(AutomagikAgent):
                     # Check if we've already sent a BP analysis email to this user
                     if hasattr(user, 'user_data') and user.user_data and user.user_data.get('bp_analysis_email_message_sent'):
                         logger.info(f"User {user_id} has already received BP analysis email. Skipping message.")
-                        
                         # Still mark the thread as processed
                         thread['processed'] = True
                         continue
@@ -294,9 +295,9 @@ class StanEmailAgent(AutomagikAgent):
                     
                     # Prepare string with user information and approval status
                     user_info = f"Nome: {black_pearl_contact.nome} Email: {black_pearl_client.email} Telefone: {user.phone_number}"
-                    approval_status_info = f"Status de aprovação: {result.data.approval_status}"
-                    credit_score_info = f"Pontuação de crédito: {result.data.credit_score}"
-                    extra_information = f"Informações extras: {result.data.extra_information}"
+                    approval_status_info = f"Status de aprovação: {email_agent_result.data.approval_status}"
+                    credit_score_info = f"Pontuação de crédito: {email_agent_result.data.credit_score}"
+                    extra_information = f"Informações extras: {email_agent_result.data.extra_information}"
                     
                     user_sessions = list_sessions(user_id=user_id, agent_id=agent_id)
                     user_message_history = []
@@ -318,7 +319,7 @@ class StanEmailAgent(AutomagikAgent):
                     if not user.user_data.get('bp_analysis_email_message_sent', False):
                         await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
                         
-                        await update_user_data(user_id=user.id, data_updates={
+                        update_user_data(user_id=user.id, data_updates={
                             "blackpearl_contact_id": black_pearl_contact.id,
                             "blackpearl_cliente_id": black_pearl_client.id,
                             "bp_analysis_email_message_sent": True
@@ -350,7 +351,7 @@ class StanEmailAgent(AutomagikAgent):
                         logger.error(f"Error updating client: {str(e)}")
                     
                     try:
-                        await update_user(user=user)
+                        update_user(user=user)
                     except Exception as e:
                         logger.error(f"Error updating user: {str(e)}")
                         
