@@ -20,6 +20,9 @@ from src.db import (
     update_memory as repo_update_memory,
     list_memories as repo_list_memories,
     delete_memory as repo_delete_memory,
+    get_user,
+    User,
+    create_user
 )
 from src.config import settings
 from src.memory.message_history import MessageHistory
@@ -29,6 +32,43 @@ memory_router = APIRouter()
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+# Utility function to ensure user exists without requiring MessageHistory
+def ensure_user_exists(user_id: Optional[UUID]) -> Optional[UUID]:
+    """
+    Ensures a user exists in the database before performing operations.
+    If the user doesn't exist, it creates a minimal user record.
+    
+    Args:
+        user_id: The user ID to check/create
+        
+    Returns:
+        The same user_id if provided, or None if not
+    """
+    if not user_id:
+        return None
+        
+    try:
+        # Check if user exists
+        user = get_user(user_id)
+        if not user:
+            # Create minimal user with just the ID
+            from datetime import datetime
+            user = User(
+                id=user_id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            created_id = create_user(user)
+            if created_id:
+                logger.info(f"Auto-created user with ID {user_id} for memory operations")
+                return created_id
+            else:
+                logger.warning(f"Failed to auto-create user with ID {user_id}")
+        return user_id
+    except Exception as e:
+        logger.error(f"Error ensuring user exists: {str(e)}")
+        return user_id  # Return the original ID anyway to not break existing code
 
 # Validate UUID helper function (duplicated from routes.py for modularity)
 def is_valid_uuid(value: str) -> bool:
@@ -50,7 +90,7 @@ def is_valid_uuid(value: str) -> bool:
             summary="List Memories",
             description="List all memories with optional filters and pagination.")
 async def list_memories(
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    user_id: Optional[str] = Query(None, description="Filter by user ID (UUID)"),
     agent_id: Optional[int] = Query(None, description="Filter by agent ID"),
     session_id: Optional[str] = Query(None, description="Filter by session ID"),
     page: int = Query(1, description="Page number (1-based)"),
@@ -65,10 +105,18 @@ async def list_memories(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid session_id format: {session_id}")
     
+    # Convert user_id to UUID if provided
+    user_uuid = None
+    if user_id:
+        try:
+            user_uuid = uuid.UUID(user_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid user_id format: {user_id}")
+    
     # Use the repository pattern to list memories
     memories = repo_list_memories(
         agent_id=agent_id,
-        user_id=user_id,
+        user_id=user_uuid,
         session_id=session_uuid
     )
     
@@ -127,6 +175,11 @@ async def create_memory(memory: MemoryCreate):
                 session_uuid = uuid.UUID(memory.session_id)
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Invalid session_id format: {memory.session_id}")
+                
+        # Ensure user exists before creating the memory (auto-create if needed)
+        if memory.user_id:
+            # Use our direct utility function instead of MessageHistory
+            memory.user_id = ensure_user_exists(memory.user_id)
         
         # Create a Memory model for the repository
         memory_model = Memory(
@@ -135,7 +188,7 @@ async def create_memory(memory: MemoryCreate):
             description=memory.description,
             content=memory.content,
             session_id=session_uuid,
-            user_id=memory.user_id,
+            user_id=memory.user_id,  # Already UUID from Pydantic model
             agent_id=memory.agent_id,
             read_mode=memory.read_mode,
             access=memory.access,
@@ -181,6 +234,8 @@ async def create_memory(memory: MemoryCreate):
 async def create_memories_batch(memories: List[MemoryCreate]):
     try:
         results = []
+        success_count = 0
+        error_count = 0
         
         for memory in memories:
             try:
@@ -191,8 +246,13 @@ async def create_memories_batch(memories: List[MemoryCreate]):
                         session_uuid = uuid.UUID(memory.session_id)
                     except ValueError:
                         logger.warning(f"Invalid session_id format in batch: {memory.session_id}")
-                        # Skip invalid UUIDs but continue with the operation
-                        pass
+                        error_count += 1
+                        continue
+                
+                # Ensure user exists before creating the memory (auto-create if needed)
+                if memory.user_id:
+                    # Use our direct utility function instead of MessageHistory
+                    memory.user_id = ensure_user_exists(memory.user_id)
                 
                 # Create a Memory model for the repository
                 memory_model = Memory(
@@ -201,7 +261,7 @@ async def create_memories_batch(memories: List[MemoryCreate]):
                     description=memory.description,
                     content=memory.content,
                     session_id=session_uuid,
-                    user_id=memory.user_id,
+                    user_id=memory.user_id,  # Already UUID from Pydantic model
                     agent_id=memory.agent_id,
                     read_mode=memory.read_mode,
                     access=memory.access,
@@ -215,6 +275,7 @@ async def create_memories_batch(memories: List[MemoryCreate]):
                 
                 if memory_id is None:
                     logger.warning(f"Failed to create memory in batch: {memory.name}")
+                    error_count += 1
                     continue
                 
                 # Retrieve the created memory to get all fields
@@ -222,9 +283,11 @@ async def create_memories_batch(memories: List[MemoryCreate]):
                 
                 if not created_memory:
                     logger.warning(f"Memory created but not found with ID {memory_id}")
+                    error_count += 1
                     continue
                 
                 # Add to results
+                success_count += 1
                 results.append(MemoryResponse(
                     id=str(created_memory.id),
                     name=created_memory.name,
@@ -242,7 +305,11 @@ async def create_memories_batch(memories: List[MemoryCreate]):
             except Exception as e:
                 # Log error but continue with other memories
                 logger.error(f"Error creating memory in batch: {str(e)}")
+                error_count += 1
                 continue
+        
+        # Log a summary of the operation
+        logger.info(f"Batch memory creation complete: {success_count} succeeded, {error_count} failed")
         
         # Return all successfully created memories
         return results
