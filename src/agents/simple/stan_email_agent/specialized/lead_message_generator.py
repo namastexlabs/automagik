@@ -81,7 +81,7 @@ async def generate_approval_status_message(input_text: str) -> str:
         
         2. If the user is REJECTED:
         - DO NOT directly inform them why they were rejected or mention their status
-        - Politely direct them to contact the Solid team via email at "contato@solid.com.br" for more information
+        - Politely direct them to contact the Solid team via email at "timestan@solidpower.com.br" for more information
         - Be respectful and professional
         
         3. If MORE INFORMATION is needed:
