@@ -108,11 +108,11 @@ async def list_memories(
         })
     
     return {
-        "items": memory_responses,
+        "memories": memory_responses,
+        "count": total_count,
         "page": page,
         "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages
+        "pages": total_pages
     }
 
 @memory_router.post("/memories", response_model=MemoryResponse, tags=["Memories"],
