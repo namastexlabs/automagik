@@ -94,6 +94,7 @@ class AgentRunRequest(BaseResponseModel):
 
 class AgentInfo(BaseResponseModel):
     """Information about an available agent."""
+    id: int
     name: str
     description: Optional[str] = None
 

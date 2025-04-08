@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from starlette.responses import JSONResponse
 from src.api.models import AgentInfo, AgentRunRequest
-from src.api.controllers.agent_controller import list_agent_templates, handle_agent_run
+from src.api.controllers.agent_controller import list_registered_agents, handle_agent_run
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -12,13 +12,13 @@ agent_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @agent_router.get("/agent/list", response_model=List[AgentInfo], tags=["Agents"], 
-           summary="List Available Agents",
-           description="Returns a list of all available agent templates that can be used.")
+           summary="List Registered Agents",
+           description="Returns a list of all registered agents available in the database.")
 async def list_agents():
     """
-    Get a list of all available agent templates
+    Get a list of all registered agents
     """
-    return await list_agent_templates()
+    return await list_registered_agents()
 
 @agent_router.post("/agent/{agent_name}/run", tags=["Agents"],
             summary="Run Agent",

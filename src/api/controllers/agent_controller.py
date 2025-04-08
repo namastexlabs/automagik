@@ -14,42 +14,38 @@ from src.db import get_agent_by_name
 from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
 from src.db.repository.session import get_session_by_name, create_session
+from src.db.repository.agent import list_agents as list_db_agents
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
 
-async def list_agent_templates() -> List[AgentInfo]:
+async def list_registered_agents() -> List[AgentInfo]:
     """
-    List all available agent templates
+    List all registered agents from the database.
     """
     try:
-        # Get all available agent templates
-        factory = AgentFactory()
-        agent_templates = factory.list_available_agents()
+        # Get all registered agents from the database
+        registered_agents = list_db_agents(active_only=True)
         
         # Convert to list of AgentInfo objects
         agent_infos = []
-        for template in agent_templates:
-            # Get agent class
-            agent_class = factory.get_agent_class(template)
+        for agent in registered_agents:
+            # Get agent class to fetch docstring (optional, could be removed if description isn't crucial)
+            factory = AgentFactory()
+            agent_class = factory.get_agent_class(agent.name.replace('_agent', ''))
+            docstring = inspect.getdoc(agent_class) if agent_class else agent.description or ""
             
-            # Skip if agent class not found
-            if not agent_class:
-                continue
-                
-            # Get docstring (if any)
-            docstring = inspect.getdoc(agent_class) or ""
-            
-            # Create agent info
+            # Create agent info including the ID
             agent_infos.append(AgentInfo(
-                name=template,
+                id=agent.id,
+                name=agent.name.replace('_agent', ''),
                 description=docstring
             ))
             
         return agent_infos
     except Exception as e:
-        logger.error(f"Error listing agent templates: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list agent templates: {str(e)}")
+        logger.error(f"Error listing registered agents: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list registered agents: {str(e)}")
 
 
 async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[str, Any]:
