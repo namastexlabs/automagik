@@ -262,9 +262,9 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             email: Client email
             telefone_comercial: Client commercial phone number, numbers only, no formatting
             cnpj: Client CNPJ Numbers only, no formatting
-            inscricao_estadual: Client state registration
-            endereco: Street address
-            endereco_numero: Address number
+            inscricao_estadual: Client state registration [Obligatory]
+            endereco: Street address [Obligatory]
+            endereco_numero: Address number [Obligatory]
             endereco_complemento: Address complement
             bairro: Neighborhood
             cidade: Client city 

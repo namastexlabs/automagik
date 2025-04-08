@@ -57,6 +57,15 @@ def handle_api_error(func):
             # If the error is about 204 response, it's actually a success
             if "204" in str(e) and "Attempt to decode JSON with unexpected mimetype" in str(e):
                 return None
+            
+            # If the error contains response data (typically with 4xx status codes), return it
+            if hasattr(e, 'response') and hasattr(e.response, 'json'):
+                try:
+                    error_data = e.response.json()
+                    logger.warning(f"API returned error status but with content: {error_data}")
+                    return error_data
+                except:
+                    pass
                 
             # Enhanced error logging in development/debug mode
             if is_dev_debug:
