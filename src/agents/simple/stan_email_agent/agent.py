@@ -312,21 +312,10 @@ class StanEmailAgent(AutomagikAgent):
                                                      for message in user_message_history 
                                                      if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
                     
-                    message_text = f"Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}\n\n\n"
-                    message_text += f"Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}"
-                    
+                    message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
+                    message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
                     message = await lead_message_generator.generate_approval_status_message(message_text)
-                    if not user.user_data.get('bp_analysis_email_message_sent', False):
-                        await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
-                        
-                        update_user_data(user_id=user.id, data_updates={
-                            "blackpearl_contact_id": black_pearl_contact.id,
-                            "blackpearl_cliente_id": black_pearl_client.id,
-                            "bp_analysis_email_message_sent": True
-                            
-                        })
-                        logger.info(f"Updated user_data with bp_analysis_email_message_sent flag for user ID: {user.id}")
-                        
+                  
                     if black_pearl_contact.status_aprovacao == StatusAprovacaoEnum.APPROVED:
                         data_aprovacao = datetime.datetime.now()
                         black_pearl_contact.data_aprovacao = data_aprovacao
@@ -355,7 +344,16 @@ class StanEmailAgent(AutomagikAgent):
                     except Exception as e:
                         logger.error(f"Error updating user: {str(e)}")
                         
-                    
+                    if not user.user_data.get('bp_analysis_email_message_sent', False):
+                        await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
+                        
+                        update_user_data(user_id=user.id, data_updates={
+                            "blackpearl_contact_id": black_pearl_contact.id,
+                            "blackpearl_cliente_id": black_pearl_client.id,
+                            "bp_analysis_email_message_sent": True
+                            
+                        })
+                        logger.info(f"Updated user_data with bp_analysis_email_message_sent flag for user ID: {user.id}")                   
                     # Mark the thread as processed
                     thread['processed'] = True
                     
