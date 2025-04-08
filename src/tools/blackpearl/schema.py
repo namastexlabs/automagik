@@ -93,10 +93,11 @@ class FamiliaDeProduto(BaseModel):
     id: int = Field(..., description="Unique identifier")
     codigo: int = Field(..., description="Product family code in Omie")
     nomeFamilia: str = Field(..., max_length=255, description="Family name")
+    
 class TipoOperacaoEnum(str, Enum):
     ONLINE = "Online"
     FISICA = "Fisica"
-    HIBRIDO = "Hibrido"
+    HIBRIDA = "Hibrida"
 
 class Cliente(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
