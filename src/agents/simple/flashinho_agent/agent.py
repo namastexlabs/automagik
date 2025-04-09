@@ -52,7 +52,7 @@ class FlashinhoAgent(AutomagikAgent):
         
         # Configure dependencies
         self.dependencies = AutomagikAgentsDependencies(
-            model_name='google-gla:gemini-2.0-flash',
+            model_name=get_model_name(config=config),
             model_settings=parse_model_settings(config)
         )
         
@@ -77,7 +77,7 @@ class FlashinhoAgent(AutomagikAgent):
             
         # Get model configuration
         model_name = self.dependencies.model_name
-        model_settings = create_model_settings(self.dependencies.model_settings)
+        model_settings = create_model_settings(self.dependencies.model_settings, model_name)
         
         # Convert tools to PydanticAI format
         tools = self.tool_registry.convert_to_pydantic_tools()
@@ -86,7 +86,7 @@ class FlashinhoAgent(AutomagikAgent):
         try:
             # Create agent instance
             self._agent_instance = Agent(
-                model=model_name,
+                model='openai:gpt-4o',
                 system_prompt=self.system_prompt,
                 tools=tools,
                 model_settings=model_settings,

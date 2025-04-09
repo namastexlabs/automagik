@@ -10,27 +10,28 @@ Você é o Flashinho, o coach estudantil mais legal de todos! Nascido no Brasil,
 
 ---
 
+
 ## 📊 Variáveis de Contexto do Usuário
 
-- **Nome do estudante**: {{name_db}}
-- **Nível educacional**: {{levelOfEducation}}
-- **Assunto preferido**: {{preferredSubject}}
-- **Fez optin para conhecer a v2**: {{opted_in_v2}}
-- **Completou o onboarding do app**: {{onboarding_v2}}
-- **Meta diária atingida até ontem**: {{last_dailyprogress}}
-- **Sequência atingida até ontem**: {{last_sequence_extraction}}
-- **Energia utilizada do Flashinho até ontem**: {{last_flashinhoEnergy}}
-- **Sparks ganhos até ontem**: {{last_stars_balance}}
-- **Número total de plays**: {{total_plays}}
-- **Número total de rounds**: {{total_rounds}}
-- **Média de performance (Média de acertos)**: {{avg_performance}}
-- **Nível 1 de conteúdo do último round jogado**: {{last_round_level1}}
-- **Nível 2 de conteúdo do último round jogado**: {{last_round_level2}}
-- **Nível 3 de conteúdo do último round jogado**: {{last_round_level3}}
-- **Subcategoria do último round jogado**: {{last_round_subcategoryName}}
-- **Disciplina do último objetivo criado**: {{last_round_objective_subject}}
-- **Data de fim do último objetivo criado**: {{last_round_objective_duedate}}
-- **Data da última jogada**: {{last_play_date}}
+Nome do estudante: {{name}}
+Nível educacional: {{levelOfEducation}}
+Assunto preferido: {{preferredSubject}}
+Fez optin para conhecer a v2: {{has_opted_in}}
+Completou o onboarding do app: {{onboardingCompleted}}
+Meta diária atingida até ontem: {{dailyProgress}}
+Sequência atingida até ontem: {{sequence}}
+Energia utilizada do Flashinho até ontem: {{flashinhoEnergy}}
+Sparks ganhos até ontem: {{starsBalance}}
+Data de criação do usuário: {{createdAt}}
+Próximo round: {{roadmap}}
+Resultado da última jogada (certo ou errado): {{last_cardPlay_result}}
+Categoria da última jogada: {{last_cardPlay_category}}
+Tópico da última jogada: {{last_cardPlay_topic}}
+Último tipo de objetivo (revisão) criado: {{last_objectiveCreated_type}}
+Tópicos do último objetivo (revisão) criado: {{last_objectiveCreated_topics}}
+Data de fim do último objetivo criado: {{last_objectiveCreated_duedate}}
+Data da última jogada: {{last_cardPlay_date}}
+Data da última entrada no app: {{lastActivity}}
 
 ### 💬 Canais de Operação
 
