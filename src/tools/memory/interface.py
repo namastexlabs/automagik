@@ -37,17 +37,82 @@ def invalidate_memory_cache(func: Callable) -> Callable:
             deps = args[0].deps
             if hasattr(deps, '_agent_id_numeric'):
                 agent_id = deps._agent_id_numeric
+                logger.debug(f"Extracted agent_id={agent_id} from args[0].deps._agent_id_numeric")
+        
+        # Check for context object with dict-like access
+        if args and agent_id is None and hasattr(args[0], 'get') and callable(getattr(args[0], 'get')):
+            try:
+                if args[0].get('agent_id'):
+                    agent_id = args[0].get('agent_id')
+                    logger.debug(f"Extracted agent_id={agent_id} from args[0].get('agent_id')")
+            except Exception as e:
+                logger.debug(f"Error accessing context dict: {str(e)}")
+        
+        # Check if first argument is a dict
+        if args and agent_id is None and isinstance(args[0], dict) and 'agent_id' in args[0]:
+            agent_id = args[0]['agent_id']
+            logger.debug(f"Extracted agent_id={agent_id} from args[0]['agent_id'] direct access")
+        
+        # Check if context.deps is a dict-like object
+        if args and agent_id is None and hasattr(args[0], 'deps') and hasattr(args[0].deps, 'get') and callable(getattr(args[0].deps, 'get')):
+            try:
+                if args[0].deps.get('agent_id'):
+                    agent_id = args[0].deps.get('agent_id')
+                    logger.debug(f"Extracted agent_id={agent_id} from args[0].deps.get('agent_id')")
+            except Exception as e:
+                logger.debug(f"Error accessing deps dict: {str(e)}")
         
         # Check if agent_id is in kwargs
-        if 'agent_id' in kwargs:
+        if agent_id is None and 'agent_id' in kwargs:
             agent_id = kwargs['agent_id']
+            logger.debug(f"Extracted agent_id={agent_id} from kwargs['agent_id']")
+        
+        # Try to extract from the result of the function
+        if agent_id is None and isinstance(result, dict) and 'agent_id' in result:
+            agent_id = result['agent_id']
+            logger.debug(f"Extracted agent_id={agent_id} from result['agent_id']")
+        
+        # Try to extract the user_id from the context and look up the agent_id
+        if agent_id is None and args:
+            user_id = None
+            
+            # Check if context has user_id
+            if hasattr(args[0], 'deps') and hasattr(args[0].deps, '_user_id'):
+                user_id = args[0].deps._user_id
+                logger.debug(f"Found user_id={user_id} from args[0].deps._user_id")
+            
+            # Try context as dict-like
+            if user_id is None and hasattr(args[0], 'get') and callable(getattr(args[0], 'get')):
+                try:
+                    if args[0].get('user_id'):
+                        user_id = args[0].get('user_id')
+                        logger.debug(f"Found user_id={user_id} from args[0].get('user_id')")
+                except Exception:
+                    pass
+            
+            # Try kwargs
+            if user_id is None and 'user_id' in kwargs:
+                user_id = kwargs['user_id']
+                logger.debug(f"Found user_id={user_id} from kwargs")
+            
+            # If we found user_id, try to find the current agent for this user
+            if user_id:
+                try:
+                    # Import here to avoid circular imports
+                    from src.context import get_current_agent_id
+                    current_agent_id = get_current_agent_id(user_id)
+                    if current_agent_id:
+                        agent_id = current_agent_id
+                        logger.debug(f"Found agent_id={agent_id} from current agent for user_id={user_id}")
+                except Exception as e:
+                    logger.debug(f"Error getting current agent ID: {str(e)}")
         
         # If we found an agent_id, invalidate its cache
         if agent_id:
             provider = get_memory_provider_for_agent(agent_id)
             if provider:
                 provider.invalidate_cache()
-                logger.debug(f"Invalidated memory cache for agent {agent_id}")
+                logger.info(f"Invalidated memory cache for agent {agent_id}")
             else:
                 logger.warning(f"No memory provider found for agent {agent_id}")
         else:
@@ -56,6 +121,7 @@ def invalidate_memory_cache(func: Callable) -> Callable:
         return result
     
     return wrapper
+
 
 def validate_memory_name(name: str) -> bool:
     """Validate that a memory name contains only allowed characters.
