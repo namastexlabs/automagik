@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
     LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
 
+    # Agent Settings
+    AM_TIMEZONE: str = Field(
+        default="UTC", 
+        description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York')"
+    )
+
     # Suppress warnings from dependency conflict resolution (Poetry related)
     PYTHONWARNINGS: Optional[str] = Field(None, description="Python warnings configuration")
 
