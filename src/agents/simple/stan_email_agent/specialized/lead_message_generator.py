@@ -60,7 +60,7 @@ def get_tabela_files_from_supabase():
 logger = logging.getLogger(__name__)
 async def generate_approval_status_message(input_text: str) -> str:
     lead_message_sender = Agent(  
-        'openai:gpt-4o-mini',
+        'openai:gpt-4o',
         result_type=str,
         system_prompt="""
         Your task is to build a message for the user based on their approval status.
