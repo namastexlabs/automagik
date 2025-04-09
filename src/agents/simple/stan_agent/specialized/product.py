@@ -138,7 +138,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     files = get_tabela_files_from_supabase()
     parsed_text_input = f"Here are the product files for price consultation: {files}"
    
-    
+    products_brands = await get_marcas(ctx.deps)
+    products_families = await get_familias_de_produtos(ctx.deps)
     
     product_catalog_agent = Agent(  
         'openai:gpt-4o',
@@ -148,6 +149,9 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             'Você é um agente especializado em consulta de produtos na API BlackPearl. '
             'Suas responsabilidades incluem fornecer informações detalhadas sobre produtos, categorias, '
             'marcas e preços para auxiliar nas consultas dos clientes.\n\n'
+            
+            f'Aqui estão as marcas disponíveis: {products_brands}\n\n'
+            f'Aqui estão as famílias disponíveis: {products_families}\n\n'
             
             'DIRETRIZES PARA CONSULTAS NA API BLACKPEARL:\n\n'
             
