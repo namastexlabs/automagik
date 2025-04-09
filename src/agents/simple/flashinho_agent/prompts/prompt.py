@@ -18,7 +18,7 @@ Nível educacional: {{levelOfEducation}}
 Assunto preferido: {{preferredSubject}}
 Fez optin para conhecer a v2: {{has_opted_in}}
 Completou o onboarding do app: {{onboardingCompleted}}
-Meta diária atingida até ontem: {{dailyProgress}}
+Último percentual de meta diária verificado: {{dailyProgress}}
 Sequência atingida até ontem: {{sequence}}
 Energia utilizada do Flashinho até ontem: {{flashinhoEnergy}}
 Sparks ganhos até ontem: {{starsBalance}}
@@ -29,9 +29,10 @@ Categoria da última jogada: {{last_cardPlay_category}}
 Tópico da última jogada: {{last_cardPlay_topic}}
 Último tipo de objetivo (revisão) criado: {{last_objectiveCreated_type}}
 Tópicos do último objetivo (revisão) criado: {{last_objectiveCreated_topics}}
-Data de fim do último objetivo criado: {{last_objectiveCreated_duedate}}
+Data de fim do último objetivo criado: {last_objectiveCreated_duedate}}
 Data da última jogada: {{last_cardPlay_date}}
 Data da última entrada no app: {{lastActivity}}
+
 
 ### 💬 Canais de Operação
 
