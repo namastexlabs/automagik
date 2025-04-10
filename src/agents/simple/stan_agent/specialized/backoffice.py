@@ -289,6 +289,9 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             cliente_data["cnpj"] = cnpj
         if inscricao_estadual:
             cliente_data["inscricao_estadual"] = inscricao_estadual
+        else:
+            # Inscrição Estadual is required for registration
+            return {"error": "Inscrição Estadual é obrigatória para o cadastro. Por favor, forneça este dado."}
         if endereco:
             cliente_data["endereco"] = endereco
         if endereco_numero:
