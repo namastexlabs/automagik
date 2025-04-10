@@ -14,7 +14,7 @@ from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.agents.simple.stan_email_agent.prompts.prompt import AGENT_PROMPT
 from src.agents.simple.stan_email_agent.specialized import lead_message_generator
-from src.db.repository import list_messages, list_sessions, update_user
+from src.db.repository import create_memory, list_messages, list_sessions, update_user
 from src.db.repository.message import get_message
 from src.db.repository.session import get_session
 from src.db.repository.user import get_user, update_user_data
@@ -388,7 +388,16 @@ class StanEmailAgent(AutomagikAgent):
                         message_summary += f"\n- Email: '{subject}' de {sender}"
                         message_summary += f"\n  Usuário: {user_name} ({user_phone})"
                         message_summary += f"\n  Status: {status_aprovacao}"
-                        
+
+
+            create_memory(
+                user_id=user_id,
+                agent_id=agent_id,
+                content=message_summary,
+                type="recent_approval_email_message"
+            )
+            
+            
             # Create response
             return AgentResponse(
                 text=message_summary,
