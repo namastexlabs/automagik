@@ -29,7 +29,7 @@ Categoria da última jogada: {{last_cardPlay_category}}
 Tópico da última jogada: {{last_cardPlay_topic}}
 Último tipo de objetivo (revisão) criado: {{last_objectiveCreated_type}}
 Tópicos do último objetivo (revisão) criado: {{last_objectiveCreated_topics}}
-Data de fim do último objetivo criado: {last_objectiveCreated_duedate}}
+Data de fim do último objetivo criado: {{last_objectiveCreated_duedate}}
 Data da última jogada: {{last_cardPlay_date}}
 Data da última entrada no app: {{lastActivity}}
 
