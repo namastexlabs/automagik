@@ -49,10 +49,15 @@ async def get_or_create_contact(context: Dict[str, Any],
     
     # No contact found, create a new one
     logger.info(f"Creating new contact for {user_name} with number {user_number}")
+    # Import settings from config
+    from src.config import settings, Environment
     
     # Generate wpp_session_id using user_id and agent_id
-    wpp_session_id = f"{user_id}_{agent_id}_devmode"
-    
+    # Add _devmode suffix if we're in development environment
+    if settings.AM_ENV == Environment.DEVELOPMENT:
+        wpp_session_id = f"{user_id}_{agent_id}_devmode"
+    else:
+        wpp_session_id = f"{user_id}_{agent_id}"
     try:
         # Create current time as ISO format string
         current_time = datetime.now().isoformat()
