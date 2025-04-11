@@ -15,26 +15,16 @@ from src.agents.models.response import AgentResponse
 from src.agents.simple.stan_email_agent.prompts.prompt import AGENT_PROMPT
 from src.agents.simple.stan_email_agent.specialized import aproval_status_message_generator
 from src.db.repository import create_memory, list_messages, list_sessions, update_user
-from src.db.repository.message import get_message
-from src.db.repository.session import get_session
 from src.db.repository.user import get_user, update_user_data
 from src.memory.message_history import MessageHistory
 
-# Import only necessary utilities
-from src.agents.common.message_parser import (
-    extract_tool_calls, 
-    extract_tool_outputs,
-    extract_all_messages
-)
 from src.agents.common.dependencies_helper import (
     parse_model_settings,
     create_model_settings,
     create_usage_limits,
-    get_model_name,
-    add_system_message_to_history
+    get_model_name
 )
 from src.tools import blackpearl, evolution
-from src.tools.blackpearl import verificar_cnpj
 from src.tools.blackpearl.schema import StatusAprovacaoEnum
 from src.tools.gmail import fetch_emails, mark_emails_read
 from src.tools.gmail.schema import FetchEmailsInput
