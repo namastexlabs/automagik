@@ -41,11 +41,12 @@ def parse_model_settings(config: Dict[str, Any]) -> Dict[str, Any]:
     
     return settings
 
-def create_model_settings(settings: Dict[str, Any]) -> ModelSettings:
+def create_model_settings(settings: Dict[str, Any], model_name: str = None) -> ModelSettings:
     """Create a ModelSettings object from a settings dictionary.
     
     Args:
         settings: Dictionary with model settings
+        model_name: Optional model name to check for specific model compatibility
         
     Returns:
         ModelSettings object
@@ -54,6 +55,11 @@ def create_model_settings(settings: Dict[str, Any]) -> ModelSettings:
         settings["temperature"] = DEFAULT_TEMPERATURE
     if "max_tokens" not in settings:
         settings["max_tokens"] = DEFAULT_MAX_TOKENS
+    
+    # Remove temperature parameter for o3-mini model as it's not supported
+    if model_name and "o3-mini" in model_name and "temperature" in settings:
+        logger.info(f"Removing unsupported temperature parameter for {model_name}")
+        settings.pop("temperature")
     
     return ModelSettings(**settings)
 

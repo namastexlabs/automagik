@@ -6,7 +6,9 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pydantic_ai import RunContext
+import pytz
 
+from src.config import settings
 from .schema import DatetimeInput, DatetimeOutput
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,7 @@ def format_date_description() -> str:
     return "Format a date string from one format to another."
 
 async def get_current_date(ctx: RunContext[Dict], format: Optional[str] = None) -> Dict[str, Any]:
-    """Get the current date.
+    """Get the current date in the configured agent timezone.
     
     Args:
         ctx: The run context.
@@ -35,7 +37,16 @@ async def get_current_date(ctx: RunContext[Dict], format: Optional[str] = None) 
     """
     try:
         logger.info("Getting current date")
-        now = datetime.now()
+        # Get timezone from settings
+        try:
+            timezone = pytz.timezone(settings.AM_TIMEZONE)
+            logger.debug(f"Using timezone: {settings.AM_TIMEZONE}")
+        except pytz.UnknownTimeZoneError:
+            logger.warning(f"Unknown timezone '{settings.AM_TIMEZONE}', falling back to UTC.")
+            timezone = pytz.utc
+        
+        # Get timezone-aware datetime
+        now = datetime.now(tz=timezone)
         
         if format:
             # Use the provided format string
@@ -59,7 +70,7 @@ async def get_current_date(ctx: RunContext[Dict], format: Optional[str] = None) 
         }
 
 async def get_current_time(ctx: RunContext[Dict], format: Optional[str] = None) -> Dict[str, Any]:
-    """Get the current time.
+    """Get the current time in the configured agent timezone.
     
     Args:
         ctx: The run context.
@@ -70,7 +81,16 @@ async def get_current_time(ctx: RunContext[Dict], format: Optional[str] = None) 
     """
     try:
         logger.info("Getting current time")
-        now = datetime.now()
+        # Get timezone from settings
+        try:
+            timezone = pytz.timezone(settings.AM_TIMEZONE)
+            logger.debug(f"Using timezone: {settings.AM_TIMEZONE}")
+        except pytz.UnknownTimeZoneError:
+            logger.warning(f"Unknown timezone '{settings.AM_TIMEZONE}', falling back to UTC.")
+            timezone = pytz.utc
+            
+        # Get timezone-aware datetime
+        now = datetime.now(tz=timezone)
         
         if format:
             # Use the provided format string

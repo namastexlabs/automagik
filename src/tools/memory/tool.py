@@ -154,7 +154,12 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
                 logger.debug(f"Extracted agent_id={agent_id} from agent_id_raw={agent_id_raw}")
         except Exception as e:
             logger.warning(f"Could not get agent by name '{agent_id_raw}': {str(e)}")
-    
+            
+    if agent_id is None and ctx and isinstance(ctx, dict):
+        agent_id = ctx.get('agent_id')
+        user_id = ctx.get('user_id')
+        session_id = ctx.get('session_id')
+        logger.info(f"Extracted agent_id={agent_id}, user_id={user_id}, session_id={session_id} from context dict")
     # If still no agent_id, try to use first available agent
     if agent_id is None:
         try:
@@ -456,7 +461,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
         if list_all:
             try:
                 # Use direct database call with proper parameter
-                memories = list_memories_in_db(agent_id=agent_id)
+                memories = list_memories_in_db(agent_id=agent_id, user_id=user_id)
                 
                 # Convert to Memory objects
                 memory_objects = []
@@ -495,7 +500,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                 if not memories and user_id:
                     # If no memories found with specific user_id, try with just agent_id
                     logger.info(f"No memory found with user_id={user_id}, trying with just agent_id={agent_id}")
-                    memories = list_memories_in_db(agent_id=agent_id, name_pattern=name)
+                    memories = list_memories_in_db(agent_id=agent_id, name_pattern=name, user_id=user_id)
                 memory = memories[0] if memories else None
             else:
                 memory = None

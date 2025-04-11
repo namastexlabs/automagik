@@ -18,7 +18,7 @@ class BaseDBModel(BaseModel):
 
 class User(BaseDBModel):
     """User model corresponding to the users table."""
-    id: Optional[int] = Field(None, description="User ID")
+    id: Optional[uuid.UUID] = Field(None, description="User ID")
     email: Optional[str] = Field(None, description="User email")
     phone_number: Optional[str] = Field(None, description="User phone number")
     user_data: Optional[Dict[str, Any]] = Field(None, description="Additional user data")
@@ -59,7 +59,7 @@ class Agent(BaseDBModel):
 class Session(BaseDBModel):
     """Session model corresponding to the sessions table."""
     id: Optional[uuid.UUID] = Field(None, description="Session ID")
-    user_id: Optional[int] = Field(None, description="User ID")
+    user_id: Optional[uuid.UUID] = Field(None, description="User ID")
     agent_id: Optional[int] = Field(None, description="Agent ID")
     name: Optional[str] = Field(None, description="Session name")
     platform: Optional[str] = Field(None, description="Platform")
@@ -80,7 +80,7 @@ class Message(BaseDBModel):
     """Message model corresponding to the messages table."""
     id: Optional[uuid.UUID] = Field(None, description="Message ID")
     session_id: Optional[uuid.UUID] = Field(None, description="Session ID")
-    user_id: Optional[int] = Field(None, description="User ID")
+    user_id: Optional[uuid.UUID] = Field(None, description="User ID")
     agent_id: Optional[int] = Field(None, description="Agent ID")
     role: str = Field(..., description="Message role (user, assistant, system)")
     text_content: Optional[str] = Field(None, description="Message text content")
@@ -113,7 +113,7 @@ class Memory(BaseDBModel):
     description: Optional[str] = Field(None, description="Memory description")
     content: Optional[str] = Field(None, description="Memory content")
     session_id: Optional[uuid.UUID] = Field(None, description="Session ID")
-    user_id: Optional[int] = Field(None, description="User ID")
+    user_id: Optional[uuid.UUID] = Field(None, description="User ID")
     agent_id: Optional[int] = Field(None, description="Agent ID")
     read_mode: Optional[str] = Field(None, description="Read mode")
     access: Optional[str] = Field(None, description="Access permissions")

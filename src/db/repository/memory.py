@@ -5,7 +5,7 @@ import json
 import logging
 from typing import List, Optional, Dict, Any
 
-from src.db.connection import execute_query
+from src.db.connection import execute_query, safe_uuid
 from src.db.models import Memory
 
 # Configure logger
@@ -38,14 +38,14 @@ def get_memory(memory_id: uuid.UUID) -> Optional[Memory]:
 
 
 def get_memory_by_name(name: str, agent_id: Optional[int] = None, 
-                      user_id: Optional[int] = None, 
+                      user_id: Optional[uuid.UUID] = None, 
                       session_id: Optional[uuid.UUID] = None) -> Optional[Memory]:
     """Get a memory by name with optional filters for agent, user, and session.
     
     Args:
         name: The memory name
         agent_id: Optional agent ID filter
-        user_id: Optional user ID filter
+        user_id: Optional user ID filter (UUID)
         session_id: Optional session ID filter
         
     Returns:
@@ -66,7 +66,7 @@ def get_memory_by_name(name: str, agent_id: Optional[int] = None,
             params.append(agent_id)
         if user_id is not None:
             query += " AND user_id = %s"
-            params.append(user_id)
+            params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
         if session_id is not None:
             query += " AND session_id = %s"
             params.append(str(session_id))
@@ -81,7 +81,7 @@ def get_memory_by_name(name: str, agent_id: Optional[int] = None,
 
 
 def list_memories(agent_id: Optional[int] = None, 
-                 user_id: Optional[int] = None, 
+                 user_id: Optional[uuid.UUID] = None, 
                  session_id: Optional[uuid.UUID] = None,
                  read_mode: Optional[str] = None,
                  name_pattern: Optional[str] = None) -> List[Memory]:
@@ -89,7 +89,7 @@ def list_memories(agent_id: Optional[int] = None,
     
     Args:
         agent_id: Optional agent ID filter
-        user_id: Optional user ID filter
+        user_id: Optional user ID filter (UUID)
         session_id: Optional session ID filter
         read_mode: Optional read mode filter
         name_pattern: Optional name pattern to match (using ILIKE)
@@ -112,7 +112,7 @@ def list_memories(agent_id: Optional[int] = None,
             params.append(agent_id)
         if user_id is not None:
             query += " AND user_id = %s"
-            params.append(user_id)
+            params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
         if session_id is not None:
             query += " AND session_id = %s"
             params.append(str(session_id))
@@ -142,6 +142,9 @@ def create_memory(memory: Memory) -> Optional[uuid.UUID]:
         The memory ID if successful, None otherwise
     """
     try:
+        # Add debug logging
+        logger.info(f"Creating memory: name={memory.name}, user_id={memory.user_id}, agent_id={memory.agent_id}")
+        
         # Check if a memory with this name already exists for the same context
         if memory.name:
             query = "SELECT id FROM memories WHERE name = %s"
@@ -153,14 +156,16 @@ def create_memory(memory: Memory) -> Optional[uuid.UUID]:
                 params.append(memory.agent_id)
             if memory.user_id is not None:
                 query += " AND user_id = %s"
-                params.append(memory.user_id)
+                params.append(str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id)
             if memory.session_id is not None:
                 query += " AND session_id = %s"
                 params.append(str(memory.session_id))
                 
+            logger.debug(f"Checking for existing memory with query: {query} and params: {params}")
             result = execute_query(query, params)
             
             if result:
+                logger.info(f"Found existing memory with ID {result[0]['id']}, updating instead")
                 # Update existing memory
                 memory.id = result[0]["id"]
                 return update_memory(memory)
@@ -168,40 +173,64 @@ def create_memory(memory: Memory) -> Optional[uuid.UUID]:
         # Generate a UUID for the memory if not provided
         if not memory.id:
             memory.id = uuid.uuid4()
+            logger.debug(f"Generated new UUID for memory: {memory.id}")
         
         # Prepare memory data
         metadata_json = json.dumps(memory.metadata) if memory.metadata else None
         
         # Insert the memory
-        result = execute_query(
-            """
-            INSERT INTO memories (
-                id, name, description, content, session_id, user_id, agent_id,
-                read_mode, access, metadata, created_at, updated_at
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, NOW(), NOW()
-            ) RETURNING id
-            """,
-            (
+        logger.debug(f"Inserting new memory with ID {memory.id}")
+        try:
+            insert_query = """
+                INSERT INTO memories (
+                    id, name, description, content, session_id, user_id, agent_id,
+                    read_mode, access, metadata, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, NOW(), NOW()
+                ) RETURNING id
+                """
+            
+            params = (
                 str(memory.id),
                 memory.name,
                 memory.description,
                 memory.content,
                 str(memory.session_id) if memory.session_id else None,
-                memory.user_id,
+                str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id,
                 memory.agent_id,
                 memory.read_mode,
                 memory.access,
                 metadata_json
             )
-        )
-        
-        memory_id = uuid.UUID(result[0]["id"]) if result else None
-        logger.info(f"Created memory {memory.name} with ID {memory_id}")
-        return memory_id
+            
+            logger.debug(f"Executing insert query with params: {params}")
+            result = execute_query(insert_query, params)
+            
+            if not result:
+                logger.error("Insert query returned no result")
+                return None
+                
+            memory_id = uuid.UUID(result[0]["id"]) if result else None
+            logger.info(f"Successfully created memory {memory.name} with ID {memory_id}")
+            
+            # Verify that the memory was actually created
+            verification = execute_query("SELECT id FROM memories WHERE id = %s", (str(memory_id),))
+            if not verification:
+                logger.error(f"Memory verification failed: Memory with ID {memory_id} not found after creation")
+            else:
+                logger.debug(f"Memory verification successful: Memory with ID {memory_id} found in database")
+                
+            return memory_id
+        except Exception as insert_error:
+            logger.error(f"Database error during memory insertion: {str(insert_error)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
     except Exception as e:
-        logger.error(f"Error creating memory {memory.name}: {str(e)}")
+        logger.error(f"Error creating memory {getattr(memory, 'name', 'unknown')}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 
@@ -226,7 +255,7 @@ def update_memory(memory: Memory) -> Optional[uuid.UUID]:
                 params.append(memory.agent_id)
             if memory.user_id is not None:
                 query += " AND user_id = %s"
-                params.append(memory.user_id)
+                params.append(str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id)
             if memory.session_id is not None:
                 query += " AND session_id = %s"
                 params.append(str(memory.session_id))
@@ -261,7 +290,7 @@ def update_memory(memory: Memory) -> Optional[uuid.UUID]:
                 memory.description,
                 memory.content,
                 str(memory.session_id) if memory.session_id else None,
-                memory.user_id,
+                str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id,
                 memory.agent_id,
                 memory.read_mode,
                 memory.access,

@@ -122,6 +122,7 @@ def invalidate_memory_cache(func: Callable) -> Callable:
     
     return wrapper
 
+
 def validate_memory_name(name: str) -> bool:
     """Validate that a memory name contains only allowed characters.
     

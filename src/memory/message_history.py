@@ -856,3 +856,42 @@ class MessageHistory:
         except Exception as e:
             logger.error(f"Failed to delete session {self.session_id}: {str(e)}")
             return False
+
+    def ensure_user_exists(self, user_id: Optional[uuid.UUID]) -> Optional[uuid.UUID]:
+        """
+        Ensures a user exists in the database before performing operations.
+        If the user doesn't exist, it creates a minimal user record.
+        
+        Args:
+            user_id: The user ID to check/create
+            
+        Returns:
+            The same user_id if provided, or None if not
+        """
+        if not user_id:
+            return None
+        
+        # Import here to avoid circular imports
+        from src.db import get_user, User, create_user
+        from datetime import datetime
+        
+        try:
+            # Check if user exists
+            user = get_user(user_id)
+            if not user:
+                # Create minimal user with just the ID
+                user = User(
+                    id=user_id,
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                created_id = create_user(user)
+                if created_id:
+                    self.logger.info(f"Auto-created user with ID {user_id} for memory operations")
+                    return created_id
+                else:
+                    self.logger.warning(f"Failed to auto-create user with ID {user_id}")
+            return user_id
+        except Exception as e:
+            self.logger.error(f"Error ensuring user exists: {str(e)}")
+            return user_id  # Return the original ID anyway to not break existing code

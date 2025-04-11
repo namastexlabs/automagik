@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     SUPABASE_URL: Optional[str] = Field(None, description="Supabase project URL")
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(None, description="Supabase service role key for authentication")
 
+    # Agent Settings
+    AM_TIMEZONE: str = Field(
+        default="UTC", 
+        description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York')"
+    )
+
     # Suppress warnings from dependency conflict resolution (Poetry related)
     PYTHONWARNINGS: Optional[str] = Field(None, description="Python warnings configuration")
 

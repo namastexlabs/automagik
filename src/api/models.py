@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union, Literal
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+import uuid
 
 class BaseResponseModel(BaseModel):
     """Base model for all response models with common configuration."""
@@ -67,6 +68,13 @@ class DocumentBinaryContent(DocumentContent, BinaryMediaContent):
     """Document content with binary data."""
     pass
 
+# Define UserCreate before it's referenced by AgentRunRequest
+class UserCreate(BaseResponseModel):
+    """Request model for creating a new user."""
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    user_data: Optional[Dict[str, Any]] = None
+
 # Update AgentRunRequest to support multimodal content
 class AgentRunRequest(BaseResponseModel):
     """Request model for running an agent."""
@@ -85,12 +93,14 @@ class AgentRunRequest(BaseResponseModel):
     context: dict = {}
     session_id: Optional[str] = None
     session_name: Optional[str] = None  # Optional friendly name for the session
-    user_id: Optional[int] = 1  # User ID is now an integer with default value 1
+    user_id: Optional[Union[uuid.UUID, str]] = None  # User ID as UUID or string
     message_limit: Optional[int] = 10  # Default to last 10 messages
-    session_origin: Optional[Literal["web", "whatsapp", "automagik-agent", "telegram", "discord", "slack", "cli"]] = "automagik-agent"  # Origin of the session
+    session_origin: Optional[Literal["web", "whatsapp", "automagik-agent", "telegram", "discord", "slack", "cli", "app", "manychat"]] = "automagik-agent"  # Origin of the session
     agent_id: Optional[Any] = None  # Agent ID to store with messages, can be int or string
     parameters: Optional[Dict[str, Any]] = None  # Agent parameters
     messages: Optional[List[Any]] = None  # Optional message history
+    system_prompt: Optional[str] = None  # Optional system prompt override
+    user: Optional[UserCreate] = None  # Optional user data for creation/update
 
 class AgentInfo(BaseResponseModel):
     """Information about an available agent."""
@@ -163,7 +173,7 @@ class SessionResponse(BaseResponseModel):
 class SessionInfo(BaseResponseModel):
     """Information about a session."""
     session_id: str
-    user_id: Optional[int] = None
+    user_id: Optional[uuid.UUID] = None
     agent_id: Optional[int] = None
     session_name: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -188,11 +198,7 @@ class SessionListResponse(BaseResponseModel):
         if self.total_count is None and hasattr(self, 'total'):
             self.total_count = self.total
 
-class UserCreate(BaseResponseModel):
-    """Request model for creating a new user."""
-    email: Optional[str] = None
-    phone_number: Optional[str] = None
-    user_data: Optional[Dict[str, Any]] = None
+# UserCreate moved to before AgentRunRequest
 
 class UserUpdate(BaseResponseModel):
     """Request model for updating an existing user."""
@@ -202,7 +208,7 @@ class UserUpdate(BaseResponseModel):
 
 class UserInfo(BaseResponseModel):
     """Response model for user information."""
-    id: int
+    id: uuid.UUID
     email: Optional[str] = None
     phone_number: Optional[str] = None
     user_data: Optional[Dict[str, Any]] = None

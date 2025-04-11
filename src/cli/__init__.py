@@ -56,6 +56,18 @@ app.add_typer(api_app, name="api")
 app.add_typer(db_app, name="db")
 app.add_typer(agent_app, name="agent")
 
+# Add direct command for creating agents
+@app.command("create")
+def create_agent_command(
+    name: str = typer.Option(..., "--name", "-n", help="Name of the new agent to create"),
+    template: str = typer.Option("simple_agent", "--template", "-t", help="Template folder to use as base"),
+    category: str = typer.Option("simple", "--category", "-c", help="Category folder to use")
+):
+    """Create a new agent by cloning an existing agent template."""
+    # Import the function here to avoid circular imports
+    from src.cli.agent.create import create_agent
+    create_agent(name=name, category=category, template=template)
+
 # Default callback for main app
 @app.callback()
 def main(

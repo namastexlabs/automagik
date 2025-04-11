@@ -16,6 +16,7 @@ from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
 from src.db import ensure_default_user_exists
+from src.db.connection import generate_uuid
 
 # Configure logging
 configure_logging()
@@ -151,13 +152,24 @@ def create_app() -> FastAPI:
         
         # Verify database functionality without creating persistent test data
         logger.info("🔍 Performing verification test of message storage without creating persistent sessions...")
-        test_user_id = 1  # Use numeric ID instead of string
         
-        # First ensure the default user exists using repository function
-        ensure_default_user_exists(user_id=test_user_id, email="admin@automagik")
+        # Create a test user and commit it to the database
+        test_user_id = generate_uuid()
+        test_email = "test_verification@automagik.test"
         
-        # Verify message store functionality without creating test sessions
-        # Use a transaction that we'll roll back to avoid persisting test data
+        # Create the user outside the transaction we'll roll back later
+        from src.db import User, create_user
+        test_user = User(
+            id=test_user_id,
+            email=test_email,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        create_user(test_user)  # This will be committed
+        
+        logger.info(f"Created test user with ID {test_user_id} for verification")
+        
+        # Now use a separate transaction for test session/message that will be rolled back
         try:
             logger.info("Testing database message storage functionality with transaction rollback...")
             with pool.getconn() as conn:
@@ -173,7 +185,7 @@ def create_app() -> FastAPI:
                 # Create a test session
                 test_session = Session(
                     id=test_session_id,
-                    user_id=test_user_id,
+                    user_id=test_user_id,  # Use the committed test user ID
                     platform="verification_test",
                     created_at=datetime.now(),
                     updated_at=datetime.now()
@@ -253,6 +265,14 @@ def create_app() -> FastAPI:
             import traceback
             logger.error(f"Detailed error: {traceback.format_exc()}")
             raise
+        finally:
+            # Clean up the test user
+            try:
+                from src.db import delete_user
+                delete_user(test_user_id)
+                logger.info(f"Cleaned up test user {test_user_id}")
+            except Exception as cleanup_e:
+                logger.warning(f"Failed to clean up test user: {str(cleanup_e)}")
         
         # Log success
         logger.info("✅ Database message storage initialized successfully")

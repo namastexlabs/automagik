@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, Optional, Union,  Any, TypeVar, Generic
 from abc import ABC, abstractmethod
+import uuid
 
 from src.memory.message_history import MessageHistory
 from src.agents.models.dependencies import BaseDependencies
@@ -192,7 +193,7 @@ class AutomagikAgent(ABC, Generic[T]):
             logger.error(f"Error fetching memory variables: {str(e)}")
             return {}
     
-    async def get_filled_system_prompt(self, user_id: Optional[int] = None) -> str:
+    async def get_filled_system_prompt(self, user_id: Optional[uuid.UUID] = None) -> str:
         """Get the system prompt filled with memory variables.
         
         Args:
@@ -201,6 +202,12 @@ class AutomagikAgent(ABC, Generic[T]):
         Returns:
             Filled system prompt
         """
+        # Check if there's a system_prompt override in the context
+        if self.context and 'system_prompt' in self.context:
+            # Use the overridden system prompt
+            logger.info("Using system prompt override from context")
+            return self.context['system_prompt']
+        
         # Check and ensure memory variables exist
         MemoryHandler.check_and_ensure_memory_variables(
             template_vars=self.template_vars,
@@ -246,7 +253,7 @@ class AutomagikAgent(ABC, Generic[T]):
     async def process_message(self, user_message: Union[str, Dict[str, Any]], 
                               session_id: Optional[str] = None, 
                               agent_id: Optional[Union[int, str]] = None, 
-                              user_id: int = 1, 
+                              user_id: Optional[Union[uuid.UUID, str]] = None, 
                               context: Optional[Dict] = None, 
                               message_history: Optional['MessageHistory'] = None,
                               channel_payload: Optional[Dict] = None,
@@ -257,7 +264,7 @@ class AutomagikAgent(ABC, Generic[T]):
             user_message: User message text or dictionary with message details
             session_id: Optional session ID to use
             agent_id: Optional agent ID to use
-            user_id: User ID to associate with the message (default 1)
+            user_id: User ID to associate with the message (default None)
             context: Optional context dictionary with additional parameters
             message_history: Optional MessageHistory instance for DB storage
             
@@ -275,7 +282,7 @@ class AutomagikAgent(ABC, Generic[T]):
             self.db_id = validate_agent_id(agent_id)
             self.dependencies.set_agent_id(self.db_id)
         
-        self.dependencies.user_id = validate_user_id(user_id)
+        self.dependencies.user_id = validate_user_id(user_id) if user_id is not None else None
         
         # Update context
         new_context = create_context(
