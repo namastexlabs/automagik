@@ -13,7 +13,7 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.agents.simple.stan_email_agent.prompts.prompt import AGENT_PROMPT
-from src.agents.simple.stan_email_agent.specialized import lead_message_generator
+from src.agents.simple.stan_email_agent.specialized import aproval_status_message_generator
 from src.db.repository import create_memory, list_messages, list_sessions, update_user
 from src.db.repository.message import get_message
 from src.db.repository.session import get_session
@@ -314,7 +314,7 @@ class StanEmailAgent(AutomagikAgent):
                     
                     message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
                     message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
-                    message = await lead_message_generator.generate_approval_status_message(message_text)
+                    message = await aproval_status_message_generator.generate_approval_status_message(message_text)
                   
                     if black_pearl_contact.status_aprovacao == StatusAprovacaoEnum.APPROVED:
                         data_aprovacao = datetime.datetime.now()
