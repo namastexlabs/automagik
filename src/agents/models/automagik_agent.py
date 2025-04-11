@@ -121,7 +121,7 @@ class AutomagikAgent(ABC, Generic[T]):
             self.tool_registry = ToolRegistry()
             
         self.tool_registry.register_tool(tool_func)
-        logger.info(f"Registered tool: {getattr(tool_func, '__name__', str(tool_func))}")
+        logger.debug(f"Registered tool: {getattr(tool_func, '__name__', str(tool_func))}")
     
     def update_context(self, context_updates: Dict[str, Any]) -> None:
         """Update the agent's context.

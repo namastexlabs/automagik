@@ -46,7 +46,7 @@ async def test_send_email():
     )
     
     # Send the email
-    result = await send_email(ctx, credentials_path, email_input)
+    result = await send_email(ctx, email_input)
     
     # Verify the result
     assert isinstance(result, dict)
@@ -76,7 +76,7 @@ async def test_send_email_with_cc():
     )
     
     # Send the email
-    result = await send_email(ctx, credentials_path, email_input)
+    result = await send_email(ctx, email_input)
     
     # Verify the result
     assert isinstance(result, dict)

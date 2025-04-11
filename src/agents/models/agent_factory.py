@@ -28,7 +28,6 @@ class AgentFactory:
             agent_class: The agent class to register
         """
         cls._agent_classes[name] = agent_class
-        logger.info(f"Registered agent class {name}")
         
     @classmethod
     def register_agent_creator(cls, name: str, creator_fn) -> None:
@@ -39,7 +38,6 @@ class AgentFactory:
             creator_fn: The function to create an agent
         """
         cls._agent_creators[name] = creator_fn
-        logger.info(f"Registered agent creator {name}")
     
     @classmethod
     def create_agent(cls, agent_type: str, config: Optional[Dict[str, str]] = None) -> AutomagikAgent:
@@ -265,7 +263,6 @@ class AgentFactory:
                     
                     # Update the agent's db_id
                     agent.db_id = agent_id
-                    logger.info(f"Registered agent {agent_name} with ID {agent_id}")
                     
                 except Exception as e:
                     logger.error(f"Error registering agent in database: {str(e)}")

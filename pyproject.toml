@@ -52,6 +52,7 @@ dependencies = [
     "google-auth-httplib2>=0.2.0",
     "google-auth-oauthlib>=1.2.1",
     "pytz>=2025.2",
+    "supabase>=2.15.0",
 ]
 
 [project.urls]

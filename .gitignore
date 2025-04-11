@@ -175,3 +175,7 @@ cython_debug/
 
 # Credentials
 credentials/
+
+
+scripts/solid_stan/cards_processing/
+scripts/solid_stan/*

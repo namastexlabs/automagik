@@ -66,7 +66,7 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
     """
     # Default values
     agent_id = None
-    user_id = 1  # Default user ID
+    user_id = None  # Changed from hardcoded 1 to None
     session_id = None
     
     # Try to extract from context first
@@ -76,14 +76,73 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
         # Try to get agent_id from deps
         if hasattr(deps, '_agent_id_numeric'):
             agent_id = deps._agent_id_numeric
+            logger.debug(f"Extracted agent_id={agent_id} from ctx.deps._agent_id_numeric")
         
         # Try to get user_id from deps
         if hasattr(deps, '_user_id'):
             user_id = deps._user_id
+            logger.debug(f"Extracted user_id={user_id} from ctx.deps._user_id")
         
         # Try to get session_id from deps
         if hasattr(deps, '_session_id'):
             session_id = deps._session_id
+            logger.debug(f"Extracted session_id={session_id} from ctx.deps._session_id")
+    
+    # Additional checks for context with dict-like access
+    if ctx and agent_id is None and hasattr(ctx, 'get') and callable(getattr(ctx, 'get')):
+        try:
+            # Try to get from context dict
+            if ctx.get('agent_id'):
+                agent_id = ctx.get('agent_id')
+                logger.debug(f"Extracted agent_id={agent_id} from ctx.get('agent_id')")
+            
+            # Try other potential names
+            if agent_id is None and ctx.get('agent'):
+                agent_id = ctx.get('agent')
+                logger.debug(f"Extracted agent_id={agent_id} from ctx.get('agent')")
+        except Exception as e:
+            logger.debug(f"Error accessing context dict: {str(e)}")
+    
+    # Try to extract from context.deps as dict
+    if ctx and agent_id is None and hasattr(ctx, 'deps') and hasattr(ctx.deps, 'get') and callable(getattr(ctx.deps, 'get')):
+        try:
+            if ctx.deps.get('agent_id'):
+                agent_id = ctx.deps.get('agent_id')
+                logger.debug(f"Extracted agent_id={agent_id} from ctx.deps.get('agent_id')")
+        except Exception as e:
+            logger.debug(f"Error accessing deps dict: {str(e)}")
+    
+    # Same for user_id from context dict
+    if ctx and user_id is None and hasattr(ctx, 'get') and callable(getattr(ctx, 'get')):
+        try:
+            if ctx.get('user_id'):
+                user_id = ctx.get('user_id')
+                logger.debug(f"Extracted user_id={user_id} from ctx.get('user_id')")
+        except Exception as e:
+            logger.debug(f"Error accessing context dict for user_id: {str(e)}")
+    
+    # Check for session_id in context dict
+    if ctx and session_id is None and hasattr(ctx, 'get') and callable(getattr(ctx, 'get')):
+        try:
+            if ctx.get('session_id'):
+                session_id = ctx.get('session_id')
+                logger.debug(f"Extracted session_id={session_id} from ctx.get('session_id')")
+        except Exception as e:
+            logger.debug(f"Error accessing context dict for session_id: {str(e)}")
+    
+    # If context is a dict, try direct access
+    if ctx and isinstance(ctx, dict):
+        if agent_id is None and 'agent_id' in ctx:
+            agent_id = ctx['agent_id']
+            logger.debug(f"Extracted agent_id={agent_id} from ctx dict direct access")
+        
+        if user_id is None and 'user_id' in ctx:
+            user_id = ctx['user_id']
+            logger.debug(f"Extracted user_id={user_id} from ctx dict direct access")
+        
+        if session_id is None and 'session_id' in ctx:
+            session_id = ctx['session_id']
+            logger.debug(f"Extracted session_id={session_id} from ctx dict direct access")
     
     # If agent_id is still None, try agent_id_raw
     if agent_id is None and agent_id_raw:
@@ -92,6 +151,7 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
             agent = get_agent_by_name(agent_id_raw)
             if agent and hasattr(agent, 'id'):
                 agent_id = agent.id
+                logger.debug(f"Extracted agent_id={agent_id} from agent_id_raw={agent_id_raw}")
         except Exception as e:
             logger.warning(f"Could not get agent by name '{agent_id_raw}': {str(e)}")
             
@@ -108,9 +168,42 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
                 agent = get_agent_by_name(available_agents[0])
                 if agent and hasattr(agent, 'id'):
                     agent_id = agent.id
+                    logger.debug(f"Using default agent_id={agent_id} from first available agent")
         except Exception as e:
             logger.warning(f"Could not get first available agent: {str(e)}")
     
+    # If still no user_id, try the thread context
+    if user_id is None:
+        try:
+            # Try to get thread context (if available)
+            import threading
+            from src.context import ThreadContext
+            thread_context = getattr(threading.current_thread(), "_context", None)
+            if thread_context and isinstance(thread_context, ThreadContext):
+                if hasattr(thread_context, "user_id") and thread_context.user_id:
+                    user_id = thread_context.user_id
+                    logger.debug(f"Extracted user_id={user_id} from thread context")
+        except Exception as e:
+            logger.debug(f"Could not extract user_id from thread context: {str(e)}")
+    
+    # If still no user_id, try the current request context
+    if user_id is None:
+        try:
+            # Try to get from global request state if available
+            from src.context import get_current_user_id
+            current_user_id = get_current_user_id()
+            if current_user_id:
+                user_id = current_user_id
+                logger.debug(f"Extracted user_id={user_id} from current request")
+        except Exception as e:
+            logger.debug(f"Could not extract user_id from request context: {str(e)}")
+    
+    # Fallback to default user_id if still not found
+    if user_id is None:
+        user_id = 1  # Default user ID as last resort
+        logger.warning(f"Using default user_id={user_id}, could not extract from any context")
+    
+    logger.info(f"Final resolved IDs: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
     return agent_id, user_id, session_id
 
 def _convert_to_memory_object(memory_dict: Dict[str, Any]) -> Memory:
@@ -401,8 +494,13 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                 # Get memory by ID
                 memory = get_memory_in_db(memory_id=memory_id)
             elif name:
-                # Get memory by name - ensure we use name_pattern parameter
-                memories = list_memories_in_db(agent_id=agent_id, name_pattern=name, user_id=user_id)
+                # Get memory by name - ensure we pass both agent_id and user_id
+                logger.info(f"Querying memory by name '{name}' with agent_id={agent_id}, user_id={user_id}")
+                memories = list_memories_in_db(agent_id=agent_id, user_id=user_id, name_pattern=name)
+                if not memories and user_id:
+                    # If no memories found with specific user_id, try with just agent_id
+                    logger.info(f"No memory found with user_id={user_id}, trying with just agent_id={agent_id}")
+                    memories = list_memories_in_db(agent_id=agent_id, name_pattern=name, user_id=user_id)
                 memory = memories[0] if memories else None
             else:
                 memory = None

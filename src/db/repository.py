@@ -211,69 +211,6 @@ def delete_agent(agent_id: int) -> bool:
         logger.error(f"Error deleting agent {agent_id}: {str(e)}")
         return False
 
-
-def register_agent(name: str, agent_type: str, model: str, description: Optional[str] = None, config: Optional[Dict] = None) -> Optional[int]:
-    """Register an agent in the database or update an existing one.
-    
-    Args:
-        name: The agent name
-        agent_type: The agent type
-        model: The model used by the agent
-        description: Optional description
-        config: Optional configuration dictionary
-        
-    Returns:
-        The agent ID if successful, None otherwise
-    """
-    try:
-        # Check if agent already exists with this name
-        existing = get_agent_by_name(name)
-        if existing:
-            # Update existing agent
-            existing.type = agent_type
-            existing.model = model
-            existing.description = description or existing.description
-            if config:
-                existing.config = config
-                
-            # Use update_agent
-            return update_agent(existing)
-        
-        # Serialize config to JSON if needed
-        config_json = json.dumps(config) if config else None
-        
-        # Insert new agent
-        result = execute_query(
-            """
-            INSERT INTO agents (
-                name, type, model, description, config, active, 
-                version, run_id, system_prompt, created_at, updated_at
-            ) VALUES (
-                %s, %s, %s, %s, %s, true, 
-                %s, 1, NULL, NOW(), NOW()
-            ) RETURNING id
-            """,
-            (
-                name, 
-                agent_type, 
-                model, 
-                description,
-                config_json, 
-                "1.0.0"  # Default version
-            )
-        )
-        
-        if result:
-            agent_id = result[0]["id"]
-            logger.info(f"Registered agent {name} with ID {agent_id}")
-            return agent_id
-        
-        return None
-    except Exception as e:
-        logger.error(f"Error registering agent {name}: {str(e)}")
-        return None
-
-
 def increment_agent_run_id(agent_id: int) -> bool:
     """Increment the run_id of an agent.
     
