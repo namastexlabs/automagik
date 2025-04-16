@@ -45,6 +45,7 @@ class WhitelistConfig:
         # Default whitelist phone numbers (without country code)
         self._whitelist = [
             # Add your whitelisted numbers here (format: "5511999999999")
+            "555197285829",
             "5531995400658", "5531997110019", "5531972465316", "5531999911072", "5538998806612", 
             "5538999766612", "5531999286612", "5531998852688", "5531984597690", "5531998227449", 
             "5531995324579", "17814967681", "5531997174121", "5531999923252", "5531992936659", 
@@ -61,7 +62,6 @@ class WhitelistConfig:
             "5531997275288", "5531997627474", "5531999465814", "5531995606163", "5531997571637", 
             "5531993798965", "5535998060654", "5531996303065", "5531997714557", "5531999274715", 
             "5531997970138"
-
         ]
         
     @property
@@ -321,11 +321,11 @@ class EstruturarAgent(AutomagikAgent):
                 try:
                     # Extract Evolution API credentials from channel_payload
                     evolution_data = self._extract_evolution_data(channel_payload) or {}
-                    
+                    logger.info(f"Evolution data: {evolution_data}")
                     # Get Evolution API credentials
-                    api_key = evolution_data.get("api_key", "5E03C326135F-440A-931B-CC472B5BFDEF")
-                    base_url = evolution_data.get("base_url", "http://localhost:8080")
-                    instance_name = evolution_data.get("instance_name", "raphael")
+                    api_key = evolution_data.get("api_key")
+                    base_url = evolution_data.get("base_url")
+                    instance_name = evolution_data.get("instance_name")
                     
                     # Get contact information
                     contact_name = "Rafael Pereira - Engenheiro Civil"
@@ -572,20 +572,30 @@ class EstruturarAgent(AutomagikAgent):
                 # Direct evolution data
                 if "evolution" in message_payload:
                     return message_payload.get("evolution", {})
-                    
-                # Check for separate credential keys
-                api_key = message_payload.get("evolution_api_key") or message_payload.get("api_key")
-                base_url = message_payload.get("evolution_base_url") or message_payload.get("base_url")
-                instance_name = message_payload.get("evolution_instance") or message_payload.get("instance_name")
+                
+                # Check for Evolution API specific fields in the root level
+                api_key = message_payload.get("apikey")
+                server_url = message_payload.get("server_url")
+                instance = message_payload.get("instance")
+                
+                # If instance not found directly, check in the data field
+                if not instance and "data" in message_payload:
+                    instance = message_payload.get("data", {}).get("instanceId")
                 
                 if api_key:
                     evolution_data["api_key"] = api_key
-                if base_url:
-                    evolution_data["base_url"] = base_url
-                if instance_name:
-                    evolution_data["instance_name"] = instance_name
-                    
-                # Check in whatsapp_payload or message_content
+                if server_url:
+                    evolution_data["base_url"] = server_url
+                if instance:
+                    evolution_data["instance_name"] = instance
+                
+                # If we don't have an instance name yet, try to get it from the 'instance' field
+                if not evolution_data.get("instance_name"):
+                    instance_name = message_payload.get("instance")
+                    if instance_name:
+                        evolution_data["instance_name"] = instance_name
+                
+                # Check in whatsapp_payload or message_content as fallback
                 for key in ["whatsapp_payload", "message_content"]:
                     nested_payload = message_payload.get(key, {})
                     if isinstance(nested_payload, dict):
@@ -598,7 +608,6 @@ class EstruturarAgent(AutomagikAgent):
                                 evolution_data["base_url"] = nested_evolution["base_url"]
                             if not evolution_data.get("instance_name") and "instance_name" in nested_evolution:
                                 evolution_data["instance_name"] = nested_evolution["instance_name"]
-            
             # Return the data if we found any, otherwise None
             return evolution_data if evolution_data else None
                 
