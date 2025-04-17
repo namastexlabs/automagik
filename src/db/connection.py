@@ -12,7 +12,7 @@ from pathlib import Path
 import psycopg2
 import psycopg2.extensions
 from psycopg2.extras import RealDictCursor, execute_values
-from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.pool import ThreadedConnectionPool, SimpleConnectionPool
 
 from src.config import settings
 
@@ -324,4 +324,120 @@ def close_connection_pool() -> None:
     if _pool:
         _pool.closeall()
         _pool = None
-        logger.info("Closed all database connections") 
+        logger.info("Closed all database connections")
+
+
+def verify_db_read_write():
+    """Performs a read/write test using a transaction rollback.
+    
+    Creates a temporary user, starts a transaction, inserts a session and message,
+    verifies they can be read, rolls back the transaction, and deletes the user.
+    Raises an exception if any part of the verification fails.
+    """
+    logger.info("🔍 Performing verification test of message storage without creating persistent sessions...")
+    pool = get_connection_pool()
+    test_user_id = generate_uuid()
+    conn = None  # Initialize conn to None
+    
+    # Create a test user and commit it to the database
+    test_email = "test_verification@automagik.test"
+    
+    # Import user-related functions locally to avoid circular dependencies at module level
+    from src.db.models import User
+    from src.db import create_user, delete_user
+    
+    test_user = User(
+        id=test_user_id,
+        email=test_email,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    try:
+        create_user(test_user)  # This will be committed
+        logger.info(f"Created test user with ID {test_user_id} for verification")
+
+        # Now use a separate transaction for test session/message that will be rolled back
+        logger.info("Testing database message storage functionality with transaction rollback...")
+        conn = pool.getconn()
+        conn.autocommit = False  # Start a transaction
+        
+        # Generate test UUIDs
+        test_session_id = generate_uuid()
+        test_message_id = generate_uuid()
+        
+        # Create the session and message within the transaction
+        with conn.cursor() as cur:
+            # Insert test session
+            cur.execute(
+                """
+                INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (safe_uuid(test_session_id), test_user_id, "verification_test", datetime.now(), datetime.now())
+            )
+            
+            # Insert test message
+            cur.execute(
+                """
+                INSERT INTO messages (
+                    id, session_id, user_id, role, text_content, raw_payload, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    safe_uuid(test_message_id),
+                    safe_uuid(test_session_id),
+                    test_user_id,
+                    "user",
+                    "Test database connection",
+                    json.dumps({"content": "Test database connection"}),
+                    datetime.now(),
+                    datetime.now()
+                )
+            )
+            
+            # Verify we can read the data back
+            cur.execute("SELECT COUNT(*) FROM sessions WHERE id = %s", (safe_uuid(test_session_id),))
+            session_count = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM messages WHERE id = %s", (safe_uuid(test_message_id),))
+            message_count = cur.fetchone()[0]
+            
+            if session_count > 0 and message_count > 0:
+                logger.info("✅ Database read/write test successful within transaction")
+            else:
+                logger.error("❌ Failed to verify database read operations within transaction")
+                # Attempt to rollback before raising
+                try: conn.rollback() 
+                except: pass
+                raise Exception("Database verification failed: Could not read back inserted test data")
+            
+            # Roll back the transaction to avoid persisting test data
+            conn.rollback()
+            logger.info("✅ Test transaction rolled back - no test data persisted")
+        
+        # Return connection to pool
+        pool.putconn(conn)
+        conn = None # Reset conn after putting it back
+        logger.info("✅ Database verification completed successfully without creating persistent test data")
+
+    except Exception as test_e:
+        logger.error(f"❌ Database verification test failed: {str(test_e)}")
+        # Ensure any open transaction is rolled back
+        if conn:
+            try: conn.rollback() 
+            except: pass
+            try: pool.putconn(conn) # Try to return connection even on error
+            except: pass 
+        # Log detailed error before raising
+        logger.error(f"Detailed error: {traceback.format_exc()}")
+        raise # Re-raise the original exception after cleanup attempts
+    finally:
+        # Clean up the test user regardless of transaction success/failure
+        try:
+            delete_user(test_user_id)
+            logger.info(f"Cleaned up test user {test_user_id}")
+        except Exception as cleanup_e:
+            # Log as warning because the primary error (if any) is more important
+            logger.warning(f"⚠️ Failed to clean up test user {test_user_id}: {str(cleanup_e)}")
+            logger.warning(f"Cleanup error details: {traceback.format_exc()}") 
