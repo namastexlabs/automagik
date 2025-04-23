@@ -20,7 +20,7 @@ class DisappearingMode(BaseModel):
 
 
 class ContextInfo(BaseModel):
-    expiration: int
+    expiration: Optional[int] = None
     disappearingMode: DisappearingMode
     ephemeralSettingTimestamp: str
 

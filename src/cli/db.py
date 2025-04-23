@@ -499,19 +499,9 @@ def db_clear(
             except Exception as e:
                 typer.echo(f"    ✗ Failed to clear table {table_name}: {str(e)}")
         
-        # Create default user if not exists
-        if not no_default_user:
-            cursor.execute("SELECT COUNT(*) FROM users WHERE id = 1")
-            if cursor.fetchone()[0] == 0:
-                logger.info("Creating default user...")
-                cursor.execute("""
-                    INSERT INTO users (id, email, created_at, updated_at)
-                    VALUES (1, 'admin@automagik', NOW(), NOW())
-                """)
-                conn.commit()
-                typer.echo("✅ Created default user (ID: 1)")
-        else:
-            typer.echo("Skipping default user creation as requested")
+        # Removed outdated default user creation logic
+        # The default user should be managed by ensure_default_user_exists
+        # during application startup or via a separate command if needed.
         
         # Close the connection
         cursor.close()
