@@ -51,10 +51,11 @@ class StanAgent(AutomagikAgent):
         Args:
             config: Dictionary with configuration options
         """
-        from src.agents.simple.stan_agent.prompts.prompt import AGENT_PROMPT
+        # Import the default prompt (not_registered)
+        from src.agents.simple.stan_agent.prompts.not_registered import PROMPT as DEFAULT_PROMPT
         
-        # Initialize the base agent
-        super().__init__(config, AGENT_PROMPT)
+        # Initialize the base agent with the default prompt
+        super().__init__(config, DEFAULT_PROMPT)
         
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
@@ -81,7 +82,32 @@ class StanAgent(AutomagikAgent):
         self.tool_registry.register_tool_with_context(verificar_cnpj, self.context)
         
         logger.info("StanAgentAgent initialized successfully")
-    
+
+    def _use_prompt_based_on_contact_status(self, status: StatusAprovacaoEnum, contact_id: str) -> None:
+        """Updates the system_prompt based on the contact's approval status."""
+        # Import prompts dynamically within the cases to avoid loading all at once
+        match status:
+            case StatusAprovacaoEnum.NOT_REGISTERED:
+                logger.info(f" Contact {contact_id} is not registered yet")
+                from src.agents.simple.stan_agent.prompts.not_registered import PROMPT as STATUS_PROMPT
+            case StatusAprovacaoEnum.PENDING_REVIEW:
+                logger.info(f" Contact {contact_id} is pending approval")
+                from src.agents.simple.stan_agent.prompts.pending_review import PROMPT as STATUS_PROMPT
+            case StatusAprovacaoEnum.VERIFYING:
+                logger.info(f" Contact {contact_id} is being verified")
+                from src.agents.simple.stan_agent.prompts.verifying import PROMPT as STATUS_PROMPT
+            case StatusAprovacaoEnum.APPROVED:
+                logger.info(f" Contact {contact_id} is approved")
+                from src.agents.simple.stan_agent.prompts.approved import PROMPT as STATUS_PROMPT
+            case StatusAprovacaoEnum.REJECTED:
+                logger.info(f" Contact {contact_id} was rejected")
+                from src.agents.simple.stan_agent.prompts.rejected import PROMPT as STATUS_PROMPT
+            case _:
+                logger.warning(f" Contact {contact_id} has unknown status: {status}. Using UNKNOWN prompt.")
+                from src.agents.simple.stan_agent.prompts.unknown import PROMPT as STATUS_PROMPT
+        
+        self.system_prompt = STATUS_PROMPT
+
     async def _initialize_pydantic_agent(self) -> None:
         """Initialize the underlying PydanticAI agent."""
         if self._agent_instance is not None:
@@ -164,7 +190,7 @@ class StanAgent(AutomagikAgent):
                     self.context["blackpearl_cliente_id"] = cliente_blackpearl.get("id")
                     self.context["blackpearl_cliente_nome"] = cliente_blackpearl.get("razao_social")
                     self.context["blackpearl_cliente_email"] = cliente_blackpearl.get("email")
-                    logger.info(f"🔮 BlackPearl Cliente ID: {self.context['blackpearl_cliente_id']} and Name: {self.context['blackpearl_cliente_nome']}")
+                    logger.info(f" BlackPearl Cliente ID: {self.context['blackpearl_cliente_id']} and Name: {self.context['blackpearl_cliente_nome']}")
                     
                 # Set user information in dependencies if available
                 if hasattr(self.dependencies, 'set_user_info'):
@@ -176,40 +202,14 @@ class StanAgent(AutomagikAgent):
                     })
             update_user_data(user_id, {"blackpearl_contact_id": contato_blackpearl.get("id"), "blackpearl_cliente_id": self.context["blackpearl_cliente_id"]})
             
-            logger.info(f"🔮 BlackPearl Contact ID: {contato_blackpearl.get('id')} and Name: {user_name}")
+            logger.info(f" BlackPearl Contact ID: {contato_blackpearl.get('id')} and Name: {user_name}")
 
         
         # Handle different contact registration statuses
         if contato_blackpearl:
-            status_aprovacao = contato_blackpearl.get("status_aprovacao")
-            user_info_memory = Memory(
-                name="user_information",
-                description="Informações do usuário",
-                content=f"- User Name: {user_name}\n- User Phone: {user_number}\n- User Status: {status_aprovacao}\n- User BlackPearl Contact ID: {contato_blackpearl.get('id')}\n- User BlackPearl Cliente ID: {self.context['blackpearl_cliente_id']} ",
-                session_id=self.context.get("session_id"),
-                agent_id=self.db_id,
-                user_id=user_id,
-                access="read",
-                read_mode="system_prompt"
-            )
-            create_memory(
-                user_info_memory
-            )
-            match status_aprovacao:
-                case StatusAprovacaoEnum.APPROVED:
-                    logger.info(f"🔮 Contact {contato_blackpearl.get('id')} is approved")
-                case StatusAprovacaoEnum.PENDING_REVIEW:
-                    logger.info(f"🔮 Contact {contato_blackpearl.get('id')} is pending approval")
-                case StatusAprovacaoEnum.REJECTED:
-                    logger.info(f"🔮 Contact {contato_blackpearl.get('id')} was rejected")
-                case StatusAprovacaoEnum.NOT_REGISTERED:
-                    logger.info(f"🔮 Contact {contato_blackpearl.get('id')} is not registered yet")
-                case StatusAprovacaoEnum.VERIFYING:
-                    logger.info(f"🔮 Contact {contato_blackpearl.get('id')} is being verified")
-                case _:
-                    logger.info(f"🔮 Contact {contato_blackpearl.get('id')} has unknown status: {status_aprovacao}")
-        
-        
+            status_aprovacao_str = contato_blackpearl.get("status_aprovacao", "NOT_REGISTERED")
+            self._use_prompt_based_on_contact_status(status_aprovacao_str, contato_blackpearl.get('id'))
+
         # Ensure memory variables are initialized
         if self.db_id:
             await self.initialize_memory_variables(user_id)

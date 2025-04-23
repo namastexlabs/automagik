@@ -9,7 +9,8 @@ import os
 import logging
 import traceback
 
-from src.agents.simple.stan_agent.prompts.prompt import AGENT_PROMPT
+# Removed import of AGENT_PROMPT as it no longer exists in prompt.py
+# from src.agents.simple.stan_agent.prompts.prompt import AGENT_PROMPT
 
 # Setup logging first
 logger = logging.getLogger(__name__)
