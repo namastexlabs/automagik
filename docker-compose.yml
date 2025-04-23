@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: estruturar_postgres
+    environment:
+      POSTGRES_DB: automagik_agents
+      POSTGRES_USER: automagik
+      POSTGRES_PASSWORD: automagik
+    ports:
+      - "5438:5432"
+    volumes:
+      - estruturar_postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  estruturar_postgres_data: 
