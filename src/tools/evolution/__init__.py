@@ -11,6 +11,15 @@ from src.tools.evolution.tool import (
     get_chat_history_description
 )
 
+
+# Import from contact tool module
+from src.tools.evolution.contact_tool import (
+    send_contact,
+    send_business_contact,
+    send_personal_contact,
+    get_send_contact_description
+)
+
 # Import schema models
 from src.tools.evolution.schema import (
     Message,
