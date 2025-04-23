@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 # Import necessary modules
 from src.agents.simple.simple_agent.agent import SimpleAgent
-from src.tools.memory_tools import read_memory, write_memory
+from src.tools.memory.tool import read_memory, create_memory
 
 def main():
     """Create a SimpleAgent instance and extract the exact tool descriptions directly."""
@@ -40,7 +40,7 @@ def main():
 
     
     # To directly access tool descriptions, let's use the same code from agent.py
-    from src.tools.memory_tools import read_memory, write_memory
+    from src.tools.memory.tool import read_memory, create_memory
     from src.db import list_memories
     import inspect
     

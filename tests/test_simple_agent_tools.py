@@ -8,8 +8,8 @@ import os
 import logging
 from unittest.mock import patch, MagicMock, mock_open
 
+from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.simple.simple_agent.agent import SimpleAgent
-from src.agents.models.dependencies import SimpleAgentDependencies
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

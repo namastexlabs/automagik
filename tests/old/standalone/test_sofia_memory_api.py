@@ -16,18 +16,20 @@ import requests
 from datetime import datetime
 from src.db import execute_query
 
-# Parse command line arguments
-parser = argparse.ArgumentParser(description='Test memory operations through sofia_agent API')
-parser.add_argument('--session-id', help='Use an existing session ID instead of creating a new one')
-parser.add_argument('--direct', action='store_true', help='Run agent directly without a session')
-parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
-args = parser.parse_args()
+# --- Wrap script-specific logic --- 
+if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Test memory operations through sofia_agent API')
+    parser.add_argument('--session-id', help='Use an existing session ID instead of creating a new one')
+    parser.add_argument('--direct', action='store_true', help='Run agent directly without a session')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
+    args = parser.parse_args()
 
-# Set up logging
-log_level = logging.DEBUG if args.verbose else logging.INFO
-logging.basicConfig(level=log_level, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+    # Set up logging
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(level=log_level, 
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
 
 # API configuration
 API_HOST = os.environ.get("AM_HOST", "127.0.0.1")
@@ -797,4 +799,4 @@ def main():
         logger.info("No test memory to clean up")
 
 if __name__ == "__main__":
-    main() 
+    main()

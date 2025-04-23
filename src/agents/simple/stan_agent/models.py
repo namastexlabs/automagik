@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
 
 
@@ -57,14 +57,16 @@ class EvolutionMessagePayload(BaseModel):
     server_url: Optional[str] = None
     destination: Optional[str] = None
 
-    @root_validator(pre=True)
-    def normalize_payload(cls, values):
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_payload(cls, data: Any) -> Any:
         """Normalize different payload formats into a consistent structure."""
-        if not values:
-            return values
+        if not isinstance(data, dict):
+             # If it's not a dict (e.g., already a model instance), return it as is
+             return data
             
-        # Create a normalized copy of values
-        normalized = dict(values)
+        # Create a normalized copy of the input data dictionary
+        normalized = dict(data)
         
         # Ensure data exists
         if "data" not in normalized:

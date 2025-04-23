@@ -1,6 +1,6 @@
-"""Tests for the SimpleAgentDependencies class.
+"""Tests for the AutomagikAgentsDependencies class.
 
-This module tests the functionality of the SimpleAgentDependencies class,
+This module tests the functionality of the AutomagikAgentsDependencies class,
 verifying that it properly provides dependencies and handles configuration.
 """
 import unittest
@@ -8,14 +8,14 @@ import asyncio
 from typing import Dict, Any, List
 from unittest.mock import patch, MagicMock
 
-from src.agents.models.dependencies import SimpleAgentDependencies
+from src.agents.models.dependencies import AutomagikAgentsDependencies
 
-class TestSimpleAgentDependencies(unittest.TestCase):
-    """Test cases for SimpleAgentDependencies."""
+class TestAutomagikAgentsDependencies(unittest.TestCase):
+    """Test cases for AutomagikAgentsDependencies."""
 
     def setUp(self):
         """Set up test fixtures."""
-        self.deps = SimpleAgentDependencies()
+        self.deps = AutomagikAgentsDependencies()
         
     def test_default_values(self):
         """Test that default values are set correctly."""
@@ -99,12 +99,12 @@ class TestSimpleAgentDependencies(unittest.TestCase):
         self.deps.model_name = "google-gla:gemini-pro"
         self.deps.configure_for_multimodal(True)
 
-class TestSimpleAgentDependenciesAsync(unittest.IsolatedAsyncioTestCase):
-    """Async test cases for SimpleAgentDependencies."""
+class TestAutomagikAgentsDependenciesAsync(unittest.IsolatedAsyncioTestCase):
+    """Async test cases for AutomagikAgentsDependencies."""
     
     async def asyncSetUp(self):
         """Set up test fixtures."""
-        self.deps = SimpleAgentDependencies()
+        self.deps = AutomagikAgentsDependencies()
         
     async def asyncTearDown(self):
         """Clean up test fixtures."""

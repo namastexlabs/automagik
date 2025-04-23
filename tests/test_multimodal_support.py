@@ -7,13 +7,18 @@ multimodal content: images, audio, and documents.
 import asyncio
 import logging
 import os
-from src.agents.simple.simple_agent import create_agent
-from src.agents.models.dependencies import SimpleAgentDependencies
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("test_multimodal")
+
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from src.agents.models.dependencies import AutomagikAgentsDependencies
+from src.agents.simple.simple_agent import create_agent
 
 async def test_multimodal_support():
     """Test multimodal support in SimpleAgent."""
@@ -29,7 +34,7 @@ async def test_multimodal_support():
     logger.info(f"Created agent with initial model: {agent.config.model}")
     
     # Test image processing
-    deps = SimpleAgentDependencies()
+    deps = AutomagikAgentsDependencies()
     deps.configure_for_multimodal(modality="image")
     logger.info(f"Configured for image processing with model: {deps.model_name}")
     
@@ -39,12 +44,12 @@ async def test_multimodal_support():
     logger.info(f"Available multimodal tools: {tool_names}")
     
     # Test audio support
-    deps = SimpleAgentDependencies()
+    deps = AutomagikAgentsDependencies()
     deps.configure_for_multimodal(modality="audio")
     logger.info(f"Configured for audio processing with model: {deps.model_name}")
     
     # Test document support
-    deps = SimpleAgentDependencies()
+    deps = AutomagikAgentsDependencies()
     deps.configure_for_multimodal(modality="document")
     logger.info(f"Configured for document processing with model: {deps.model_name}")
     
@@ -58,7 +63,7 @@ async def test_multimodal_support():
     ]
     
     for model in test_models:
-        deps = SimpleAgentDependencies()
+        deps = AutomagikAgentsDependencies()
         deps.model_name = model
         
         image_support = deps._supports_image_input(model)

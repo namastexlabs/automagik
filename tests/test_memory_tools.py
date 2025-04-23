@@ -28,15 +28,11 @@ from src.tools.memory.schema import (
 )
 from src.tools.memory.tool import (
     read_memory, create_memory, update_memory,
-    map_agent_id, _convert_to_memory_object
+    map_agent_id, _convert_to_memory_object,
+    get_memory_tool, store_memory_tool, list_memories_tool
 )
 from src.tools.memory.provider import MemoryProvider, get_memory_provider_for_agent
 from src.tools.memory.interface import invalidate_memory_cache, validate_memory_name, format_memory_content
-
-# Import the connector from common_tools
-from src.tools.common_tools.memory_tools import (
-    get_memory_tool, store_memory_tool, list_memories_tool, _create_mock_context
-)
 
 from pydantic_ai.tools import RunContext
 
@@ -50,7 +46,9 @@ class TestMemoryTools(unittest.TestCase):
         self.test_memory_content = f"This is a test memory created at {datetime.now()}"
         
         # Create mock RunContext for testing
-        model, usage, prompt = _create_mock_context()
+        model = None
+        usage = None
+        prompt = None
         self.mock_ctx = RunContext({}, model=model, usage=usage, prompt=prompt)
         
         # Generate a high agent ID unlikely to conflict with real agents
@@ -276,9 +274,9 @@ class TestMemoryTools(unittest.TestCase):
         mock_create.return_value = create_result
         mock_list.return_value = list_result
         
-        with patch("src.tools.common_tools.memory_tools.raw_read_memory", mock_read), \
-             patch("src.tools.common_tools.memory_tools.raw_create_memory", mock_create), \
-             patch("src.tools.common_tools.memory_tools.raw_read_memory", mock_list):
+        with patch("src.tools.memory.tool.raw_read_memory", mock_read), \
+             patch("src.tools.memory.tool.raw_create_memory", mock_create), \
+             patch("src.tools.memory.tool.raw_read_memory", mock_list):
             
             # Test get_memory_tool
             result = await get_memory_tool(self.test_memory_name)
@@ -289,7 +287,7 @@ class TestMemoryTools(unittest.TestCase):
             self.assertEqual(result, f"Memory stored with key '{self.test_memory_name}'")
             
             # Test list_memories_tool
-            with patch("src.tools.common_tools.memory_tools.raw_read_memory", mock_list):
+            with patch("src.tools.memory.tool.raw_read_memory", mock_list):
                 result = await list_memories_tool()
                 self.assertEqual(result, self.test_memory_name)
 
