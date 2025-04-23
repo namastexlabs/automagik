@@ -301,8 +301,11 @@ def setup_routes(app: FastAPI):
     # Root and health endpoints (no auth required)
     @app.get("/", tags=["System"], summary="Root Endpoint", description="Returns service information and status")
     async def root():
+        # Get base URL from settings
+        base_url = f"http://{settings.AM_HOST}:{settings.AM_PORT}"
         return {
             "status": "online",
+            "docs": f"{base_url}/api/v1/docs",
             **SERVICE_INFO
         }
 
