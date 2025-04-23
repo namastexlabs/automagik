@@ -8,7 +8,7 @@ message history methods.
 import logging
 import uuid
 from typing import List, Optional, Dict, Any, Union, Tuple
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 # PydanticAI imports
 from pydantic_ai.messages import (
@@ -193,8 +193,8 @@ class MessageHistory:
                 role="system",
                 text_content=content,
                 message_type="text",
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC)
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             create_message(message)
             
@@ -227,8 +227,8 @@ class MessageHistory:
                 message_type="text",
                 context=context,
                 channel_payload=channel_payload,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC)
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             
             # Log before attempting to create message
@@ -352,8 +352,8 @@ class MessageHistory:
                 tool_calls=tool_calls_dict,
                 tool_outputs=tool_outputs_dict,
                 system_prompt=system_prompt,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC)
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             
             # Log query only in debug mode
