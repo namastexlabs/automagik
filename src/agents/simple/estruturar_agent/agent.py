@@ -328,7 +328,7 @@ class EstruturarAgent(AutomagikAgent):
                     instance_name = evolution_data.get("instance_name")
                     
                     # Get contact information
-                    contact_name = "Rafael Pereira - Engenheiro Civil"
+                    contact_name = "Rafael Straelh - Engenheiro Civil"
                     contact_phone = "5535997463187"
                     contact_display = "+55 35 99746-3187"
                     
