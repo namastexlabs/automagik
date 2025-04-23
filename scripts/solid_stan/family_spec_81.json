@@ -1,0 +1,69 @@
+{
+  "family_id": 81,
+  "family_name": "AIR COOLER",
+  "specs_schema": {
+    "tamanho_ventoinha": {
+      "type": "integer",
+      "description": "Diâmetro da ventoinha em milímetros (mm)",
+      "minimum": 50,
+      "maximum": 200
+    },
+    "rpm_maximo": {
+      "type": "integer",
+      "description": "Rotação máxima da ventoinha em RPM (Rotações por Minuto)",
+      "minimum": 500
+    },
+    "nivel_ruido": {
+      "type": "number",
+      "description": "Nível de ruído durante a operação em decibéis (dBA)",
+      "minimum": 0
+    },
+    "controle_pwm": {
+      "type": "boolean",
+      "description": "Indica se o cooler possui controle PWM para ajuste de velocidade"
+    },
+    "altura": {
+      "type": "integer",
+      "description": "Altura total do cooler em milímetros (mm)",
+      "minimum": 50
+    },
+    "material": {
+      "type": "string",
+      "description": "Material utilizado nas aletas e base do cooler (ex: alumínio, cobre)"
+    },
+    "compatibilidade_soquete": {
+      "type": "array",
+      "description": "Lista de soquetes de processadores compatíveis",
+      "items": {
+        "type": "string",
+        "enum": [
+          "LGA1151",
+          "LGA1200",
+          "LGA2066",
+          "AM4",
+          "TR4",
+          "AM3+",
+          "FM2"
+        ]
+      }
+    },
+    "peso": {
+      "type": "number",
+      "description": "Peso do cooler em quilogramas (kg)",
+      "minimum": 0
+    },
+    "numero_ventoinhas": {
+      "type": "integer",
+      "description": "Número de ventoinhas incluídas no cooler",
+      "minimum": 1
+    },
+    "sistema_instalacao": {
+      "type": "string",
+      "description": "Tipo de sistema de instalação ou montagem",
+      "enum": [
+        "Universal",
+        "Proprietário"
+      ]
+    }
+  }
+}

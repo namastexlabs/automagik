@@ -1,0 +1,75 @@
+{
+  "family_id": 85,
+  "family_name": "APOIO PARA TECLADO",
+  "specs_schema": {
+    "material": {
+      "type": "string",
+      "description": "Material de fabricação do apoio para teclado. Ex.: couro, espuma, tecido, plástico, metal",
+      "enum": [
+        "couro",
+        "espuma",
+        "tecido",
+        "plástico",
+        "metal"
+      ]
+    },
+    "dimensoes": {
+      "type": "object",
+      "description": "Dimensões do apoio para teclado em centímetros",
+      "properties": {
+        "comprimento": {
+          "type": "number",
+          "description": "Comprimento do apoio para teclado em centímetros"
+        },
+        "largura": {
+          "type": "number",
+          "description": "Largura do apoio para teclado em centímetros"
+        },
+        "altura": {
+          "type": "number",
+          "description": "Altura do apoio para teclado em centímetros"
+        }
+      },
+      "required": [
+        "comprimento",
+        "largura",
+        "altura"
+      ]
+    },
+    "cor": {
+      "type": "string",
+      "description": "Cor principal do apoio para teclado",
+      "enum": [
+        "preto",
+        "branco",
+        "cinza",
+        "azul",
+        "vermelho",
+        "verde",
+        "amarelo"
+      ]
+    },
+    "peso_maximo": {
+      "type": "number",
+      "description": "Carga máxima suportada pelo apoio para teclado em quilogramas",
+      "minimum": 0
+    },
+    "ajustavel": {
+      "type": "boolean",
+      "description": "Indica se o apoio para teclado possui mecanismo de ajuste de ângulo ou altura"
+    },
+    "design_ergonomico": {
+      "type": "boolean",
+      "description": "Indica se o apoio para teclado possui design ergonômico para maior conforto"
+    },
+    "acabamento": {
+      "type": "string",
+      "description": "Tipo de acabamento do apoio que influencia a durabilidade e estética",
+      "enum": [
+        "fosco",
+        "brilhante",
+        "texturizado"
+      ]
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "family_id": 65,
+  "family_name": "ACESSÓRIOS GABINETE",
+  "specs_schema": {
+    "modelo": {
+      "type": "string",
+      "description": "Modelo do acessório de gabinete"
+    },
+    "marca": {
+      "type": "string",
+      "description": "Marca do acessório de gabinete"
+    },
+    "tipo_acessorio": {
+      "type": "string",
+      "description": "Tipo de acessório para gabinete",
+      "enum": [
+        "filtro_de_poeira",
+        "suporte_rgb",
+        "ventoinha",
+        "controlador_ventoinhas",
+        "outro"
+      ]
+    },
+    "material": {
+      "type": "string",
+      "description": "Material do acessório, como plástico, metal, vidro temperado, etc."
+    },
+    "cor": {
+      "type": "string",
+      "description": "Cor predominante do acessório"
+    },
+    "dimensoes": {
+      "type": "object",
+      "description": "Dimensões do acessório em centímetros",
+      "properties": {
+        "largura": {
+          "type": "number",
+          "description": "Largura em centímetros"
+        },
+        "altura": {
+          "type": "number",
+          "description": "Altura em centímetros"
+        },
+        "profundidade": {
+          "type": "number",
+          "description": "Profundidade em centímetros"
+        }
+      },
+      "required": [
+        "largura",
+        "altura",
+        "profundidade"
+      ]
+    },
+    "peso": {
+      "type": "number",
+      "description": "Peso do acessório em quilogramas",
+      "minimum": 0
+    },
+    "compatibilidade": {
+      "type": "array",
+      "description": "Lista de gabinetes ou sistemas compatíveis com o acessório",
+      "items": {
+        "type": "string",
+        "description": "Tipo ou modelo de gabinete compatível"
+      }
+    },
+    "funcionalidades": {
+      "type": "array",
+      "description": "Principais funcionalidades ou características adicionais do acessório",
+      "items": {
+        "type": "string",
+        "description": "Descrição de uma funcionalidade do acessório"
+      }
+    },
+    "garantia": {
+      "type": "integer",
+      "description": "Período de garantia do acessório em meses",
+      "minimum": 0
+    },
+    "preco": {
+      "type": "number",
+      "description": "Preço do acessório na moeda local",
+      "minimum": 0
+    },
+    "ativo": {
+      "type": "boolean",
+      "description": "Indica se o produto está ativo no catálogo"
+    }
+  }
+}
