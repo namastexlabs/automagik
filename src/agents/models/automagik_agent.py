@@ -96,6 +96,9 @@ class AutomagikAgent(ABC, Generic[T]):
         # Store the system prompt
         self.system_prompt = system_prompt
         
+        # Get agent name from config
+        self.name = self.config.get("name", self.__class__.__name__.lower())
+        
         # Initialize agent ID 
         self.db_id = validate_agent_id(self.config.get("agent_id"))
         
@@ -109,7 +112,50 @@ class AutomagikAgent(ABC, Generic[T]):
         # Initialize dependencies (to be set by subclasses)
         self.dependencies = None
         
-        logger.info(f"Initialized AutomagikAgent with ID: {self.db_id}")
+        # Register in database if no ID provided
+        if self.db_id is None:
+            try:
+                # Only import here to avoid circular imports
+                from src.db import register_agent, get_agent_by_name
+                
+                # Check if agent already exists in database
+                existing_agent = get_agent_by_name(self.name)
+                if existing_agent:
+                    # Use existing ID
+                    self.db_id = existing_agent.id
+                    logger.info(f"Using existing agent ID {self.db_id} for {self.name}")
+                else:
+                    # Extract agent metadata
+                    agent_type = self.name.replace("_agent", "")
+                    description = getattr(self, "description", f"{self.name} agent")
+                    model = getattr(self.config, "model", "openai:gpt-3.5-turbo")
+                    
+                    # Prepare config for database
+                    agent_config = {}
+                    if hasattr(self.config, "__dict__"):
+                        agent_config = self.config.__dict__
+                    elif isinstance(self.config, dict):
+                        agent_config = self.config
+                    
+                    # Register the agent
+                    self.db_id = register_agent(
+                        name=self.name,
+                        agent_type=agent_type,
+                        model=model,
+                        description=description,
+                        config=agent_config
+                    )
+                    logger.info(f"Registered agent {self.name} with ID {self.db_id}")
+                    
+                # Update context with new ID
+                self.context["agent_id"] = self.db_id
+                
+            except Exception as e:
+                import traceback
+                logger.error(f"Error registering agent in database: {str(e)}")
+                logger.error(traceback.format_exc())
+        
+        logger.info(f"Initialized {self.__class__.__name__} with ID: {self.db_id}")
     
     def register_tool(self, tool_func):
         """Register a tool with the agent.
@@ -121,7 +167,7 @@ class AutomagikAgent(ABC, Generic[T]):
             self.tool_registry = ToolRegistry()
             
         self.tool_registry.register_tool(tool_func)
-        logger.debug(f"Registered tool: {getattr(tool_func, '__name__', str(tool_func))}")
+        logger.debug(f"Registered tool: {getattr(tool_func, '__name__')}")
     
     def update_context(self, context_updates: Dict[str, Any]) -> None:
         """Update the agent's context.

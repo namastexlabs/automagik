@@ -54,7 +54,6 @@ class ToolRegistry:
         """
         name = getattr(tool_func, "__name__", str(tool_func))
         self._registered_tools[name] = tool_func
-        logger.info(f"Registered tool: {name}")
     
     def register_tool_with_context(self, tool_func: Callable, context: Dict[str, Any]) -> None:
         """Register a tool with the registry, automatically injecting context.

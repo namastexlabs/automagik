@@ -184,9 +184,15 @@ class AgentFactory:
         base_name = agent_name
         if not agent_name.endswith("_agent"):
             base_name = f"{agent_name}_agent"
+        
+        # Create initial configuration with name
+        config = {
+            "name": agent_name
+        }
             
         # Try to create a new agent
-        agent = cls.create_agent(base_name, {})
+        # The agent will register itself in the database during initialization
+        agent = cls.create_agent(base_name, config)
         
         # Store for reuse
         cls._initialized_agents[agent_name] = agent
