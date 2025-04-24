@@ -187,6 +187,18 @@ class ItemDePedido(BaseModel):
     pedido: int
     produto: int
 
+class ItemDePedidoCreate(BaseModel):
+    quantidade: int = Field(..., ge=1) # Must have quantity
+    valor_unitario: str = Field(..., pattern=r'^-?\d{0,10}(?:\.\d{0,2})?$')
+    porcentagem_desconto: Optional[float] = Field(0.0, ge=0.0)
+    pedido: int # Must link to an order
+    produto: int # Must link to a product
+
+class ItemDePedidoUpdate(BaseModel):
+    quantidade: Optional[int] = Field(None, ge=1)
+    valor_unitario: Optional[str] = Field(None, pattern=r'^-?\d{0,10}(?:\.\d{0,2})?$')
+    porcentagem_desconto: Optional[float] = Field(None, ge=0.0)
+
 class PedidoDeVenda(BaseModel):
     id: int = Field(..., description="Unique identifier")
     status_negociacao: StatusNegociacaoEnum
@@ -202,6 +214,24 @@ class PedidoDeVenda(BaseModel):
     pagamento: Optional[int]
     transportadora: Optional[int]
     vendedor: List[int]
+
+class PedidoDeVendaCreate(BaseModel):
+    cliente: int # Required
+    vendedor: Optional[List[int]] = Field(None, description="Associate salesperson IDs") # Often required or context-based
+    pagamento: Optional[int] = Field(None, description="Payment condition ID") # Often required
+    frete_modalidade: Optional[FreteModalidadeEnum] = Field(None, description="Shipping mode") # Often required
+    transportadora: Optional[int] = Field(None, description="Carrier ID") # Required depending on frete_modalidade?
+    observacoes: Optional[str] = Field(None, description="Order observations")
+
+class PedidoDeVendaUpdate(BaseModel):
+    status_negociacao: Optional[StatusNegociacaoEnum] = None
+    status_pedido: Optional[StatusPedidoEnum] = None
+    observacoes: Optional[str] = None
+    pagamento: Optional[int] = None
+    frete_modalidade: Optional[FreteModalidadeEnum] = None
+    transportadora: Optional[int] = None
+    vendedor: Optional[List[int]] = None
+    cancelado: Optional[bool] = None
 
 class RegraDeFrete(BaseModel):
     id: int = Field(..., description="Unique identifier")
@@ -220,4 +250,4 @@ class RegraDeNegocio(BaseModel):
     id: int = Field(..., description="Unique identifier")
     titulo: str = Field(..., max_length=64)
     regra: str
-    ativo: bool 
+    ativo: bool

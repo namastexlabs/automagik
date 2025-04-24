@@ -3,62 +3,6 @@ info:
   title: ''
   version: 0.0.0
 paths:
-  /api/auth/login/:
-    post:
-      operationId: auth_login_create
-      tags:
-      - auth
-      security:
-      - tokenAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
-  /api/auth/logout/:
-    post:
-      operationId: auth_logout_create
-      tags:
-      - auth
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/auth/register/:
-    post:
-      operationId: auth_register_create
-      description: Registra um novo usuário.
-      tags:
-      - auth
-      security:
-      - tokenAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
-  /api/auth/user/:
-    get:
-      operationId: auth_user_retrieve
-      tags:
-      - auth
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/auth/verify-token/:
-    post:
-      operationId: auth_verify_token_create
-      description: |-
-        Verifica se o token é válido.
-        Este endpoint pode ser usado pelo frontend para verificar se o usuário está autenticado.
-      tags:
-      - auth
-      security:
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
   /api/openapi.spec.json:
     get:
       operationId: openapi.spec.json_retrieve
@@ -182,7 +126,7 @@ paths:
       tags:
       - openapi.spec.json
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -204,14 +148,133 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/token/:
+    post:
+      operationId: token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/token/blacklist/:
+    post:
+      operationId: token_blacklist_create
+      description: |-
+        Takes a token and blacklists it. Must be used with the
+        `rest_framework_simplejwt.token_blacklist` app installed.
+      tags:
+      - token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenBlacklist'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenBlacklist'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenBlacklist'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenBlacklist'
+          description: ''
+  /api/token/refresh/:
+    post:
+      operationId: token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/token/verify/:
+    post:
+      operationId: token_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      tags:
+      - token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerify'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerify'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerify'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenVerify'
+          description: ''
   /api/tools/cnpj/verificar/:
     post:
       operationId: tools_cnpj_verificar_create
       tags:
       - tools
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
+      responses:
+        '200':
+          description: No response body
+  /api/user/:
+    get:
+      operationId: user_retrieve
+      description: Retorna as informações do usuário a partir do token JWT
+      tags:
+      - user
+      security:
+      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -266,7 +329,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -292,7 +355,7 @@ paths:
               $ref: '#/components/schemas/Cliente'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -314,7 +377,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -347,7 +410,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedCliente'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -368,7 +431,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '204':
@@ -404,7 +467,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -430,7 +493,7 @@ paths:
               $ref: '#/components/schemas/Contato'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -452,7 +515,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -484,7 +547,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedContato'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -505,7 +568,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '204':
@@ -525,7 +588,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -561,7 +624,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -587,7 +650,7 @@ paths:
               $ref: '#/components/schemas/Vendedor'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -609,7 +672,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -641,7 +704,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedVendedor'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -685,7 +748,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -707,7 +770,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -716,6 +779,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/FamiliaDeProduto'
           description: ''
+  /api/v1/catalogo/finder/:
+    get:
+      operationId: v1_catalogo_finder_retrieve
+      description: |-
+        API para encontrar um produto pelo seu código (Part Number)
+
+        Exemplo de uso:
+        GET api/v1/catalogo/finder/?part_number={part_number}
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/v1/catalogo/imagensdeproduto/:
     get:
       operationId: v1_catalogo_imagensdeproduto_list
@@ -751,7 +830,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -773,7 +852,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -817,7 +896,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -839,7 +918,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -861,6 +940,10 @@ paths:
         schema:
           type: string
       - in: query
+        name: familia
+        schema:
+          type: integer
+      - in: query
         name: familia__nomeFamilia
         schema:
           type: string
@@ -872,6 +955,10 @@ paths:
         required: false
         in: query
         description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: marca
         schema:
           type: integer
       - in: query
@@ -899,7 +986,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -921,7 +1008,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -930,6 +1017,759 @@ paths:
               schema:
                 $ref: '#/components/schemas/Produto'
           description: ''
+    patch:
+      operationId: v1_catalogo_produtos_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProduto'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Produto'
+          description: ''
+  /api/v1/dashboard/cadastro/buscar/:
+    get:
+      operationId: v1_dashboard_cadastro_buscar_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedClienteList'
+          description: ''
+  /api/v1/dashboard/cadastro/buscar/{id}/:
+    get:
+      operationId: v1_dashboard_cadastro_buscar_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Cliente.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cliente'
+          description: ''
+  /api/v1/dashboard/cadastro/count/:
+    get:
+      operationId: v1_dashboard_cadastro_count_retrieve
+      description: |-
+        API para exibir a contagem de cadastros por período
+
+        Filtros disponíveis:
+        - start_date: string (default: 30 dias atras)
+        - end_date: string (default: hoje)
+
+        Exemplo de uso:
+        GET api/v1/dashboard/cadastro/cadastro/count/?start_date=2024-01-01&end_date=2024-03-01
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/cadastro/detalhes/:
+    get:
+      operationId: v1_dashboard_cadastro_detalhes_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedClienteDetalhesList'
+          description: ''
+  /api/v1/dashboard/cadastro/detalhes/{id}/:
+    get:
+      operationId: v1_dashboard_cadastro_detalhes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Cliente.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClienteDetalhes'
+          description: ''
+    patch:
+      operationId: v1_dashboard_cadastro_detalhes_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Cliente.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedClienteDetalhes'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedClienteDetalhes'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedClienteDetalhes'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClienteDetalhes'
+          description: ''
+    delete:
+      operationId: v1_dashboard_cadastro_detalhes_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Cliente.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/cadastro/leads/count/:
+    get:
+      operationId: v1_dashboard_cadastro_leads_count_retrieve
+      description: |-
+        API para exibir a contagem de leads por período
+
+        Filtros disponíveis:
+        - start_date: string (default: 30 dias atras)
+        - end_date: string (default: hoje)
+
+        Exemplo de uso:
+        GET api/v1/dashboard/cadastro/leads-count/?start_date=2024-01-01&end_date=2024-03-01
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/cadastro/listar/:
+    get:
+      operationId: v1_dashboard_cadastro_listar_retrieve
+      description: |-
+        API para listar clientes com filtros avançados.
+
+        Filtros disponíveis:
+        - online: boolean (default: True)
+        - fisica: boolean (default: True)
+        - hibrida: boolean (default: True)
+        - ativo: boolean (default: True)
+        - inativo: boolean (default: True)
+        - novo: boolean (default: True)
+        - page: integer (default: 1)
+
+        Exemplo de uso:
+        GET api/v1/dashboard/cadastro/buscar/?online=true&fisica=false&page=1
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/cadastro/vendedores/:
+    get:
+      operationId: v1_dashboard_cadastro_vendedores_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVendedorList'
+          description: ''
+  /api/v1/dashboard/cadastro/vendedores/{id}/:
+    get:
+      operationId: v1_dashboard_cadastro_vendedores_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vendedor.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendedor'
+          description: ''
+  /api/v1/dashboard/catalogo/buscar/:
+    get:
+      operationId: v1_dashboard_catalogo_buscar_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProdutoList'
+          description: ''
+  /api/v1/dashboard/catalogo/buscar/{id}/:
+    get:
+      operationId: v1_dashboard_catalogo_buscar_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Produto'
+          description: ''
+  /api/v1/dashboard/catalogo/listar/:
+    get:
+      operationId: v1_dashboard_catalogo_listar_retrieve
+      description: |-
+        API para listar produtos com filtros avançados.
+
+        Filtros disponíveis:
+        - marca: integer (opcional)
+        - familia: integer (opcional)
+
+        Exemplo de uso:
+        GET api/v1/dashboard/catalogo/listar/?marca=1&familia=1&page=1
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/catalogo/produto/:
+    get:
+      operationId: v1_dashboard_catalogo_produto_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProdutoDetalhadoList'
+          description: ''
+  /api/v1/dashboard/catalogo/produto/{id}/:
+    get:
+      operationId: v1_dashboard_catalogo_produto_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProdutoDetalhado'
+          description: ''
+    patch:
+      operationId: v1_dashboard_catalogo_produto_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProdutoDetalhado'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProdutoDetalhado'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProdutoDetalhado'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProdutoDetalhado'
+          description: ''
+    delete:
+      operationId: v1_dashboard_catalogo_produto_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/catalogo/produto/{produto_id}/imagens/:
+    get:
+      operationId: v1_dashboard_catalogo_produto_imagens_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedImagemDeProdutoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_catalogo_produto_imagens_create
+      parameters:
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+  /api/v1/dashboard/catalogo/produto/{produto_id}/imagens/{id}/:
+    get:
+      operationId: v1_dashboard_catalogo_produto_imagens_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+    patch:
+      operationId: v1_dashboard_catalogo_produto_imagens_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+    delete:
+      operationId: v1_dashboard_catalogo_produto_imagens_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/catalogo/produto/{produto_id}/manual-tecnico/:
+    post:
+      operationId: v1_dashboard_catalogo_produto_manual_tecnico_create
+      parameters:
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Produto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Produto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Produto'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Produto'
+          description: ''
+  /api/v1/dashboard/conversas/:
+    get:
+      operationId: v1_dashboard_conversas_retrieve
+      description: API para listar conversas com o STAN.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/conversas/{session_name}/:
+    get:
+      operationId: v1_dashboard_conversas_retrieve_2
+      description: API para exibir uma conversa específica.
+      parameters:
+      - in: path
+        name: session_name
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/conversas/pedidos/{cliente_id}/:
+    get:
+      operationId: v1_dashboard_conversas_pedidos_retrieve
+      description: API para exibir o histórico de pedidos de um cliente.
+      parameters:
+      - in: path
+        name: cliente_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/abertos/count/:
+    get:
+      operationId: v1_dashboard_pedidos_abertos_count_retrieve
+      description: |-
+        API para exibir a contagem de vendas em aberto por período
+
+        Filtros disponíveis:
+        - start_date: string (default: 30 dias atras)
+        - end_date: string (default: hoje)
+
+        Exemplo de uso:
+        GET api/v1/dashboard/pedidos/abertos/count/?start_date=2024-01-01&end_date=2024-03-01
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/faturados/count/:
+    get:
+      operationId: v1_dashboard_pedidos_faturados_count_retrieve
+      description: |-
+        API para exibir a contagem de vendas por período
+
+        Filtros disponíveis:
+        - start_date: string (default: 30 dias atras)
+        - end_date: string (default: hoje)
+
+        Exemplo de uso:
+        GET api/v1/dashboard/pedidos/faturados/count/?start_date=2024-01-01&end_date=2024-03-01
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/listar/:
+    get:
+      operationId: v1_dashboard_pedidos_listar_retrieve
+      description: |-
+        API para listar os pedidos
+
+        Query Parameters:
+        - status_negociacao: string (opcional) - Filtra pedidos por status de negociação
+        - page: integer (opcional) - Número da página
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/hooks/:
     post:
       operationId: v1_hooks_create
@@ -937,7 +1777,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -957,7 +1797,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -993,7 +1833,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1019,7 +1859,7 @@ paths:
               $ref: '#/components/schemas/ItemDePedido'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -1041,7 +1881,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1073,7 +1913,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedItemDePedido'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1094,7 +1934,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '204':
@@ -1130,7 +1970,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1152,7 +1992,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1192,7 +2032,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1218,7 +2058,7 @@ paths:
               $ref: '#/components/schemas/PedidoDeVenda'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -1240,7 +2080,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1272,7 +2112,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedPedidoDeVenda'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1312,7 +2152,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1338,7 +2178,7 @@ paths:
               $ref: '#/components/schemas/RegraDeFrete'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -1360,7 +2200,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1392,7 +2232,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedRegraDeFrete'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1432,7 +2272,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1458,7 +2298,7 @@ paths:
               $ref: '#/components/schemas/RegraDeNegocio'
         required: true
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -1480,7 +2320,7 @@ paths:
       tags:
       - v1
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1512,7 +2352,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedRegraDeNegocio'
       security:
-      - tokenAuth: []
+      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -1532,36 +2372,33 @@ components:
         contatos:
           type: array
           items:
-            type: integer
+            $ref: '#/components/schemas/Contato'
+          readOnly: true
         vendedores:
           type: array
           items:
-            type: integer
+            $ref: '#/components/schemas/Vendedor'
+          readOnly: true
+        razao_social:
+          type: string
+        nome_fantasia:
+          type: string
+        cnpj:
+          type: string
+        email:
+          type: string
+          format: email
         telefone_comercial:
           type: string
         tipo_operacao:
           type: string
         numero_funcionarios:
           type: integer
-        razao_social:
-          type: string
-          title: Razão Social
-          maxLength: 255
-        nome_fantasia:
-          type: string
-          maxLength: 255
-        cnpj:
-          type: string
-          maxLength: 18
+          minimum: 1
         inscricao_estadual:
           type: string
           title: Inscrição Estadual
           maxLength: 255
-        email:
-          type: string
-          title: E-mails
-          description: Separe os e-mails por vírgula.
-          maxLength: 500
         endereco:
           type: string
           title: Endereço
@@ -1612,6 +2449,10 @@ components:
           type: string
           nullable: true
           title: Detalhes da Aprovação
+        observacoes:
+          type: string
+          nullable: true
+          title: Observações
         data_registro:
           type: string
           format: date-time
@@ -1640,6 +2481,273 @@ components:
       - telefone_comercial
       - tipo_operacao
       - ultima_atualizacao
+      - vendedores
+    ClienteDetalhes:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        contatos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contato'
+          readOnly: true
+        vendedores:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vendedor'
+          readOnly: true
+        contatos_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        vendedores_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        razao_social:
+          type: string
+          title: Razão Social
+          maxLength: 255
+        nome_fantasia:
+          type: string
+          maxLength: 255
+        cnpj:
+          type: string
+          maxLength: 18
+        inscricao_estadual:
+          type: string
+          title: Inscrição Estadual
+          maxLength: 255
+        email:
+          type: string
+          title: E-mails
+          description: Separe os e-mails por vírgula.
+          maxLength: 500
+        endereco:
+          type: string
+          title: Endereço
+        endereco_numero:
+          type: string
+          nullable: true
+          title: Número
+          maxLength: 16
+        endereco_complemento:
+          type: string
+          nullable: true
+          title: Complemento
+          maxLength: 255
+        bairro:
+          type: string
+          maxLength: 255
+        cidade:
+          type: string
+          maxLength: 255
+        estado:
+          type: string
+          maxLength: 2
+        cep:
+          type: string
+          maxLength: 9
+        telefone_comercial:
+          type: string
+          title: Telefone com DDD
+          maxLength: 20
+        numero_funcionarios:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Número de Funcionários
+        tipo_operacao:
+          allOf:
+          - $ref: '#/components/schemas/TipoOperacaoEnum'
+          title: Tipo de Operação
+        codigo_cliente_omie:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Código do Cliente Omie
+        status_aprovacao:
+          allOf:
+          - $ref: '#/components/schemas/StatusAprovacaoEnum'
+          title: Status da Aprovação
+        valor_limite_credito:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Valor Limite de Crédito
+        data_aprovacao:
+          type: string
+          format: date-time
+          nullable: true
+          title: Data de Aprovação
+        detalhes_aprovacao:
+          type: string
+          nullable: true
+          title: Detalhes da Aprovação
+        observacoes:
+          type: string
+          nullable: true
+          title: Observações
+        data_registro:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Registro
+        ultima_atualizacao:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Última Atualização
+      required:
+      - cep
+      - cidade
+      - cnpj
+      - contatos
+      - data_registro
+      - email
+      - endereco
+      - estado
+      - id
+      - inscricao_estadual
+      - nome_fantasia
+      - razao_social
+      - ultima_atualizacao
+      - vendedores
+    ClientePedido:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        razao_social:
+          type: string
+          title: Razão Social
+          maxLength: 255
+        nome_fantasia:
+          type: string
+          maxLength: 255
+        cnpj:
+          type: string
+          maxLength: 18
+        inscricao_estadual:
+          type: string
+          title: Inscrição Estadual
+          maxLength: 255
+        email:
+          type: string
+          title: E-mails
+          description: Separe os e-mails por vírgula.
+          maxLength: 500
+        endereco:
+          type: string
+          title: Endereço
+        endereco_numero:
+          type: string
+          nullable: true
+          title: Número
+          maxLength: 16
+        endereco_complemento:
+          type: string
+          nullable: true
+          title: Complemento
+          maxLength: 255
+        bairro:
+          type: string
+          maxLength: 255
+        cidade:
+          type: string
+          maxLength: 255
+        estado:
+          type: string
+          maxLength: 2
+        cep:
+          type: string
+          maxLength: 9
+        telefone_comercial:
+          type: string
+          title: Telefone com DDD
+          maxLength: 20
+        numero_funcionarios:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Número de Funcionários
+        tipo_operacao:
+          allOf:
+          - $ref: '#/components/schemas/TipoOperacaoEnum'
+          title: Tipo de Operação
+        codigo_cliente_omie:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Código do Cliente Omie
+        status_aprovacao:
+          allOf:
+          - $ref: '#/components/schemas/StatusAprovacaoEnum'
+          title: Status da Aprovação
+        valor_limite_credito:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Valor Limite de Crédito
+        data_aprovacao:
+          type: string
+          format: date-time
+          nullable: true
+          title: Data de Aprovação
+        detalhes_aprovacao:
+          type: string
+          nullable: true
+          title: Detalhes da Aprovação
+        observacoes:
+          type: string
+          nullable: true
+          title: Observações
+        data_registro:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Registro
+        ultima_atualizacao:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Última Atualização
+        vendedores:
+          type: array
+          items:
+            type: integer
+        contatos:
+          type: array
+          items:
+            type: integer
+      required:
+      - cep
+      - cidade
+      - cnpj
+      - contatos
+      - data_registro
+      - email
+      - endereco
+      - estado
+      - id
+      - inscricao_estadual
+      - nome_fantasia
+      - razao_social
+      - ultima_atualizacao
+      - vendedores
     CondicaoDePagamento:
       type: object
       properties:
@@ -1685,8 +2793,12 @@ components:
           type: string
         wpp_session_id:
           type: string
+        email:
+          type: string
+          format: email
         ativo:
           type: boolean
+          readOnly: true
         data_registro:
           type: string
           format: date-time
@@ -1712,6 +2824,7 @@ components:
           nullable: true
           title: Última Atualização
       required:
+      - ativo
       - data_registro
       - id
       - nome
@@ -1765,24 +2878,9 @@ components:
         imagem:
           type: string
           format: uri
-        fonte:
-          type: string
-          format: uri
-          nullable: true
-          title: URL da Fonte
-          maxLength: 200
-        ordem:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          title: Ordem de exibição
-        ativo:
+        principal:
           type: boolean
-          title: Ativo no Sistema
-        tipo_imagem:
-          allOf:
-          - $ref: '#/components/schemas/TipoImagemEnum'
-          title: Tipo de Imagem
+          title: Imagem Principal
       required:
       - id
       - imagem
@@ -1866,6 +2964,29 @@ components:
       required:
       - id
       - nome
+    PaginatedClienteDetalhesList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClienteDetalhes'
     PaginatedClienteList:
       type: object
       required:
@@ -2050,6 +3171,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PedidoDeVenda'
+    PaginatedProdutoDetalhadoList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProdutoDetalhado'
     PaginatedProdutoList:
       type: object
       required:
@@ -2151,36 +3295,33 @@ components:
         contatos:
           type: array
           items:
-            type: integer
+            $ref: '#/components/schemas/Contato'
+          readOnly: true
         vendedores:
           type: array
           items:
-            type: integer
+            $ref: '#/components/schemas/Vendedor'
+          readOnly: true
+        razao_social:
+          type: string
+        nome_fantasia:
+          type: string
+        cnpj:
+          type: string
+        email:
+          type: string
+          format: email
         telefone_comercial:
           type: string
         tipo_operacao:
           type: string
         numero_funcionarios:
           type: integer
-        razao_social:
-          type: string
-          title: Razão Social
-          maxLength: 255
-        nome_fantasia:
-          type: string
-          maxLength: 255
-        cnpj:
-          type: string
-          maxLength: 18
+          minimum: 1
         inscricao_estadual:
           type: string
           title: Inscrição Estadual
           maxLength: 255
-        email:
-          type: string
-          title: E-mails
-          description: Separe os e-mails por vírgula.
-          maxLength: 500
         endereco:
           type: string
           title: Endereço
@@ -2231,6 +3372,135 @@ components:
           type: string
           nullable: true
           title: Detalhes da Aprovação
+        observacoes:
+          type: string
+          nullable: true
+          title: Observações
+        data_registro:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Registro
+        ultima_atualizacao:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Última Atualização
+    PatchedClienteDetalhes:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        contatos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contato'
+          readOnly: true
+        vendedores:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vendedor'
+          readOnly: true
+        contatos_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        vendedores_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        razao_social:
+          type: string
+          title: Razão Social
+          maxLength: 255
+        nome_fantasia:
+          type: string
+          maxLength: 255
+        cnpj:
+          type: string
+          maxLength: 18
+        inscricao_estadual:
+          type: string
+          title: Inscrição Estadual
+          maxLength: 255
+        email:
+          type: string
+          title: E-mails
+          description: Separe os e-mails por vírgula.
+          maxLength: 500
+        endereco:
+          type: string
+          title: Endereço
+        endereco_numero:
+          type: string
+          nullable: true
+          title: Número
+          maxLength: 16
+        endereco_complemento:
+          type: string
+          nullable: true
+          title: Complemento
+          maxLength: 255
+        bairro:
+          type: string
+          maxLength: 255
+        cidade:
+          type: string
+          maxLength: 255
+        estado:
+          type: string
+          maxLength: 2
+        cep:
+          type: string
+          maxLength: 9
+        telefone_comercial:
+          type: string
+          title: Telefone com DDD
+          maxLength: 20
+        numero_funcionarios:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Número de Funcionários
+        tipo_operacao:
+          allOf:
+          - $ref: '#/components/schemas/TipoOperacaoEnum'
+          title: Tipo de Operação
+        codigo_cliente_omie:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Código do Cliente Omie
+        status_aprovacao:
+          allOf:
+          - $ref: '#/components/schemas/StatusAprovacaoEnum'
+          title: Status da Aprovação
+        valor_limite_credito:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Valor Limite de Crédito
+        data_aprovacao:
+          type: string
+          format: date-time
+          nullable: true
+          title: Data de Aprovação
+        detalhes_aprovacao:
+          type: string
+          nullable: true
+          title: Detalhes da Aprovação
+        observacoes:
+          type: string
+          nullable: true
+          title: Observações
         data_registro:
           type: string
           format: date-time
@@ -2254,8 +3524,12 @@ components:
           type: string
         wpp_session_id:
           type: string
+        email:
+          type: string
+          format: email
         ativo:
           type: boolean
+          readOnly: true
         data_registro:
           type: string
           format: date-time
@@ -2280,6 +3554,21 @@ components:
           readOnly: true
           nullable: true
           title: Última Atualização
+    PatchedImagemDeProduto:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        produto:
+          type: integer
+          readOnly: true
+        imagem:
+          type: string
+          format: uri
+        principal:
+          type: boolean
+          title: Imagem Principal
     PatchedItemDePedido:
       type: object
       properties:
@@ -2331,6 +3620,10 @@ components:
       properties:
         id:
           type: integer
+          readOnly: true
+        cliente_detalhes:
+          allOf:
+          - $ref: '#/components/schemas/ClientePedido'
           readOnly: true
         status_negociacao:
           allOf:
@@ -2386,6 +3679,183 @@ components:
             type: integer
             title: Vendedor(es)
           title: Vendedor(es)
+    PatchedProduto:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        marca:
+          allOf:
+          - $ref: '#/components/schemas/Marca'
+          readOnly: true
+        familia:
+          allOf:
+          - $ref: '#/components/schemas/FamiliaDeProduto'
+          readOnly: true
+        imagem:
+          type: string
+          readOnly: true
+        codigo_produto:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: Código do Produto na Omie
+        inativo:
+          type: boolean
+        ean:
+          type: string
+          nullable: true
+          maxLength: 64
+        codigo:
+          type: string
+          nullable: true
+          title: Código
+          maxLength: 64
+        descricao:
+          type: string
+          nullable: true
+          title: Descrição
+          maxLength: 255
+        descr_detalhada:
+          type: string
+          nullable: true
+          title: Descricao Detalhada
+        unidade:
+          type: string
+          nullable: true
+          maxLength: 32
+        valor_unitario:
+          type: number
+          format: double
+          title: Valor Unitário
+        peso_bruto:
+          type: number
+          format: double
+        peso_liq:
+          type: number
+          format: double
+          title: Peso Líquido
+        largura:
+          type: number
+          format: double
+        altura:
+          type: number
+          format: double
+        profundidade:
+          type: number
+          format: double
+        cfop:
+          type: string
+          nullable: true
+          maxLength: 32
+        ncm:
+          type: string
+          nullable: true
+          maxLength: 32
+        marketing_info:
+          type: string
+          nullable: true
+          title: Informações de Marketing
+        especificacoes_tecnicas:
+          nullable: true
+          title: Especificações Técnicas
+        manual_tecnico:
+          type: string
+          format: uri
+          nullable: true
+          title: Manual Técnico
+    PatchedProdutoDetalhado:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        marca:
+          allOf:
+          - $ref: '#/components/schemas/Marca'
+          readOnly: true
+        familia:
+          allOf:
+          - $ref: '#/components/schemas/FamiliaDeProduto'
+          readOnly: true
+        marca_id:
+          type: integer
+          writeOnly: true
+        familia_id:
+          type: integer
+          writeOnly: true
+        codigo_produto:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: Código do Produto na Omie
+        inativo:
+          type: boolean
+        ean:
+          type: string
+          nullable: true
+          maxLength: 64
+        codigo:
+          type: string
+          nullable: true
+          title: Código
+          maxLength: 64
+        descricao:
+          type: string
+          nullable: true
+          title: Descrição
+          maxLength: 255
+        descr_detalhada:
+          type: string
+          nullable: true
+          title: Descricao Detalhada
+        unidade:
+          type: string
+          nullable: true
+          maxLength: 32
+        valor_unitario:
+          type: number
+          format: double
+          title: Valor Unitário
+        peso_bruto:
+          type: number
+          format: double
+        peso_liq:
+          type: number
+          format: double
+          title: Peso Líquido
+        largura:
+          type: number
+          format: double
+        altura:
+          type: number
+          format: double
+        profundidade:
+          type: number
+          format: double
+        cfop:
+          type: string
+          nullable: true
+          maxLength: 32
+        ncm:
+          type: string
+          nullable: true
+          maxLength: 32
+        marketing_info:
+          type: string
+          nullable: true
+          title: Informações de Marketing
+        especificacoes_tecnicas:
+          nullable: true
+          title: Especificações Técnicas
+        manual_tecnico:
+          type: string
+          format: uri
+          nullable: true
+          title: Manual Técnico
     PatchedRegraDeFrete:
       type: object
       properties:
@@ -2454,26 +3924,19 @@ components:
         id:
           type: integer
           readOnly: true
+        nome:
+          type: string
+        email:
+          type: string
+          format: email
+        telefone:
+          type: string
         codigo:
           type: integer
           maximum: 9223372036854775807
           minimum: -9223372036854775808
           format: int64
           title: Código do Vendedor Omie
-        nome:
-          type: string
-          title: Nome Completo
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          title: E-mail
-          maxLength: 254
-        telefone:
-          type: string
-          nullable: true
-          title: Telefone com DDD
-          maxLength: 20
         regiao:
           type: string
           nullable: true
@@ -2486,6 +3949,7 @@ components:
           $ref: '#/components/schemas/TimeEnum'
         inativo:
           type: boolean
+          readOnly: true
         time_stan:
           type: boolean
     PedidoDeVenda:
@@ -2493,6 +3957,10 @@ components:
       properties:
         id:
           type: integer
+          readOnly: true
+        cliente_detalhes:
+          allOf:
+          - $ref: '#/components/schemas/ClientePedido'
           readOnly: true
         status_negociacao:
           allOf:
@@ -2550,6 +4018,7 @@ components:
           title: Vendedor(es)
       required:
       - cliente
+      - cliente_detalhes
       - data_emissao
       - id
       - vendedor
@@ -2566,6 +4035,9 @@ components:
         familia:
           allOf:
           - $ref: '#/components/schemas/FamiliaDeProduto'
+          readOnly: true
+        imagem:
+          type: string
           readOnly: true
         codigo_produto:
           type: integer
@@ -2625,18 +4097,119 @@ components:
           type: string
           nullable: true
           maxLength: 32
-        especificacoes:
-          type: string
-          nullable: true
-          title: Especificações
         marketing_info:
           type: string
           nullable: true
           title: Informações de Marketing
+        especificacoes_tecnicas:
+          nullable: true
+          title: Especificações Técnicas
+        manual_tecnico:
+          type: string
+          format: uri
+          nullable: true
+          title: Manual Técnico
       required:
       - familia
       - id
+      - imagem
       - marca
+    ProdutoDetalhado:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        marca:
+          allOf:
+          - $ref: '#/components/schemas/Marca'
+          readOnly: true
+        familia:
+          allOf:
+          - $ref: '#/components/schemas/FamiliaDeProduto'
+          readOnly: true
+        marca_id:
+          type: integer
+          writeOnly: true
+        familia_id:
+          type: integer
+          writeOnly: true
+        codigo_produto:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: Código do Produto na Omie
+        inativo:
+          type: boolean
+        ean:
+          type: string
+          nullable: true
+          maxLength: 64
+        codigo:
+          type: string
+          nullable: true
+          title: Código
+          maxLength: 64
+        descricao:
+          type: string
+          nullable: true
+          title: Descrição
+          maxLength: 255
+        descr_detalhada:
+          type: string
+          nullable: true
+          title: Descricao Detalhada
+        unidade:
+          type: string
+          nullable: true
+          maxLength: 32
+        valor_unitario:
+          type: number
+          format: double
+          title: Valor Unitário
+        peso_bruto:
+          type: number
+          format: double
+        peso_liq:
+          type: number
+          format: double
+          title: Peso Líquido
+        largura:
+          type: number
+          format: double
+        altura:
+          type: number
+          format: double
+        profundidade:
+          type: number
+          format: double
+        cfop:
+          type: string
+          nullable: true
+          maxLength: 32
+        ncm:
+          type: string
+          nullable: true
+          maxLength: 32
+        marketing_info:
+          type: string
+          nullable: true
+          title: Informações de Marketing
+        especificacoes_tecnicas:
+          nullable: true
+          title: Especificações Técnicas
+        manual_tecnico:
+          type: string
+          format: uri
+          nullable: true
+          title: Manual Técnico
+      required:
+      - familia
+      - familia_id
+      - id
+      - marca
+      - marca_id
     RegiaoEnum:
       enum:
       - AC
@@ -2799,7 +4372,7 @@ components:
       - '4'
       type: string
       description: |-
-        * `0` - Proposta
+        * `0` - Negociação
         * `1` - Análise
         * `2` - Renegociação
         * `3` - Reprovado
@@ -2832,42 +4405,84 @@ components:
         * `Redragon` - Redragon
         * `Outras Marcas` - Outras Marcas
         * `Kalkan/Keytime` - Kalkan/Keytime
-    TipoImagemEnum:
+    TipoOperacaoEnum:
       enum:
-      - OUTROS
-      - TECNICA
-      - MARKETING
+      - Indefinido
+      - Online
+      - Física
+      - Híbrida
       type: string
       description: |-
-        * `OUTROS` - Outros
-        * `TECNICA` - Técnica
-        * `MARKETING` - Marketing
+        * `Indefinido` - Indefinido
+        * `Online` - Online
+        * `Física` - Física
+        * `Híbrida` - Híbrida
+    TokenBlacklist:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+      required:
+      - refresh
+    TokenObtainPair:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - password
+      - refresh
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenVerify:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+      required:
+      - token
     Vendedor:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
+        nome:
+          type: string
+        email:
+          type: string
+          format: email
+        telefone:
+          type: string
         codigo:
           type: integer
           maximum: 9223372036854775807
           minimum: -9223372036854775808
           format: int64
           title: Código do Vendedor Omie
-        nome:
-          type: string
-          title: Nome Completo
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          title: E-mail
-          maxLength: 254
-        telefone:
-          type: string
-          nullable: true
-          title: Telefone com DDD
-          maxLength: 20
         regiao:
           type: string
           nullable: true
@@ -2880,15 +4495,17 @@ components:
           $ref: '#/components/schemas/TimeEnum'
         inativo:
           type: boolean
+          readOnly: true
         time_stan:
           type: boolean
       required:
       - email
       - id
+      - inativo
       - nome
+      - telefone
   securitySchemes:
-    tokenAuth:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: Token-based authentication with required prefix "Token"
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

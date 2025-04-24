@@ -5,9 +5,9 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
@@ -36,6 +36,8 @@ from src.agents.common.dependencies_helper import (
 from src.tools import blackpearl
 from src.tools.blackpearl.schema import StatusAprovacaoEnum
 from src.tools.blackpearl import verificar_cnpj
+from src.tools.blackpearl.api import fetch_blackpearl_product_details
+from src.tools.evolution.api import send_evolution_media_logic
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,9 @@ class StanAgent(AutomagikAgent):
         # Initialize the base agent with the default prompt
         super().__init__(config, DEFAULT_PROMPT)
         
+        # Explicitly set the system prompt for this agent instance
+        self._system_prompt = DEFAULT_PROMPT
+        
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
         
@@ -78,9 +83,6 @@ class StanAgent(AutomagikAgent):
         
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
-        
-        # Register BlackPearl CNPJ verification tool with context injection
-        self.tool_registry.register_tool_with_context(verificar_cnpj, self.context)
         
         logger.info("StanAgentAgent initialized successfully")
 
@@ -111,59 +113,96 @@ class StanAgent(AutomagikAgent):
 
     async def _initialize_pydantic_agent(self) -> None:
         """Initialize the underlying PydanticAI agent."""
-        if self._agent_instance is not None:
+        if self._agent_instance:
+            logger.debug("PydanticAI agent already initialized.")
             return
-            
-        # Get model configuration
-        model_name = self.dependencies.model_name
-        
-        # Determine user state from context (assuming it's stored here)
-        user_state = self.context.get('user_state', 'unknown') # Default to 'unknown' if not set
-        logger.info(f"Current user state for agent initialization: {user_state}")
-        
-        # Conditionally determine which specialized agents to register
-        specialized_agents_to_register = [backoffice_agent] # Always register backoffice
-        if user_state != 'not_registered':
-            logger.info(f"User state '{user_state}' allows registration of product_agent.")
-            specialized_agents_to_register.append(product_agent)
-        else:
-            logger.info(f"User state is '{user_state}', skipping product_agent registration.")
 
-        if user_state == 'approved':
-            logger.info(f"User state '{user_state}' allows registration of order_agent.")
-            specialized_agents_to_register.append(order_agent)
-        else:
-             logger.info(f"User state is '{user_state}', skipping order_agent registration.")
-            
-        # Register the selected specialized agents
-        logger.info(f"Registering {len(specialized_agents_to_register)} specialized agents: {[agent.name for agent in specialized_agents_to_register]}")
-        for agent_tool in specialized_agents_to_register:
-            self.tool_registry.register_tool(agent_tool)
+        logger.info("Initializing PydanticAI agent...")
         
-        # Note: Assuming self.tool_registry.get_all_tools() returns OTHER tools
-        # that are always needed (e.g., standard tools not part of specialized agents).
-        # If get_all_tools() includes the ones just registered, the logic might need adjustment.
-        standard_tools = self.tool_registry.get_all_tools() # Get standard/other tools
-        logger.info(f"Prepared {len(standard_tools)} standard tools for PydanticAI agent")
+        # Pass imported tools directly to the constructor
+        # Combine imported tools and specialized agents into one list
+        all_tools = [
+            verificar_cnpj,
+            product_agent,
+            order_agent,
+            backoffice_agent,
+        ]
         
-        # Combine selected specialized agents with standard tools
-        all_tools_for_agent = specialized_agents_to_register + standard_tools
-        logger.info(f"Total tools for PydanticAI agent: {len(all_tools_for_agent)}")
+        # Initialize Agent with tools
+        self._agent_instance = Agent(
+            self.dependencies.model_name,
+            deps_type=AutomagikAgentsDependencies,
+            # context=self.context,  # REMOVED: Context is passed via deps in run()
+            model_settings=self.dependencies.model_settings,
+            tools=all_tools,  # Pass combined list of tools and sub-agents
+            # Add specialized agents as tools -- REMOVED sub_agents argument
+            # TODO: Make this dynamic based on config?
+            # sub_agents=[
+            #     product_agent,
+            #     order_agent,
+            #     backoffice_agent,
+            # ]
+        )
         
-        try:
-            # Create agent instance with the conditionally selected tools
-            self._agent_instance = Agent(
-                model="openai:o3-mini",
-                system_prompt=self.system_prompt,
-                tools=all_tools_for_agent, # Pass the combined list
-                deps_type=AutomagikAgentsDependencies
+        # Define and register tools specific to this initialization context
+        @self._agent_instance.tool
+        async def send_blackpearl_product_image_to_user(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            product_id: int,
+            caption_override: Optional[str] = None
+        ) -> str:
+            """Fetches a Black Pearl product image and sends it to the current user via Evolution API.
+
+            Args:
+                product_id: The ID of the Black Pearl product.
+                caption_override: Optional caption to use instead of the product name.
+
+            Returns:
+                A string indicating the success or failure of the operation.
+            """
+            # Extract necessary info from context
+            # Assuming these are populated in the 'run' method before calling the agent
+            user_phone_number = ctx.context.get("user_phone_number") 
+            evolution_instance_name = ctx.context.get("evolution_instance_name")
+
+            if not user_phone_number:
+                logger.error("Tool 'send_blackpearl_product_image_to_user': User phone number not found in context.")
+                return "Error: User phone number not found in context. Cannot send image."
+            if not evolution_instance_name:
+                # Fallback or fetch from config if appropriate
+                evolution_instance_name = self.config.get("EVOLUTION_INSTANCE", "default") 
+                logger.warning(f"Tool 'send_blackpearl_product_image_to_user': Evolution instance name not found in context, using '{evolution_instance_name}'.")
+
+            logger.info(f"Tool 'send_blackpearl_product_image_to_user' called for product_id={product_id}, user={user_phone_number}, instance={evolution_instance_name}")
+
+            # 1. Fetch product details from Black Pearl
+            product_data = await fetch_blackpearl_product_details(product_id)
+            if not product_data:
+                return f"Error: Could not fetch details for product ID {product_id} from Black Pearl."
+
+            # 2. Extract image URL and determine caption
+            image_url = product_data.get("imagem")
+            if not image_url:
+                return f"Error: No primary image URL found for product ID {product_id}."
+
+            caption = caption_override if caption_override else product_data.get("nome", f"Product ID {product_id}")
+
+            # 3. Send image via Evolution API
+            success, message = await send_evolution_media_logic(
+                instance_name=evolution_instance_name,
+                number=user_phone_number,
+                media_url=image_url,
+                media_type="image", # Explicitly image
+                caption=caption
             )
-            
-            logger.info(f"Initialized agent with model: {model_name} and {len(all_tools_for_agent)} tools")
-        except Exception as e:
-            logger.error(f"Failed to initialize agent: {str(e)}")
-            raise
+
+            if success:
+                return f"Successfully sent image for product '{caption}' (ID: {product_id}). Status: {message}"
+            else:
+                return f"Failed to send image for product ID {product_id}. Reason: {message}"
         
+        logger.info("PydanticAI agent initialization complete with tools.")
+
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[dict] = None,
                  message_limit: Optional[int] = 20) -> AgentResponse:

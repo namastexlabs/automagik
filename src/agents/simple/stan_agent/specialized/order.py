@@ -14,7 +14,6 @@ from src.tools.blackpearl.tool import (
     update_order_item_tool,
     delete_order_item_tool,
     list_payment_conditions_tool,
-    get_vendedor_by_name_or_code,
 )
 from src.tools.blackpearl.schema import (
     PedidoDeVendaCreate, PedidoDeVendaUpdate, ItemDePedidoCreate, ItemDePedidoUpdate
