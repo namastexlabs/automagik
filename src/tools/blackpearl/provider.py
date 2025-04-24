@@ -781,3 +781,219 @@ class BlackpearlProvider:
             logger.warning("Development mode detected: Will not send data to OMIE")
             
         return await self._request("GET", f"/api/v1/cadastro/finalizar/{cliente_id}/{development_param}")
+
+    # --- PedidoDeVenda Methods ---
+
+    @handle_api_error
+    @validate_api_response
+    async def create_pedido_venda(self, pedido: PedidoDeVenda) -> Dict[str, Any]:
+        """Create a new sales order.
+        
+        Args:
+            pedido: Sales order data
+            
+        Returns:
+            Created sales order data
+        """
+        return await self._request("POST", "/api/v1/pedidos/vendas/", data=pedido.model_dump())
+
+    @handle_api_error
+    @validate_api_response
+    async def get_pedido_venda(self, pedido_id: int) -> Dict[str, Any]:
+        """Get a specific sales order.
+        
+        Args:
+            pedido_id: Sales order ID
+            
+        Returns:
+            Sales order data
+        """
+        return await self._request("GET", f"/api/v1/pedidos/vendas/{pedido_id}/")
+
+    @handle_api_error
+    @validate_api_response
+    async def list_pedidos_venda(
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        search: Optional[str] = None,
+        ordering: Optional[str] = None,
+        **filters
+    ) -> Dict[str, Any]:
+        """Get list of sales orders.
+        
+        Args:
+            limit: Number of results to return
+            offset: Starting position
+            search: Search term
+            ordering: Order by field
+            **filters: Additional filters (e.g., cliente_id, status_negociacao)
+            
+        Returns:
+            List of sales orders
+        """
+        params = {
+            "limit": limit,
+            "offset": offset,
+            "search": search,
+            "ordering": ordering,
+            **filters
+        }
+        return await self._request("GET", "/api/v1/pedidos/vendas/", params=params)
+
+    @handle_api_error
+    @validate_api_response
+    async def update_pedido_venda(self, pedido_id: int, pedido_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a sales order (partial update).
+        
+        Args:
+            pedido_id: Sales order ID
+            pedido_data: Dictionary with fields to update (e.g., {'pagamento': payment_id})
+            
+        Returns:
+            Updated sales order data
+        """
+        # Note: Assumes API uses PATCH and accepts partial updates.
+        # If a specific PatchedPedidoDeVenda schema is needed, adjust accordingly.
+        return await self._request(
+            "PATCH",
+            f"/api/v1/pedidos/vendas/{pedido_id}/",
+            data=pedido_data
+        )
+        
+    @handle_api_error
+    @validate_api_response
+    async def aprovar_pedido(self, pedido_id: int) -> Dict[str, Any]:
+        """Approve a sales order (triggers Omie registration).
+        
+        Args:
+            pedido_id: Sales order ID
+            
+        Returns:
+            Approval result (potentially including codigo_pedido_omie)
+        """
+        return await self._request("GET", f"/api/v1/pedidos/aprovar/{pedido_id}/")
+
+    # --- ItemDePedido Methods ---
+
+    @handle_api_error
+    @validate_api_response
+    async def create_pedido_item(self, item: ItemDePedido) -> Dict[str, Any]:
+        """Create a new order item.
+        
+        Args:
+            item: Order item data
+            
+        Returns:
+            Created order item data
+        """
+        # Ensure 'pedido' and 'produto' are integers if passed as part of ItemDePedido model
+        item_data = item.model_dump()
+        return await self._request("POST", "/api/v1/pedidos/items/", data=item_data)
+
+    @handle_api_error
+    @validate_api_response
+    async def get_pedido_item(self, item_id: int) -> Dict[str, Any]:
+        """Get a specific order item.
+        
+        Args:
+            item_id: Order item ID
+            
+        Returns:
+            Order item data
+        """
+        return await self._request("GET", f"/api/v1/pedidos/items/{item_id}/")
+
+    @handle_api_error
+    @validate_api_response
+    async def list_pedido_items(
+        self,
+        pedido_id: Optional[int] = None, # Add pedido_id filter
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        search: Optional[str] = None,
+        ordering: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get list of order items.
+        
+        Args:
+            pedido_id: Filter items by sales order ID (optional)
+            limit: Number of results to return
+            offset: Starting position
+            search: Search term
+            ordering: Order by field
+            
+        Returns:
+            List of order items
+        """
+        params = {
+            "pedido": pedido_id, # Map to API query parameter if needed
+            "limit": limit,
+            "offset": offset,
+            "search": search,
+            "ordering": ordering
+        }
+        return await self._request("GET", "/api/v1/pedidos/items/", params=params)
+
+    @handle_api_error
+    @validate_api_response
+    async def update_pedido_item(self, item_id: int, item_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an order item (partial update).
+        
+        Args:
+            item_id: Order item ID
+            item_data: Dictionary with fields to update (e.g., {'quantidade': 5})
+            
+        Returns:
+            Updated order item data
+        """
+        # Note: Assumes API uses PATCH and accepts partial updates.
+        # If a specific PatchedItemDePedido schema is needed, adjust accordingly.
+        return await self._request(
+            "PATCH",
+            f"/api/v1/pedidos/items/{item_id}/",
+            data=item_data
+        )
+
+    @handle_api_error
+    @validate_api_response
+    async def delete_pedido_item(self, item_id: int) -> None:
+        """Delete an order item.
+        
+        Args:
+            item_id: Order item ID
+            
+        Returns:
+            None on success (HTTP 204)
+        """
+        await self._request("DELETE", f"/api/v1/pedidos/items/{item_id}/")
+        
+    # --- CondicaoDePagamento Methods ---
+    
+    @handle_api_error
+    @validate_api_response
+    async def list_condicoes_pagamento(
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        search: Optional[str] = None,
+        ordering: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get list of payment conditions.
+        
+        Args:
+            limit: Number of results to return
+            offset: Starting position
+            search: Search term
+            ordering: Order by field
+            
+        Returns:
+            List of payment conditions
+        """
+        params = {
+            "limit": limit,
+            "offset": offset,
+            "search": search,
+            "ordering": ordering
+        }
+        return await self._request("GET", "/api/v1/pedidos/pagamento/", params=params)

@@ -14,6 +14,7 @@ from src.agents.models.response import AgentResponse
 from src.agents.simple.stan_agent.models import EvolutionMessagePayload
 from src.agents.simple.stan_agent.specialized.backoffice import backoffice_agent
 from src.agents.simple.stan_agent.specialized.product import product_agent
+from src.agents.simple.stan_agent.specialized.order import order_agent
 from src.db.models import Memory
 from src.db.repository import create_memory
 from src.db.repository.user import update_user_data
@@ -116,28 +117,49 @@ class StanAgent(AutomagikAgent):
         # Get model configuration
         model_name = self.dependencies.model_name
         
+        # Determine user state from context (assuming it's stored here)
+        user_state = self.context.get('user_state', 'unknown') # Default to 'unknown' if not set
+        logger.info(f"Current user state for agent initialization: {user_state}")
         
-        # Register specialized agents         
-        logger.info(f"Current context: {self.context}")
-        # Register specialized agents using the simpler method
-        self.tool_registry.register_tool(backoffice_agent)
-        self.tool_registry.register_tool(product_agent)
+        # Conditionally determine which specialized agents to register
+        specialized_agents_to_register = [backoffice_agent] # Always register backoffice
+        if user_state != 'not_registered':
+            logger.info(f"User state '{user_state}' allows registration of product_agent.")
+            specialized_agents_to_register.append(product_agent)
+        else:
+            logger.info(f"User state is '{user_state}', skipping product_agent registration.")
+
+        if user_state == 'approved':
+            logger.info(f"User state '{user_state}' allows registration of order_agent.")
+            specialized_agents_to_register.append(order_agent)
+        else:
+             logger.info(f"User state is '{user_state}', skipping order_agent registration.")
+            
+        # Register the selected specialized agents
+        logger.info(f"Registering {len(specialized_agents_to_register)} specialized agents: {[agent.name for agent in specialized_agents_to_register]}")
+        for agent_tool in specialized_agents_to_register:
+            self.tool_registry.register_tool(agent_tool)
         
-        # Convert tools to PydanticAI format
-        tools = self.tool_registry.convert_to_pydantic_tools()
-        logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
+        # Note: Assuming self.tool_registry.get_all_tools() returns OTHER tools
+        # that are always needed (e.g., standard tools not part of specialized agents).
+        # If get_all_tools() includes the ones just registered, the logic might need adjustment.
+        standard_tools = self.tool_registry.get_all_tools() # Get standard/other tools
+        logger.info(f"Prepared {len(standard_tools)} standard tools for PydanticAI agent")
         
+        # Combine selected specialized agents with standard tools
+        all_tools_for_agent = specialized_agents_to_register + standard_tools
+        logger.info(f"Total tools for PydanticAI agent: {len(all_tools_for_agent)}")
         
         try:
-            # Create agent instance
+            # Create agent instance with the conditionally selected tools
             self._agent_instance = Agent(
                 model="openai:o3-mini",
                 system_prompt=self.system_prompt,
-                tools=tools,
+                tools=all_tools_for_agent, # Pass the combined list
                 deps_type=AutomagikAgentsDependencies
             )
             
-            logger.info(f"Initialized agent with model: {model_name} and {len(tools)} tools")
+            logger.info(f"Initialized agent with model: {model_name} and {len(all_tools_for_agent)} tools")
         except Exception as e:
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise

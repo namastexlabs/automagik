@@ -616,4 +616,221 @@ async def finalizar_cadastro(ctx: Dict[str, Any], cliente_id: int) -> Dict[str, 
     """
     provider = BlackpearlProvider()
     async with provider:
-        return await provider.finalizar_cadastro(cliente_id) 
+        return await provider.finalizar_cadastro(cliente_id)
+
+# --- PedidoDeVenda Tools ---
+
+async def create_order_tool(ctx: Dict[str, Any], pedido: PedidoDeVenda) -> Dict[str, Any]:
+    """Creates a new sales order draft in Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        pedido: The sales order data conforming to the PedidoDeVenda schema.
+            Make sure to include required fields like 'cliente', 'vendedor',
+            and set 'status_negociacao' to 'rascunho'.
+            
+    Returns:
+        A dictionary containing the created sales order data, including its ID.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.create_pedido_venda(pedido=pedido)
+        return result
+
+async def get_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
+    """Retrieves details of a specific sales order from Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        pedido_id: The unique ID of the sales order to retrieve.
+        
+    Returns:
+        A dictionary containing the details of the specified sales order.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.get_pedido_venda(pedido_id=pedido_id)
+        return result
+
+async def list_orders_tool(
+    ctx: Dict[str, Any],
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    search: Optional[str] = None,
+    ordering: Optional[str] = None,
+    cliente_id: Optional[int] = None,
+    status_negociacao: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lists sales orders from Blackpearl, with optional filtering and pagination.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        limit: Maximum number of orders to return.
+        offset: Starting index for pagination.
+        search: A search term to filter orders.
+        ordering: Field to sort the orders by (e.g., 'id', '-data_emissao').
+        cliente_id: Filter orders by a specific client ID.
+        status_negociacao: Filter orders by negotiation status (e.g., 'rascunho', 'aprovado').
+        
+    Returns:
+        A dictionary containing a list of sales orders and pagination details.
+    """
+    filters = {}
+    if cliente_id:
+        filters['cliente'] = cliente_id # Assuming API filter param is 'cliente'
+    if status_negociacao:
+        filters['status_negociacao'] = status_negociacao
+        
+    async with BlackpearlProvider() as provider:
+        result = await provider.list_pedidos_venda(
+            limit=limit, offset=offset, search=search, ordering=ordering, **filters
+        )
+        return result
+
+async def update_order_tool(ctx: Dict[str, Any], pedido_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Updates specific fields of an existing sales order in Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        pedido_id: The ID of the sales order to update.
+        update_data: A dictionary containing the fields and new values to update
+                     (e.g., {'pagamento': 1, 'observacao': 'Updated note'}).
+                     Only include fields that need to be changed.
+                     
+    Returns:
+        A dictionary containing the updated sales order data.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.update_pedido_venda(pedido_id=pedido_id, pedido_data=update_data)
+        return result
+
+async def approve_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
+    """Approves a sales order in Blackpearl, potentially triggering integration (e.g., Omie).
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        pedido_id: The ID of the sales order to approve.
+        
+    Returns:
+        A dictionary containing the result of the approval process.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.aprovar_pedido(pedido_id=pedido_id)
+        return result
+
+# --- ItemDePedido Tools ---
+
+async def add_item_to_order_tool(ctx: Dict[str, Any], item: ItemDePedido) -> Dict[str, Any]:
+    """Adds a new item to a specific sales order in Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        item: The order item data conforming to the ItemDePedido schema.
+              Must include 'pedido' (the order ID) and 'produto' (the product ID),
+              along with 'quantidade', 'valor_unitario', etc.
+              
+    Returns:
+        A dictionary containing the created order item data, including its ID.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.create_pedido_item(item=item)
+        return result
+
+async def get_order_item_tool(ctx: Dict[str, Any], item_id: int) -> Dict[str, Any]:
+    """Retrieves details of a specific item within a sales order from Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        item_id: The unique ID of the order item to retrieve.
+        
+    Returns:
+        A dictionary containing the details of the specified order item.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.get_pedido_item(item_id=item_id)
+        return result
+
+async def list_order_items_tool(
+    ctx: Dict[str, Any],
+    pedido_id: Optional[int] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    search: Optional[str] = None,
+    ordering: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lists items associated with sales orders from Blackpearl.
+    Can optionally filter by a specific order ID.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        pedido_id: (Optional) The ID of the sales order to list items for.
+        limit: Maximum number of items to return.
+        offset: Starting index for pagination.
+        search: A search term to filter items (e.g., by product name/code).
+        ordering: Field to sort the items by.
+        
+    Returns:
+        A dictionary containing a list of order items and pagination details.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.list_pedido_items(
+            pedido_id=pedido_id, limit=limit, offset=offset, search=search, ordering=ordering
+        )
+        return result
+
+async def update_order_item_tool(ctx: Dict[str, Any], item_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Updates specific fields of an existing item within a sales order in Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        item_id: The ID of the order item to update.
+        update_data: A dictionary containing the fields and new values to update
+                     (e.g., {'quantidade': 10, 'valor_unitario': 9.99}).
+                     Only include fields that need to be changed.
+                     
+    Returns:
+        A dictionary containing the updated order item data.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.update_pedido_item(item_id=item_id, item_data=update_data)
+        return result
+
+async def delete_order_item_tool(ctx: Dict[str, Any], item_id: int) -> Dict[str, Any]:
+    """Deletes an item from a sales order in Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        item_id: The ID of the order item to delete.
+        
+    Returns:
+        A confirmation dictionary, often empty on success (depends on API response).
+    """
+    # Provider method returns None on success (204), tool should probably return confirmation.
+    async with BlackpearlProvider() as provider:
+        await provider.delete_pedido_item(item_id=item_id)
+        return {"status": "success", "message": f"Item {item_id} deleted successfully."}
+
+# --- CondicaoDePagamento Tools ---
+
+async def list_payment_conditions_tool(
+    ctx: Dict[str, Any],
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    search: Optional[str] = None,
+    ordering: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lists available payment conditions from Blackpearl.
+    
+    Args:
+        ctx: The context dictionary (unused currently).
+        limit: Maximum number of conditions to return.
+        offset: Starting index for pagination.
+        search: A search term to filter payment conditions.
+        ordering: Field to sort the conditions by.
+        
+    Returns:
+        A dictionary containing a list of payment conditions and pagination details.
+    """
+    async with BlackpearlProvider() as provider:
+        result = await provider.list_condicoes_pagamento(
+            limit=limit, offset=offset, search=search, ordering=ordering
+        )
+        return result
