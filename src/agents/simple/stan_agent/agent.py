@@ -107,7 +107,7 @@ class StanAgent(AutomagikAgent):
                 from src.agents.simple.stan_agent.prompts.rejected import PROMPT as STATUS_PROMPT
             case _:
                 logger.warning(f" Contact {contact_id} has unknown status: {status}. Using UNKNOWN prompt.")
-                from src.agents.simple.stan_agent.prompts.unknown import PROMPT as STATUS_PROMPT
+                from src.agents.simple.stan_agent.prompts.not_registered import PROMPT as STATUS_PROMPT
         
         self.system_prompt = STATUS_PROMPT
 
@@ -132,16 +132,8 @@ class StanAgent(AutomagikAgent):
         self._agent_instance = Agent(
             self.dependencies.model_name,
             deps_type=AutomagikAgentsDependencies,
-            # context=self.context,  # REMOVED: Context is passed via deps in run()
             model_settings=self.dependencies.model_settings,
             tools=all_tools,  # Pass combined list of tools and sub-agents
-            # Add specialized agents as tools -- REMOVED sub_agents argument
-            # TODO: Make this dynamic based on config?
-            # sub_agents=[
-            #     product_agent,
-            #     order_agent,
-            #     backoffice_agent,
-            # ]
         )
         
         # Define and register tools specific to this initialization context
@@ -274,7 +266,33 @@ class StanAgent(AutomagikAgent):
         # Ensure memory variables are initialized
         if self.db_id:
             await self.initialize_memory_variables(user_id)
-    
+        
+            # Create a memory entry snapshotting the user info used for this run
+            user_info_for_memory = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "user_number": user_number,
+                "blackpearl_contact_id": self.context.get("blackpearl_contact_id"),
+                "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id"),
+                "blackpearl_cliente_email": self.context.get("blackpearl_cliente_email"),
+            }
+            # Filter out None values before saving
+            user_info_content = {k: v for k, v in user_info_for_memory.items() if v is not None}
+            
+            # Create a Memory object instance
+            memory_to_create = Memory(
+                name="user_information",
+                content=str(user_info_content),
+                user_id=user_id,
+                read_mode="system_prompt",
+                access="read_write",
+                agent_id=self.db_id
+            )
+            
+            # Call create_memory with the Memory object
+            create_memory(memory=memory_to_create)
+            logger.info(f"Created/Updated user_information memory for user {user_id}")
+
         # Initialize the agent
         await self._initialize_pydantic_agent()
         
