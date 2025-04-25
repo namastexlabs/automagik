@@ -24,21 +24,22 @@ async def send_evolution_media_logic(
 
     api_endpoint = f"{EVOLUTION_API_URL}/message/sendMedia/{instance_name}"
     headers = {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
+    
+    # Construct payload according to the correct documentation structure
     payload = {
         "number": number,
-        "mediaMessage": {
-            "mediaType": media_type,
-            "media": media_url,
-            "caption": caption if caption else "",
-            # Add fileName if provided
-            **({"fileName": file_name} if file_name else {})
-        }
-        # Optional: Add 'options' if needed, e.g., for delay or presence
-        # "options": {
-        #     "delay": 100,
-        #     "presence": "composing"
-        # }
+        "mediatype": media_type,  # Changed key to lowercase 'mediatype'
+        "media": media_url,
     }
+
+    # Add optional fields directly to the payload
+    if caption:
+        payload["caption"] = caption
+    if file_name:
+        payload["fileName"] = file_name
+    # We could also add mimetype if needed/available
+    # if mimetype:
+    #    payload["mimetype"] = mimetype
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

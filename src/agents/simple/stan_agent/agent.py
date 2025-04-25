@@ -152,20 +152,40 @@ class StanAgent(AutomagikAgent):
             Returns:
                 A string indicating the success or failure of the operation.
             """
-            # Extract necessary info from context
-            # Assuming these are populated in the 'run' method before calling the agent
-            user_phone_number = ctx.context.get("user_phone_number") 
-            evolution_instance_name = ctx.context.get("evolution_instance_name")
-
-            if not user_phone_number:
-                logger.error("Tool 'send_blackpearl_product_image_to_user': User phone number not found in context.")
-                return "Error: User phone number not found in context. Cannot send image."
+            
+            # Try multiple approaches to get the evolution_payload
+            evolution_payload = None
+            
+            # First try from ctx.deps.context
+            if ctx.deps and hasattr(ctx.deps, 'context') and ctx.deps.context:
+                evolution_payload = ctx.deps.context.get("evolution_payload")
+                
+            # If not found, try from self.context
+            if not evolution_payload and hasattr(self, 'context'):
+                evolution_payload = self.context.get("evolution_payload")
+                
+            # If still not found, try from ctx.deps directly
+            if not evolution_payload and hasattr(ctx.deps, 'evolution_payload'):
+                evolution_payload = ctx.deps.evolution_payload
+                
+            if not evolution_payload:
+                logger.error("Tool 'send_blackpearl_product_image_to_user': Evolution payload not found in any context.")
+                return "Error: Evolution payload not found in context. Cannot send image."
+                
+            # Get the full JID using the new method
+            user_jid = evolution_payload.get_user_jid()
+            # Access the instance directly as a property instead of using get_instance_name()
+            evolution_instance_name = evolution_payload.instance if hasattr(evolution_payload, 'instance') else None
+    
+            if not user_jid:
+                logger.error("Tool 'send_blackpearl_product_image_to_user': User JID not found in context.")
+                return "Error: User JID not found in context. Cannot send image."
             if not evolution_instance_name:
                 # Fallback or fetch from config if appropriate
                 evolution_instance_name = self.config.get("EVOLUTION_INSTANCE", "default") 
                 logger.warning(f"Tool 'send_blackpearl_product_image_to_user': Evolution instance name not found in context, using '{evolution_instance_name}'.")
 
-            logger.info(f"Tool 'send_blackpearl_product_image_to_user' called for product_id={product_id}, user={user_phone_number}, instance={evolution_instance_name}")
+            logger.info(f"Tool 'send_blackpearl_product_image_to_user' called for product_id={product_id}, user={user_jid}, instance={evolution_instance_name}")
 
             # 1. Fetch product details from Black Pearl
             product_data = await fetch_blackpearl_product_details(product_id)
@@ -179,12 +199,12 @@ class StanAgent(AutomagikAgent):
 
             caption = caption_override if caption_override else product_data.get("nome", f"Product ID {product_id}")
 
-            # 3. Send image via Evolution API
+            # 3. Send image via Evolution API using the full JID
             success, message = await send_evolution_media_logic(
                 instance_name=evolution_instance_name,
-                number=user_phone_number,
+                number=user_jid, # Use the full JID obtained from get_user_jid()
                 media_url=image_url,
-                media_type="image", # Explicitly image
+                media_type="image", 
                 caption=caption
             )
 
@@ -325,7 +345,10 @@ class StanAgent(AutomagikAgent):
             user_number = evolution_payload.get_user_number()
             user_name = evolution_payload.get_user_name()
             logger.debug(f"Extracted user info: number={user_number}, name={user_name}")
-        
+            # Store evolution_payload in both self.context and dependencies context
+            self.context["evolution_payload"] = evolution_payload
+            self.dependencies.set_context({"evolution_payload": evolution_payload})
+
         # Get or create contact in BlackPearl
         contato_blackpearl = None
         cliente_blackpearl = None
