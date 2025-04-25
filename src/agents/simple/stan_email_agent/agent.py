@@ -30,6 +30,9 @@ from src.tools.gmail import fetch_emails, mark_emails_read
 from src.tools.gmail.schema import FetchEmailsInput
 from src.tools.gmail.tool import fetch_all_emails_from_thread_by_email_id
 
+# Import Memory class 
+from src.db.models import Memory
+
 logger = logging.getLogger(__name__)
 
 class StanEmailAgent(AutomagikAgent):
@@ -253,100 +256,133 @@ class StanEmailAgent(AutomagikAgent):
                 # Update the thread with extracted information
                 black_pearl_client = None
                 if email_agent_result.data and email_agent_result.data.black_pearl_client_id: 
-                    black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
-                    black_pearl_contact = await blackpearl.get_contato(ctx=self.context, contato_id=black_pearl_client.contatos[0])
-                    
-                    thread['extracted_info'] = email_agent_result.data
-                    thread['black_pearl_client'] = black_pearl_client
-                    thread['black_pearl_contact'] = black_pearl_contact
-                    
-                    # Update contato and cliente with extracted information
-                    black_pearl_contact.status_aprovacao = email_agent_result.data.approval_status
-                    black_pearl_client.status_aprovacao = email_agent_result.data.approval_status
-                    black_pearl_client.valor_limite_credito = email_agent_result.data.credit_score
-                    black_pearl_contact.detalhes_aprovacao = email_agent_result.data.extra_information
-                    
-                    # Extract user_id from wpp_session_id which has format "userid_agentid"
-                    user_id = black_pearl_contact.wpp_session_id.split('_')[0] if black_pearl_contact.wpp_session_id else None
-                    agent_id = black_pearl_contact.wpp_session_id.split('_')[1] if black_pearl_contact.wpp_session_id else None
-                    user_id = int(user_id)
-                    agent_id = int(agent_id)
-                    
-                    user = get_user(user_id=user_id) if user_id else None
-                    user.email = black_pearl_client.email
-                    
-                    # Check if we've already sent a BP analysis email to this user
-                    if hasattr(user, 'user_data') and user.user_data and user.user_data.get('bp_analysis_email_message_sent'):
-                        logger.info(f"User {user_id} has already received BP analysis email. Skipping message.")
-                        # Still mark the thread as processed
-                        thread['processed'] = True
-                        continue
-                    
-                    
-                    # Prepare string with user information and approval status
-                    user_info = f"Nome: {black_pearl_contact.nome} Email: {black_pearl_client.email} Telefone: {user.phone_number}"
-                    approval_status_info = f"Status de aprovação: {email_agent_result.data.approval_status}"
-                    credit_score_info = f"Pontuação de crédito: {email_agent_result.data.credit_score}"
-                    extra_information = f"Informações extras: {email_agent_result.data.extra_information}"
-                    
-                    user_sessions = list_sessions(user_id=user_id, agent_id=agent_id)
-                    user_message_history = []
-                    
-                    for session in user_sessions:
-                        # Get all messages for this session
-                        session_messages = list_messages(session_id=session.id)
-                        user_message_history.extend(session_messages)
-                    
-                    # Format the conversation history
-                    earlier_conversations = "\n".join([f"{message.role}: {message.text_content}" 
-                                                     for message in user_message_history 
-                                                     if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
-                    
-                    message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
-                    message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
-                    message = await aproval_status_message_generator.generate_approval_status_message(message_text)
-                  
-                    if black_pearl_contact.status_aprovacao == StatusAprovacaoEnum.APPROVED:
-                        data_aprovacao = datetime.datetime.now()
-                        black_pearl_contact.data_aprovacao = data_aprovacao
-                        black_pearl_client.data_aprovacao = data_aprovacao
-                        
-                        # Check if cliente already has codigo_cliente_omie before finalizing
-                        if not black_pearl_client.codigo_cliente_omie:
-                            logger.info(f"Finalizing client registration for client_id: {black_pearl_client.id}")
-                            await blackpearl.finalizar_cadastro(ctx=self.context, cliente_id=black_pearl_client.id)
-                        else:
-                            logger.info(f"Client already has codigo_cliente_omie: {black_pearl_client.codigo_cliente_omie}, skipping finalization")
-                    
                     try:
-                        await blackpearl.update_contato(ctx=self.context, contato_id=black_pearl_contact.id, contato=black_pearl_contact)
-                    except Exception as e:
-                        logger.error(f"Error updating contact: {str(e)}")
-                    
-                    try:
-                        await blackpearl.update_cliente(ctx=self.context, cliente_id=black_pearl_client.id, cliente=black_pearl_client)
+                        black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
                         
-                    except Exception as e:
-                        logger.error(f"Error updating client: {str(e)}")
-                    
-                    try:
-                        update_user(user=user)
-                    except Exception as e:
-                        logger.error(f"Error updating user: {str(e)}")
-                        
-                    if not user.user_data.get('bp_analysis_email_message_sent', False):
-                        await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
-                        
-                        update_user_data(user_id=user.id, data_updates={
-                            "blackpearl_contact_id": black_pearl_contact.id,
-                            "blackpearl_cliente_id": black_pearl_client.id,
-                            "bp_analysis_email_message_sent": True
+                        # Check if contatos exists and is not empty
+                        if not black_pearl_client.contatos or len(black_pearl_client.contatos) == 0:
+                            logger.warning(f"No contacts found for client ID: {black_pearl_client.id}")
+                            thread['processed'] = False
+                            continue
                             
-                        })
-                        logger.info(f"Updated user_data with bp_analysis_email_message_sent flag for user ID: {user.id}")                   
-                    # Mark the thread as processed
-                    thread['processed'] = True
-                    
+                        # Handle both cases where contatos[0] can be an ID or a contact dictionary
+                        contato_id = black_pearl_client.contatos[0]
+                        if isinstance(contato_id, dict) and 'id' in contato_id:
+                            contato_id = contato_id['id']
+                        
+                        black_pearl_contact = await blackpearl.get_contato(ctx=self.context, contato_id=contato_id)
+                        
+                        thread['extracted_info'] = email_agent_result.data
+                        thread['black_pearl_client'] = black_pearl_client
+                        thread['black_pearl_contact'] = black_pearl_contact
+                        
+                        # Update contato and cliente with extracted information
+                        black_pearl_contact.status_aprovacao = email_agent_result.data.approval_status
+                        black_pearl_client.status_aprovacao = email_agent_result.data.approval_status
+                        black_pearl_client.valor_limite_credito = email_agent_result.data.credit_score
+                        black_pearl_contact.detalhes_aprovacao = email_agent_result.data.extra_information
+                        
+                        # Extract user_id from wpp_session_id which has format "userid_agentid"
+                        # Handle case where wpp_session_id may contain non-numeric parts
+                        user_id = None
+                        agent_id = None
+                        
+                        if black_pearl_contact.wpp_session_id:
+                            try:
+                                session_parts = black_pearl_contact.wpp_session_id.split('_')
+                                if len(session_parts) >= 2:
+                                    # Only try to convert to int if it looks like a number
+                                    if session_parts[0].isdigit():
+                                        user_id = int(session_parts[0])
+                                    else:
+                                        user_id = session_parts[0]
+                                        
+                                    if session_parts[1].isdigit():
+                                        agent_id = int(session_parts[1])
+                                    else:
+                                        agent_id = session_parts[1]
+                            except Exception as e:
+                                logger.warning(f"Error parsing wpp_session_id: {str(e)}")
+                        
+                        user = get_user(user_id=user_id) if user_id else None
+                        user.email = black_pearl_client.email
+                        
+                        # Check if we've already sent a BP analysis email to this user
+                        if hasattr(user, 'user_data') and user.user_data and user.user_data.get('bp_analysis_email_message_sent'):
+                            logger.info(f"User {user_id} has already received BP analysis email. Skipping message.")
+                            # Still mark the thread as processed
+                            thread['processed'] = True
+                            continue
+                        
+                        # Prepare string with user information and approval status
+                        user_info = f"Nome: {black_pearl_contact.nome} Email: {black_pearl_client.email} Telefone: {user.phone_number}"
+                        approval_status_info = f"Status de aprovação: {email_agent_result.data.approval_status}"
+                        credit_score_info = f"Pontuação de crédito: {email_agent_result.data.credit_score}"
+                        extra_information = f"Informações extras: {email_agent_result.data.extra_information}"
+                        
+                        user_sessions = list_sessions(user_id=user_id, agent_id=agent_id)
+                        user_message_history = []
+                        
+                        for session in user_sessions:
+                            # Get all messages for this session
+                            session_messages = list_messages(session_id=session.id)
+                            user_message_history.extend(session_messages)
+                        
+                        # Format the conversation history
+                        earlier_conversations = "\n".join([f"{message.role}: {message.text_content}" 
+                                                         for message in user_message_history 
+                                                         if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
+                        
+                        message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
+                        message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
+                        message = await aproval_status_message_generator.generate_approval_status_message(message_text)
+                      
+                        if black_pearl_contact.status_aprovacao == StatusAprovacaoEnum.APPROVED:
+                            data_aprovacao = datetime.datetime.now()
+                            black_pearl_contact.data_aprovacao = data_aprovacao
+                            black_pearl_client.data_aprovacao = data_aprovacao
+                            
+                            # Check if cliente already has codigo_cliente_omie before finalizing
+                            if not black_pearl_client.codigo_cliente_omie:
+                                logger.info(f"Finalizing client registration for client_id: {black_pearl_client.id}")
+                                await blackpearl.finalizar_cadastro(ctx=self.context, cliente_id=black_pearl_client.id)
+                            else:
+                                logger.info(f"Client already has codigo_cliente_omie: {black_pearl_client.codigo_cliente_omie}, skipping finalization")
+                        
+                        try:
+                            await blackpearl.update_contato(ctx=self.context, contato_id=black_pearl_contact.id, contato=black_pearl_contact)
+                        except Exception as e:
+                            logger.error(f"Error updating contact: {str(e)}")
+                        
+                        try:
+                            await blackpearl.update_cliente(ctx=self.context, cliente_id=black_pearl_client.id, cliente=black_pearl_client)
+                            
+                        except Exception as e:
+                            logger.error(f"Error updating client: {str(e)}")
+                        
+                        try:
+                            update_user(user=user)
+                        except Exception as e:
+                            logger.error(f"Error updating user: {str(e)}")
+                            
+                        if not user.user_data.get('bp_analysis_email_message_sent', False):
+                            await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
+                            
+                            update_user_data(user_id=user.id, data_updates={
+                                "blackpearl_contact_id": black_pearl_contact.id,
+                                "blackpearl_cliente_id": black_pearl_client.id,
+                                "bp_analysis_email_message_sent": True
+                                
+                            })
+                            logger.info(f"Updated user_data with bp_analysis_email_message_sent flag for user ID: {user.id}")                   
+                        # Mark the thread as processed
+                        thread['processed'] = True
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing client or contact: {str(e)}")
+                        thread['processed'] = False
+                        continue
+                
             # For each processed thread mark the email as read
             for thread in self.context['unread_threads']:
                 if thread['processed']:
@@ -380,12 +416,18 @@ class StanEmailAgent(AutomagikAgent):
                         message_summary += f"\n  Status: {status_aprovacao}"
 
 
-            create_memory(
+            # Create a Memory object
+            approval_memory = Memory(
+                name="recent_approval_email_message",
+                content=message_summary,
                 user_id=user_id,
                 agent_id=agent_id,
-                content=message_summary,
-                type="recent_approval_email_message"
+                read_mode="private",
+                access="read_write"
             )
+            
+            # Create the memory
+            create_memory(approval_memory)
             
             
             # Create response
