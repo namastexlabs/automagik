@@ -155,37 +155,69 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             
             'DIRETRIZES PARA CONSULTAS NA API BLACKPEARL:\n\n'
             
-            '1. CASOS DE PREÇO ZERO: Muitos produtos na BlackPearl têm preço R$0,00. Isso geralmente indica '
+            '1. BUSCA EFICIENTE: Para evitar erros de servidor, SEMPRE prefira buscar produtos usando:\n'
+            '   - ID da marca (`marca`) ao invés de nome da marca quando possível\n'
+            '   - ID da família (`familia`) ao invés de nome da família quando possível\n'
+            '   - Evite usar o parâmetro `search` com nomes de marcas ou categorias completas\n'
+            '   - Para marcas populares como Redragon, SEMPRE use o parâmetro `marca` ou `marca_nome`\n\n'
+            
+            '2. CASOS DE PREÇO ZERO: Muitos produtos na BlackPearl têm preço R$0,00. Isso geralmente indica '
             'itens promocionais ou produtos especiais como camisetas e brindes. Ao listar produtos, mencione '
             'esse detalhe quando relevante.\n\n'
             
-            '2. SENSIBILIDADE NAS BUSCAS: A API BlackPearl é sensível a variações de texto, incluindo maiúsculas/minúsculas '
-            'e acentuação. Se uma busca inicial não retornar resultados:\n'
-            '   - Tente variações do nome (ex: "REDRAGON" em vez de "Redragon")\n'
-            '   - Experimente termos alternativos (ex: "mouse" em vez de "periférico")\n'
-            '   - Tente buscar pela família de produtos ou marcas separadamente\n\n'
+            '3. ESTRATÉGIA DE BUSCA EM DUAS ETAPAS: Para marcas específicas como Redragon, use uma abordagem em duas etapas:\n'
+            '   - Primeiro, encontre o ID da marca usando `get_brands`\n'
+            '   - Depois, use esse ID com o parâmetro `marca` em `get_products`\n'
+            '   - Isso evita erros de servidor que ocorrem com buscas textuais diretas\n\n'
             
-            '3. CATEGORIAS E FAMÍLIAS: Os usuários costumam pedir por categorias genéricas como "periféricos", mas '
+            '4. CATEGORIAS E FAMÍLIAS: Os usuários costumam pedir por categorias genéricas como "periféricos", mas '
             'na BlackPearl os produtos são organizados em "famílias". Se uma busca por categoria não funcionar, '
             'tente buscar pelas famílias de produtos relacionadas.\n\n'
             
-            '4. BUSCAS POR PREÇO: Ao buscar produtos por faixa de preço, prefira filtrar os resultados após obtê-los, '
+            '5. BUSCAS POR PREÇO: Ao buscar produtos por faixa de preço, prefira filtrar os resultados após obtê-los, '
             'pois a API não oferece filtro de preço nativo. Ignore produtos com preço zero quando irrelevantes.\n\n'
             
-            '5. FORMATAÇÃO DE RESPOSTA: Apresente os resultados de forma organizada, usando markdown para destacar '
+            '6. FORMATAÇÃO DE RESPOSTA: Apresente os resultados de forma organizada, usando markdown para destacar '
             'informações importantes como:\n'
             '   - Nome do produto (em negrito)\n'
             '   - Preço (formatado como moeda)\n'
             '   - Especificações relevantes\n'
             '   - Código e ID do produto\n\n'
             
-            '6. ESTRATÉGIA DE BUSCA: Se uma busca inicial falhar, não desista - tente abordagens diferentes:\n'
-            '   - Busque por termos mais específicos\n'
-            '   - Consulte as famílias de produtos primeiro\n'
-            '   - Verifique a ortografia e tente variações\n'
+            '7. ESTRATÉGIA DE BUSCA: Se uma busca inicial falhar, não desista - tente abordagens diferentes:\n'
+            '   - Primeiro tente marcas ou famílias específicas usando IDs\n'
+            '   - Depois tente termos mais genéricos sem usar o nome da marca\n'
+            '   - Consulte as famílias de produtos\n'
             '   - Use termos relacionados ao tipo de produto\n\n'
             
-            '7. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\n\n'
+            '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\n\n'
+            
+            '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\n\n'
+            'Os produtos abaixo estão disponíveis no catálogo da Redragon e devem ser priorizados nas demonstrações. '
+            'Use os códigos exatos para encontrar estes produtos específicos:\n\n'
+            
+            'TECLADOS MECÂNICOS:\n'
+            '- K671 (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON SINDRI RAINBOW PRETO\n'
+            '- K636CLO-RGB (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON KITAVA RGB PRETO, BEGE E LARANJA SWITCH MARROM\n\n'
+            
+            'TECLADOS MEMBRANA:\n'
+            '- K513-RGB PT - TECLADO MEMBRANA GAMER REDRAGON ADITYA PRETO\n'
+            '- K502RGB (PT) - TECLADO MEMBRANA RGB PRETO KARURA 2\n\n'
+            
+            'TECLADOS ÓPTICOS:\n'
+            '- K586RGB-PRO (PT-RED) - TECLADO OPTICO GAMER BRAHMA PRO RGB PRETO SWITCH VERMELHO\n'
+            '- K582W-RGB-PRO (PT-BLUE) - TECLADO OPTICO GAMER SURARA PRO RGB BRANCO SWITCH AZUL ABNT2\n\n'
+            
+            'MOUSES:\n'
+            '- 6975763145197 - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\n'
+            '- M993-RGB - MOUSE GAMER REDRAGON DEVOURER PRETO\n'
+            '- M690-PRO - MOUSE GAMER REDRAGON MIRAGE PRO PRETO\n'
+            '- M802-RGB-1 - MOUSE TITANOBOA 2 CHROMA RGB PTO M802-RGB-1\n\n'
+            
+            'Para buscar qualquer um destes produtos, utilize o código como parâmetro de busca ou busque pelo ID da marca Redragon '
+            'e use parâmetros de pesquisa específicos como "teclado" ou "mouse" em vez de buscar por nomes completos de produtos. '
+            'A busca por códigos específicos (K671, M993-RGB, etc.) é mais eficiente e confiável.\n'
+            '--------------------------------------------------------------\n\n'
             
             'Lembre-se: Se não encontrar resultados para uma consulta específica, explique o que tentou buscar '
             'e sugira alternativas ou pergunte por mais detalhes para refinar a busca.'
@@ -206,7 +238,9 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         ordering: Optional[str] = None,
         codigo: Optional[str] = None,
         ean: Optional[str] = None,
+        familia: Optional[int] = None,
         familia_nome: Optional[str] = None,
+        marca: Optional[int] = None,
         marca_nome: Optional[str] = None
     ) -> Dict[str, Any]:
         """Obter lista de produtos da BlackPearl.
@@ -214,11 +248,13 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         Args:
             limit: Número máximo de produtos a retornar (padrão: 15)
             offset: Número de produtos a pular
-            search: Termo de busca para filtrar produtos
+            search: Termo de busca para filtrar produtos (use apenas para termos genéricos)
             ordering: Campo para ordenar resultados (exemplo: 'descricao' ou '-valor_unitario' para descendente)
             codigo: Filtrar por código do produto
             ean: Filtrar por EAN (código de barras)
+            familia: Filtrar por ID da família de produtos (preferido para melhor desempenho)
             familia_nome: Filtrar por nome da família de produtos
+            marca: Filtrar por ID da marca (preferido para melhor desempenho)
             marca_nome: Filtrar por nome da marca
         """
         filters = {}
@@ -226,8 +262,12 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             filters["codigo"] = codigo
         if ean:
             filters["ean"] = ean
+        if familia:
+            filters["familia"] = familia
         if familia_nome:
             filters["familia_nome"] = familia_nome
+        if marca:
+            filters["marca"] = marca
         if marca_nome:
             filters["marca_nome"] = marca_nome
             
@@ -352,16 +392,53 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             max_results: Número máximo de recomendações a retornar (padrão: 5)
         """
         try:
-            # Buscar produtos com base nos requisitos
+            # Inicializar parâmetros de busca
             search_params = {}
+            
+            # Se houver preferência de marca, primeiro obtenha o ID da marca
             if brand_preference:
-                search_params["marca_nome"] = brand_preference
+                try:
+                    # Buscar marca pelo nome para obter o ID
+                    brand_result = await get_marcas(ctx.deps, search=brand_preference)
+                    brands = brand_result.get("results", [])
+                    
+                    # Se encontrou a marca, use o ID em vez do nome
+                    if brands:
+                        # Encontre a marca que melhor corresponde à preferência
+                        matched_brand = None
+                        for brand in brands:
+                            if brand.get("nome", "").lower() == brand_preference.lower():
+                                matched_brand = brand
+                                break
+                        
+                        if not matched_brand and brands:
+                            matched_brand = brands[0]  # Use a primeira marca se não houver correspondência exata
+                            
+                        if matched_brand:
+                            search_params["marca"] = matched_brand.get("id")
+                            logger.info(f"Usando marca ID: {matched_brand.get('id')} para '{brand_preference}'")
+                        else:
+                            # Fallback para o nome da marca se não conseguir encontrar o ID
+                            search_params["marca_nome"] = brand_preference
+                    else:
+                        # Fallback para o nome da marca se não conseguir encontrar resultados
+                        search_params["marca_nome"] = brand_preference
+                        
+                except Exception as e:
+                    logger.error(f"Erro ao buscar marca '{brand_preference}': {str(e)}")
+                    search_params["marca_nome"] = brand_preference
                 
             # Obter produtos correspondentes aos requisitos
             products_result = await get_produtos(ctx.deps, limit=50, search=requirements, **search_params)
             products = products_result.get("results", [])
             
-            # Se não houver resultados, tente uma busca mais ampla
+            # Se não houver resultados, tente uma busca alternativa sem o termo de pesquisa
+            if not products and "marca" in search_params:
+                logger.info(f"Tentando busca apenas pela marca_id sem search term")
+                products_result = await get_produtos(ctx.deps, limit=50, **search_params)
+                products = products_result.get("results", [])
+            
+            # Se ainda não houver resultados, tente uma busca mais ampla
             if not products:
                 # Tente extrair palavras-chave dos requisitos e pesquise cada uma
                 for word in requirements.split():
