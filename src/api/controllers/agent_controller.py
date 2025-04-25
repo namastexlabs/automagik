@@ -164,14 +164,25 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Initialize the agent - strip '_agent' suffix for factory
         factory = AgentFactory()
         agent_type = agent_name.replace('_agent', '') if agent_name.endswith('_agent') else agent_name
-        agent = factory.create_agent(agent_type, request.parameters)
         
-        # Check if agent is a PlaceholderAgent
-        if agent.__class__.__name__ == "PlaceholderAgent":
+        # Use get_agent instead of create_agent to reuse existing instances
+        try:
+            agent = factory.get_agent(agent_type)
+            
+            # Check if agent exists
+            if not agent or agent.__class__.__name__ == "PlaceholderAgent":
+                raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+                
+            # Update the agent with the request parameters if provided
+            if request.parameters:
+                agent.update_config(request.parameters)
+        except Exception as e:
+            logger.error(f"Error getting agent {agent_name}: {str(e)}")
             raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
-        
-        if not agent:
-            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+
+        # Extract content and content type from the request
+        content = request.message_content
+        content_type = request.message_type
         
         # Apply system prompt override if provided
         if request.system_prompt:
@@ -193,7 +204,6 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 # Continue anyway, as this is not a critical error
         
         # Process multimodal content (if any)
-        content = request.message_content
         multimodal_content = {}
         
         if request.media_contents:

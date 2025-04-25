@@ -55,6 +55,21 @@ class AgentConfig:
         """
         return self.config.get(key, default)
         
+    def __repr__(self):
+        """String representation of the configuration."""
+        return f"AgentConfig(config={self.config})"
+        
+    def update(self, updates: Dict[str, Any]) -> None:
+        """Update the configuration with new values.
+        
+        Args:
+            updates: Dictionary with configuration updates
+        """
+        if not updates:
+            return
+            
+        self.config.update(updates)
+        
     def __getattr__(self, name):
         """Get configuration attribute.
         
@@ -182,6 +197,21 @@ class AutomagikAgent(ABC, Generic[T]):
             self.tool_registry.update_context(self.context)
             
         logger.info(f"Updated agent context: {context_updates.keys()}")
+    
+    def update_config(self, config_updates: Dict[str, Any]) -> None:
+        """Update the agent's configuration.
+        
+        Args:
+            config_updates: Dictionary with configuration updates
+        """
+        if isinstance(self.config, AgentConfig):
+            # Update the existing AgentConfig
+            self.config.update(config_updates)
+        else:
+            # Replace the entire config
+            self.config = AgentConfig(config_updates)
+            
+        logger.info(f"Updated agent config: {config_updates.keys()}")
     
     async def initialize_memory_variables(self, user_id: Optional[int] = None) -> bool:
         """Initialize memory variables for the agent.
