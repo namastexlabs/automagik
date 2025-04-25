@@ -419,3 +419,12 @@ class AutomagikAgentsDependencies(BaseDependencies):
             user_info: Dictionary with user information including name, phone, etc.
         """
         self.user_info = user_info 
+        
+    def set_context(self, context: Dict[str, Any]) -> None:
+        """Set the context for the agent.
+        
+        Args:
+            context: Dictionary containing the agent's context (user_id, agent_id, etc.)
+        """
+        self.context = context
+        logger.debug(f"Set context in dependencies: {context.keys()}") 
