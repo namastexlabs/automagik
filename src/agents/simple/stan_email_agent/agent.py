@@ -258,7 +258,7 @@ class StanEmailAgent(AutomagikAgent):
                 if email_agent_result.data and email_agent_result.data.black_pearl_client_id: 
                     try:
                         black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
-                        
+                            
                         # Check if contatos exists and is not empty
                         if not black_pearl_client.contatos or len(black_pearl_client.contatos) == 0:
                             logger.warning(f"No contacts found for client ID: {black_pearl_client.id}")
@@ -303,7 +303,7 @@ class StanEmailAgent(AutomagikAgent):
                                         agent_id = session_parts[1]
                             except Exception as e:
                                 logger.warning(f"Error parsing wpp_session_id: {str(e)}")
-                        
+                    
                         user = get_user(user_id=user_id) if user_id else None
                         user.email = black_pearl_client.email
                         
@@ -330,13 +330,13 @@ class StanEmailAgent(AutomagikAgent):
                         
                         # Format the conversation history
                         earlier_conversations = "\n".join([f"{message.role}: {message.text_content}" 
-                                                         for message in user_message_history 
-                                                         if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
+                                                        for message in user_message_history 
+                                                        if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
                         
                         message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
                         message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
                         message = await aproval_status_message_generator.generate_approval_status_message(message_text)
-                      
+                    
                         if black_pearl_contact.status_aprovacao == StatusAprovacaoEnum.APPROVED:
                             data_aprovacao = datetime.datetime.now()
                             black_pearl_contact.data_aprovacao = data_aprovacao
@@ -382,7 +382,7 @@ class StanEmailAgent(AutomagikAgent):
                         logger.error(f"Error processing client or contact: {str(e)}")
                         thread['processed'] = False
                         continue
-                
+                    
             # For each processed thread mark the email as read
             for thread in self.context['unread_threads']:
                 if thread['processed']:
