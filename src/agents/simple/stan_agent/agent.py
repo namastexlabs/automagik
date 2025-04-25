@@ -68,8 +68,8 @@ class StanAgent(AutomagikAgent):
         
         # Configure dependencies
         self.dependencies = AutomagikAgentsDependencies(
-            model_name=get_model_name(config),
-            model_settings=parse_model_settings(config)
+            model_name="openai:o4-mini",
+            # model_settings=parse_model_settings(config)
         )
         
         # Set agent_id if available
@@ -122,10 +122,10 @@ class StanAgent(AutomagikAgent):
         # Pass imported tools directly to the constructor
         # Combine imported tools and specialized agents into one list
         all_tools = [
-            verificar_cnpj,
-            product_agent,
-            order_agent,
-            backoffice_agent,
+            self._create_verificar_cnpj_wrapper(),
+            self._create_product_agent_wrapper(),
+            self._create_order_agent_wrapper(),
+            self._create_backoffice_agent_wrapper(),
         ]
         
         # Initialize Agent with tools
@@ -194,6 +194,114 @@ class StanAgent(AutomagikAgent):
                 return f"Failed to send image for product ID {product_id}. Reason: {message}"
         
         logger.info("PydanticAI agent initialization complete with tools.")
+
+    def _create_verificar_cnpj_wrapper(self):
+        """Create a wrapper for the verificar_cnpj function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the verificar_cnpj function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def verificar_cnpj_wrapper(ctx: RunContext[AutomagikAgentsDependencies], cnpj: str) -> Dict[str, Any]:
+            """Verify a CNPJ in the Blackpearl API.
+            
+            Args:
+                ctx: The run context with dependencies
+                cnpj: The CNPJ number to verify (format: xx.xxx.xxx/xxxx-xx or clean numbers)
+                
+            Returns:
+                CNPJ verification result containing validation status and company information if valid
+            """
+            # Use the captured context reference directly
+            return await verificar_cnpj(agent_context, cnpj)
+            
+        return verificar_cnpj_wrapper
+
+    def _create_product_agent_wrapper(self):
+        """Create a wrapper for the product_agent function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format,
+        ensuring proper context handling when the agent is called.
+        
+        Returns:
+            A wrapped version of the product_agent function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def product_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+            """Specialized product agent with expertise in product information and catalog management.
+            
+            Args:
+                ctx: The run context with dependencies
+                input_text: The user's text query about products
+            
+            Returns:
+                Response from the product agent
+            """
+            ctx.deps.set_context(agent_context)
+            return await product_agent(ctx, input_text)
+            
+        return product_agent_wrapper
+
+    def _create_order_agent_wrapper(self):
+        """Create a wrapper for the order_agent function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format,
+        ensuring proper context handling when the agent is called.
+        
+        Returns:
+            A wrapped version of the order_agent function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def order_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+            """Specialized order agent with expertise in sales orders and order management.
+            
+            Args:
+                ctx: The run context with dependencies
+                input_text: The user's text query about orders
+            
+            Returns:
+                Response from the order agent
+            """
+            ctx.deps.set_context(agent_context)
+            return await order_agent(ctx, input_text)
+            
+        return order_agent_wrapper
+
+    def _create_backoffice_agent_wrapper(self):
+        """Create a wrapper for the backoffice_agent function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format,
+        ensuring proper context handling when the agent is called.
+        
+        Returns:
+            A wrapped version of the backoffice_agent function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def backoffice_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+            """Specialized backoffice agent with access to BlackPearl and Omie tools.
+            
+            Args:
+                ctx: The run context with dependencies
+                input_text: The user's text query about backoffice operations
+            
+            Returns:
+                Response from the backoffice agent
+            """
+            ctx.deps.set_context(agent_context)
+            return await backoffice_agent(ctx, input_text)
+            
+        return backoffice_agent_wrapper
 
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[dict] = None,

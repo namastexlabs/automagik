@@ -596,7 +596,8 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         
         # Create email input with HTML formatting
         email_input = SendEmailInput(
-            cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
+            #cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
+            cc=['cezar@namastex.ai'],
             to=recipient,
             subject=subject,
             message=message,
