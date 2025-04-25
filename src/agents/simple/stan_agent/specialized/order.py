@@ -47,7 +47,7 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     """Specialized agent for managing Black Pearl sales orders and items."""
     
     order_agent = Agent(
-        'google-gla:gemini-2.5-flash-exp', # Or appropriate model
+        'openai:o4-mini', 
         deps_type=Dict[str, Any],
         system_prompt=SYSTEM_PROMPT
     )

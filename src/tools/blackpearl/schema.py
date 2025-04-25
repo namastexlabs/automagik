@@ -102,7 +102,8 @@ class TipoOperacaoEnum(str, Enum):
 
 class Cliente(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
-    contatos: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Contact IDs")
+    contatos: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Contacts list from API response")
+    contatos_ids: Optional[List[int]] = Field(None, description="Contact IDs")
     vendedores: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Salesperson IDs")
     telefone_comercial: Optional[str] = None
     tipo_operacao: Optional[TipoOperacaoEnum] = None

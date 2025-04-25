@@ -11,12 +11,14 @@ from src.tools.blackpearl import (
     get_marcas, get_marca,
     get_imagens_de_produto
 )
+from src.tools.blackpearl.api import fetch_blackpearl_product_details
+from src.tools.evolution.api import send_evolution_media_logic
 from src.config import settings
+from src.db.repository.user import get_user
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-
 
 
 def get_tabela_files_from_supabase():
@@ -192,6 +194,10 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             
             '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\n\n'
             
+            '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, utilize a ferramenta '
+            '   `send_product_image_to_user` para enviar uma imagem do produto. Esta ferramenta envia a '
+            '   imagem diretamente para o WhatsApp do usuário.\n\n'
+            
             '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\n\n'
             'Os produtos abaixo estão disponíveis no catálogo da Redragon e devem ser priorizados nas demonstrações. '
             'Use os códigos exatos para encontrar estes produtos específicos:\n\n'
@@ -220,7 +226,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             '--------------------------------------------------------------\n\n'
             
             'Lembre-se: Se não encontrar resultados para uma consulta específica, explique o que tentou buscar '
-            'e sugira alternativas ou pergunte por mais detalhes para refinar a busca.'
+            'e sugira alternativas ou pergunte por mais detalhes para refinar a busca. '
             
             'Caso o usuário peça a tabela de preços dos produtos, aqui estão os links:'
             f'{parsed_text_input}'
@@ -571,6 +577,102 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
                 "error": str(e),
                 "message": "Falha ao gerar comparação de produtos."
             }
+    
+    @product_catalog_agent.tool
+    async def send_product_image_to_user(
+        ctx: RunContext[Dict[str, Any]],
+        product_id: int,
+        caption_override: Optional[str] = None
+    ) -> str:
+        """Busca uma imagem de produto da BlackPearl e envia para o usuário via WhatsApp.
+
+        Args:
+            product_id: ID do produto BlackPearl
+            caption_override: Legenda opcional para substituir o nome do produto
+
+        Returns:
+            Mensagem de confirmação ou erro
+        """
+        # Extract user_id from context
+        user_id = None
+        if hasattr(ctx.deps, 'get'):
+            user_id = ctx.deps.get("user_id")
+        elif hasattr(ctx, 'context') and isinstance(ctx.context, dict):
+            user_id = ctx.context.get("user_id")
+        
+        if not user_id:
+            logger.error("Tool 'send_product_image_to_user': User ID not found in context.")
+            return "Erro: ID do usuário não encontrado no contexto. Não foi possível enviar a imagem."
+            
+        # Retrieve user data from database to get WhatsApp ID
+        try:
+            user_info = get_user(user_id)
+            if not user_info or not hasattr(user_info, 'user_data') or not user_info.user_data:
+                logger.error(f"Tool 'send_product_image_to_user': User data not found for user ID {user_id}")
+                return f"Erro: Dados do usuário não encontrados para o ID {user_id}. Não foi possível enviar a imagem."
+                
+            # Extract WhatsApp ID from user_data
+            whatsapp_id = user_info.user_data.get("whatsapp_id")
+            if not whatsapp_id:
+                logger.error(f"Tool 'send_product_image_to_user': WhatsApp ID not found in user data for user ID {user_id}")
+                return f"Erro: ID do WhatsApp não encontrado nos dados do usuário. Não foi possível enviar a imagem."
+                
+            # If WhatsApp ID contains "@s.whatsapp.net", remove it to get just the phone number
+            if "@s.whatsapp.net" in whatsapp_id:
+                user_phone_number = whatsapp_id.split("@")[0]
+            else:
+                user_phone_number = whatsapp_id
+                
+            logger.info(f"Tool 'send_product_image_to_user': Found WhatsApp number: {user_phone_number} for user ID {user_id}")
+        except Exception as e:
+            logger.error(f"Tool 'send_product_image_to_user': Error retrieving user data: {str(e)}")
+            return f"Erro ao recuperar dados do usuário: {str(e)}"
+            
+        # Get Evolution instance name
+        evolution_instance_name = os.getenv("EVOLUTION_INSTANCE", "default")
+        logger.info(f"Tool 'send_product_image_to_user' called for product_id={product_id}, user={user_phone_number}, instance={evolution_instance_name}")
+
+        # 1. Fetch product details from Black Pearl
+        product_data = await fetch_blackpearl_product_details(product_id)
+        if not product_data:
+            return f"Erro: Não foi possível obter detalhes para o produto com ID {product_id} da BlackPearl."
+
+        # 2. Extract image URL and determine caption
+        image_url = product_data.get("imagem")
+        if not image_url:
+            # Try to get product images if main image not available
+            try:
+                images_result = await get_imagens_de_produto(ctx.deps, produto=product_id, limit=1)
+                images = images_result.get("results", [])
+                if images:
+                    image_url = images[0].get("imagem")
+            except Exception as e:
+                logger.error(f"Error retrieving product images: {str(e)}")
+
+        if not image_url:
+            return f"Erro: Não foi encontrada imagem para o produto com ID {product_id}."
+
+        # Determine caption
+        caption = caption_override if caption_override else product_data.get("descricao", f"Produto ID {product_id}")
+        
+        # Add price if available
+        if not caption_override and "valor_unitario" in product_data and product_data["valor_unitario"] > 0:
+            price = product_data.get("valor_unitario")
+            caption = f"{caption}\nPreço: R$ {price:.2f}".replace(".", ",")
+
+        # 3. Send image via Evolution API
+        success, message = await send_evolution_media_logic(
+            instance_name=evolution_instance_name,
+            number=user_phone_number,
+            media_url=image_url,
+            media_type="image", # Explicitly image
+            caption=caption
+        )
+
+        if success:
+            return f"Imagem do produto '{caption}' (ID: {product_id}) enviada com sucesso. Status: {message}"
+        else:
+            return f"Falha ao enviar imagem para o produto ID {product_id}. Motivo: {message}"
     
     # Execute the agent
     try:

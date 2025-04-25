@@ -321,7 +321,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
                 user_data = user_info.user_data
                 blackpearl_contact_id = user_data.get("blackpearl_contact_id")
                 if blackpearl_contact_id:
-                    cliente_data["contatos"] = [blackpearl_contact_id]
+                    cliente_data["contatos_ids"] = [blackpearl_contact_id]
         
         # Criar objeto Cliente corretamente
         cliente = Cliente(**cliente_data)
@@ -384,7 +384,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         numero_funcionarios: Optional[int] = None,
         tipo_operacao: Optional[str] = None,
         status_aprovacao: Optional[str] = None,
-        contatos: Optional[list] = None,
+        contatos_ids: Optional[list] = None,
         observacao: Optional[str] = None
     ) -> Dict[str, Any]:
         """Update a client in BlackPearl.
@@ -407,7 +407,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             numero_funcionarios: Number of employees (optional)
             tipo_operacao: Operation type (optional)
             status_aprovacao: Approval status (NOT_REGISTERED, REJECTED, APPROVED, VERIFYING) (optional)
-            contatos: List of contact IDs associated with this client (optional)
+            contatos_ids: List of contact IDs associated with this client (optional)
             observacao: Additional notes (optional)
         """
         try:
@@ -454,19 +454,19 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             if status_aprovacao:
                 # Simplesmente passa a string diretamente
                 cliente_data["status_aprovacao"] = status_aprovacao
-            if contatos:
-                cliente_data["contatos"] = contatos
+            if contatos_ids:
+                cliente_data["contatos_ids"] = contatos_ids
             if observacao:
                 cliente_data["observacao"] = observacao
                 
             # Get user information and add contact if not already present
-            if user_id and not contatos:
+            if user_id and not contatos_ids:
                 user_info = get_user(user_id)
                 if user_info:
                     user_data = user_info.user_data
                     blackpearl_contact_id = user_data.get("blackpearl_contact_id")
                     if blackpearl_contact_id:
-                        cliente_data["contatos"] = [blackpearl_contact_id]
+                        cliente_data["contatos_ids"] = [blackpearl_contact_id]
             
             # Criar objeto Cliente corretamente
             cliente = Cliente(**cliente_data)
