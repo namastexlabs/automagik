@@ -101,6 +101,85 @@ class AgentRunRequest(BaseResponseModel):
     messages: Optional[List[Any]] = None  # Optional message history
     system_prompt: Optional[str] = None  # Optional system prompt override
     user: Optional[UserCreate] = None  # Optional user data for creation/update
+    
+    model_config = ConfigDict(
+        exclude_none=True,
+        json_schema_extra={
+            "example": {
+                "message_content": "string",
+                "message_type": "string",
+                "mediaUrl": "string",
+                "mime_type": "string",
+                "media_contents": [
+                    {
+                        "mime_type": "image/",
+                        "media_url": "string",
+                        "width": 0,
+                        "height": 0,
+                        "alt_text": "string"
+                    },
+                    {
+                        "mime_type": "image/",
+                        "data": "string",
+                        "width": 0,
+                        "height": 0,
+                        "alt_text": "string",
+                        "thumbnail_url": "string"
+                    },
+                    {
+                        "mime_type": "audio/",
+                        "media_url": "string",
+                        "duration_seconds": 0,
+                        "transcript": "string"
+                    },
+                    {
+                        "mime_type": "audio/",
+                        "data": "string",
+                        "duration_seconds": 0,
+                        "transcript": "string"
+                    },
+                    {
+                        "mime_type": "application/",
+                        "media_url": "string",
+                        "name": "string",
+                        "size_bytes": 0,
+                        "page_count": 0
+                    },
+                    {
+                        "mime_type": "application/",
+                        "data": "string",
+                        "name": "string",
+                        "size_bytes": 0,
+                        "page_count": 0
+                    }
+                ],
+                "channel_payload": {
+                    "additionalProp1": {}
+                },
+                "context": {},
+                "session_id": "string",
+                "session_name": "string",
+                "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "message_limit": 10,
+                "session_origin": "automagik-agent",
+                "agent_id": "string",
+                "parameters": {
+                    "additionalProp1": {}
+                },
+                "messages": [
+                    "string"
+                ],
+                "system_prompt": "string",
+                "user": {
+                    "email": "string",
+                    "phone_number": "string",
+                    "user_data": {
+                        "additionalProp1": {}
+                    }
+                }
+            }
+        }
+    )
 
 class AgentInfo(BaseResponseModel):
     """Information about an available agent."""

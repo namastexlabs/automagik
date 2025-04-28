@@ -136,6 +136,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],  # Allows all headers
     )
 
+    # Add JSON parsing middleware to fix malformed JSON
+    try:
+        from src.api.middleware import JSONParsingMiddleware
+        app.add_middleware(JSONParsingMiddleware)
+        logger.info("✅ Added JSON parsing middleware")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to add JSON parsing middleware: {str(e)}")
+
     # Add authentication middleware
     app.add_middleware(APIKeyMiddleware)
     

@@ -24,25 +24,47 @@ logger = logging.getLogger(__name__)
 async def list_registered_agents() -> List[AgentInfo]:
     """
     List all registered agents from the database.
+    Removes duplicates by normalizing agent names and grouping them by base name.
     """
     try:
         # Get all registered agents from the database
         registered_agents = list_db_agents(active_only=True)
         
+        # Group agents by their normalized name to handle duplicates
+        # Normalize name by removing "_agent" suffix where present
+        normalized_agents = {}
+        
+        for agent in registered_agents:
+            # Normalize the name (remove _agent suffix)
+            normalized_name = agent.name.replace('_agent', '')
+            
+            # Skip if we already have this agent with a newer ID (likely more up-to-date)
+            if normalized_name in normalized_agents and normalized_agents[normalized_name].id > agent.id:
+                logger.info(f"Skipping duplicate agent {agent.name} (ID: {agent.id}) in favor of newer entry (ID: {normalized_agents[normalized_name].id})")
+                continue
+                
+            # Store this agent as the canonical version for this normalized name
+            normalized_agents[normalized_name] = agent
+            
+        logger.info(f"Normalized {len(registered_agents)} agents to {len(normalized_agents)} unique agents")
+        
         # Convert to list of AgentInfo objects
         agent_infos = []
-        for agent in registered_agents:
-            # Get agent class to fetch docstring (optional, could be removed if description isn't crucial)
+        for normalized_name, agent in normalized_agents.items():
+            # Get agent class to fetch docstring
             factory = AgentFactory()
-            agent_class = factory.get_agent_class(agent.name.replace('_agent', ''))
+            agent_class = factory.get_agent_class(normalized_name)
             docstring = inspect.getdoc(agent_class) if agent_class else agent.description or ""
             
             # Create agent info including the ID
             agent_infos.append(AgentInfo(
                 id=agent.id,
-                name=agent.name.replace('_agent', ''),
+                name=normalized_name,  # Return the normalized name without _agent suffix
                 description=docstring
             ))
+            
+        # Sort by name for consistent ordering
+        agent_infos.sort(key=lambda x: x.name)
             
         return agent_infos
     except Exception as e:

@@ -2,7 +2,7 @@ import logging
 from typing import List, Any, Dict
 import json  # Add json import
 import re  # Move re import here
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Body
 from starlette.responses import JSONResponse
 from starlette import status
 from pydantic import ValidationError
@@ -216,12 +216,23 @@ async def list_agents():
 @agent_router.post("/agent/{agent_name}/run", tags=["Agents"],
             summary="Run Agent",
             description="Execute an agent with the specified name. Optionally provide a session ID or name to maintain conversation context.")
-async def run_agent(agent_name: str, request: AgentRunRequest = Depends(clean_and_parse_agent_run_payload)):
+async def run_agent(
+    agent_name: str,
+    agent_request: AgentRunRequest = Body(..., description="Agent request parameters")
+):
     """
     Run an agent with the specified parameters
+
+    - **message_content**: Text message to send to the agent (required)
+    - **session_id**: Optional ID to maintain conversation context
+    - **session_name**: Optional name for the session (creates a persistent session)
+    - **message_type**: Optional message type identifier
+    - **user_id**: Optional user ID to associate with the request
     """
     try:
-        return await handle_agent_run(agent_name, request)
+        # Our middleware will have already fixed any JSON parsing issues
+        # FastAPI will have already validated the request against the AgentRunRequest model
+        return await handle_agent_run(agent_name, agent_request)
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
