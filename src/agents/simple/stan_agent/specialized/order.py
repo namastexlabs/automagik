@@ -21,31 +21,113 @@ from src.tools.blackpearl.schema import (
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """
-You are a specialized Order Agent within the Stan/Solid ecosystem.
-Your primary function is to manage sales orders ('pedidos de venda') and their items for registered and approved clients.
-
-You can perform the following actions:
-- Create new sales orders.
-- Add items to existing sales orders.
-- List existing sales orders (optionally filtering).
-- Retrieve details of a specific sales order.
-- Update existing sales orders.
-- Approve sales orders (change their status).
-- List items within a specific sales order.
-- Retrieve details of a specific item in an order.
-- Update items within an order.
-- Delete items from an order.
-- List available payment conditions ('condições de pagamento').
-
-Always ensure you have the necessary information before attempting an action (e.g., client ID for creating an order, order ID for adding items or updating).
-Use the client ID and contact ID available in the context when creating or managing orders.
-Communicate clearly with the main Stan agent about the results of your actions (success, failure, IDs created, etc.).
-"""
-
 async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     """Specialized agent for managing Black Pearl sales orders and items."""
     
+    # Extract user info from context
+    user_id = ctx.deps.get("user_id") if isinstance(ctx.deps, dict) else None
+    if hasattr(ctx.deps, 'user_id'):
+        user_id = ctx.deps.user_id
+    
+    # Get client info from context
+    blackpearl_client_id = None
+    blackpearl_contact_id = None
+    client_name = "cliente"
+    
+    if isinstance(ctx.deps, dict):
+        blackpearl_client_id = ctx.deps.get("blackpearl_cliente_id")
+        blackpearl_contact_id = ctx.deps.get("blackpearl_contact_id")
+        client_name = ctx.deps.get("blackpearl_cliente_nome", "cliente")
+    
+    if hasattr(ctx.deps, 'context'):
+        ctx_dict = ctx.deps.context
+        if isinstance(ctx_dict, dict):
+            blackpearl_client_id = ctx_dict.get("blackpearl_cliente_id", blackpearl_client_id)
+            blackpearl_contact_id = ctx_dict.get("blackpearl_contact_id", blackpearl_contact_id)
+            client_name = ctx_dict.get("blackpearl_cliente_nome", client_name)
+    
+    logger.info(f"Order Agent - User ID: {user_id}")
+    logger.info(f"Order Agent - BlackPearl Client ID: {blackpearl_client_id}")
+    logger.info(f"Order Agent - BlackPearl Contact ID: {blackpearl_contact_id}")
+    
+    # Check for active orders
+    active_orders = None
+    active_orders_info = ""
+    
+    if blackpearl_client_id:
+        try:
+            # Attempt to fetch active orders for this client
+            orders_response = await list_orders_tool(
+                ctx.deps, 
+                cliente_id=blackpearl_client_id, 
+                limit=5,
+                status_negociacao="open"  # Get open orders
+            )
+            
+            if orders_response and "results" in orders_response and orders_response["results"]:
+                active_orders = orders_response["results"]
+                
+                # Format active orders for the prompt
+                active_orders_info = f"\n\nINFORMAÇÕES DE PEDIDOS ATIVOS PARA {client_name.upper()}:\n"
+                for idx, order in enumerate(active_orders, 1):
+                    order_id = order.get("id", "ID desconhecido")
+                    order_date = order.get("data_criacao", "Data desconhecida")
+                    order_status = order.get("status_negociacao", "Status desconhecido")
+                    order_value = order.get("valor_total", 0)
+                    
+                    active_orders_info += f"Pedido #{idx}: ID: {order_id}, Data: {order_date}, Status: {order_status}, Valor: R$ {order_value:.2f}\n"
+                    
+                    # Add items if available
+                    try:
+                        items_response = await list_order_items_tool(ctx.deps, pedido_id=order_id)
+                        if items_response and "results" in items_response and items_response["results"]:
+                            active_orders_info += "  Itens:\n"
+                            for item in items_response["results"]:
+                                item_name = item.get("descricao", "Item desconhecido")
+                                item_qty = item.get("quantidade", 0)
+                                item_price = item.get("valor_unitario", 0)
+                                active_orders_info += f"  - {item_qty}x {item_name} (R$ {item_price:.2f}/un)\n"
+                    except Exception as e:
+                        logger.error(f"Error fetching items for order {order_id}: {e}")
+                        
+                logger.info(f"Found {len(active_orders)} active orders for client {blackpearl_client_id}")
+            else:
+                active_orders_info = f"\n\nNenhum pedido ativo encontrado para {client_name}."
+                logger.info(f"No active orders found for client {blackpearl_client_id}")
+        except Exception as e:
+            logger.error(f"Error fetching active orders: {e}")
+            active_orders_info = "\n\nErro ao buscar pedidos ativos."
+    
+    SYSTEM_PROMPT = f"""
+    You are a specialized Order Agent within the Stan/Solid ecosystem.
+    Your primary function is to manage sales orders ('pedidos de venda') and their items for registered and approved clients.
+    
+    CURRENT USER INFORMATION:
+    - Cliente ID: {blackpearl_client_id or "Não disponível"}
+    - Contato ID: {blackpearl_contact_id or "Não disponível"}
+    - Nome do Cliente: {client_name or "Não disponível"}
+    {active_orders_info}
+    
+    You can perform the following actions:
+    - Create new sales orders.
+    - Add items to existing sales orders.
+    - List existing sales orders (optionally filtering).
+    - Retrieve details of a specific sales order.
+    - Update existing sales orders.
+    - Approve sales orders (change their status).
+    - List items within a specific sales order.
+    - Retrieve details of a specific item in an order.
+    - Update items within an order.
+    - Delete items from an order.
+    - List available payment conditions ('condições de pagamento').
+    
+    Always ensure you have the necessary information before attempting an action (e.g., client ID for creating an order, order ID for adding items or updating).
+    Use the client ID and contact ID available in the context when creating or managing orders.
+    Communicate clearly with the main Stan agent about the results of your actions (success, failure, IDs created, etc.).
+    
+    When working with this client, use their specific information and refer to existing orders when relevant.
+    """
+
     order_agent = Agent(
         'openai:o4-mini', 
         deps_type=Dict[str, Any],
@@ -62,14 +144,17 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
             pedido_data: Dictionary conforming to PedidoDeVendaCreate schema.
         """
         # Ensure client and contact IDs are in context
-        if 'blackpearl_cliente_id' not in ctx.context or 'blackpearl_contact_id' not in ctx.context:
-            return {"success": False, "error": "Client ID or Contact ID missing in context. Cannot create order."}
+        if 'blackpearl_cliente_id' not in ctx.context and 'cliente' not in pedido_data:
+            return {"success": False, "error": "Client ID missing in context and request. Cannot create order."}
+        
+        if 'blackpearl_contact_id' not in ctx.context and 'contato_id' not in pedido_data:
+            return {"success": False, "error": "Contact ID missing in context and request. Cannot create order."}
         
         # Add context IDs to pedido_data if not present
         if 'cliente' not in pedido_data:
-            pedido_data['cliente'] = ctx.context['blackpearl_cliente_id']
+            pedido_data['cliente'] = ctx.context.get('blackpearl_cliente_id')
         if 'contato_id' not in pedido_data:
-             pedido_data['contato_id'] = ctx.context['blackpearl_contact_id']
+             pedido_data['contato_id'] = ctx.context.get('blackpearl_contact_id')
 
         try:
             validated_data = PedidoDeVendaCreate(**pedido_data)
@@ -93,7 +178,13 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
                                   status_negociacao: Optional[str] = None) -> Dict[str, Any]:
         """List sales orders (pedidos de venda) from BlackPearl."""
         # Use client ID from context if not provided
-        effective_cliente_id = cliente_id if cliente_id is not None else ctx.context.get('blackpearl_cliente_id')
+        effective_cliente_id = cliente_id
+        if effective_cliente_id is None:
+            if hasattr(ctx, 'context') and isinstance(ctx.context, dict):
+                effective_cliente_id = ctx.context.get('blackpearl_cliente_id')
+            elif hasattr(ctx.deps, 'context') and isinstance(ctx.deps.context, dict):
+                effective_cliente_id = ctx.deps.context.get('blackpearl_cliente_id')
+                
         return await list_orders_tool(ctx, limit=limit, offset=offset, search=search, ordering=ordering, cliente_id=effective_cliente_id, status_negociacao=status_negociacao)
 
     @order_agent.tool
@@ -125,6 +216,7 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
             validated_data = ItemDePedidoCreate(**item_data)
             return await add_item_to_order_tool(ctx, item=validated_data.model_dump(by_alias=True)) # Pass as 'item' argument
         except Exception as e:
+            pedido_id = item_data.get('pedido', 'unknown')
             logger.error(f"Error adding item to order {pedido_id}: {e}")
             return {"success": False, "error": f"Validation or API error adding item: {e}"} 
 
