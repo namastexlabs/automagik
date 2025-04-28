@@ -12,7 +12,7 @@ from src.agents.models.agent_factory import AgentFactory
 from src.config import settings
 from src.memory.message_history import MessageHistory
 from src.api.models import AgentInfo, AgentRunRequest, MessageModel, UserCreate
-from src.db import get_agent_by_name, get_user, create_user, User
+from src.db import get_agent_by_name, get_user, create_user, User, ensure_default_user_exists
 from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
 from src.db.repository.session import get_session_by_name, create_session
@@ -86,8 +86,29 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
     # Import UserCreate here as well to ensure it's available
     from src.api.models import UserCreate
     
-    # If no user ID or data, return None
+    # If no user ID or data, use the default user
     if not user_id and not user_data:
+        # Try to find the first user in the database (the default user)
+        from src.db.repository.user import list_users
+        users, _ = list_users(page=1, page_size=1)
+        
+        if users and len(users) > 0:
+            logger.debug(f"Using default user with ID: {users[0].id}")
+            return users[0].id
+            
+        # If no users exist, ensure the default user exists and return its ID
+        try:
+            # Use the UUID from the example in models.py
+            default_user_id = uuid.UUID("3fa85f64-5717-4562-b3fc-2c963f66afa6")
+            # This function will create the user if it doesn't exist
+            if ensure_default_user_exists(default_user_id, "admin@automagik"):
+                logger.debug(f"Using default user ID: {default_user_id}")
+                return default_user_id
+        except Exception as e:
+            logger.error(f"Error ensuring default user exists: {str(e)}")
+            
+        # If we still don't have a user, log an error
+        logger.error("Failed to get or create default user")
         return None
         
     # Try to get existing user first
