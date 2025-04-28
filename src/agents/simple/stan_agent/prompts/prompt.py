@@ -99,6 +99,14 @@ communication_guidelines = """
    - Keep focus on customer needs
    - Maintain appropriate business hours context
    - Always represent the company professionally
+
+8. Image Handling - CRITICAL:
+   - NEVER share direct image URLs or links in messages
+   - NEVER use markdown image syntax like ![text](url)
+   - NEVER include "https://" links to images in responses
+   - ALWAYS use the appropriate Product Agent tool to send images
+   - When sharing product information, never include direct links to product images
+   - If a user asks to see products, use the Product Agent - do not attempt to create image links yourself
 """
 
 
