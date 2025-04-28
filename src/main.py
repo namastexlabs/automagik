@@ -25,15 +25,16 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 def initialize_all_agents():
-    """Initialize all available agents at startup.
+    """Initialize agents at startup.
+    
+    If AGENTS_NAMES environment variable is set, only initialize those specific agents.
+    Otherwise, initialize all available agents.
     
     This ensures that agents are created and registered in the database
     before any API requests are made, rather than waiting for the first
     run request.
     """
     try:
-        logger.info("🔧 Initializing all available agents...")
-        
         # Discover all available agents
         AgentFactory.discover_agents()
         
@@ -41,8 +42,27 @@ def initialize_all_agents():
         available_agents = AgentFactory.list_available_agents()
         logger.info(f"Found {len(available_agents)} available agents: {', '.join(available_agents)}")
         
+        # Check if specific agents are configured to be initialized
+        agents_to_initialize = available_agents
+        if settings.AM_AGENTS_NAMES:
+            # Parse comma-separated list of agent names
+            specified_agents = [name.strip() for name in settings.AM_AGENTS_NAMES.split(',')]
+            logger.info(f"🔧 AM_AGENTS_NAMES environment variable specified. Initializing only: {', '.join(specified_agents)}")
+            
+            # Filter specified agents to ensure they actually exist
+            agents_to_initialize = [agent for agent in specified_agents if agent in available_agents 
+                                   or f"{agent}_agent" in available_agents]
+            
+            # Log warning for any requested agents that don't exist
+            missing_agents = [agent for agent in specified_agents if agent not in available_agents
+                             and f"{agent}_agent" not in available_agents]
+            if missing_agents:
+                logger.warning(f"⚠️ These requested agents were not found: {', '.join(missing_agents)}")
+        else:
+            logger.info(f"🔧 Initializing all {len(available_agents)} available agents...")
+        
         # Initialize each agent
-        for agent_name in available_agents:
+        for agent_name in agents_to_initialize:
             try:
                 logger.info(f"Initializing agent: {agent_name}")
                 # This will create and register the agent
@@ -51,7 +71,7 @@ def initialize_all_agents():
             except Exception as e:
                 logger.error(f"❌ Failed to initialize agent {agent_name}: {str(e)}")
         
-        logger.info("✅ All agents initialized successfully")
+        logger.info(f"✅ Agent initialization completed. {len(agents_to_initialize)} agents initialized.")
     except Exception as e:
         logger.error(f"❌ Failed to initialize agents: {str(e)}")
         import traceback
@@ -115,6 +135,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],  # Allows all methods
         allow_headers=["*"],  # Allows all headers
     )
+
+    # Add JSON parsing middleware to fix malformed JSON
+    try:
+        from src.api.middleware import JSONParsingMiddleware
+        app.add_middleware(JSONParsingMiddleware)
+        logger.info("✅ Added JSON parsing middleware")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to add JSON parsing middleware: {str(e)}")
 
     # Add authentication middleware
     app.add_middleware(APIKeyMiddleware)

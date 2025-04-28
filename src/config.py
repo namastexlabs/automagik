@@ -1,6 +1,6 @@
 import os
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic_settings import BaseSettings
 import urllib.parse
@@ -73,15 +73,19 @@ class Settings(BaseSettings):
     LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
     LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
 
-    # Supabase
-    SUPABASE_URL: Optional[str] = Field(None, description="Supabase project URL")
-    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(None, description="Supabase service role key for authentication")
-
     # Agent Settings
     AM_TIMEZONE: str = Field(
         default="UTC", 
         description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York')"
     )
+    AM_AGENTS_NAMES: Optional[str] = Field(
+        default=None,
+        description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple_agent,stan_agent')"
+    )
+
+    # Supabase
+    SUPABASE_URL: Optional[str] = Field(None, description="Supabase project URL")
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(None, description="Supabase service role key for authentication")
 
     # Suppress warnings from dependency conflict resolution (Poetry related)
     PYTHONWARNINGS: Optional[str] = Field(None, description="Python warnings configuration")

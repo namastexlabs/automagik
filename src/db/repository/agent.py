@@ -226,10 +226,22 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
         The agent ID if successful, None otherwise
     """
     try:
-        # Check if agent already exists with this name
+        # Normalize the agent name to check for duplicates with/without _agent suffix
+        base_name = name.replace('_agent', '')
+        suffix_name = f"{base_name}_agent"
+        
+        # Check for existing agent with either form of the name
         existing = get_agent_by_name(name)
+        if not existing:
+            # Check if an agent exists with the alternative form
+            if name == base_name:
+                existing = get_agent_by_name(suffix_name)
+            else:
+                existing = get_agent_by_name(base_name)
+        
         if existing:
-            # Update existing agent
+            # Update existing agent but keep its original name format
+            logger.info(f"Found existing agent with name {existing.name} (ID: {existing.id})")
             existing.type = agent_type
             existing.model = model
             existing.description = description or existing.description
@@ -238,6 +250,10 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
                 
             # Use update_agent
             return update_agent(existing)
+        
+        # Ensure consistent naming by always adding _agent suffix to the base name
+        agent_name = suffix_name
+        logger.info(f"Creating new agent with normalized name: {agent_name}")
         
         # Serialize config to JSON if needed
         config_json = json.dumps(config) if config else None
@@ -254,7 +270,7 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
             ) RETURNING id
             """,
             (
-                name, 
+                agent_name, 
                 agent_type, 
                 model, 
                 description,
@@ -265,7 +281,7 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
         
         if result:
             agent_id = result[0]["id"]
-            logger.info(f"Registered agent {name} with ID {agent_id}")
+            logger.info(f"Registered agent {agent_name} with ID {agent_id}")
             return agent_id
         
         return None
