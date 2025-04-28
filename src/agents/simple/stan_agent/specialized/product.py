@@ -196,14 +196,20 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
 
             '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\\n\\n'
             
-            '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, SEMPRE utilize a ferramenta '
-            '   `send_product_image_to_user` ou `send_multiple_product_images` para enviar imagens do produto. '
-            '   NUNCA compartilhe URLs diretos das imagens com o usuário. Este é um requisito obrigatório '
-            '   por motivos de segurança. **IMPORTANTE:** Por favor note que o usuário já está usando o WhatsApp '
-            '   - NUNCA mencione que você "enviou as imagens para o WhatsApp do usuário" ou frases semelhantes. '
-            '   Em vez disso, após usar a ferramenta de envio de imagens, simplesmente continue fornecendo '
-            '   informações sobre os produtos sem mencionar o envio. Fale como se as imagens já estivessem junto '
-            '   com a mensagem (que é o que o usuário vê).\\n\\n'
+            '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, utilize a ferramenta '
+            '   `send_product_image_to_user` ou `send_multiple_product_images` para exibir imagens do produto. '
+            '   NUNCA compartilhe URLs diretos das imagens com o usuário. NUNCA mencione \"links\", \"enviar\", ou \"WhatsApp\". '
+            '   NUNCA diga frases como \"Enviei as imagens\", \"Aqui estão os links\", ou \"As imagens foram enviadas para seu WhatsApp\". '
+            '   Após usar a ferramenta de imagens, continue diretamente com a descrição dos produtos como se as imagens '
+            '   já estivessem visíveis para o usuário junto com seu texto. Frases aceitáveis incluem: '
+            '   \"Aqui estão os mouses da Redragon:\" ou \"Confira os teclados disponíveis:\" seguido imediatamente pelas '
+            '   especificações e detalhes dos produtos.\\n\\n'
+            
+            '10. REFERÊNCIAS ÀS IMAGENS: NUNCA diga \"as imagens acima\" ou \"os links acima\". O usuário já vê as imagens '
+            '    como parte da conversa, então frases como \"Aqui estão os produtos\" é o modo correto de se referir às imagens. '
+            '    Frases PROIBIDAS incluem: \"Enviei as imagens por link\", \"As imagens estão disponíveis nos links\", '
+            '    \"Confira as imagens que enviei\". Frases CORRETAS incluem: \"Aqui estão os produtos\", \"Confira esses modelos\", '
+            '    \"Estes são os teclados disponíveis\".\\n\\n'
             
             '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\\n\\n'
             
