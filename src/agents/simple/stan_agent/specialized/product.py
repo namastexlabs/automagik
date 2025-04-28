@@ -196,9 +196,14 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
 
             '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\\n\\n'
             
-            '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, utilize a ferramenta '
-            '   `send_product_image_to_user` para enviar uma imagem do produto. Esta ferramenta envia a '
-            '   imagem diretamente para o WhatsApp do usuário.\\n\\n'
+            '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, SEMPRE utilize a ferramenta '
+            '   `send_product_image_to_user` ou `send_multiple_product_images` para enviar imagens do produto. '
+            '   NUNCA compartilhe URLs diretos das imagens com o usuário. Este é um requisito obrigatório '
+            '   por motivos de segurança. **IMPORTANTE:** Por favor note que o usuário já está usando o WhatsApp '
+            '   - NUNCA mencione que você "enviou as imagens para o WhatsApp do usuário" ou frases semelhantes. '
+            '   Em vez disso, após usar a ferramenta de envio de imagens, simplesmente continue fornecendo '
+            '   informações sobre os produtos sem mencionar o envio. Fale como se as imagens já estivessem junto '
+            '   com a mensagem (que é o que o usuário vê).\\n\\n'
             
             '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\\n\\n'
             
@@ -218,7 +223,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             '- K582W-RGB-PRO (PT-BLUE) - TECLADO OPTICO GAMER SURARA PRO RGB BRANCO SWITCH AZUL ABNT2\\n\\n'
             
             'MOUSES:\\n'
-            '- 6975763145197 - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\\n'
+            '- M721-PRO - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\\n'
             '- M993-RGB - MOUSE GAMER REDRAGON DEVOURER PRETO\\n'
             '- M690-PRO - MOUSE GAMER REDRAGON MIRAGE PRO PRETO\\n'
             '- M802-RGB-1 - MOUSE TITANOBOA 2 CHROMA RGB PTO M802-RGB-1\\n\\n'
@@ -376,7 +381,14 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         """
         filters = {}
         if produto:
-            filters["produto"] = produto
+            # Convert to integer if it's not already
+            try:
+                if isinstance(produto, str) and produto.isdigit():
+                    produto = int(produto)
+                filters["produto"] = produto
+            except (ValueError, TypeError) as e:
+                logger.error(f"Invalid product ID format: {produto}, error: {e}")
+                return {"error": f"ID de produto inválido: {produto}", "results": []}
             
         return await get_imagens_de_produto(ctx.deps, limit, offset, search, ordering, **filters)
     
@@ -595,44 +607,67 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         Returns:
             Mensagem de confirmação ou erro
         """
-        # Extract user_id from context
-        user_id = None
-        if hasattr(ctx.deps, 'get'):
-            user_id = ctx.deps.get("user_id")
-        elif hasattr(ctx, 'context') and isinstance(ctx.context, dict):
-            user_id = ctx.context.get("user_id")
-        
-        if not user_id:
-            logger.error("Tool 'send_product_image_to_user': User ID not found in context.")
-            return "Erro: ID do usuário não encontrado no contexto. Não foi possível enviar a imagem."
-            
-        # Retrieve user data from database to get WhatsApp ID
+        # Convert product_id to integer if it's a string
         try:
-            user_info = get_user(user_id)
-            if not user_info or not hasattr(user_info, 'user_data') or not user_info.user_data:
-                logger.error(f"Tool 'send_product_image_to_user': User data not found for user ID {user_id}")
-                return f"Erro: Dados do usuário não encontrados para o ID {user_id}. Não foi possível enviar a imagem."
-                
-            # Extract WhatsApp ID from user_data
-            whatsapp_id = user_info.user_data.get("whatsapp_id")
-            if not whatsapp_id:
-                logger.error(f"Tool 'send_product_image_to_user': WhatsApp ID not found in user data for user ID {user_id}")
-                return f"Erro: ID do WhatsApp não encontrado nos dados do usuário. Não foi possível enviar a imagem."
-                
-            # If WhatsApp ID contains "@s.whatsapp.net", remove it to get just the phone number
-            if "@s.whatsapp.net" in whatsapp_id:
-                user_phone_number = whatsapp_id.split("@")[0]
-            else:
-                user_phone_number = whatsapp_id
-                
-            logger.info(f"Tool 'send_product_image_to_user': Found WhatsApp number: {user_phone_number} for user ID {user_id}")
-        except Exception as e:
-            logger.error(f"Tool 'send_product_image_to_user': Error retrieving user data: {str(e)}")
-            return f"Erro ao recuperar dados do usuário: {str(e)}"
+            if isinstance(product_id, str) and product_id.isdigit():
+                product_id = int(product_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid product ID format: {product_id}, error: {e}")
+            return f"Erro: ID de produto inválido: {product_id}"
             
-        # Get Evolution instance name
-        evolution_instance_name = os.getenv("EVOLUTION_INSTANCE", "default")
-        logger.info(f"Tool 'send_product_image_to_user' called for product_id={product_id}, user={user_phone_number}, instance={evolution_instance_name}")
+        # Try multiple approaches to get the evolution_payload
+        evolution_payload = None
+        
+        # First try accessing it directly from ctx.evolution_payload (if our wrapper set it)
+        if hasattr(ctx, 'evolution_payload'):
+            evolution_payload = ctx.evolution_payload
+            logger.info("[DEBUG] Found evolution_payload directly on ctx")
+            
+        # Then try from ctx.deps directly (if our wrapper set it)
+        if not evolution_payload and hasattr(ctx, 'deps') and hasattr(ctx.deps, 'evolution_payload'):
+            evolution_payload = ctx.deps.evolution_payload
+            logger.info("[DEBUG] Found evolution_payload on ctx.deps")
+        
+        # Next try from ctx.deps.context
+        if not evolution_payload and hasattr(ctx.deps, 'context') and ctx.deps.context:
+            evolution_payload = ctx.deps.context.get("evolution_payload")
+            logger.info("[DEBUG] Found evolution_payload in ctx.deps.context")
+            
+        # If not found, try from ctx.parent_context if available
+        if not evolution_payload and hasattr(ctx, 'parent_context') and isinstance(ctx.parent_context, dict):
+            evolution_payload = ctx.parent_context.get("evolution_payload")
+            logger.info("[DEBUG] Found evolution_payload in ctx.parent_context")
+        
+        # Try other attributes that might contain context
+        if not evolution_payload and hasattr(ctx.deps, 'get_context') and callable(ctx.deps.get_context):
+            try:
+                context_from_method = ctx.deps.get_context()
+                if isinstance(context_from_method, dict) and "evolution_payload" in context_from_method:
+                    evolution_payload = context_from_method["evolution_payload"]
+                    logger.info("[DEBUG] Found evolution_payload via ctx.deps.get_context()")
+            except Exception as e:
+                logger.error(f"Error getting context via get_context(): {str(e)}")
+                
+        if not evolution_payload:
+            # Log detailed information to help debug
+            logger.error(f"Tool 'send_product_image_to_user': Evolution payload not found in any context.")
+            return "Erro: Dados de evolução não encontrados no contexto. Não foi possível enviar a imagem."
+            
+        # Get the full JID using the method
+        user_jid = evolution_payload.get_user_jid()
+        # Access the instance directly as a property
+        evolution_instance_name = evolution_payload.instance if hasattr(evolution_payload, 'instance') else None
+
+        if not user_jid:
+            logger.error("Tool 'send_product_image_to_user': User JID not found in context.")
+            return "Erro: JID do usuário não encontrado no contexto. Não foi possível enviar a imagem."
+            
+        if not evolution_instance_name:
+            # Fallback to environment variable
+            evolution_instance_name = os.getenv("EVOLUTION_INSTANCE", "default")
+            logger.warning(f"Tool 'send_product_image_to_user': Evolution instance name not found in context, using '{evolution_instance_name}'.")
+
+        logger.info(f"Tool 'send_product_image_to_user' called for product_id={product_id}, user={user_jid}, instance={evolution_instance_name}")
 
         # 1. Fetch product details from Black Pearl
         product_data = await fetch_blackpearl_product_details(product_id)
@@ -662,12 +697,12 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             price = product_data.get("valor_unitario")
             caption = f"{caption}\nPreço: R$ {price:.2f}".replace(".", ",")
 
-        # 3. Send image via Evolution API
+        # 3. Send image via Evolution API using the full JID
         success, message = await send_evolution_media_logic(
             instance_name=evolution_instance_name,
-            number=user_phone_number,
+            number=user_jid,  # Use the full JID obtained from get_user_jid()
             media_url=image_url,
-            media_type="image", # Explicitly image
+            media_type="image",  # Explicitly image
             caption=caption
         )
 
@@ -675,6 +710,189 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             return f"Imagem do produto '{caption}' (ID: {product_id}) enviada com sucesso. Status: {message}"
         else:
             return f"Falha ao enviar imagem para o produto ID {product_id}. Motivo: {message}"
+    
+    @product_catalog_agent.tool
+    async def send_multiple_product_images(
+        ctx: RunContext[Dict[str, Any]],
+        product_ids: List[int],
+        caption_overrides: Optional[Dict[int, str]] = None
+    ) -> str:
+        """Busca imagens de múltiplos produtos da BlackPearl e envia para o usuário via WhatsApp.
+
+        Args:
+            product_ids: Lista de IDs de produtos BlackPearl para enviar
+            caption_overrides: Dicionário opcional com IDs dos produtos como chaves e legendas personalizadas como valores
+
+        Returns:
+            Mensagem de confirmação ou erro
+        """
+        if not product_ids:
+            return "Erro: Nenhum ID de produto fornecido para envio de imagens."
+            
+        # Ensure all product IDs are integers
+        processed_ids = []
+        for pid in product_ids:
+            try:
+                # Convert string numeric IDs to integers if needed
+                if isinstance(pid, str) and pid.isdigit():
+                    processed_ids.append(int(pid))
+                else:
+                    processed_ids.append(pid)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid product ID format: {pid}, skipping")
+                
+        if not processed_ids:
+            return "Erro: Nenhum ID de produto válido fornecido para envio de imagens."
+            
+        # Debug context info
+        logger.info(f"[DEBUG] Context type: {type(ctx)}")
+        logger.info(f"[DEBUG] Deps type: {type(ctx.deps) if hasattr(ctx, 'deps') else 'No deps'}")
+        logger.info(f"[DEBUG] Has ctx.parent_context? {hasattr(ctx, 'parent_context')}")
+        logger.info(f"[DEBUG] Has ctx.evolution_payload? {hasattr(ctx, 'evolution_payload')}")
+        logger.info(f"[DEBUG] Has ctx.deps.evolution_payload? {hasattr(ctx.deps, 'evolution_payload') if hasattr(ctx, 'deps') else False}")
+        
+        # Try multiple approaches to get the evolution_payload
+        evolution_payload = None
+        
+        # First try accessing it directly from ctx.evolution_payload (if our wrapper set it)
+        if hasattr(ctx, 'evolution_payload'):
+            evolution_payload = ctx.evolution_payload
+            logger.info("[DEBUG] Found evolution_payload directly on ctx")
+            
+        # Then try from ctx.deps directly (if our wrapper set it)
+        if not evolution_payload and hasattr(ctx, 'deps') and hasattr(ctx.deps, 'evolution_payload'):
+            evolution_payload = ctx.deps.evolution_payload
+            logger.info("[DEBUG] Found evolution_payload on ctx.deps")
+        
+        # Next try from ctx.deps.context
+        if not evolution_payload and hasattr(ctx.deps, 'context') and ctx.deps.context:
+            evolution_payload = ctx.deps.context.get("evolution_payload")
+            logger.info("[DEBUG] Found evolution_payload in ctx.deps.context")
+            
+        # If not found, try from ctx.parent_context if available
+        if not evolution_payload and hasattr(ctx, 'parent_context') and isinstance(ctx.parent_context, dict):
+            evolution_payload = ctx.parent_context.get("evolution_payload")
+            logger.info("[DEBUG] Found evolution_payload in ctx.parent_context")
+        
+        # Try other attributes that might contain context
+        if not evolution_payload and hasattr(ctx.deps, 'get_context') and callable(ctx.deps.get_context):
+            try:
+                context_from_method = ctx.deps.get_context()
+                if isinstance(context_from_method, dict) and "evolution_payload" in context_from_method:
+                    evolution_payload = context_from_method["evolution_payload"]
+                    logger.info("[DEBUG] Found evolution_payload via ctx.deps.get_context()")
+            except Exception as e:
+                logger.error(f"Error getting context via get_context(): {str(e)}")
+                
+        if not evolution_payload:
+            # Log detailed information to help debug
+            logger.error(f"Tool 'send_multiple_product_images': Evolution payload not found in any context.")
+            logger.error(f"Context attributes available: {dir(ctx) if hasattr(ctx, '__dict__') else 'None'}")
+            logger.error(f"Deps attributes available: {dir(ctx.deps) if hasattr(ctx.deps, '__dict__') else 'None'}")
+            logger.error(f"Context.deps.context: {ctx.deps.context if hasattr(ctx.deps, 'context') else 'None'}")
+            
+            # Try to use environment variables or config as last resort
+            # This is not ideal but at least provides some fallback
+            try:
+                from src.config import settings
+                if hasattr(settings, 'DEFAULT_EVOLUTION_INSTANCE') and hasattr(settings, 'DEFAULT_WHATSAPP_NUMBER'):
+                    logger.warning("Using default values from settings as fallback for send_multiple_product_images")
+                    return await _send_product_images_with_fallback(
+                        ctx, processed_ids, caption_overrides, 
+                        settings.DEFAULT_WHATSAPP_NUMBER, 
+                        settings.DEFAULT_EVOLUTION_INSTANCE
+                    )
+            except Exception as e:
+                logger.error(f"Failed to use settings fallback: {str(e)}")
+                
+            return "Erro: Dados de evolução não encontrados no contexto. Não foi possível enviar as imagens."
+            
+        # Get the full JID using the method
+        user_jid = evolution_payload.get_user_jid()
+        # Access the instance directly as a property
+        evolution_instance_name = evolution_payload.instance if hasattr(evolution_payload, 'instance') else None
+
+        if not user_jid:
+            logger.error("Tool 'send_multiple_product_images': User JID not found in context.")
+            return "Erro: JID do usuário não encontrado no contexto. Não foi possível enviar as imagens."
+            
+        if not evolution_instance_name:
+            # Fallback to environment variable
+            evolution_instance_name = os.getenv("EVOLUTION_INSTANCE", "default")
+            logger.warning(f"Tool 'send_multiple_product_images': Evolution instance name not found in context, using '{evolution_instance_name}'.")
+
+        # Initialize result tracking
+        results = []
+        successful_count = 0
+        failed_count = 0
+        
+        # Process each product ID
+        for product_id in processed_ids:
+            try:
+                # Fetch product details from Black Pearl
+                product_data = await fetch_blackpearl_product_details(product_id)
+                if not product_data:
+                    results.append(f"Erro: Não foi possível obter detalhes para o produto com ID {product_id}.")
+                    failed_count += 1
+                    continue
+
+                # Extract image URL
+                image_url = product_data.get("imagem")
+                if not image_url:
+                    # Try to get product images if main image not available
+                    try:
+                        images_result = await get_imagens_de_produto(ctx.deps, produto=product_id, limit=1)
+                        images = images_result.get("results", [])
+                        if images:
+                            image_url = images[0].get("imagem")
+                    except Exception as e:
+                        logger.error(f"Error retrieving product images: {str(e)}")
+
+                if not image_url:
+                    results.append(f"Erro: Não foi encontrada imagem para o produto com ID {product_id}.")
+                    failed_count += 1
+                    continue
+
+                # Determine caption
+                caption_override = caption_overrides.get(product_id) if caption_overrides else None
+                caption = caption_override if caption_override else product_data.get("descricao", f"Produto ID {product_id}")
+                
+                # Add price if available
+                if not caption_override and "valor_unitario" in product_data and product_data["valor_unitario"] > 0:
+                    price = product_data.get("valor_unitario")
+                    caption = f"{caption}\nPreço: R$ {price:.2f}".replace(".", ",")
+
+                # Send image via Evolution API
+                success, message = await send_evolution_media_logic(
+                    instance_name=evolution_instance_name,
+                    number=user_jid,
+                    media_url=image_url,
+                    media_type="image",
+                    caption=caption
+                )
+
+                if success:
+                    results.append(f"Produto '{product_data.get('descricao', f'ID {product_id}')}': Imagem enviada com sucesso.")
+                    successful_count += 1
+                else:
+                    results.append(f"Produto ID {product_id}: Falha ao enviar imagem. Motivo: {message}")
+                    failed_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error processing product ID {product_id}: {str(e)}")
+                results.append(f"Erro ao processar produto ID {product_id}: {str(e)}")
+                failed_count += 1
+
+        # Create summary message
+        summary = f"Processamento de imagens concluído. {successful_count} imagem(ns) enviada(s) com sucesso, {failed_count} falha(s)."
+        
+        # Include detailed results if needed
+        if len(results) <= 5:
+            # For a small number of products, include all details
+            return f"{summary}\n\nDetalhes:\n" + "\n".join(f"- {result}" for result in results)
+        else:
+            # For many products, just return the summary
+            return f"{summary} Use a ferramenta de envio individual para mais detalhes sobre produtos específicos."
     
     # Execute the agent
     try:
@@ -685,3 +903,87 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         error_msg = f"Error in product catalog agent: {str(e)}"
         logger.error(error_msg)
         return f"I apologize, but I encountered an error processing your request: {str(e)}"
+
+# Helper function for fallback sending
+async def _send_product_images_with_fallback(
+    ctx: RunContext[Dict[str, Any]],
+    product_ids: List[int],
+    caption_overrides: Optional[Dict[int, str]],
+    fallback_number: str,
+    fallback_instance: str
+) -> str:
+    """Process product images with fallback information when evolution_payload is missing."""
+    logger.warning(f"Using fallback values for WhatsApp: number={fallback_number}, instance={fallback_instance}")
+    
+    # Initialize result tracking
+    results = []
+    successful_count = 0
+    failed_count = 0
+    
+    # Process each product ID
+    for product_id in product_ids:
+        try:
+            # Fetch product details from Black Pearl
+            product_data = await fetch_blackpearl_product_details(product_id)
+            if not product_data:
+                results.append(f"Erro: Não foi possível obter detalhes para o produto com ID {product_id}.")
+                failed_count += 1
+                continue
+
+            # Extract image URL
+            image_url = product_data.get("imagem")
+            if not image_url:
+                # Try to get product images if main image not available
+                try:
+                    images_result = await get_imagens_de_produto(ctx.deps, produto=product_id, limit=1)
+                    images = images_result.get("results", [])
+                    if images:
+                        image_url = images[0].get("imagem")
+                except Exception as e:
+                    logger.error(f"Error retrieving product images: {str(e)}")
+
+            if not image_url:
+                results.append(f"Erro: Não foi encontrada imagem para o produto com ID {product_id}.")
+                failed_count += 1
+                continue
+
+            # Determine caption
+            caption_override = caption_overrides.get(product_id) if caption_overrides else None
+            caption = caption_override if caption_override else product_data.get("descricao", f"Produto ID {product_id}")
+            
+            # Add price if available
+            if not caption_override and "valor_unitario" in product_data and product_data["valor_unitario"] > 0:
+                price = product_data.get("valor_unitario")
+                caption = f"{caption}\nPreço: R$ {price:.2f}".replace(".", ",")
+
+            # Send image via Evolution API using fallback values
+            success, message = await send_evolution_media_logic(
+                instance_name=fallback_instance,
+                number=fallback_number,
+                media_url=image_url,
+                media_type="image",
+                caption=caption
+            )
+
+            if success:
+                results.append(f"Produto '{product_data.get('descricao', f'ID {product_id}')}': Imagem enviada com sucesso (usando valores padrão).")
+                successful_count += 1
+            else:
+                results.append(f"Produto ID {product_id}: Falha ao enviar imagem. Motivo: {message}")
+                failed_count += 1
+                
+        except Exception as e:
+            logger.error(f"Error processing product ID {product_id} with fallback: {str(e)}")
+            results.append(f"Erro ao processar produto ID {product_id}: {str(e)}")
+            failed_count += 1
+
+    # Create summary message
+    summary = f"Processamento de imagens concluído usando valores de fallback. {successful_count} imagem(ns) enviada(s) com sucesso, {failed_count} falha(s)."
+    
+    # Include detailed results if needed
+    if len(results) <= 5:
+        # For a small number of products, include all details
+        return f"{summary}\n\nDetalhes:\n" + "\n".join(f"- {result}" for result in results)
+    else:
+        # For many products, just return the summary
+        return f"{summary} Use a ferramenta de envio individual para mais detalhes sobre produtos específicos."
