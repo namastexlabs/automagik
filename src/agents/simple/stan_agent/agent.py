@@ -241,7 +241,34 @@ class StanAgent(AutomagikAgent):
             Returns:
                 Response from the order agent
             """
-            ctx.deps.set_context(agent_context)
+            # We need to manually ensure evolution_payload is in the context
+            # because it appears to be lost when using set_context
+            if ctx.deps:
+                # First check if evolution_payload is in the agent_context
+                if agent_context and "evolution_payload" in agent_context:
+                    # Apply evolution_payload in multiple ways for maximum compatibility
+                    # 1. Set it directly on the deps object
+                    ctx.deps.evolution_payload = agent_context["evolution_payload"]
+                    
+                    # 2. Create a new context dict with all existing items plus evolution_payload
+                    updated_context = dict(ctx.deps.context) if hasattr(ctx.deps, 'context') and ctx.deps.context else {}
+                    updated_context["evolution_payload"] = agent_context["evolution_payload"]
+                    
+                    # 3. Set the updated context
+                    ctx.deps.set_context(updated_context)
+                    
+                    # 4. For direct access in the RunContext
+                    if hasattr(ctx, '__dict__'):
+                        ctx.__dict__['evolution_payload'] = agent_context["evolution_payload"]
+                        
+                    # 5. Set parent_context for nested tool calls
+                    if hasattr(ctx, '__dict__'):
+                        ctx.__dict__['parent_context'] = agent_context
+                # If no evolution_payload was found, log a warning
+                else:
+                    logger.warning("No evolution_payload found in agent_context to pass to order_agent")
+            
+            # Now proceed with normal execution and pass the updated context
             return await order_agent(ctx, input_text)
             
         return order_agent_wrapper

@@ -19,6 +19,9 @@ from src.tools.blackpearl.schema import (
     PedidoDeVendaCreate, PedidoDeVendaUpdate, ItemDePedidoCreate, ItemDePedidoUpdate
 )
 
+# Import product agent
+from src.agents.simple.stan_agent.specialized.product import product_agent
+
 logger = logging.getLogger(__name__)
 
 async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
@@ -120,6 +123,21 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     - Update items within an order.
     - Delete items from an order.
     - List available payment conditions ('condições de pagamento').
+    - Query product information directly with the product_agent tool.
+    
+    IMPORTANT - PRODUCT INFORMATION ACCESS:
+    You have direct access to the product agent through the "product_agent_tool" function.
+    Use this tool when you need to:
+    1. Search for products by name, description, or SKU
+    2. Get specific product information (price, availability, etc.)
+    3. Access product IDs for adding items to orders
+    4. Find previously searched products in the current session
+    
+    For example, when the user mentions products they want to order, use the product_agent_tool 
+    to find the correct product IDs before creating an order or adding items.
+    
+    Example query to product_agent_tool: "Find products with 'tablet' in the name"
+    Example query to product_agent_tool: "What was the last product search result?"
     
     Always ensure you have the necessary information before attempting an action (e.g., client ID for creating an order, order ID for adding items or updating).
     Use the client ID and contact ID available in the context when creating or managing orders.
@@ -280,6 +298,54 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     #     # Assuming list_transportadoras maps to list_regras_frete_tool - REMOVED as it does not exist
     #     # return await list_regras_frete_tool(ctx, limit=limit, offset=offset, search=search)
     #     return {"success": False, "error": "Functionality to list carriers/shipping rules is not implemented."}
+
+    # --- Product Agent Integration ---
+    
+    @order_agent.tool
+    async def product_agent_tool(ctx: RunContext[Dict[str, Any]], query: str) -> str:
+        """Communicate with the Product Agent to get product information.
+        Use this to search products, get product details, or ask about previous searches.
+        
+        Args:
+            query: A text query about products, like "find products with 'notebook' in the name" 
+                  or "what are the recent product search results"
+        
+        Returns:
+            Response from the Product Agent with the requested product information
+        """
+        try:
+            logger.info(f"Order agent querying Product agent with: '{query}'")
+            
+            # Pass the context to the product agent
+            product_agent_ctx = ctx.deps
+            
+            # Ensure the same context is available to the product agent
+            if hasattr(ctx.deps, 'context') and isinstance(ctx.deps.context, dict):
+                # Create a clean copy of the context
+                product_context_copy = dict(ctx.deps.context)
+                
+                # Make sure the user_id is consistent
+                if user_id and 'user_id' not in product_context_copy:
+                    product_context_copy['user_id'] = user_id
+                
+                # Ensure evolution_payload is copied if available
+                if 'evolution_payload' in product_context_copy:
+                    logger.info("Evolution payload found in context, will be available to product agent")
+                
+                # Update the context
+                if hasattr(product_agent_ctx, 'set_context'):
+                    product_agent_ctx.set_context(product_context_copy)
+            
+            # Call the product agent with the query
+            result = await product_agent(product_agent_ctx, query)
+            logger.info(f"Product agent response received")
+            
+            return result
+        except Exception as e:
+            error_msg = f"Error communicating with Product agent: {e}"
+            logger.error(error_msg)
+            logger.exception(e)
+            return f"I couldn't retrieve product information: {str(e)}"
 
     # --- Execute Agent --- 
     try:
