@@ -44,12 +44,13 @@ async def make_conversation_summary(message_history) -> str:
         summary_agent = Agent(
             'google-gla:gemini-2.0-flash-exp',
             deps_type=Dict[str, Any],
-        result_type=str,
-        system_prompt=(
-            'You are a specialized summary agent with expertise in summarizing information.'
-            'Condense all conversation information into a few bullet points with all relevand lead information.'
-        ),
-            )
+            result_type=str,
+            model_settings={"parallel_tool_calls": True},
+            system_prompt=(
+                'You are a specialized summary agent with expertise in summarizing information.'
+                'Condense all conversation information into a few bullet points with all relevand lead information.'
+            ),
+        )
         
         # Convert message history to string for summarization
         # Convert message history to a string format for summarization
@@ -88,9 +89,10 @@ async def make_lead_email(lead_information: str, extra_context: str = None) -> s
         Formatted HTML email content
     """
     email_agent = Agent(
-        'openai:o3-mini',
+        'openai:o4-mini',
         deps_type=Dict[str, Any],
         result_type=str,
+        model_settings={"parallel_tool_calls": True},
         system_prompt=(
             'You are a specialized email formatting agent with expertise in creating professional HTML emails.'
             'Your task is to take lead information and format it into a clean, professional HTML email in Portuguese.'
@@ -158,9 +160,10 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
 
     # Initialize the agent with appropriate system prompt
     backoffice_agent = Agent(  
-        'openai:gpt-4o',
+        'openai:o4-mini',
         deps_type=Dict[str, Any],
         result_type=str,
+        model_settings={"parallel_tool_calls": True},
         system_prompt=(
             'You are a specialized backoffice agent with expertise in BlackPearl and Omie APIs, working in direct support of STAN. '
             'Your primary responsibilities include:\n'
@@ -596,8 +599,8 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         
         # Create email input with HTML formatting
         email_input = SendEmailInput(
-            #cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
-            cc=['cezar@namastex.ai'],
+            cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
+            #cc=['cezar@namastex.ai'],
             to=recipient,
             subject=subject,
             message=message,

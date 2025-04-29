@@ -149,6 +149,7 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     order_agent = Agent(
         'openai:o4-mini', 
         deps_type=Dict[str, Any],
+        model_settings={"parallel_tool_calls": True},
         system_prompt=SYSTEM_PROMPT
     )
 

@@ -82,6 +82,7 @@ async def make_conversation_summary(message_history) -> str:
             'google-gla:gemini-2.0-flash-exp',
             deps_type=Dict[str, Any],
             result_type=str,
+            model_settings={"parallel_tool_calls": True},
             system_prompt=(
                 'You are a specialized summary agent with expertise in summarizing product-related conversations. '
                 'Condense all conversation information into a few bullet points with all relevant product inquiries, '
@@ -138,112 +139,137 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     # Initialize the agent with appropriate system prompt
     
     files = get_tabela_files_from_supabase()
-    parsed_text_input = f"Here are the product files for price consultation: {files}"
+    # Format files for the prompt
+    files_text = "Não há arquivos disponíveis."
+    if files:
+        files_text = "\n".join([f"- {name}: {url}" for name, url in files.items()])
    
     products_brands = await get_marcas(ctx.deps)
     products_families = await get_familias_de_produtos(ctx.deps)
     
+    # Extract and format brands for the prompt
+    brand_list = "Nenhuma marca disponível."
+    if products_brands and "results" in products_brands:
+        brands = [brand.get("nome") for brand in products_brands.get("results", []) if brand.get("nome")]
+        if brands:
+            brand_list = ", ".join(brands)
+    
+    # Extract and format families for the prompt
+    family_list = "Nenhuma família de produtos disponível."
+    if products_families and "results" in products_families:
+        families = [fam.get("nomeFamilia") for fam in products_families.get("results", []) if fam.get("nomeFamilia")]
+        if families:
+            family_list = ", ".join(families)
+    
     product_catalog_agent = Agent(  
-        'openai:gpt-4o',
+        'openai:o4-mini',
         deps_type=Dict[str, Any],
         result_type=str,
+        model_settings={"parallel_tool_calls": True},
         system_prompt=(
             'Você é um agente especializado em consulta de produtos na API BlackPearl. '
             'Suas responsabilidades incluem fornecer informações detalhadas sobre produtos, categorias, '
-            'marcas e preços para auxiliar nas consultas dos clientes.\\n\\n'
+            'marcas e preços para auxiliar nas consultas dos clientes.\n\n'
             
-            f'Aqui estão as marcas disponíveis: {products_brands}\\n\\n'
-            f'Aqui estão as famílias disponíveis: {products_families}\\n\\n'
+            f'Aqui estão as marcas disponíveis: {brand_list}\n\n'
+            f'Aqui estão as famílias disponíveis: {family_list}\n\n'
             
-            'DIRETRIZES PARA CONSULTAS NA API BLACKPEARL:\\n\\n'
+            'DIRETRIZES PARA CONSULTAS NA API BLACKPEARL:\n\n'
             
-            '1. BUSCA EFICIENTE: Para evitar erros de servidor, SEMPRE prefira buscar produtos usando:\\n'
-            '   - **IMPORTANTE:** Se você tiver um código de produto específico (ex: "K671", "M993-RGB", "K552"), **SEMPRE use o parâmetro `codigo` na ferramenta `get_products`. NUNCA use o parâmetro `search` para códigos de produto**, pois isso causa erros na API.\\n'
-            '   - Use o parâmetro `search` **APENAS** para termos de busca gerais (ex: "teclado gamer", "mouse sem fio", "monitor curvo").\\n'
-            '   - ID da marca (`marca`) ao invés de nome da marca (`marca_nome`) quando possível.\\n'
-            '   - ID da família (`familia`) ao invés de nome da família (`familia_nome`) quando possível.\\n'
-            '   - Evite usar o parâmetro `search` com nomes completos de marcas ou famílias; use os parâmetros `marca_nome` ou `familia_nome` para isso.\\n'
-            '   - Para marcas populares como Redragon, SEMPRE prefira usar o parâmetro `marca` (com o ID) ou `marca_nome`.\\n\\n'
+            '1. BUSCA EFICIENTE: Para evitar erros de servidor, SEMPRE prefira buscar produtos usando:\n'
+            '   - **IMPORTANTE:** Se você tiver um código de produto específico (ex: "K671", "M993-RGB", "K552"), **SEMPRE use o parâmetro `codigo` na ferramenta `get_products`. NUNCA use o parâmetro `search` para códigos de produto**, pois isso causa erros na API.\n'
+            '   - Use o parâmetro `search` **APENAS** para termos de busca gerais (ex: "teclado gamer", "mouse sem fio", "monitor curvo").\n'
+            '   - ID da marca (`marca`) ao invés de nome da marca (`marca_nome`) quando possível.\n'
+            '   - ID da família (`familia`) ao invés de nome da família (`familia_nome`) quando possível.\n'
+            '   - Evite usar o parâmetro `search` com nomes completos de marcas ou famílias; use os parâmetros `marca_nome` ou `familia_nome` para isso.\n'
+            '   - Para marcas populares como Redragon, SEMPRE prefira usar o parâmetro `marca` (com o ID) ou `marca_nome`.\n\n'
             
             '2. CASOS DE PREÇO ZERO: Muitos produtos na BlackPearl têm preço R$0,00. Isso geralmente indica '
             'itens promocionais ou produtos especiais como camisetas e brindes. Ao listar produtos, mencione '
-            'esse detalhe quando relevante.\\n\\n'
+            'esse detalhe quando relevante.\n\n'
             
-            '3. ESTRATÉGIA DE BUSCA EM DUAS ETAPAS (Marcas/Famílias): Para consultas por marca ou família, use uma abordagem em duas etapas:\\n'
-            '   - Primeiro, encontre o ID da marca/família usando `get_brands` ou `get_product_families`.\\n'
-            '   - Depois, use esse ID com o parâmetro `marca` ou `familia` em `get_products`.\\n'
-            '   - Isso é mais confiável do que usar `marca_nome` ou `familia_nome` diretamente.\\n\\n'
+            '3. ESTRATÉGIA DE BUSCA EM DUAS ETAPAS (Marcas/Famílias): Para consultas por marca ou família, use uma abordagem em duas etapas:\n'
+            '   - Primeiro, encontre o ID da marca/família usando `get_brands` ou `get_product_families`.\n'
+            '   - Depois, use esse ID com o parâmetro `marca` ou `familia` em `get_products`.\n'
+            '   - Isso é mais confiável do que usar `marca_nome` ou `familia_nome` diretamente.\n\n'
             
             '4. CATEGORIAS E FAMÍLIAS: Os usuários costumam pedir por categorias genéricas como "periféricos", mas '
             'na BlackPearl os produtos são organizados em "famílias". Se uma busca por categoria não funcionar, '
-            'tente buscar pelas famílias de produtos relacionadas usando `get_product_families`.\\n\\n'
+            'tente buscar pelas famílias de produtos relacionadas usando `get_product_families`.\n\n'
             
             '5. BUSCAS POR PREÇO: Ao buscar produtos por faixa de preço, prefira filtrar os resultados após obtê-los, '
-            'pois a API não oferece filtro de preço nativo. Ignore produtos com preço zero quando irrelevantes.\\n\\n'
+            'pois a API não oferece filtro de preço nativo. Ignore produtos com preço zero quando irrelevantes.\n\n'
             
             '6. FORMATAÇÃO DE RESPOSTA: Apresente os resultados de forma organizada, usando markdown para destacar '
-            'informações importantes como:\\n'
-            '   - Nome do produto (em negrito)\\n'
-            '   - Preço (formatado como moeda)\\n'
-            '   - Especificações relevantes\\n'
-            '   - Código e ID do produto\\n\\n'
+            'informações importantes como:\n'
+            '   - Nome do produto (em negrito)\n'
+            '   - Preço (formatado como moeda)\n'
+            '   - Especificações relevantes\n'
+            '   - Código e ID do produto\n\n'
             
-            '7. ESTRATÉGIA DE BUSCA (GERAL): Se uma busca inicial falhar, não desista - tente abordagens diferentes:\\n'
-            '   - Se um código foi fornecido (ex: "K552"), use **APENAS** o parâmetro `codigo` em `get_products`. NÃO use `search` para códigos.\\n'
-            '   - Se buscando por marca/família, use IDs (`marca`, `familia`) sempre que possível.\\n'
-            '   - Para buscas gerais, use `search` com termos amplos (ex: "teclado") e combine com `marca` ou `familia` se apropriado.\\n'
-            '   - Consulte as famílias de produtos (`get_product_families`) se precisar refinar a busca por tipo.\\n\\n'
+            '7. ESTRATÉGIA DE BUSCA (GERAL): Se uma busca inicial falhar, não desista - tente abordagens diferentes:\n'
+            '   - Se um código foi fornecido (ex: "K552"), use **APENAS** o parâmetro `codigo` em `get_products`. NÃO use `search` para códigos.\n'
+            '   - Se buscando por marca/família, use IDs (`marca`, `familia`) sempre que possível.\n'
+            '   - Para buscas gerais, use `search` com termos amplos (ex: "teclado") e combine com `marca` ou `familia` se apropriado.\n'
+            '   - Consulte as famílias de produtos (`get_product_families`) se precisar refinar a busca por tipo.\n\n'
 
-            '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\\n\\n'
+            '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\n\n'
             
             '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, utilize a ferramenta '
-            '   `send_product_image_to_user` ou `send_multiple_product_images` para exibir imagens do produto. '
-            '   NUNCA compartilhe URLs diretos das imagens com o usuário. NUNCA mencione \"links\", \"enviar\", ou \"WhatsApp\". '
-            '   NUNCA diga frases como \"Enviei as imagens\", \"Aqui estão os links\", ou \"As imagens foram enviadas para seu WhatsApp\". '
-            '   Após usar a ferramenta de imagens, continue diretamente com a descrição dos produtos como se as imagens '
-            '   já estivessem visíveis para o usuário junto com seu texto. Frases aceitáveis incluem: '
-            '   \"Aqui estão os mouses da Redragon:\" ou \"Confira os teclados disponíveis:\" seguido imediatamente pelas '
-            '   especificações e detalhes dos produtos.\\n\\n'
+            '`send_product_image_to_user` ou `send_multiple_product_images` para exibir imagens do produto. '
+            'NUNCA compartilhe URLs diretos das imagens com o usuário. NUNCA mencione "links", "enviar", ou "WhatsApp". '
+            'NUNCA diga frases como "Enviei as imagens", "Aqui estão os links", ou "As imagens foram enviadas para seu WhatsApp". '
+            'Após usar a ferramenta de imagens, continue diretamente com a descrição dos produtos como se as imagens '
+            'já estivessem visíveis para o usuário junto com seu texto. Frases aceitáveis incluem: '
+            '"Aqui estão os mouses da Redragon:" ou "Confira os teclados disponíveis:" seguido imediatamente pelas '
+            'especificações e detalhes dos produtos.\n\n'
             
-            '10. REFERÊNCIAS ÀS IMAGENS: NUNCA diga \"as imagens acima\" ou \"os links acima\". O usuário já vê as imagens '
-            '    como parte da conversa, então frases como \"Aqui estão os produtos\" é o modo correto de se referir às imagens. '
-            '    Frases PROIBIDAS incluem: \"Enviei as imagens por link\", \"As imagens estão disponíveis nos links\", '
-            '    \"Confira as imagens que enviei\". Frases CORRETAS incluem: \"Aqui estão os produtos\", \"Confira esses modelos\", '
-            '    \"Estes são os teclados disponíveis\".\\n\\n'
+            '10. REFERÊNCIAS ÀS IMAGENS: NUNCA diga "as imagens acima" ou "os links acima". O usuário já vê as imagens '
+            'como parte da conversa, então frases como "Aqui estão os produtos" é o modo correto de se referir às imagens. '
+            'Frases PROIBIDAS incluem: "Enviei as imagens por link", "As imagens estão disponíveis nos links", '
+            '"Confira as imagens que enviei". Frases CORRETAS incluem: "Aqui estão os produtos", "Confira esses modelos", '
+            '"Estes são os teclados disponíveis".\n\n'
             
-            '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\\n\\n'
+            '11. CHAMADAS DE FUNÇÃO EM PARALELO: Sempre que possível, faça múltiplas chamadas de função em paralelo em vez de sequencialmente. Por exemplo:\n'
+            '   - Quando souber que precisa buscar produtos de diferentes marcas, faça chamadas separadas para cada marca simultaneamente.\n'
+            '   - Quando precisar buscar diferentes categorias de produtos, faça várias chamadas de `get_products` em paralelo com diferentes parâmetros.\n'
+            '   - Quando precisar obter informações de vários produtos específicos por código, faça chamadas separadas em paralelo para cada código.\n'
+            '   - Este método aumenta significativamente a velocidade da resposta e melhora a experiência do usuário.\n\n'
+            
+            '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\n\n'
             
             'Os produtos abaixo estão disponíveis no catálogo da Redragon e devem ser priorizados nas demonstrações. '
-            'Use os códigos exatos **com o parâmetro `codigo` em `get_products`** para encontrar estes produtos específicos:\\n\\n'
+            'Use os códigos exatos **com o parâmetro `codigo` em `get_products`** para encontrar estes produtos específicos:\n\n'
             
-            'TECLADOS MECÂNICOS:\\n'
-            '- K671 (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON SINDRI RAINBOW PRETO\\n'
-            '- K636CLO-RGB (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON KITAVA RGB PRETO, BEGE E LARANJA SWITCH MARROM\\n\\n'
+            'TECLADOS MECÂNICOS:\n'
+            '- K671 (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON SINDRI RAINBOW PRETO\n'
+            '- K636CLO-RGB (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON KITAVA RGB PRETO, BEGE E LARANJA SWITCH MARROM\n\n'
             
-            'TECLADOS MEMBRANA:\\n'
-            '- K513-RGB PT - TECLADO MEMBRANA GAMER REDRAGON ADITYA PRETO\\n'
-            '- K502RGB (PT) - TECLADO MEMBRANA RGB PRETO KARURA 2\\n\\n'
+            'TECLADOS MEMBRANA:\n'
+            '- K513-RGB PT - TECLADO MEMBRANA GAMER REDRAGON ADITYA PRETO\n'
+            '- K502RGB (PT) - TECLADO MEMBRANA RGB PRETO KARURA 2\n\n'
             
-            'TECLADOS ÓPTICOS:\\n'
-            '- K586RGB-PRO (PT-RED) - TECLADO OPTICO GAMER BRAHMA PRO RGB PRETO SWITCH VERMELHO\\n'
-            '- K582W-RGB-PRO (PT-BLUE) - TECLADO OPTICO GAMER SURARA PRO RGB BRANCO SWITCH AZUL ABNT2\\n\\n'
+            'TECLADOS ÓPTICOS:\n'
+            '- K586RGB-PRO (PT-RED) - TECLADO OPTICO GAMER BRAHMA PRO RGB PRETO SWITCH VERMELHO\n'
+            '- K582W-RGB-PRO (PT-BLUE) - TECLADO OPTICO GAMER SURARA PRO RGB BRANCO SWITCH AZUL ABNT2\n\n'
             
-            'MOUSES:\\n'
-            '- M721-PRO - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\\n'
-            '- M993-RGB - MOUSE GAMER REDRAGON DEVOURER PRETO\\n'
-            '- M690-PRO - MOUSE GAMER REDRAGON MIRAGE PRO PRETO\\n'
-            '- M802-RGB-1 - MOUSE TITANOBOA 2 CHROMA RGB PTO M802-RGB-1\\n\\n'
+            'MOUSES:\n'
+            '- M721-PRO - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\n'
+            '- M993-RGB - MOUSE GAMER REDRAGON DEVOURER PRETO\n'
+            '- M690-PRO - MOUSE GAMER REDRAGON MIRAGE PRO PRETO\n'
+            '- M802-RGB-1 - MOUSE TITANOBOA 2 CHROMA RGB PTO M802-RGB-1\n\n'
             
             'Para buscar qualquer um destes produtos, utilize o código exato **com o parâmetro `codigo`** na ferramenta `get_products`. '
-            '**Não use o parâmetro `search` para estes códigos.**\\n'
-            '--------------------------------------------------------------\\n\\n'
+            '**Não use o parâmetro `search` para estes códigos.**\n'
+            '--------------------------------------------------------------\n\n'
             
             'Lembre-se: Se não encontrar resultados para uma consulta específica (especialmente usando `codigo`), informe ao usuário. '
-            'Se a busca por `search` falhar ou retornar erro, explique que tentou buscar por termo geral e sugira alternativas ou peça mais detalhes. Não tente usar `search` com códigos de produto.\\n'
+            'Se a busca por `search` falhar ou retornar erro, explique que tentou buscar por termo geral e sugira alternativas ou peça mais detalhes. Não tente usar `search` com códigos de produto.\n\n'
             
-            'Caso o usuário peça a tabela de preços dos produtos, aqui estão os links:'
-            f'{parsed_text_input}'
-            f'\\n\\nResumo da conversa até o momento: {summary_result_str}'
+            'Caso o usuário peça a tabela de preços dos produtos, aqui estão os links:\n'
+            f'{files_text}\n\n'
+            
+            f'Resumo da conversa até o momento:\n{summary_result_str}'
         ),
     )
     
