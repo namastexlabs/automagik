@@ -9,7 +9,7 @@ from src.config import Environment, settings
 from src.tools.blackpearl.provider import BlackpearlProvider
 from src.tools.blackpearl.schema import (
     Cliente, Contato, Vendedor, Produto, PedidoDeVenda, ItemDePedido,
-    RegraDeFrete, RegraDeNegocio
+    RegraDeFrete, RegraDeNegocio, ItemDePedidoCreate
 )
 
 logger = logging.getLogger(__name__)
@@ -675,7 +675,7 @@ async def list_orders_tool(
     """
     filters = {}
     if cliente_id:
-        filters['cliente'] = cliente_id # Assuming API filter param is 'cliente'
+        filters['cliente_id'] = cliente_id
     if status_negociacao:
         filters['status_negociacao'] = status_negociacao
         
@@ -718,20 +718,21 @@ async def approve_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, A
 
 # --- ItemDePedido Tools ---
 
-async def add_item_to_order_tool(ctx: Dict[str, Any], item: ItemDePedido) -> Dict[str, Any]:
+async def add_item_to_order_tool(ctx: Dict[str, Any], item_data: ItemDePedidoCreate) -> Dict[str, Any]:
     """Adds a new item to a specific sales order in Blackpearl.
     
     Args:
         ctx: The context dictionary (unused currently).
-        item: The order item data conforming to the ItemDePedido schema.
-              Must include 'pedido' (the order ID) and 'produto' (the product ID),
-              along with 'quantidade', 'valor_unitario', etc.
+        item_data: The order item data conforming to the ItemDePedidoCreate schema.
+                   Must include 'pedido' (the order ID), 'produto' (the product ID),
+                   'quantidade', and 'valor_unitario' (as string, e.g., "100.00").
+                   'desconto' (string) and 'porcentagem_desconto' (float) are optional.
               
     Returns:
         A dictionary containing the created order item data, including its ID.
     """
     async with BlackpearlProvider() as provider:
-        result = await provider.create_pedido_item(item=item)
+        result = await provider.create_pedido_item(item=item_data)
         return result
 
 async def get_order_item_tool(ctx: Dict[str, Any], item_id: int) -> Dict[str, Any]:
