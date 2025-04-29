@@ -89,7 +89,7 @@ async def make_lead_email(lead_information: str, extra_context: str = None) -> s
         Formatted HTML email content
     """
     email_agent = Agent(
-        'openai:o4-mini',
+        'openai:gpt-4o',
         deps_type=Dict[str, Any],
         result_type=str,
         model_settings={"parallel_tool_calls": True},
@@ -160,7 +160,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
 
     # Initialize the agent with appropriate system prompt
     backoffice_agent = Agent(  
-        'openai:o4-mini',
+        'openai:gpt-4o',
         deps_type=Dict[str, Any],
         result_type=str,
         model_settings={"parallel_tool_calls": True},
