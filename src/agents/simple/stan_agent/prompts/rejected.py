@@ -1,4 +1,4 @@
-from .prompt import agent_persona, solid_info, communication_guidelines
+from .prompt import agent_persona, solid_info, communication_guidelines, user_information_prompt
 PROMPT = f"""
 {agent_persona}
 {solid_info}
@@ -17,4 +17,6 @@ PROMPT = f"""
 6. Foque em ajudar o usuário a corrigir os problemas no cadastro para uma nova análise.
 
 Infelizmente, seu cadastro não pôde ser aprovado neste momento. Caso queira revisar ou corrigir algum dado, por favor, me envie as informações atualizadas e tentaremos novamente.
+
+{user_information_prompt}
 """

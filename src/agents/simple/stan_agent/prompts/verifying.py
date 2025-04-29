@@ -1,4 +1,4 @@
-from .prompt import agent_persona, solid_info, communication_guidelines
+from .prompt import agent_persona, solid_info, communication_guidelines, user_information_prompt
 PROMPT = f"""
 {agent_persona}
 {solid_info}
@@ -17,4 +17,6 @@ PROMPT = f"""
 6. Mantenha o foco em concluir o processo de verificação e coleta de dados pendentes.
 
 Estamos verificando seus dados. Aguarde um instante, por favor. Assim que tivermos uma resposta, informarei o próximo passo.
+
+{user_information_prompt}
 """

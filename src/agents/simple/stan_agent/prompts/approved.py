@@ -1,4 +1,4 @@
-from .prompt import agent_persona, solid_info, communication_guidelines
+from .prompt import agent_persona, solid_info, communication_guidelines, user_information_prompt
 
 # Instructions based on stan_stuff.md for Approved Users
 approved_user_instructions = """
@@ -73,4 +73,6 @@ PROMPT = f"""
 {communication_guidelines}
 
 {approved_user_instructions}
+
+{user_information_prompt}
 """

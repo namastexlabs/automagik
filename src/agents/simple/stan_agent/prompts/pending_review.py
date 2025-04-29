@@ -1,4 +1,4 @@
-from .prompt import agent_persona, solid_info, communication_guidelines
+from .prompt import agent_persona, solid_info, communication_guidelines, user_information_prompt
 PROMPT = f"""
 {agent_persona}
 {solid_info}
@@ -16,4 +16,6 @@ PROMPT = f"""
    - "Nossos preços exclusivos para revendedores serão compartilhados após a conclusão da análise do seu cadastro."
 
 Seu cadastro foi enviado para análise. Assim que a verificação for concluída, entrarei em contato com você. Se precisar de alguma informação adicional durante esse período, me avise!
+
+{user_information_prompt}
 """
