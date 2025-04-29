@@ -191,8 +191,9 @@ async def clean_dev_mode_data(dry_run: bool = False, test_mode: bool = False):
             
             try:
                 parts = wpp_session_id.split("_")
-                user_id = int(parts[0]) if len(parts) > 0 else "Unknown"
-                agent_id = int(parts[1]) if len(parts) > 1 else "Unknown"
+                # Don't attempt to convert UUID parts to integers
+                user_id = parts[0] if len(parts) > 0 else "Unknown"
+                agent_id = parts[1] if len(parts) > 1 else "Unknown"
             except (ValueError, IndexError):
                 user_id = "Invalid"
                 agent_id = "Invalid"
@@ -212,16 +213,28 @@ async def clean_dev_mode_data(dry_run: bool = False, test_mode: bool = False):
         try:
             # Parse user_id and agent_id from wpp_session_id
             parts = wpp_session_id.split("_")
+            # Don't try to convert UUID-like strings to integers
             if len(parts) >= 2:
-                user_id = int(parts[0])
-                agent_id = int(parts[1])
+                user_id = parts[0]  # Keep as string, don't convert to int
+                agent_id = parts[1]  # Keep as string, don't convert to int
                 
                 logger.info(f"Extracted user_id: {user_id}, agent_id: {agent_id}")
                 
-                # Attempt to find the user locally
+                # Attempt to find the user locally - only convert to int if needed by the DB function
                 user_exists_locally = False
                 try:
-                    user = get_user(user_id)
+                    # If get_user requires an integer, try to check if it's numeric first
+                    numeric_user_id = None
+                    try:
+                        if user_id.isdigit():
+                            numeric_user_id = int(user_id)
+                        else:
+                            logger.info(f"User ID '{user_id}' is not numeric, will use as string")
+                    except (ValueError, AttributeError):
+                        logger.info(f"Could not convert user_id '{user_id}' to integer, will use as string")
+                    
+                    # Try with numeric ID if converted, otherwise use the string
+                    user = get_user(numeric_user_id if numeric_user_id is not None else user_id)
                     if user:
                         logger.info(f"Found user record for user_id {user_id}")
                         user_exists_locally = True
@@ -252,7 +265,21 @@ async def clean_dev_mode_data(dry_run: bool = False, test_mode: bool = False):
                     # Delete local data ONLY if the user existed locally
                     if user_exists_locally:
                         # Delete all session messages
-                        sessions = list_sessions(user_id=user_id, agent_id=agent_id)
+                        # Try to convert agent_id to int if it's numeric for compatibility with list_sessions
+                        numeric_agent_id = None
+                        try:
+                            if agent_id.isdigit():
+                                numeric_agent_id = int(agent_id)
+                            else:
+                                logger.info(f"Agent ID '{agent_id}' is not numeric, will use as string")
+                        except (ValueError, AttributeError):
+                            logger.info(f"Could not convert agent_id '{agent_id}' to integer, will use as string")
+                        
+                        # Use either numeric ID or string based on conversion success
+                        sessions = list_sessions(
+                            user_id=numeric_user_id if numeric_user_id is not None else user_id, 
+                            agent_id=numeric_agent_id if numeric_agent_id is not None else agent_id
+                        )
                         if sessions:
                             logger.info(f"Found {len(sessions)} sessions for user {user_id}, agent {agent_id}")
                             deleted_session_count = 0
