@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from pydantic_ai import Agent, RunContext
 import logging
 from typing import Dict, Any, Optional, List
+import re
 
 # Import necessary tools for product data
 from src.tools.blackpearl import (
@@ -75,45 +76,6 @@ def get_tabela_files_from_supabase():
         return result
  
 
-async def make_conversation_summary(message_history) -> str:
-    """Make a summary of the conversation focused on product interests."""
-    if len(message_history) > 0:
-        summary_agent = Agent(
-            'google-gla:gemini-2.0-flash-exp',
-            deps_type=Dict[str, Any],
-            result_type=str,
-            model_settings={"parallel_tool_calls": True},
-            system_prompt=(
-                'You are a specialized summary agent with expertise in summarizing product-related conversations. '
-                'Condense all conversation information into a few bullet points with all relevant product inquiries, '
-                'interests, and requirements the customer has mentioned.'
-            ),
-        )
-        
-        # Convert message history to string for summarization
-        message_history_str = ""
-        for msg in message_history:
-            if hasattr(msg, 'role') and hasattr(msg, 'content'):
-                # Standard text messages
-                message_history_str += f"{msg.role}: {msg.content}\n"
-            elif hasattr(msg, 'tool_name') and hasattr(msg, 'args'):
-                # Tool call messages
-                message_history_str += f"tool_call ({msg.tool_name}): {msg.args}\n"
-            elif hasattr(msg, 'part_kind') and msg.part_kind == 'text':
-                # Text part messages
-                message_history_str += f"assistant: {msg.content}\n"
-            else:
-                # Other message types
-                message_history_str += f"message: {str(msg)}\n"
-                
-        # Run the summary agent with the message history
-        summary_result = await summary_agent.run(user_prompt=message_history_str)
-        summary_result_str = summary_result.data
-        logger.info(f"Summary result: {summary_result_str}")
-        return summary_result_str
-    else:
-        return ""
-
 async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     """Specialized product agent with access to BlackPearl product catalog tools.
     
@@ -133,8 +95,6 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     message_history = ctx.messages if hasattr(ctx, 'messages') else []
     logger.info(f"User ID: {user_id}")
     logger.info(f"Stan Agent ID: {stan_agent_id}")
-    
-    summary_result_str = await make_conversation_summary(message_history)
     
     # Initialize the agent with appropriate system prompt
     
@@ -165,7 +125,6 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         'openai:gpt-4o',
         deps_type=Dict[str, Any],
         result_type=str,
-        model_settings={"parallel_tool_calls": True},
         system_prompt=(
             'Você é um agente especializado em consulta de produtos na API BlackPearl. '
             'Suas responsabilidades incluem fornecer informações detalhadas sobre produtos, categorias, '
@@ -214,28 +173,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             '   - Consulte as famílias de produtos (`get_product_families`) se precisar refinar a busca por tipo.\n\n'
 
             '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\n\n'
-            
-            '9. IMAGENS DE PRODUTOS: Quando o usuário pedir para ver um produto, utilize a ferramenta '
-            '`send_product_image_to_user` ou `send_multiple_product_images` para exibir imagens do produto. '
-            'NUNCA compartilhe URLs diretos das imagens com o usuário. NUNCA mencione "links", "enviar", ou "WhatsApp". '
-            'NUNCA diga frases como "Enviei as imagens", "Aqui estão os links", ou "As imagens foram enviadas para seu WhatsApp". '
-            'Após usar a ferramenta de imagens, continue diretamente com a descrição dos produtos como se as imagens '
-            'já estivessem visíveis para o usuário junto com seu texto. Frases aceitáveis incluem: '
-            '"Aqui estão os mouses da Redragon:" ou "Confira os teclados disponíveis:" seguido imediatamente pelas '
-            'especificações e detalhes dos produtos.\n\n'
-            
-            '10. REFERÊNCIAS ÀS IMAGENS: NUNCA diga "as imagens acima" ou "os links acima". O usuário já vê as imagens '
-            'como parte da conversa, então frases como "Aqui estão os produtos" é o modo correto de se referir às imagens. '
-            'Frases PROIBIDAS incluem: "Enviei as imagens por link", "As imagens estão disponíveis nos links", '
-            '"Confira as imagens que enviei". Frases CORRETAS incluem: "Aqui estão os produtos", "Confira esses modelos", '
-            '"Estes são os teclados disponíveis".\n\n'
-            
-            '11. CHAMADAS DE FUNÇÃO EM PARALELO: Sempre que possível, faça múltiplas chamadas de função em paralelo em vez de sequencialmente. Por exemplo:\n'
-            '   - Quando souber que precisa buscar produtos de diferentes marcas, faça chamadas separadas para cada marca simultaneamente.\n'
-            '   - Quando precisar buscar diferentes categorias de produtos, faça várias chamadas de `get_products` em paralelo com diferentes parâmetros.\n'
-            '   - Quando precisar obter informações de vários produtos específicos por código, faça chamadas separadas em paralelo para cada código.\n'
-            '   - Este método aumenta significativamente a velocidade da resposta e melhora a experiência do usuário.\n\n'
-            
+           
             '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\n\n'
             
             'Os produtos abaixo estão disponíveis no catálogo da Redragon e devem ser priorizados nas demonstrações. '
@@ -268,8 +206,6 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             
             'Caso o usuário peça a tabela de preços dos produtos, aqui estão os links:\n'
             f'{files_text}\n\n'
-            
-            f'Resumo da conversa até o momento:\n{summary_result_str}'
         ),
     )
     
@@ -286,7 +222,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         familia: Optional[int] = None,
         familia_nome: Optional[str] = None,
         marca: Optional[int] = None,
-        marca_nome: Optional[str] = None
+        marca_nome: Optional[str] = None,
+        try_alternate_codes: bool = True
     ) -> Dict[str, Any]:
         """Obter lista de produtos da BlackPearl.
         
@@ -301,6 +238,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             familia_nome: Filtrar por nome da família de produtos
             marca: Filtrar por ID da marca (preferido para melhor desempenho)
             marca_nome: Filtrar por nome da marca
+            try_alternate_codes: Se deve tentar variações do código de produto caso não encontre resultados inicialmente
         """
         filters = {}
         if codigo:
@@ -315,8 +253,42 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             filters["marca"] = marca
         if marca_nome:
             filters["marca_nome"] = marca_nome
+        
+        # First attempt with original parameters
+        result = await get_produtos(ctx.deps, limit, offset, search, ordering, **filters)
+        
+        # If no results found with a product code, try alternate formats
+        if try_alternate_codes and codigo and (not result.get("results") or len(result.get("results", [])) == 0):
+            logger.info(f"No results found for código: {codigo}. Trying alternate formats...")
             
-        return await get_produtos(ctx.deps, limit, offset, search, ordering, **filters)
+            # Try without parentheses part, e.g. "K502RGB (PT)" -> "K502RGB"
+            if "(" in codigo:
+                base_code = codigo.split("(")[0].strip()
+                logger.info(f"Trying base code: {base_code}")
+                filters["codigo"] = base_code
+                alt_result = await get_produtos(ctx.deps, limit, offset, search, ordering, **filters)
+                if alt_result.get("results") and len(alt_result.get("results", [])) > 0:
+                    logger.info(f"Found results with base code: {base_code}")
+                    return alt_result
+            
+            # Try with just the code part before any spaces or special chars
+            if " " in codigo or "-" in codigo:
+                simple_code = re.sub(r'[^A-Z0-9]', '', codigo.upper())
+                logger.info(f"Trying simplified code: {simple_code}")
+                filters["codigo"] = simple_code
+                alt_result = await get_produtos(ctx.deps, limit, offset, search, ordering, **filters)
+                if alt_result.get("results") and len(alt_result.get("results", [])) > 0:
+                    logger.info(f"Found results with simplified code: {simple_code}")
+                    return alt_result
+            
+            # If all code searches fail, try using it as a search term
+            logger.info(f"All code searches failed. Trying as search term: {codigo}")
+            search_result = await get_produtos(ctx.deps, limit, offset, codigo, ordering)
+            if search_result.get("results") and len(search_result.get("results", [])) > 0:
+                logger.info(f"Found results using code as search term: {codigo}")
+                return search_result
+        
+        return result
     
     @product_catalog_agent.tool
     async def get_product(ctx: RunContext[Dict[str, Any]], product_id: int) -> Dict[str, Any]:

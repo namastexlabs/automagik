@@ -10,7 +10,6 @@ async def generate_approval_status_message(input_text: str) -> str:
     lead_message_sender = Agent(  
         'openai:gpt-4o',
         result_type=str,
-        model_settings={"parallel_tool_calls": True},
         system_prompt="""
         You are STAN, a sales agent for Solid.
         Your task is to build a message for the user based on their approval status.

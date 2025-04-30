@@ -45,7 +45,6 @@ async def make_conversation_summary(message_history) -> str:
             'google-gla:gemini-2.0-flash-exp',
             deps_type=Dict[str, Any],
             result_type=str,
-            model_settings={"parallel_tool_calls": True},
             system_prompt=(
                 'You are a specialized summary agent with expertise in summarizing information.'
                 'Condense all conversation information into a few bullet points with all relevand lead information.'
@@ -89,10 +88,9 @@ async def make_lead_email(lead_information: str, extra_context: str = None) -> s
         Formatted HTML email content
     """
     email_agent = Agent(
-        'openai:gpt-4o',
+        'openai:o3-mini',
         deps_type=Dict[str, Any],
         result_type=str,
-        model_settings={"parallel_tool_calls": True},
         system_prompt=(
             'You are a specialized email formatting agent with expertise in creating professional HTML emails.'
             'Your task is to take lead information and format it into a clean, professional HTML email in Portuguese.'
@@ -163,7 +161,6 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         'openai:gpt-4o',
         deps_type=Dict[str, Any],
         result_type=str,
-        model_settings={"parallel_tool_calls": True},
         system_prompt=(
             'You are a specialized backoffice agent with expertise in BlackPearl and Omie APIs, working in direct support of STAN. '
             'Your primary responsibilities include:\n'

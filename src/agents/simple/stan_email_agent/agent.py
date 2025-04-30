@@ -116,7 +116,6 @@ class StanEmailAgent(AutomagikAgent):
                 model="google-gla:gemini-2.0-flash",
                 system_prompt=self.system_prompt,
                 result_type=ExtractedLeadEmailInfo,
-                model_settings={"parallel_tool_calls": True},
                 deps_type=AutomagikAgentsDependencies
             )
             

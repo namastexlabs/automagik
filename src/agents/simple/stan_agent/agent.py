@@ -124,7 +124,7 @@ class StanAgent(AutomagikAgent):
         all_tools = [
             self._create_verificar_cnpj_wrapper(),
             self._create_product_agent_wrapper(),
-            self._create_order_agent_wrapper(),
+            # self._create_order_agent_wrapper(),
             self._create_backoffice_agent_wrapper(),
         ]
         
