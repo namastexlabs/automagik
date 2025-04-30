@@ -495,8 +495,21 @@ class StanEmailAgent(AutomagikAgent):
                                 
                                 # Ensure both entities are properly set with the same approval status from extraction
                                 logger.info(f"Setting approval status to {client_status_aprovacao} for contact {contact_id} and client {client_id}")
-                                self._safe_set_attribute(black_pearl_contact, 'status_aprovacao', client_status_aprovacao)
-                                self._safe_set_attribute(black_pearl_client, 'status_aprovacao', client_status_aprovacao)
+                                
+                                # Explicitly set approval status on both objects to ensure it's updated
+                                if isinstance(black_pearl_contact, dict):
+                                    black_pearl_contact['status_aprovacao'] = client_status_aprovacao
+                                else:
+                                    setattr(black_pearl_contact, 'status_aprovacao', client_status_aprovacao)
+                                    
+                                if isinstance(black_pearl_client, dict):
+                                    black_pearl_client['status_aprovacao'] = client_status_aprovacao
+                                else:
+                                    setattr(black_pearl_client, 'status_aprovacao', client_status_aprovacao)
+                                
+                                # Log the status before updating to verify it's set
+                                logger.info(f"Contact status before update: {self._safe_get_attribute(black_pearl_contact, 'status_aprovacao')}")
+                                logger.info(f"Client status before update: {self._safe_get_attribute(black_pearl_client, 'status_aprovacao')}")
                                 
                                 # Start both updates in parallel
                                 contact_update_task = asyncio.create_task(

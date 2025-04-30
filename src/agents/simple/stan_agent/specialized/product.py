@@ -36,45 +36,13 @@ def get_tabela_files_from_supabase():
     ]
     
     # Results dictionary
-    result = {}
-    
-    try:
-        # Initialize Supabase client using settings
-        supabase: Client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
-        
-        # Query the database
-        response = supabase.table('product_files').select('*').execute()
-        
-        if not response.data:
-            print("No files found in database")
-            return result
-            
-        # Filter for target files and add to result
-        for link in response.data:
-            filename = link.get('file_name')
-            if filename in target_files:
-                url = link.get('file_url')
-                
-                # Ensure URL has dl=1 parameter for direct download
-                if url.endswith('dl=0'):
-                    url = url.replace('dl=0', 'dl=1')
-                elif not url.endswith('dl=1'):
-                    url = f"{url}&dl=1" if '?' in url else f"{url}?dl=1"
-                    
-                result[filename] = url
-                
-        if not result:
-            print("No target files found in database")
-            
-        return result
-        
-    except Exception as e:
-        print(f"Error fetching files from Supabase: {str(e)}")
-        return result
- 
+    result = f"""
+    TABELA_REDRAGON_2025 https://www.dropbox.com/scl/fi/sgmcsv52c2rv45uezak23/TABELA_REDRAGON_2025.xlsx?rlkey=3bih2jip7llmq15csrmzk3s55&dl=0?dl=1
+    TABELA_SOLID_MARCAS_2025 https://www.dropbox.com/scl/fi/ia82yfykj9kimlcwai36m/TABELA_SOLID_MARCAS_2025.xlsx?rlkey=0tl9nzwoa9szjjazq21eic5mh&dl=0?dl=1
+    """
+    return result
+
+                                                                                                                                                                                                                                                                                                            
 
 async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
     """Specialized product agent with access to BlackPearl product catalog tools.
@@ -102,7 +70,19 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     # Format files for the prompt
     files_text = "Não há arquivos disponíveis."
     if files:
-        files_text = "\n".join([f"- {name}: {url}" for name, url in files.items()])
+        # Parse the string into a dictionary if it's a string
+        if isinstance(files, str):
+            files_dict = {}
+            # Split by lines and process each line
+            for line in files.strip().split('\n'):
+                parts = line.strip().split(' ', 1)
+                if len(parts) == 2:
+                    name, url = parts
+                    files_dict[name] = url
+            files_text = "\n".join([f"- {name}: {url}" for name, url in files_dict.items()])
+        else:
+            # If it's already a dictionary, use it directly
+            files_text = "\n".join([f"- {name}: {url}" for name, url in files.items()])
    
     products_brands = await get_marcas(ctx.deps)
     products_families = await get_familias_de_produtos(ctx.deps)

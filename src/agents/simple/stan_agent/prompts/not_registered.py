@@ -72,7 +72,7 @@ You also have access to the following tools:
    - Razão Social
    - Nome Fantasia
    - CNPJ
-   - Inscrição Estadual
+   - Inscrição Estadual (OBRIGATÓRIO CONFIRMAR COM O USUÁRIO)
    - Endereço
    - Telefone
    - E-mail
