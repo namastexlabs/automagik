@@ -67,6 +67,7 @@ class Session(BaseDBModel):
     created_at: Optional[datetime] = Field(None, description="Created at timestamp")
     updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
     run_finished_at: Optional[datetime] = Field(None, description="Run finished at timestamp")
+    message_count: Optional[int] = Field(None, description="Number of messages in the session")
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Session":

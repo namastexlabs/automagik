@@ -76,25 +76,35 @@ def list_sessions(
     """
     try:
         count_query = "SELECT COUNT(*) as count FROM sessions"
-        query = "SELECT * FROM sessions"
+        
+        # Modified query to include message count using LEFT JOIN
+        query = """
+            SELECT s.*, COUNT(m.id) as message_count 
+            FROM sessions s
+            LEFT JOIN messages m ON s.id = m.session_id
+        """
+        
         params = []
         conditions = []
         
         if user_id is not None:
-            conditions.append("user_id = %s")
+            conditions.append("s.user_id = %s")
             params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
         
         if agent_id is not None:
-            conditions.append("agent_id = %s")
+            conditions.append("s.agent_id = %s")
             params.append(agent_id)
         
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
             count_query += " WHERE " + " AND ".join(conditions)
         
+        # Need to group by all selected columns from sessions table
+        query += " GROUP BY s.id"
+        
         # Add sorting
         sort_direction = "DESC" if sort_desc else "ASC"
-        query += f" ORDER BY updated_at {sort_direction}, created_at {sort_direction}"
+        query += f" ORDER BY s.updated_at {sort_direction}, s.created_at {sort_direction}"
         
         # Get total count for pagination
         count_result = execute_query(count_query, tuple(params) if params else None)
@@ -108,7 +118,17 @@ def list_sessions(
             params.append(offset)
         
         result = execute_query(query, tuple(params) if params else None)
-        sessions = [Session.from_db_row(row) for row in result]
+        
+        # Create Session objects with message_count
+        sessions = []
+        for row in result:
+            # Create Session object from the main session fields
+            session = Session.from_db_row({k: v for k, v in row.items() if k != 'message_count'})
+            
+            # Attach message_count as an attribute
+            session.message_count = row.get('message_count', 0)
+            
+            sessions.append(session)
         
         # Return with count for pagination or just the list
         if page is not None and page_size is not None:

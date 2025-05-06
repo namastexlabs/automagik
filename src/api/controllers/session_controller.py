@@ -30,7 +30,7 @@ async def get_sessions(page: int, page_size: int, sort_desc: bool) -> SessionLis
                 session_name=session.name,
                 created_at=session.created_at,
                 last_updated=session.updated_at,
-                message_count=0,  # We don't have message count from the repository
+                message_count=session.message_count,  # Use the actual message count from the session
                 user_id=session.user_id,
                 agent_id=session.agent_id
             ))
