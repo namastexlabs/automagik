@@ -47,7 +47,7 @@ async def get_sessions(page: int, page_size: int, sort_desc: bool) -> SessionLis
         logger.error(f"Error listing sessions: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
 
-async def get_session(session_id_or_name: str, page: int, page_size: int, sort_desc: bool, hide_tools: bool) -> Dict[str, Any]:
+async def get_session(session_id_or_name: str, page: int, page_size: int, sort_desc: bool, hide_tools: bool, show_system_prompt: bool) -> Dict[str, Any]:
     """
     Get a session by ID or name with its message history
     """
@@ -87,8 +87,10 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
             "agent_id": session.agent_id
         }
         
-        # Get system prompt
-        system_prompt = get_system_prompt(uuid.UUID(session_id))
+        # Get system prompt only if requested
+        system_prompt = None
+        if show_system_prompt:
+            system_prompt = get_system_prompt(uuid.UUID(session_id))
 
         # Get messages with pagination
         messages, total_count = message_history.get_messages(
@@ -106,7 +108,7 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
                     del message["tool_outputs"]
         
         # Create response as a dictionary that can be converted to SessionResponse
-        return {
+        response_data = {
             "session": SessionInfo(
                 session_id=session_info["id"],
                 session_name=session_info["name"],
@@ -116,13 +118,18 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
                 user_id=session_info.get("user_id"),
                 agent_id=session_info.get("agent_id")
             ),
-            "system_prompt": system_prompt,
             "messages": messages,
             "total": total_count,
             "page": page,
             "page_size": page_size,
             "total_pages": math.ceil(total_count / page_size) if page_size > 0 else 0
         }
+
+        # Conditionally add system_prompt to the response data
+        if show_system_prompt:
+            response_data["system_prompt"] = system_prompt
+            
+        return response_data
     except HTTPException:
         raise
     except Exception as e:
