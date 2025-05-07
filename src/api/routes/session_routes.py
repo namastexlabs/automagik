@@ -50,9 +50,10 @@ async def get_session_route(
             "exists": True,
             "total_messages": session_data["total"],
             "current_page": session_data["page"],
-            "total_pages": session_data["total_pages"]
+            "total_pages": session_data["total_pages"],
+            "system_prompt": session_data.get("system_prompt")
         }
-    except HTTPException as e:
+    except HTTPException as e:  
         if e.status_code == 404:
             # Return 404 status code when session not found, don't handle it
             raise

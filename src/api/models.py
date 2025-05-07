@@ -248,6 +248,7 @@ class SessionResponse(BaseResponseModel):
     total_messages: int
     current_page: int
     total_pages: int
+    system_prompt: Optional[str] = None
 
 class SessionInfo(BaseResponseModel):
     """Information about a session."""

@@ -5,6 +5,7 @@ from src.db import list_sessions, get_session as db_get_session, get_session_by_
 from src.db.connection import safe_uuid
 from src.memory.message_history import MessageHistory
 from src.api.models import SessionResponse, SessionListResponse, SessionInfo, MessageModel, DeleteSessionResponse
+from src.db.repository.session import get_system_prompt
 from typing import List, Optional, Dict, Any
 import uuid
 
@@ -86,6 +87,9 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
             "agent_id": session.agent_id
         }
         
+        # Get system prompt
+        system_prompt = get_system_prompt(uuid.UUID(session_id))
+
         # Get messages with pagination
         messages, total_count = message_history.get_messages(
             page=page, 
@@ -112,6 +116,7 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
                 user_id=session_info.get("user_id"),
                 agent_id=session_info.get("agent_id")
             ),
+            "system_prompt": system_prompt,
             "messages": messages,
             "total": total_count,
             "page": page,
