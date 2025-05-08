@@ -83,7 +83,9 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
             "created_at": session.created_at,
             "updated_at": session.updated_at,
             "user_id": session.user_id,
-            "agent_id": session.agent_id
+            "agent_id": session.agent_id,
+            "agent_name": getattr(session, 'agent_name', None),
+            "session_origin": getattr(session, 'platform', None)
         }
         
         # Get messages with pagination
@@ -110,7 +112,9 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
                 last_updated=session_info["updated_at"],
                 message_count=total_count,
                 user_id=session_info.get("user_id"),
-                agent_id=session_info.get("agent_id")
+                agent_id=session_info.get("agent_id"),
+                agent_name=session_info.get("agent_name"),
+                session_origin=session_info.get("session_origin")
             ),
             "messages": messages,
             "total": total_count,
