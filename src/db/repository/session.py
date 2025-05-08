@@ -22,8 +22,19 @@ def get_session(session_id: uuid.UUID) -> Optional[Session]:
         Session object if found, None otherwise
     """
     try:
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            WHERE
+                s.id = %s
+        """
         result = execute_query(
-            "SELECT * FROM sessions WHERE id = %s",
+            query,
             (str(session_id),)
         )
         return Session.from_db_row(result[0]) if result else None
@@ -42,8 +53,19 @@ def get_session_by_name(name: str) -> Optional[Session]:
         Session object if found, None otherwise
     """
     try:
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            WHERE
+                s.name = %s
+        """
         result = execute_query(
-            "SELECT * FROM sessions WHERE name = %s",
+            query,
             (name,)
         )
         return Session.from_db_row(result[0]) if result else None

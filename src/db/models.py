@@ -61,6 +61,7 @@ class Session(BaseDBModel):
     id: Optional[uuid.UUID] = Field(None, description="Session ID")
     user_id: Optional[uuid.UUID] = Field(None, description="User ID")
     agent_id: Optional[int] = Field(None, description="Agent ID")
+    agent_name: Optional[str] = Field(None, description="Name of the agent associated with the session")
     name: Optional[str] = Field(None, description="Session name")
     platform: Optional[str] = Field(None, description="Platform")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
