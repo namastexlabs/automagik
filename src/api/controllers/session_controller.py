@@ -32,7 +32,8 @@ async def get_sessions(page: int, page_size: int, sort_desc: bool) -> SessionLis
                 last_updated=session.updated_at,
                 message_count=session.message_count,  # Use the actual message count from the session
                 user_id=session.user_id,
-                agent_id=session.agent_id
+                agent_id=session.agent_id,
+                agent_name=session.agent_name
             ))
         
         return SessionListResponse(
