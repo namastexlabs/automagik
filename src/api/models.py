@@ -228,6 +228,7 @@ class MessageModel(BaseResponseModel):
     ]]] = None
     tool_calls: Optional[List[ToolCallModel]] = None
     tool_outputs: Optional[List[ToolOutputModel]] = None
+    system_prompt: Optional[str] = None
 
     model_config = ConfigDict(
         exclude_none=True,
