@@ -91,7 +91,6 @@ class FlashinhoAgent(AutomagikAgent):
         tools.append(self._create_get_user_objectives_wrapper())
         tools.append(self._create_get_last_card_round_wrapper())
         tools.append(self._create_get_user_energy_wrapper())
-        print("Added tool wrappers!")
 
         logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
                     
@@ -122,18 +121,17 @@ class FlashinhoAgent(AutomagikAgent):
         # Capture a reference to the context at creation time
         agent_context = self.context
         
-        async def get_user_data_wrapper(ctx: RunContext[AutomagikAgentsDependencies], user_uuid: str) -> Dict[str, Any]:
+        async def get_user_data_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
             """Get user data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                user_uuid: The user UUID to get data for
                 
             Returns:
                 User data containing cadastro and metadata
             """
             # Use the captured context reference directly
-            return await get_user_data(agent_context, user_uuid)
+            return await get_user_data(agent_context)
             
         return get_user_data_wrapper
 
@@ -149,18 +147,20 @@ class FlashinhoAgent(AutomagikAgent):
         # Capture a reference to the context at creation time
         agent_context = self.context
         
-        async def get_user_score_wrapper(ctx: RunContext[AutomagikAgentsDependencies], user_uuid: str) -> Dict[str, Any]:
+        async def get_user_score_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
             """Get user score data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                user_uuid: The user UUID to get score data for
                 
             Returns:
-                User score data containing daily progress, energy and streak
+                - score: User score data
+                    - flashinhoEnergy: User's current energy
+                    - sequence: Study streak
+                    - dailyProgress: Daily progress percentage
             """
             # Use the captured context reference directly
-            return await get_user_score(agent_context, user_uuid)
+            return await get_user_score(agent_context)
             
         return get_user_score_wrapper
 
@@ -176,18 +176,17 @@ class FlashinhoAgent(AutomagikAgent):
         # Capture a reference to the context at creation time
         agent_context = self.context
         
-        async def get_user_roadmap_wrapper(ctx: RunContext[AutomagikAgentsDependencies], user_uuid: str) -> Dict[str, Any]:
+        async def get_user_roadmap_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
             """Get user roadmap data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                user_uuid: The user UUID to get roadmap data for
                 
             Returns:
                 User roadmap data containing subjects and due date
             """
             # Use the captured context reference directly
-            return await get_user_roadmap(agent_context, user_uuid)
+            return await get_user_roadmap(agent_context)
             
         return get_user_roadmap_wrapper
 
@@ -203,18 +202,17 @@ class FlashinhoAgent(AutomagikAgent):
         # Capture a reference to the context at creation time
         agent_context = self.context
         
-        async def get_user_objectives_wrapper(ctx: RunContext[AutomagikAgentsDependencies], user_uuid: str) -> Dict[str, Any]:
+        async def get_user_objectives_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
             """Get user objectives from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                user_uuid: The user UUID to get objectives for
                 
             Returns:
                 List of objectives ordered by completion date
             """
             # Use the captured context reference directly
-            return await get_user_objectives(agent_context, user_uuid)
+            return await get_user_objectives(agent_context)
             
         return get_user_objectives_wrapper
 
@@ -230,18 +228,17 @@ class FlashinhoAgent(AutomagikAgent):
         # Capture a reference to the context at creation time
         agent_context = self.context
         
-        async def get_last_card_round_wrapper(ctx: RunContext[AutomagikAgentsDependencies], user_uuid: str) -> Dict[str, Any]:
+        async def get_last_card_round_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
             """Get last card round data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                user_uuid: The user UUID to get last card round for
                 
             Returns:
                 Last card round data with cards and round length
             """
             # Use the captured context reference directly
-            return await get_last_card_round(agent_context, user_uuid)
+            return await get_last_card_round(agent_context)
             
         return get_last_card_round_wrapper
 
@@ -257,18 +254,17 @@ class FlashinhoAgent(AutomagikAgent):
         # Capture a reference to the context at creation time
         agent_context = self.context
         
-        async def get_user_energy_wrapper(ctx: RunContext[AutomagikAgentsDependencies], user_uuid: str) -> Dict[str, Any]:
+        async def get_user_energy_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
             """Get user energy value from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                user_uuid: The user UUID to get energy value for
                 
             Returns:
                 User energy data with current energy value
             """
             # Use the captured context reference directly
-            return await get_user_energy(agent_context, user_uuid)
+            return await get_user_energy(agent_context)
             
         return get_user_energy_wrapper
         

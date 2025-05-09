@@ -136,21 +136,7 @@ class FlashedProvider():
         Returns:
             User data (cadastro & metadata)
         """
-
-        print(f"Endpoint: /user/{user_uuid}")
-        mock_user_data = {
-            "cadastro": '9999-aaaa-!!!!',
-            "metadata": {
-                "uuid": user_uuid,
-                "usuario_desde": "01/01/2025",
-                "plano": "premium"
-            }
-        }
-        return mock_user_data
-        # print(f"Request to: /user/{user_uuid}/")
-        # headers = {"Bearer Token": auth}
-        # print(headers)
-        # return await self._request("GET", f"/user/{user_uuid}", header=headers)
+        return await self._request("GET", f"/user/{user_uuid}", header={"Authorization": self.auth_token})
 
     async def get_user_score(self, user_uuid: str) -> Dict[str, Any]:
         """Get general user stats.
@@ -159,15 +145,9 @@ class FlashedProvider():
             user_uuid: User UUID
             
         Returns:
-            User stats (daily_progress, energy, streak)
+            User stats (daily_progress, energy, sequence)
         """
-        print(f"Endpoint: /user-score/{user_uuid}")
-        mock_user_data = {
-            "daily_progress": 0.73,
-            "energy": 33,
-            "streak": 7,
-        }
-        return mock_user_data
+        return await self._request("GET", f"/user-score/{user_uuid}", header={"Authorization": self.auth_token})
     
     async def get_user_roadmap(self, user_uuid: str) -> Dict[str, Any]:
         """Get the study roadmap for a given user.
@@ -176,14 +156,32 @@ class FlashedProvider():
             user_uuid: User UUID
             
         Returns:
-            User roadmap data
+            User roadmap data containing:
+            - roadmap: Object with roadmap information:
+              - updatedAt: Timestamp of last update
+              - isOutdated: Boolean indicating if roadmap is outdated
+              - roadmap: Object containing:
+                - roadmap: Array of subject objects with:
+                  - status: Current status (todo, in_progress, completed)
+                  - subject: Subject name
+                  - objectiveId: Related objective identifier
+                  - subcategories: Array of subcategories with:
+                    - id: Subcategory identifier
+                    - name: Subcategory name
+                    - order: Order in the roadmap
+                    - totalPills: Total number of study pills
+                    - playedPills: Number of pills played
+                    - percentageHit: Hit percentage
+                    - playedPillsHit: Number of correctly answered pills
+                    - percentagePlayed: Percentage of pills played
+                    - playedPillsError: Number of incorrectly answered pills
+                    - performanceStatus: Performance status indicator
+                - nextSubjectToStudy: Next recommended subject with same structure as roadmap items
+                - objectivesProgress: Object mapping objective IDs to progress percentage
+                - currentRoadmapPosition: Current position in the roadmap
+              - roadmapsByObjectives: Object mapping objective IDs to specific roadmaps
         """
-        print(f"Endpoint: /user-roadmap/{user_uuid}")
-        mock_user_data = {
-            "subjects": ["Quimica I","Biologia II","Trigonometria","Quimica II"],
-            "due_date": "29/03/2025",
-        }
-        return mock_user_data
+        return await self._request("GET", f"/user-roadmap/{user_uuid}", header={"Authorization": self.auth_token})
 
     async def get_user_objectives(self, user_uuid: str) -> Dict[str, Any]:
         """Get user objectives ordered by completion date (ascending).
@@ -192,52 +190,26 @@ class FlashedProvider():
             user_uuid: User UUID
             
         Returns:
-            List of objectives containing:
-            - id: Objective identifier
-            - title: Objective title
-            - description: Detailed description
-            - completion_date: Target completion date
-            - status: Current status (pending, in_progress, completed)
-            - priority: Priority level (low, medium, high)
+            Object containing:
+            - objectives: Array of objective objects with:
+              - id: Objective identifier
+              - createdAt: Creation timestamp
+              - updatedAt: Last update timestamp
+              - type: Objective type (e.g., "schoolExam")
+              - dueDate: Target completion date
+              - name: Short objective name
+              - subject: Subject name
+              - topics: Array of topic objects:
+                - id: Topic identifier
+                - name: Topic name
+                - subcategories: Array of subcategory objects:
+                  - id: Subcategory identifier
+                  - name: Subcategory name
+              - userId: Owner user ID
+              - courseId: Related course ID (if any)
+              - progress: Completion progress (0-100)
         """
-        print(f"Endpoint: /user-objectives/{user_uuid}")
-        mock_objectives = {
-            "objectives": [
-                {
-                    "id": "obj_001",
-                    "title": "Completar exercícios de Química I",
-                    "description": "Resolver todos os exercícios do capítulo de Estequiometria",
-                    "completion_date": "15/03/2024",
-                    "status": "in_progress",
-                    "priority": "high"
-                },
-                {
-                    "id": "obj_002",
-                    "title": "Revisar Biologia II",
-                    "description": "Revisar conteúdo sobre Genética e Evolução",
-                    "completion_date": "20/03/2024",
-                    "status": "pending",
-                    "priority": "medium"
-                },
-                {
-                    "id": "obj_003",
-                    "title": "Praticar Trigonometria",
-                    "description": "Resolver problemas de trigonometria aplicada",
-                    "completion_date": "25/03/2024",
-                    "status": "pending",
-                    "priority": "high"
-                },
-                {
-                    "id": "obj_004",
-                    "title": "Estudar Química II",
-                    "description": "Aprender conceitos de Termoquímica",
-                    "completion_date": "30/03/2024",
-                    "status": "pending",
-                    "priority": "medium"
-                }
-            ]
-        }
-        return mock_objectives
+        return await self._request("GET", f"/user-objectives/{user_uuid}", header={"Authorization": self.auth_token})
     
     async def get_last_card_round(self, user_uuid: str) -> Dict[str, Any]:
         """Get the data for the last study cards round.
@@ -246,35 +218,45 @@ class FlashedProvider():
             user_uuid: User UUID
             
         Returns:
-            The Last Card Game Round data
+            Object containing:
+            - content: Object with last round information:
+              - lastRoundPlayed: Object with details about the last round:
+                - id: Round identifier
+                - createdAt: Creation timestamp
+                - completed: Whether the round was completed
+                - completedAt: Completion timestamp
+                - subcategory: Object with subcategory information:
+                  - id: Subcategory identifier
+                  - createdAt/updatedAt: Timestamps
+                  - level1/level2/level3: Hierarchical categories
+                  - name: Subcategory name
+                  - code/courseId: Additional identifiers
+                - objective: Object with objective information (similar to get_user_objectives output)
+                - cards: Array of card objects with:
+                  - id: Card identifier
+                  - createdAt/updatedAt: Timestamps
+                  - deckId: Related deck identifier
+                  - order: Card position in round
+                  - level: Difficulty level (easy, medium, hard)
+                  - category/topic: Subject categorization
+                  - subcategoryId: Related subcategory
+                  - type: Card type (e.g., quiz)
+                  - question: Question text
+                  - answers: Array of possible answers
+                  - answerIndex: Index of correct answer
+                  - comment: Detailed explanation
+                  - summary: Condensed explanation
+                  - additional metadata fields
+                - cardPlays: Array of play result objects:
+                  - id: Play identifier
+                  - date: Timestamp of play
+                  - userId: User who played
+                  - cardId: Related card
+                  - result: Outcome (right/wrong)
+                  - durationSec: Time spent on card
+                  - roundId: Related round
         """
-        print(f"Endpoint: /user-plays/{user_uuid}")
-        mock_user_data = {
-            "cards": [
-                {
-                    "id": "chemestry_hard_05",
-                    "content": "demo card 1"
-                },
-                {
-                    "id": "literature_hard_01",
-                    "content": "demo card 2"
-                },
-                {
-                    "id": "biology_medium_03",
-                    "content": "demo card 3"
-                },
-                {
-                    "id": "history_hard_05",
-                    "content": "demo card 4"
-                },
-                {
-                    "id": "chemestry_easy_07",
-                    "content": "demo card 5"
-                }
-            ],
-            "round_length": 5,
-        }
-        return mock_user_data
+        return await self._request("GET", f"/user-plays/{user_uuid}", header={"Authorization": self.auth_token})
     
     async def get_user_energy(self, user_uuid: str) -> Dict[str, Any]:
         """Get the energy value for a given user.
@@ -285,8 +267,4 @@ class FlashedProvider():
         Returns:
             User's energy value
         """
-        print(f"Endpoint: /check-energy/{user_uuid}")
-        mock_user_data = {
-            "energy": 46,
-        }
-        return mock_user_data
+        return await self._request("GET", f"/check-energy/{user_uuid}", header={"Authorization": self.auth_token})
