@@ -30,13 +30,14 @@ async def get_session_route(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
     sort_desc: bool = Query(True, description="Sort by most recent first"),
-    hide_tools: bool = Query(False, description="Exclude tool calls and outputs")
+    hide_tools: bool = Query(False, description="Exclude tool calls and outputs"),
+    show_system_prompt: bool = Query(False, description="Include system prompt in session details")
 ):
     """
     Get a session by ID or name with its message history
     """
     try:
-        session_data = await get_session(session_id_or_name, page, page_size, sort_desc, hide_tools)
+        session_data = await get_session(session_id_or_name, page, page_size, sort_desc, hide_tools, show_system_prompt)
         
         # For name lookups, return the name as the session_id
         session_name = session_data["session"].session_name
@@ -64,7 +65,8 @@ async def get_session_route(
             "exists": True,
             "total_messages": session_data["total"], # This is the same as session_details.get('message_count')
             "current_page": session_data["page"],
-            "total_pages": session_data["total_pages"]
+            "total_pages": session_data["total_pages"],
+            "system_prompt": session_data.get("system_prompt")
         }
         return response_payload
     except HTTPException as e:
