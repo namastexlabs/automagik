@@ -12,7 +12,7 @@ The project utilizes the [`pydantic-settings`](https://docs.pydantic.dev/latest/
 *   **Type Validation:** Pydantic automatically validates the types of loaded configuration values.
 *   **Default Values:** Default values can be specified directly in the `Settings` class.
 
-Refer to the [config-rules](mdc:.cursor/rules/config-rules.mdc) for best practices when adding or modifying configuration.
+Refer to the [config-rules](../rules/config-rules.md) for best practices when adding or modifying configuration.
 
 ## Configuration Loading
 
