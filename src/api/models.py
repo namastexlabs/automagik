@@ -275,10 +275,9 @@ class SessionListResponse(BaseResponseModel):
     
     # Make sure both total and total_count have the same value for backward compatibility
     def __init__(self, **data):
+        if 'total' in data and 'total_count' not in data:
+            data['total_count'] = data['total']
         super().__init__(**data)
-        # Set total_count to total if only total is provided
-        if self.total_count is None and hasattr(self, 'total'):
-            self.total_count = self.total
 
 # UserCreate moved to before AgentRunRequest
 
@@ -305,4 +304,10 @@ class UserListResponse(BaseResponseModel):
     page_size: int = 50
     total_pages: int = 1
     has_next: Optional[bool] = None
-    has_prev: Optional[bool] = None 
+    has_prev: Optional[bool] = None
+
+class DeleteMessageResponse(BaseResponseModel):
+    """Response model for message deletion."""
+    status: str = "success"
+    message_id: uuid.UUID
+    detail: str = "Message deleted successfully" 
