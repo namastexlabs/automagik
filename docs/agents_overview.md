@@ -55,7 +55,7 @@ A typical agent interaction might follow these steps:
 Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on the existing patterns:
 
 1.  **Create Directory Structure:**
-    Create a new directory for your agent within `src/agents/simple/` (ou outra categoria se aplicável):
+    Create a new directory for your agent within `src/agents/simple/` (or another applicable category):
     ```bash
     mkdir src/agents/simple/my_new_agent
     mkdir src/agents/simple/my_new_agent/prompts
