@@ -249,6 +249,7 @@ class SessionResponse(BaseResponseModel):
     total_messages: int
     current_page: int
     total_pages: int
+    system_prompt: Optional[str] = None
 
 class SessionInfo(BaseResponseModel):
     """Information about a session."""
@@ -261,6 +262,7 @@ class SessionInfo(BaseResponseModel):
     message_count: Optional[int] = None
     agent_name: Optional[str] = None
     session_origin: Optional[str] = None  # Origin of the session (e.g., "web", "api", "discord")
+    system_prompt: Optional[str] = None
 
 class SessionListResponse(BaseResponseModel):
     """Response model for listing all sessions."""

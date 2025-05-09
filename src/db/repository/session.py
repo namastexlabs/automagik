@@ -22,8 +22,19 @@ def get_session(session_id: uuid.UUID) -> Optional[Session]:
         Session object if found, None otherwise
     """
     try:
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            WHERE
+                s.id = %s
+        """
         result = execute_query(
-            "SELECT * FROM sessions WHERE id = %s",
+            query,
             (str(session_id),)
         )
         return Session.from_db_row(result[0]) if result else None
@@ -42,8 +53,19 @@ def get_session_by_name(name: str) -> Optional[Session]:
         Session object if found, None otherwise
     """
     try:
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            WHERE
+                s.name = %s
+        """
         result = execute_query(
-            "SELECT * FROM sessions WHERE name = %s",
+            query,
             (name,)
         )
         return Session.from_db_row(result[0]) if result else None
@@ -75,13 +97,20 @@ def list_sessions(
             List of Session objects
     """
     try:
-        count_query = "SELECT COUNT(*) as count FROM sessions"
+        count_query = "SELECT COUNT(*) as count FROM sessions s"
         
-        # Modified query to include message count using LEFT JOIN
+        # Modified query to include message count and agent_name
         query = """
-            SELECT s.*, COUNT(m.id) as message_count 
-            FROM sessions s
-            LEFT JOIN messages m ON s.id = m.session_id
+            SELECT
+                s.*,
+                a.name AS agent_name,
+                COUNT(m.id) as message_count 
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            LEFT JOIN
+                messages m ON s.id = m.session_id
         """
         
         params = []
@@ -99,8 +128,13 @@ def list_sessions(
             query += " WHERE " + " AND ".join(conditions)
             count_query += " WHERE " + " AND ".join(conditions)
         
-        # Need to group by all selected columns from sessions table
-        query += " GROUP BY s.id"
+        # Need to group by all selected columns from sessions table and agent_name
+        # Assuming s.id is the primary key of sessions table.
+        # For portability, listing all s.* columns explicitly in GROUP BY or ensuring functional dependency is key.
+        # Most modern SQL DBs (like PostgreSQL) are fine with GROUP BY s.id, a.name if s.id is PK.
+        # For broader compatibility, we might list all s columns, but let's try with s.id, a.name first for conciseness.
+        # All columns from s are functionally dependent on s.id. So, s.id and a.name should be sufficient.
+        query += " GROUP BY s.id, a.name" # Added a.name to GROUP BY
         
         # Add sorting
         sort_direction = "DESC" if sort_desc else "ASC"
