@@ -43,8 +43,22 @@ We built Automagik because we needed to save time while creating high-quality, p
 1. **Installation**
    ```bash
    git clone https://github.com/namastexlabs/automagik-agents
+   cd automagik-agents
+   ```
+   Create and manage a virtual environment using [uv](https://docs.astral.sh/uv/):
+   ```bash
    uv venv
+   ```
+   ```bash
+   # On Linux environments/WSL
    source .venv/bin/activate
+   ```
+   ```bash
+   # On Windows
+   .venv/Scripts/activate
+   ```
+   Install all the dependencies
+   ```bash
    uv pip install -e .
    ```
 
@@ -66,20 +80,47 @@ We built Automagik because we needed to save time while creating high-quality, p
    # For Discord agent (optional)
    DISCORD_BOT_TOKEN=your_discord_token
    ```
-
-3. **Create a Custom Agent**
+   Make sure you have access to a PosgreSQL 15 database by:
+   a. Setting up a local instance via docker-compose:
+   1. (Optional) Override the default .env variables
    ```bash
-   # Create from simple template
-   automagik-agents agent create agent --name my_agent --template simple_agent
+   POSTGRES_DB=
+   POSTGRES_USER=
+   POSTGRES_PASSWORD=
+   POSTGRES_PORT=
 
-   # Create from Notion template
-   automagik-agents agent create agent --name my_notion_agent --template notion_agent
+   DATABASE_URL="your_custom_url"
+   ```
+   2. Create the Postgres container:
+   ```bash
+   cd docker/
+   # Initialize the container using the .env on root
+   docker-compose --env-file ../.env up
+   ```
+   **or**
+   b. Connecting to a existing database by overriding the DATABASE_URL .env variable:
+   ```bash
+   DATABASE_URL="your_database_url"
+   ```
+3. **Initialize automagik's database structure:**
+   ```bash
+   automagik-agents db init
    ```
 
 4. **Start the API Server**
    ```bash
-   automagik-agents api start --reload
+   automagik-agents api start --reload # Initialize the API with hot-reloading
    ```
+5. **Hello world!**
+  To make sure your setup is running correctly, do a API health check:
+   ```bash
+   curl http://localhost:8881/health
+   ```
+   Start you first conversation session with a simple, template, agent:
+   ```bash
+   automagik-agents agent chat start --agent simple
+   ```
+
 =======
 # AutoMagik Agents
 
