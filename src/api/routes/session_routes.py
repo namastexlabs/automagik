@@ -44,17 +44,32 @@ async def get_session_route(
         session_id = session_data["session"].session_id
         response_id = session_id_or_name if session_id_or_name == session_name else session_id
         
-        # Convert to format expected by the tests
-        return {
-            "session_id": response_id,
+        # Prepare the session details from SessionInfo
+        # Use .model_dump() for Pydantic v2, or .dict() for v1
+        # Assuming Pydantic v2+ for .model_dump()
+        session_details = session_data["session"].model_dump(exclude_none=True)
+        
+        # Ensure all required fields are strings if they are UUID or datetime
+        if 'user_id' in session_details and session_details['user_id'] is not None:
+            session_details['user_id'] = str(session_details['user_id'])
+        if 'created_at' in session_details and session_details['created_at'] is not None:
+            session_details['created_at'] = session_details['created_at'].isoformat()
+        if 'last_updated' in session_details and session_details['last_updated'] is not None:
+            session_details['last_updated'] = session_details['last_updated'].isoformat()
+
+        # Construct the final response
+        response_payload = {
+            **session_details, # Spread all fields from SessionInfo
+            "session_id": response_id, # Override session_id with the one determined for the route
             "messages": session_data["messages"],
             "exists": True,
-            "total_messages": session_data["total"],
+            "total_messages": session_data["total"], # This is the same as session_details.get('message_count')
             "current_page": session_data["page"],
             "total_pages": session_data["total_pages"],
             "system_prompt": session_data.get("system_prompt")
         }
-    except HTTPException as e:  
+        return response_payload
+    except HTTPException as e:
         if e.status_code == 404:
             # Return 404 status code when session not found, don't handle it
             raise
