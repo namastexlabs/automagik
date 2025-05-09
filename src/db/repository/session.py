@@ -22,8 +22,19 @@ def get_session(session_id: uuid.UUID) -> Optional[Session]:
         Session object if found, None otherwise
     """
     try:
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            WHERE
+                s.id = %s
+        """
         result = execute_query(
-            "SELECT * FROM sessions WHERE id = %s",
+            query,
             (str(session_id),)
         )
         return Session.from_db_row(result[0]) if result else None
@@ -42,8 +53,19 @@ def get_session_by_name(name: str) -> Optional[Session]:
         Session object if found, None otherwise
     """
     try:
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            WHERE
+                s.name = %s
+        """
         result = execute_query(
-            "SELECT * FROM sessions WHERE name = %s",
+            query,
             (name,)
         )
         return Session.from_db_row(result[0]) if result else None
@@ -75,26 +97,48 @@ def list_sessions(
             List of Session objects
     """
     try:
-        count_query = "SELECT COUNT(*) as count FROM sessions"
-        query = "SELECT * FROM sessions"
+        count_query = "SELECT COUNT(*) as count FROM sessions s"
+        
+        # Modified query to include message count and agent_name
+        query = """
+            SELECT
+                s.*,
+                a.name AS agent_name,
+                COUNT(m.id) as message_count 
+            FROM
+                sessions s
+            LEFT JOIN
+                agents a ON s.agent_id = a.id
+            LEFT JOIN
+                messages m ON s.id = m.session_id
+        """
+        
         params = []
         conditions = []
         
         if user_id is not None:
-            conditions.append("user_id = %s")
+            conditions.append("s.user_id = %s")
             params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
         
         if agent_id is not None:
-            conditions.append("agent_id = %s")
+            conditions.append("s.agent_id = %s")
             params.append(agent_id)
         
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
             count_query += " WHERE " + " AND ".join(conditions)
         
+        # Need to group by all selected columns from sessions table and agent_name
+        # Assuming s.id is the primary key of sessions table.
+        # For portability, listing all s.* columns explicitly in GROUP BY or ensuring functional dependency is key.
+        # Most modern SQL DBs (like PostgreSQL) are fine with GROUP BY s.id, a.name if s.id is PK.
+        # For broader compatibility, we might list all s columns, but let's try with s.id, a.name first for conciseness.
+        # All columns from s are functionally dependent on s.id. So, s.id and a.name should be sufficient.
+        query += " GROUP BY s.id, a.name" # Added a.name to GROUP BY
+        
         # Add sorting
         sort_direction = "DESC" if sort_desc else "ASC"
-        query += f" ORDER BY updated_at {sort_direction}, created_at {sort_direction}"
+        query += f" ORDER BY s.updated_at {sort_direction}, s.created_at {sort_direction}"
         
         # Get total count for pagination
         count_result = execute_query(count_query, tuple(params) if params else None)
@@ -108,7 +152,17 @@ def list_sessions(
             params.append(offset)
         
         result = execute_query(query, tuple(params) if params else None)
-        sessions = [Session.from_db_row(row) for row in result]
+        
+        # Create Session objects with message_count
+        sessions = []
+        for row in result:
+            # Create Session object from the main session fields
+            session = Session.from_db_row({k: v for k, v in row.items() if k != 'message_count'})
+            
+            # Attach message_count as an attribute
+            session.message_count = row.get('message_count', 0)
+            
+            sessions.append(session)
         
         # Return with count for pagination or just the list
         if page is not None and page_size is not None:

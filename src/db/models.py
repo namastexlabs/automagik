@@ -61,12 +61,14 @@ class Session(BaseDBModel):
     id: Optional[uuid.UUID] = Field(None, description="Session ID")
     user_id: Optional[uuid.UUID] = Field(None, description="User ID")
     agent_id: Optional[int] = Field(None, description="Agent ID")
+    agent_name: Optional[str] = Field(None, description="Name of the agent associated with the session")
     name: Optional[str] = Field(None, description="Session name")
     platform: Optional[str] = Field(None, description="Platform")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
     created_at: Optional[datetime] = Field(None, description="Created at timestamp")
     updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
     run_finished_at: Optional[datetime] = Field(None, description="Run finished at timestamp")
+    message_count: Optional[int] = Field(None, description="Number of messages in the session")
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Session":

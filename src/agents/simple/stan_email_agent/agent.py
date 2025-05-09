@@ -6,7 +6,8 @@ and inherits common functionality from AutomagikAgent.
 import datetime
 import logging
 import traceback
-from typing import Dict, Optional
+import asyncio
+from typing import Dict, Optional, List, Any, Union
 
 from pydantic_ai import Agent
 from src.agents.models.automagik_agent import AutomagikAgent
@@ -29,6 +30,9 @@ from src.tools.blackpearl.schema import StatusAprovacaoEnum
 from src.tools.gmail import fetch_emails, mark_emails_read
 from src.tools.gmail.schema import FetchEmailsInput
 from src.tools.gmail.tool import fetch_all_emails_from_thread_by_email_id
+
+# Import Memory class 
+from src.db.models import Memory
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +116,6 @@ class StanEmailAgent(AutomagikAgent):
                 model="google-gla:gemini-2.0-flash",
                 system_prompt=self.system_prompt,
                 result_type=ExtractedLeadEmailInfo,
-                model_settings=model_settings,
                 deps_type=AutomagikAgentsDependencies
             )
             
@@ -120,6 +123,142 @@ class StanEmailAgent(AutomagikAgent):
         except Exception as e:
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
+    
+    def _extract_contact_id(self, client_data: Any) -> Optional[Union[int, str]]:
+        """Helper method to extract contact ID from client data.
+        
+        This handles both the old 'contatos' and new 'contatos_ids' field names,
+        and works with both dictionary and object responses.
+        
+        Args:
+            client_data: The client data (dict or object) from BlackPearl
+            
+        Returns:
+            The contact ID or None if not found
+        """
+        # Initialize contact ID to None
+        contact_id = None
+        
+        # Log the input for debugging
+        logger.info(f"Extracting contact ID from client data type: {type(client_data)}")
+        if client_data is None:
+            logger.warning("Client data is None")
+            return None
+            
+        try:
+            # Handle dictionary-style responses
+            if isinstance(client_data, dict):
+                logger.info(f"Client data is dictionary with keys: {list(client_data.keys())}")
+                
+                # Check if we have contatos field in the response (API response)
+                if 'contatos' in client_data and client_data['contatos']:
+                    contacts = client_data['contatos']
+                    logger.info(f"Found 'contatos' field with {len(contacts)} contacts")
+                    
+                    if contacts and len(contacts) > 0:
+                        contact = contacts[0]  # Take the first contact
+                        logger.info(f"First contact type: {type(contact)}, value: {contact}")
+                        
+                        if isinstance(contact, dict) and 'id' in contact:
+                            contact_id = contact['id']
+                            logger.info(f"Extracted contact ID from dictionary: {contact_id}")
+                        elif hasattr(contact, 'id'):  # Handle Pydantic model case
+                            contact_id = getattr(contact, 'id')
+                            logger.info(f"Extracted contact ID from Pydantic model: {contact_id}")
+                        else:
+                            contact_id = contact
+                            logger.info(f"Using contact as ID directly: {contact_id}")
+                            
+                # Check if we have contatos_ids field (new field name)
+                elif 'contatos_ids' in client_data and client_data['contatos_ids']:
+                    contact_ids = client_data['contatos_ids']
+                    logger.info(f"Found 'contatos_ids' field: {contact_ids}")
+                    
+                    if contact_ids and len(contact_ids) > 0:
+                        contact_id = contact_ids[0]
+                        logger.info(f"Extracted contact ID from contatos_ids: {contact_id}")
+            
+            # Handle object-style responses (Pydantic model)
+            else:
+                logger.info(f"Client data is object with attributes: {dir(client_data)}")
+                
+                # First priority: check for contatos attribute (now that we have this field)
+                if hasattr(client_data, 'contatos') and getattr(client_data, 'contatos'):
+                    contacts = getattr(client_data, 'contatos')
+                    logger.info(f"Found 'contatos' attribute with value type: {type(contacts)}")
+                    
+                    if contacts and len(contacts) > 0:
+                        contact = contacts[0]  # Take the first contact
+                        logger.info(f"First contact type: {type(contact)}, value: {contact}")
+                        
+                        if isinstance(contact, dict) and 'id' in contact:
+                            contact_id = contact['id']
+                            logger.info(f"Extracted contact ID from object's dictionary: {contact_id}")
+                        elif hasattr(contact, 'id'):  # Handle Pydantic model case
+                            contact_id = getattr(contact, 'id')
+                            logger.info(f"Extracted contact ID from object's Pydantic model: {contact_id}")
+                        else:
+                            contact_id = contact
+                            logger.info(f"Using object's contact as ID directly: {contact_id}")
+                
+                # Second priority: check for contatos_ids attribute 
+                elif hasattr(client_data, 'contatos_ids') and getattr(client_data, 'contatos_ids'):
+                    contact_ids = getattr(client_data, 'contatos_ids')
+                    logger.info(f"Found 'contatos_ids' attribute with value: {contact_ids}")
+                    
+                    if contact_ids and len(contact_ids) > 0:
+                        contact_id = contact_ids[0]
+                        logger.info(f"Extracted contact ID from model's contatos_ids: {contact_id}")
+                
+        except Exception as e:
+            logger.error(f"Error extracting contact ID: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+        logger.info(f"Final extracted contact ID: {contact_id}")
+        return contact_id
+
+    def _safe_get_attribute(self, obj: Any, attr: str, default: Any = None) -> Any:
+        """Safely get an attribute from either a dictionary or an object.
+        
+        Args:
+            obj: The object or dictionary to get the attribute from
+            attr: The attribute or key name
+            default: Default value if the attribute is not found
+            
+        Returns:
+            The attribute value or default
+        """
+        if obj is None:
+            return default
+            
+        # If it's a dictionary, use dictionary access
+        if isinstance(obj, dict):
+            return obj.get(attr, default)
+            
+        # If it's an object, use getattr
+        if hasattr(obj, attr):
+            return getattr(obj, attr)
+            
+        return default
+        
+    def _safe_set_attribute(self, obj: Any, attr: str, value: Any) -> None:
+        """Safely set an attribute on either a dictionary or an object.
+        
+        Args:
+            obj: The object or dictionary to set the attribute on
+            attr: The attribute or key name
+            value: The value to set
+        """
+        if obj is None:
+            return
+            
+        # If it's a dictionary, use dictionary access
+        if isinstance(obj, dict):
+            obj[attr] = value
+            return
+            
+        # If it's an object, use setattr
+        setattr(obj, attr, value)
         
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[dict] = None,
@@ -159,7 +298,12 @@ class StanEmailAgent(AutomagikAgent):
         # Execute the tool
         email_agent_result = await fetch_emails(None, fetch_input)
         
-        
+        # Initialize user variables
+        current_user_id = None
+        current_agent_id = None
+        current_user_info = None
+        current_contact = None
+        current_client = None
         
         # Process the results - extract threads for each unread email
         if email_agent_result.get('success', False):
@@ -175,8 +319,6 @@ class StanEmailAgent(AutomagikAgent):
                     raw_message=email_agent_result,
                     system_prompt=AGENT_PROMPT,
                 )
-                
-            user_info = None
                 
             # Collect all threads
             all_threads = []
@@ -253,103 +395,220 @@ class StanEmailAgent(AutomagikAgent):
                 # Update the thread with extracted information
                 black_pearl_client = None
                 if email_agent_result.data and email_agent_result.data.black_pearl_client_id: 
-                    black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
-                    black_pearl_contact = await blackpearl.get_contato(ctx=self.context, contato_id=black_pearl_client.contatos[0])
-                    
-                    thread['extracted_info'] = email_agent_result.data
-                    thread['black_pearl_client'] = black_pearl_client
-                    thread['black_pearl_contact'] = black_pearl_contact
-                    
-                    # Update contato and cliente with extracted information
-                    black_pearl_contact.status_aprovacao = email_agent_result.data.approval_status
-                    black_pearl_client.status_aprovacao = email_agent_result.data.approval_status
-                    black_pearl_client.valor_limite_credito = email_agent_result.data.credit_score
-                    black_pearl_contact.detalhes_aprovacao = email_agent_result.data.extra_information
-                    
-                    # Extract user_id from wpp_session_id which has format "userid_agentid"
-                    user_id = black_pearl_contact.wpp_session_id.split('_')[0] if black_pearl_contact.wpp_session_id else None
-                    agent_id = black_pearl_contact.wpp_session_id.split('_')[1] if black_pearl_contact.wpp_session_id else None
-                    user_id = int(user_id)
-                    agent_id = int(agent_id)
-                    
-                    user = get_user(user_id=user_id) if user_id else None
-                    user.email = black_pearl_client.email
-                    
-                    # Check if we've already sent a BP analysis email to this user
-                    if hasattr(user, 'user_data') and user.user_data and user.user_data.get('bp_analysis_email_message_sent'):
-                        logger.info(f"User {user_id} has already received BP analysis email. Skipping message.")
-                        # Still mark the thread as processed
-                        thread['processed'] = True
-                        continue
-                    
-                    
-                    # Prepare string with user information and approval status
-                    user_info = f"Nome: {black_pearl_contact.nome} Email: {black_pearl_client.email} Telefone: {user.phone_number}"
-                    approval_status_info = f"Status de aprovação: {email_agent_result.data.approval_status}"
-                    credit_score_info = f"Pontuação de crédito: {email_agent_result.data.credit_score}"
-                    extra_information = f"Informações extras: {email_agent_result.data.extra_information}"
-                    
-                    user_sessions = list_sessions(user_id=user_id, agent_id=agent_id)
-                    user_message_history = []
-                    
-                    for session in user_sessions:
-                        # Get all messages for this session
-                        session_messages = list_messages(session_id=session.id)
-                        user_message_history.extend(session_messages)
-                    
-                    # Format the conversation history
-                    earlier_conversations = "\n".join([f"{message.role}: {message.text_content}" 
-                                                     for message in user_message_history 
-                                                     if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
-                    
-                    message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
-                    message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
-                    message = await aproval_status_message_generator.generate_approval_status_message(message_text)
-                  
-                    if black_pearl_contact.status_aprovacao == StatusAprovacaoEnum.APPROVED:
-                        data_aprovacao = datetime.datetime.now()
-                        black_pearl_contact.data_aprovacao = data_aprovacao
-                        black_pearl_client.data_aprovacao = data_aprovacao
+                    try:
+                        black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
                         
-                        # Check if cliente already has codigo_cliente_omie before finalizing
-                        if not black_pearl_client.codigo_cliente_omie:
-                            logger.info(f"Finalizing client registration for client_id: {black_pearl_client.id}")
-                            await blackpearl.finalizar_cadastro(ctx=self.context, cliente_id=black_pearl_client.id)
+                        # Log the response for debugging
+                        logger.info(f"Got BlackPearl client response of type: {type(black_pearl_client)}")
+                        if isinstance(black_pearl_client, dict):
+                            logger.info(f"Client as dict with keys: {list(black_pearl_client.keys())}")
+                            if 'contatos' in black_pearl_client:
+                                logger.info(f"Raw contatos value: {black_pearl_client['contatos']}")
                         else:
-                            logger.info(f"Client already has codigo_cliente_omie: {black_pearl_client.codigo_cliente_omie}, skipping finalization")
-                    
-                    try:
-                        await blackpearl.update_contato(ctx=self.context, contato_id=black_pearl_contact.id, contato=black_pearl_contact)
-                    except Exception as e:
-                        logger.error(f"Error updating contact: {str(e)}")
-                    
-                    try:
-                        await blackpearl.update_cliente(ctx=self.context, cliente_id=black_pearl_client.id, cliente=black_pearl_client)
+                            # For Pydantic models or other objects
+                            logger.info(f"Client attributes: {dir(black_pearl_client)}")
+                            if hasattr(black_pearl_client, 'contatos'):
+                                logger.info(f"Raw contatos value: {getattr(black_pearl_client, 'contatos')}")
                         
-                    except Exception as e:
-                        logger.error(f"Error updating client: {str(e)}")
+                        # Extract contact ID using the helper method
+                        contact_id = self._extract_contact_id(black_pearl_client)
+                        
+                        if not contact_id:
+                            logger.warning(f"No contacts found for client ID: {self._safe_get_attribute(black_pearl_client, 'id')}")
+                            thread['processed'] = False
+                            continue
+                        
+                        black_pearl_contact = await blackpearl.get_contato(ctx=self.context, contato_id=contact_id)
+                        
+                        thread['extracted_info'] = email_agent_result.data
+                        thread['black_pearl_client'] = black_pearl_client
+                        thread['black_pearl_contact'] = black_pearl_contact
+                        
+                        # Update contato and cliente with extracted information
+                        self._safe_set_attribute(black_pearl_contact, 'status_aprovacao', email_agent_result.data.approval_status)
+                        self._safe_set_attribute(black_pearl_client, 'status_aprovacao', email_agent_result.data.approval_status)
+                        self._safe_set_attribute(black_pearl_client, 'valor_limite_credito', email_agent_result.data.credit_score)
+                        self._safe_set_attribute(black_pearl_contact, 'detalhes_aprovacao', email_agent_result.data.extra_information)
+                        
+                        # Track current client and contact for summary
+                        current_client = black_pearl_client
+                        current_contact = black_pearl_contact
+                        
+                        # Extract user_id from wpp_session_id which has format "userid_agentid"
+                        # Handle case where wpp_session_id may contain non-numeric parts
+                        user_id = None
+                        agent_id = None
+                        
+                        wpp_session_id = self._safe_get_attribute(black_pearl_contact, 'wpp_session_id')
+                        if wpp_session_id:
+                            try:
+                                session_parts = wpp_session_id.split('_')
+                                if len(session_parts) >= 2:
+                                    # Only try to convert to int if it looks like a number
+                                    if session_parts[0].isdigit():
+                                        user_id = int(session_parts[0])
+                                    else:
+                                        user_id = session_parts[0]
+                                        
+                                    if session_parts[1].isdigit():
+                                        agent_id = int(session_parts[1])
+                                    else:
+                                        agent_id = session_parts[1]
+                                        
+                                # Track current user ID and agent ID for later use
+                                current_user_id = user_id
+                                current_agent_id = agent_id
+                            except Exception as e:
+                                logger.warning(f"Error parsing wpp_session_id: {str(e)}")
                     
-                    try:
-                        update_user(user=user)
-                    except Exception as e:
-                        logger.error(f"Error updating user: {str(e)}")
-                        
-                    if not user.user_data.get('bp_analysis_email_message_sent', False):
-                        await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
-                        
-                        update_user_data(user_id=user.id, data_updates={
-                            "blackpearl_contact_id": black_pearl_contact.id,
-                            "blackpearl_cliente_id": black_pearl_client.id,
-                            "bp_analysis_email_message_sent": True
+                        user = get_user(user_id=user_id) if user_id else None
+                        if user:
+                            user.email = self._safe_get_attribute(black_pearl_client, 'email')
+                            current_user_info = user
                             
-                        })
-                        logger.info(f"Updated user_data with bp_analysis_email_message_sent flag for user ID: {user.id}")                   
-                    # Mark the thread as processed
-                    thread['processed'] = True
+                            # Apply approval status updates regardless of whether we're sending a message
+                            client_status_aprovacao = email_agent_result.data.approval_status
+                            logger.info(f"Using approval status from email extraction: {client_status_aprovacao}")
+                            
+                            # Apply approval status updates
+                            if client_status_aprovacao == StatusAprovacaoEnum.APPROVED:
+                                data_aprovacao = datetime.datetime.now()
+                                self._safe_set_attribute(black_pearl_contact, 'data_aprovacao', data_aprovacao)
+                                self._safe_set_attribute(black_pearl_client, 'data_aprovacao', data_aprovacao)
+                                
+                                # Check if cliente already has codigo_cliente_omie before finalizing
+                                if not self._safe_get_attribute(black_pearl_client, 'codigo_cliente_omie'):
+                                    client_id = self._safe_get_attribute(black_pearl_client, 'id')
+                                    logger.info(f"Finalizing client registration for client_id: {client_id}")
+                                    await blackpearl.finalizar_cadastro(ctx=self.context, cliente_id=client_id)
+                                else:
+                                    codigo_cliente = self._safe_get_attribute(black_pearl_client, 'codigo_cliente_omie')
+                                    logger.info(f"Client already has codigo_cliente_omie: {codigo_cliente}, skipping finalization")
+                            
+                            # Update both contact and client in parallel when possible
+                            contact_update_task = None
+                            client_update_task = None
+                            
+                            try:
+                                contact_id = self._safe_get_attribute(black_pearl_contact, 'id')
+                                client_id = self._safe_get_attribute(black_pearl_client, 'id')
+                                
+                                # Ensure both entities are properly set with the same approval status from extraction
+                                logger.info(f"Setting approval status to {client_status_aprovacao} for contact {contact_id} and client {client_id}")
+                                
+                                # Explicitly set approval status on both objects to ensure it's updated
+                                if isinstance(black_pearl_contact, dict):
+                                    black_pearl_contact['status_aprovacao'] = client_status_aprovacao
+                                else:
+                                    setattr(black_pearl_contact, 'status_aprovacao', client_status_aprovacao)
+                                    
+                                if isinstance(black_pearl_client, dict):
+                                    black_pearl_client['status_aprovacao'] = client_status_aprovacao
+                                else:
+                                    setattr(black_pearl_client, 'status_aprovacao', client_status_aprovacao)
+                                
+                                # Log the status before updating to verify it's set
+                                logger.info(f"Contact status before update: {self._safe_get_attribute(black_pearl_contact, 'status_aprovacao')}")
+                                logger.info(f"Client status before update: {self._safe_get_attribute(black_pearl_client, 'status_aprovacao')}")
+                                
+                                # Start both updates in parallel
+                                contact_update_task = asyncio.create_task(
+                                    blackpearl.update_contato(ctx=self.context, contato_id=contact_id, contato=black_pearl_contact)
+                                )
+                                client_update_task = asyncio.create_task(
+                                    blackpearl.update_cliente(ctx=self.context, cliente_id=client_id, cliente=black_pearl_client)
+                                )
+                                
+                                # Wait for both updates to complete
+                                contact_result, client_result = await asyncio.gather(
+                                    contact_update_task, 
+                                    client_update_task,
+                                    return_exceptions=True
+                                )
+                                
+                                # Handle any exceptions from the parallel tasks
+                                if isinstance(contact_result, Exception):
+                                    logger.error(f"Error updating contact {contact_id}: {str(contact_result)}")
+                                else:
+                                    logger.info(f"Successfully updated contact {contact_id} with status {client_status_aprovacao}")
+                                    
+                                if isinstance(client_result, Exception):
+                                    logger.error(f"Error updating client {client_id}: {str(client_result)}")
+                                else:
+                                    logger.info(f"Successfully updated client {client_id} with status {client_status_aprovacao}")
+                                
+                            except Exception as e:
+                                # Handle any other exceptions during the update process
+                                logger.error(f"Error during parallel contact/client update: {str(e)}")
+                                
+                                # If we have tasks that were started but may not have completed, cancel them
+                                if contact_update_task and not contact_update_task.done():
+                                    contact_update_task.cancel()
+                                if client_update_task and not client_update_task.done():
+                                    client_update_task.cancel()
+                            
+                            try:
+                                # Update user record
+                                update_user(user=user)
+                                
+                                # Update user_data with blackpearl IDs regardless of message sending
+                                update_user_data(user_id=user.id, data_updates={
+                                    "blackpearl_contact_id": self._safe_get_attribute(black_pearl_contact, 'id'),
+                                    "blackpearl_cliente_id": self._safe_get_attribute(black_pearl_client, 'id')
+                                })
+                                
+                            except Exception as e:
+                                logger.error(f"Error updating user: {str(e)}")
+                        
+                            # Check if we've already sent a BP analysis email to this user
+                            # This check now only affects message sending, not contact/client updates
+                            if not user.user_data.get('bp_analysis_email_message_sent', False):
+                                # Prepare string with user information and approval status
+                                user_info = (f"Nome: {self._safe_get_attribute(black_pearl_contact, 'nome')} "
+                                            f"Email: {self._safe_get_attribute(black_pearl_client, 'email')} "
+                                            f"Telefone: {user.phone_number}")
+                                approval_status_info = f"Status de aprovação: {email_agent_result.data.approval_status}"
+                                credit_score_info = f"Pontuação de crédito: {email_agent_result.data.credit_score}"
+                                extra_information = f"Informações extras: {email_agent_result.data.extra_information}"
+                                
+                                user_sessions = list_sessions(user_id=user_id, agent_id=agent_id)
+                                user_message_history = []
+                                
+                                for session in user_sessions:
+                                    # Get all messages for this session
+                                    session_messages = list_messages(session_id=session.id)
+                                    user_message_history.extend(session_messages)
+                                
+                                # Format the conversation history
+                                earlier_conversations = "\n".join([f"{message.role}: {message.text_content}" 
+                                                                for message in user_message_history 
+                                                                if message and message.text_content and hasattr(message, 'role') and hasattr(message, 'text_content')])
+                                
+                                message_text = f"<history>Este é o histórico de conversas do usuário:\n\n\n{earlier_conversations}</history>\n\n\n"
+                                message_text += f"<current_user_info>Informações do usuário e status de aprovação:\n{user_info}\n{approval_status_info}\n{credit_score_info}\n{extra_information}</current_user_info>"
+                                message = await aproval_status_message_generator.generate_approval_status_message(message_text)
+                                
+                                # Send message and update bp_analysis_email_message_sent flag
+                                await evolution.send_message(ctx=self.context, phone=user.user_data['whatsapp_id'], message=message)
+                                
+                                update_user_data(user_id=user.id, data_updates={
+                                    "bp_analysis_email_message_sent": True
+                                })
+                                logger.info(f"Updated user_data with bp_analysis_email_message_sent flag for user ID: {user.id}")
+                            else:
+                                logger.info(f"User {user_id} has already received BP analysis email. Skipping message.")
+                            
+                            # Mark the thread as processed
+                            thread['processed'] = True
+                            
+                    except Exception as e:
+                        logger.error(f"Error processing client or contact: {str(e)}")
+                        thread['processed'] = False
+                        continue
                     
             # For each processed thread mark the email as read
             for thread in self.context['unread_threads']:
-                if thread['processed']:
+                if thread.get('processed', True):
                     # Extract message IDs from the thread's messages
                     message_ids = [message.get('email_id') for message in thread.get('messages', []) if message.get('email_id')]
                     # Mark all messages in the thread as read
@@ -363,30 +622,34 @@ class StanEmailAgent(AutomagikAgent):
             message_summary = f"Processados {processed_count} de {total_count} threads de email."
             
             # Add details about each processed thread
-            if processed_count > 0:
+            if processed_count > 0 and current_contact and current_client:
                 message_summary += "\n\nDetalhes dos emails processados:"
                 for thread in self.context['unread_threads']:
                     if thread.get('processed', False):
                         # Extract useful information from the thread
                         subject = thread.get('messages', [{}])[0].get('subject', 'Sem assunto')
                         sender = thread.get('messages', [{}])[0].get('from', 'Remetente desconhecido')
-                        user_info = user_info
-                        user_name = black_pearl_contact.nome
-                        user_phone = black_pearl_contact.telefone
-                        status_aprovacao = black_pearl_client.status_aprovacao
+                        user_name = self._safe_get_attribute(current_contact, 'nome', 'Nome não encontrado')
+                        user_phone = self._safe_get_attribute(current_contact, 'telefone', 'Telefone não encontrado')
+                        status_aprovacao = self._safe_get_attribute(current_client, 'status_aprovacao', 'Status não encontrado')
                         
                         message_summary += f"\n- Email: '{subject}' de {sender}"
                         message_summary += f"\n  Usuário: {user_name} ({user_phone})"
                         message_summary += f"\n  Status: {status_aprovacao}"
 
-
-            create_memory(
-                user_id=user_id,
-                agent_id=agent_id,
-                content=message_summary,
-                type="recent_approval_email_message"
-            )
-            
+            # Create a Memory object only if we have user_id
+            if current_user_id:
+                approval_memory = Memory(
+                    name="recent_approval_email_message",
+                    content=message_summary,
+                    user_id=current_user_id,
+                    agent_id=current_agent_id,
+                    read_mode="private",
+                    access="read_write"
+                )
+                
+                # Create the memory
+                create_memory(approval_memory)
             
             # Create response
             return AgentResponse(

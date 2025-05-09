@@ -18,6 +18,9 @@ from src.agents.models.agent_factory import AgentFactory
 from src.db import ensure_default_user_exists
 from src.db.connection import generate_uuid
 
+# Import db_init
+from src.cli.db import db_init
+
 # Configure logging
 configure_logging()
 
@@ -91,6 +94,16 @@ def create_app() -> FastAPI:
     # Set up lifespan context manager
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Initialize database if needed
+        try:
+            logger.info("🚀 Ensuring database is initialized...")
+            db_init(force=False)  # Call db_init from src.cli.db, explicitly setting force=False
+            logger.info("✅ Database initialization check complete.")
+        except Exception as e:
+            logger.error(f"❌ Failed during database initialization check: {str(e)}")
+            import traceback
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+            
         # Initialize all agents at startup
         initialize_all_agents()
         yield

@@ -44,12 +44,12 @@ async def make_conversation_summary(message_history) -> str:
         summary_agent = Agent(
             'google-gla:gemini-2.0-flash-exp',
             deps_type=Dict[str, Any],
-        result_type=str,
-        system_prompt=(
-            'You are a specialized summary agent with expertise in summarizing information.'
-            'Condense all conversation information into a few bullet points with all relevand lead information.'
-        ),
-            )
+            result_type=str,
+            system_prompt=(
+                'You are a specialized summary agent with expertise in summarizing information.'
+                'Condense all conversation information into a few bullet points with all relevand lead information.'
+            ),
+        )
         
         # Convert message history to string for summarization
         # Convert message history to a string format for summarization
@@ -321,7 +321,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
                 user_data = user_info.user_data
                 blackpearl_contact_id = user_data.get("blackpearl_contact_id")
                 if blackpearl_contact_id:
-                    cliente_data["contatos"] = [blackpearl_contact_id]
+                    cliente_data["contatos_ids"] = [blackpearl_contact_id]
         
         # Criar objeto Cliente corretamente
         cliente = Cliente(**cliente_data)
@@ -384,7 +384,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         numero_funcionarios: Optional[int] = None,
         tipo_operacao: Optional[str] = None,
         status_aprovacao: Optional[str] = None,
-        contatos: Optional[list] = None,
+        contatos_ids: Optional[list] = None,
         observacao: Optional[str] = None
     ) -> Dict[str, Any]:
         """Update a client in BlackPearl.
@@ -407,7 +407,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             numero_funcionarios: Number of employees (optional)
             tipo_operacao: Operation type (optional)
             status_aprovacao: Approval status (NOT_REGISTERED, REJECTED, APPROVED, VERIFYING) (optional)
-            contatos: List of contact IDs associated with this client (optional)
+            contatos_ids: List of contact IDs associated with this client (optional)
             observacao: Additional notes (optional)
         """
         try:
@@ -454,19 +454,19 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             if status_aprovacao:
                 # Simplesmente passa a string diretamente
                 cliente_data["status_aprovacao"] = status_aprovacao
-            if contatos:
-                cliente_data["contatos"] = contatos
+            if contatos_ids:
+                cliente_data["contatos_ids"] = contatos_ids
             if observacao:
                 cliente_data["observacao"] = observacao
                 
             # Get user information and add contact if not already present
-            if user_id and not contatos:
+            if user_id and not contatos_ids:
                 user_info = get_user(user_id)
                 if user_info:
                     user_data = user_info.user_data
                     blackpearl_contact_id = user_data.get("blackpearl_contact_id")
                     if blackpearl_contact_id:
-                        cliente_data["contatos"] = [blackpearl_contact_id]
+                        cliente_data["contatos_ids"] = [blackpearl_contact_id]
             
             # Criar objeto Cliente corretamente
             cliente = Cliente(**cliente_data)
@@ -597,6 +597,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         # Create email input with HTML formatting
         email_input = SendEmailInput(
             cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
+            #cc=['cezar@namastex.ai'],
             to=recipient,
             subject=subject,
             message=message,

@@ -5,6 +5,8 @@ from src.config import settings
 
 logger = logging.getLogger(__name__)
 async def generate_approval_status_message(input_text: str) -> str:
+    logger.info("Generating approval status message")
+    
     lead_message_sender = Agent(  
         'openai:gpt-4o',
         result_type=str,
@@ -48,6 +50,8 @@ async def generate_approval_status_message(input_text: str) -> str:
         """
     )
     
+    logger.info("Calling message generator model")
     result = await lead_message_sender.run(input_text)
+    logger.info("Message generator model response received")
     
     return result.data

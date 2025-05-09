@@ -9,7 +9,7 @@ import aiohttp
 from src.tools.blackpearl.interface import validate_api_response, handle_api_error, format_api_request, filter_none_params
 from src.tools.blackpearl.schema import (
     Cliente, Contato, Vendedor, Produto, PedidoDeVenda, ItemDePedido,
-    RegraDeFrete, RegraDeNegocio
+    RegraDeFrete, RegraDeNegocio, ItemDePedidoCreate
 )
 from src.config import settings
 
@@ -878,11 +878,11 @@ class BlackpearlProvider:
 
     @handle_api_error
     @validate_api_response
-    async def create_pedido_item(self, item: ItemDePedido) -> Dict[str, Any]:
+    async def create_pedido_item(self, item: ItemDePedidoCreate) -> Dict[str, Any]:
         """Create a new order item.
         
         Args:
-            item: Order item data
+            item: Order item data conforming to ItemDePedidoCreate
             
         Returns:
             Created order item data

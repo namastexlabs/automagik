@@ -1,16 +1,19 @@
 import os
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic_settings import BaseSettings
 import urllib.parse
 from pathlib import Path
+import logging
 
 try:
     from dotenv import load_dotenv
 except ImportError:
     print("Warning: python-dotenv is not installed. Environment variables may not be loaded from .env file.")
     load_dotenv = lambda: None
+
+logger = logging.getLogger(__name__)
 
 class LogLevel(str, Enum):
     DEBUG = "DEBUG"
@@ -89,6 +92,17 @@ class Settings(BaseSettings):
 
     # Suppress warnings from dependency conflict resolution (Poetry related)
     PYTHONWARNINGS: Optional[str] = Field(None, description="Python warnings configuration")
+
+    # Fallback settings for WhatsApp
+    DEFAULT_EVOLUTION_INSTANCE: str = Field(
+        default="default",
+        description="Default Evolution API instance to use if none is provided in the context"
+    )
+    
+    DEFAULT_WHATSAPP_NUMBER: str = Field(
+        default="5511999999999@s.whatsapp.net",
+        description="Default WhatsApp number to use if none is provided in the context"
+    )
 
     model_config = ConfigDict(
         env_file=".env",
@@ -177,3 +191,39 @@ def mask_connection_string(conn_string: str) -> str:
 
 # Create a global settings instance
 settings = load_settings()
+
+def get_model_settings(model_name: str) -> Dict[str, Any]:
+    """Get model settings from environment variables.
+    
+    Args:
+        model_name: Model name
+        
+    Returns:
+        Dict with model settings
+    """
+    # Default settings
+    settings_dict = {
+        "temperature": 0.7,
+        "max_tokens": 4096
+    }
+    
+    # Override with environment variables
+    model_prefix = model_name.replace("-", "_").replace(":", "_").upper()
+    
+    # Check for temperature override
+    temp_var = f"{model_prefix}_TEMPERATURE"
+    if temp_var in os.environ:
+        try:
+            settings_dict["temperature"] = float(os.environ[temp_var])
+        except ValueError:
+            pass
+    
+    # Check for max tokens override
+    tokens_var = f"{model_prefix}_MAX_TOKENS"
+    if tokens_var in os.environ:
+        try:
+            settings_dict["max_tokens"] = int(os.environ[tokens_var])
+        except ValueError:
+            pass
+    
+    return settings_dict

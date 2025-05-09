@@ -11,10 +11,10 @@ async def fetch_blackpearl_product_details(
     product_id: int
 ) -> Optional[Dict[str, Any]]:
     """Core async logic to fetch product details from Black Pearl API."""
-    product_url = f"{BLACK_PEARL_API_URL}/produtos/{product_id}"
+    product_url = f"{BLACK_PEARL_API_URL}/produtos/{product_id}/"
     logger.info(f"Fetching product details for ID: {product_id} from {product_url}")
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             response = await client.get(product_url)
             response.raise_for_status() # Raise exception for 4xx/5xx status
             product_data = response.json()

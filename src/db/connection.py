@@ -89,7 +89,7 @@ def check_migrations(cursor) -> Tuple[bool, List[str]]:
         
         # Get list of already applied migrations
         cursor.execute("SELECT name FROM migrations")
-        applied_migrations = {row[0] for row in cursor.fetchall()}
+        applied_migrations = {row['name'] for row in cursor.fetchall()}
         
         # Check for pending migrations
         pending_migrations = []

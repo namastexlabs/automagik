@@ -83,20 +83,32 @@ class EvolutionMessagePayload(BaseModel):
         return normalized
     
     def get_user_number(self) -> Optional[str]:
-        """Extract the user phone number from the payload."""
+        """Extract the user phone number (stripping suffix and prefix) from the payload."""
         user_number = None
         
-        if not user_number and hasattr(self.data, "key") and hasattr(self.data.key, "remoteJid"):
+        # Get the full JID first
+        if hasattr(self.data, "key") and hasattr(self.data.key, "remoteJid"):
             remote_jid = self.data.key.remoteJid
             if remote_jid and "@" in remote_jid:
+                # Split to get number part
                 user_number = remote_jid.split("@")[0]
                 
-        # Remove country code if present
+        # Remove country code if present 
         if user_number and user_number.startswith("55"):
             user_number = user_number[2:]
             
         return user_number
-    
+
+    def get_user_jid(self) -> Optional[str]:
+        """Extract the full user JID (number@s.whatsapp.net) from the payload."""
+        remote_jid = None
+        
+        # Directly return the full remoteJid if available
+        if hasattr(self.data, "key") and hasattr(self.data.key, "remoteJid"):
+            remote_jid = self.data.key.remoteJid
+            
+        return remote_jid
+
     def get_user_name(self) -> Optional[str]:
         """Extract the user name from the payload."""
         # Try to get from data.pushName

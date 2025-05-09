@@ -68,8 +68,8 @@ class StanAgent(AutomagikAgent):
         
         # Configure dependencies
         self.dependencies = AutomagikAgentsDependencies(
-            model_name=get_model_name(config),
-            model_settings=parse_model_settings(config)
+            model_name="openai:o4-mini",
+            # model_settings=parse_model_settings(config)
         )
         
         # Set agent_id if available
@@ -122,10 +122,10 @@ class StanAgent(AutomagikAgent):
         # Pass imported tools directly to the constructor
         # Combine imported tools and specialized agents into one list
         all_tools = [
-            verificar_cnpj,
-            product_agent,
-            order_agent,
-            backoffice_agent,
+            self._create_verificar_cnpj_wrapper(),
+            self._create_product_agent_wrapper(),
+            # self._create_order_agent_wrapper(),
+            self._create_backoffice_agent_wrapper(),
         ]
         
         # Initialize Agent with tools
@@ -136,64 +136,169 @@ class StanAgent(AutomagikAgent):
             tools=all_tools,  # Pass combined list of tools and sub-agents
         )
         
-        # Define and register tools specific to this initialization context
-        @self._agent_instance.tool
-        async def send_blackpearl_product_image_to_user(
-            ctx: RunContext[AutomagikAgentsDependencies],
-            product_id: int,
-            caption_override: Optional[str] = None
-        ) -> str:
-            """Fetches a Black Pearl product image and sends it to the current user via Evolution API.
-
-            Args:
-                product_id: The ID of the Black Pearl product.
-                caption_override: Optional caption to use instead of the product name.
-
-            Returns:
-                A string indicating the success or failure of the operation.
-            """
-            # Extract necessary info from context
-            # Assuming these are populated in the 'run' method before calling the agent
-            user_phone_number = ctx.context.get("user_phone_number") 
-            evolution_instance_name = ctx.context.get("evolution_instance_name")
-
-            if not user_phone_number:
-                logger.error("Tool 'send_blackpearl_product_image_to_user': User phone number not found in context.")
-                return "Error: User phone number not found in context. Cannot send image."
-            if not evolution_instance_name:
-                # Fallback or fetch from config if appropriate
-                evolution_instance_name = self.config.get("EVOLUTION_INSTANCE", "default") 
-                logger.warning(f"Tool 'send_blackpearl_product_image_to_user': Evolution instance name not found in context, using '{evolution_instance_name}'.")
-
-            logger.info(f"Tool 'send_blackpearl_product_image_to_user' called for product_id={product_id}, user={user_phone_number}, instance={evolution_instance_name}")
-
-            # 1. Fetch product details from Black Pearl
-            product_data = await fetch_blackpearl_product_details(product_id)
-            if not product_data:
-                return f"Error: Could not fetch details for product ID {product_id} from Black Pearl."
-
-            # 2. Extract image URL and determine caption
-            image_url = product_data.get("imagem")
-            if not image_url:
-                return f"Error: No primary image URL found for product ID {product_id}."
-
-            caption = caption_override if caption_override else product_data.get("nome", f"Product ID {product_id}")
-
-            # 3. Send image via Evolution API
-            success, message = await send_evolution_media_logic(
-                instance_name=evolution_instance_name,
-                number=user_phone_number,
-                media_url=image_url,
-                media_type="image", # Explicitly image
-                caption=caption
-            )
-
-            if success:
-                return f"Successfully sent image for product '{caption}' (ID: {product_id}). Status: {message}"
-            else:
-                return f"Failed to send image for product ID {product_id}. Reason: {message}"
-        
         logger.info("PydanticAI agent initialization complete with tools.")
+
+    def _create_verificar_cnpj_wrapper(self):
+        """Create a wrapper for the verificar_cnpj function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the verificar_cnpj function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def verificar_cnpj_wrapper(ctx: RunContext[AutomagikAgentsDependencies], cnpj: str) -> Dict[str, Any]:
+            """Verify a CNPJ in the Blackpearl API.
+            
+            Args:
+                ctx: The run context with dependencies
+                cnpj: The CNPJ number to verify (format: xx.xxx.xxx/xxxx-xx or clean numbers)
+                
+            Returns:
+                CNPJ verification result containing validation status and company information if valid
+            """
+            # Use the captured context reference directly
+            return await verificar_cnpj(agent_context, cnpj)
+            
+        return verificar_cnpj_wrapper
+
+    def _create_product_agent_wrapper(self):
+        """Create a wrapper for the product_agent function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format,
+        ensuring proper context handling when the agent is called.
+        
+        Returns:
+            A wrapped version of the product_agent function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def product_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+            """Specialized product agent with expertise in product information and catalog management.
+            
+            Args:
+                ctx: The run context with dependencies
+                input_text: The user's text query about products
+            
+            Returns:
+                Response from the product agent
+            """
+            # We need to manually ensure evolution_payload is in the context
+            # because it appears to be lost when using set_context
+            if ctx.deps:
+                # First check if evolution_payload is in the agent_context
+                if agent_context and "evolution_payload" in agent_context:
+                    # Apply evolution_payload in multiple ways for maximum compatibility
+                    # 1. Set it directly on the deps object
+                    ctx.deps.evolution_payload = agent_context["evolution_payload"]
+                    
+                    # 2. Create a new context dict with all existing items plus evolution_payload
+                    updated_context = dict(ctx.deps.context) if hasattr(ctx.deps, 'context') and ctx.deps.context else {}
+                    updated_context["evolution_payload"] = agent_context["evolution_payload"]
+                    
+                    # 3. Set the updated context
+                    ctx.deps.set_context(updated_context)
+                    
+                    # 4. For direct access in the RunContext
+                    if hasattr(ctx, '__dict__'):
+                        ctx.__dict__['evolution_payload'] = agent_context["evolution_payload"]
+                        
+                    # 5. Set parent_context for nested tool calls
+                    if hasattr(ctx, '__dict__'):
+                        ctx.__dict__['parent_context'] = agent_context
+                # If no evolution_payload was found, log a warning
+                else:
+                    logger.warning("No evolution_payload found in agent_context to pass to product_agent")
+            
+            # Now proceed with normal execution
+            return await product_agent(ctx, input_text)
+            
+        return product_agent_wrapper
+
+    def _create_order_agent_wrapper(self):
+        """Create a wrapper for the order_agent function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format,
+        ensuring proper context handling when the agent is called.
+        
+        Returns:
+            A wrapped version of the order_agent function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def order_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+            """Specialized order agent with expertise in sales orders and order management.
+            
+            Args:
+                ctx: The run context with dependencies
+                input_text: The user's text query about orders
+            
+            Returns:
+                Response from the order agent
+            """
+            # We need to manually ensure evolution_payload is in the context
+            # because it appears to be lost when using set_context
+            if ctx.deps:
+                # First check if evolution_payload is in the agent_context
+                if agent_context and "evolution_payload" in agent_context:
+                    # Apply evolution_payload in multiple ways for maximum compatibility
+                    # 1. Set it directly on the deps object
+                    ctx.deps.evolution_payload = agent_context["evolution_payload"]
+                    
+                    # 2. Create a new context dict with all existing items plus evolution_payload
+                    updated_context = dict(ctx.deps.context) if hasattr(ctx.deps, 'context') and ctx.deps.context else {}
+                    updated_context["evolution_payload"] = agent_context["evolution_payload"]
+                    
+                    # 3. Set the updated context
+                    ctx.deps.set_context(updated_context)
+                    
+                    # 4. For direct access in the RunContext
+                    if hasattr(ctx, '__dict__'):
+                        ctx.__dict__['evolution_payload'] = agent_context["evolution_payload"]
+                        
+                    # 5. Set parent_context for nested tool calls
+                    if hasattr(ctx, '__dict__'):
+                        ctx.__dict__['parent_context'] = agent_context
+                # If no evolution_payload was found, log a warning
+                else:
+                    logger.warning("No evolution_payload found in agent_context to pass to order_agent")
+            
+            # Now proceed with normal execution and pass the updated context
+            return await order_agent(ctx, input_text)
+            
+        return order_agent_wrapper
+
+    def _create_backoffice_agent_wrapper(self):
+        """Create a wrapper for the backoffice_agent function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format,
+        ensuring proper context handling when the agent is called.
+        
+        Returns:
+            A wrapped version of the backoffice_agent function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def backoffice_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+            """Specialized backoffice agent with access to BlackPearl and Omie tools.
+            
+            Args:
+                ctx: The run context with dependencies
+                input_text: The user's text query about backoffice operations
+            
+            Returns:
+                Response from the backoffice agent
+            """
+            ctx.deps.set_context(agent_context)
+            return await backoffice_agent(ctx, input_text)
+            
+        return backoffice_agent_wrapper
 
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[dict] = None,
@@ -217,7 +322,10 @@ class StanAgent(AutomagikAgent):
             user_number = evolution_payload.get_user_number()
             user_name = evolution_payload.get_user_name()
             logger.debug(f"Extracted user info: number={user_number}, name={user_name}")
-        
+            # Store evolution_payload in both self.context and dependencies context
+            self.context["evolution_payload"] = evolution_payload
+            self.dependencies.set_context({"evolution_payload": evolution_payload})
+
         # Get or create contact in BlackPearl
         contato_blackpearl = None
         cliente_blackpearl = None

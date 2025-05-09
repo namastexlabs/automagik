@@ -102,7 +102,8 @@ class TipoOperacaoEnum(str, Enum):
 
 class Cliente(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
-    contatos: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Contact IDs")
+    contatos: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Contacts list from API response")
+    contatos_ids: Optional[List[int]] = Field(None, description="Contact IDs")
     vendedores: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Salesperson IDs")
     telefone_comercial: Optional[str] = None
     tipo_operacao: Optional[TipoOperacaoEnum] = None
@@ -190,6 +191,7 @@ class ItemDePedido(BaseModel):
 class ItemDePedidoCreate(BaseModel):
     quantidade: int = Field(..., ge=1) # Must have quantity
     valor_unitario: str = Field(..., pattern=r'^-?\d{0,10}(?:\.\d{0,2})?$')
+    desconto: Optional[str] = Field(None, pattern=r'^-?\d{0,10}(?:\.\d{0,2})?$')
     porcentagem_desconto: Optional[float] = Field(0.0, ge=0.0)
     pedido: int # Must link to an order
     produto: int # Must link to a product
@@ -201,6 +203,7 @@ class ItemDePedidoUpdate(BaseModel):
 
 class PedidoDeVenda(BaseModel):
     id: int = Field(..., description="Unique identifier")
+    cliente_detalhes: Optional[Dict[str, Any]] = Field(None, description="Detailed client information from API response")
     status_negociacao: StatusNegociacaoEnum
     status_pedido: StatusPedidoEnum
     observacoes: Optional[str]

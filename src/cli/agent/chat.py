@@ -144,7 +144,7 @@ def list_available_agents() -> None:
     console.print("\nUse the agent name to start a chat session:", style="green")
     console.print(f"  automagik-agents agent chat start --agent <agent_name>", style="bright_black")
 
-async def get_user_by_id(user_id: int) -> Dict[str, Any]:
+async def get_user_by_id(user_id: Optional[str] = None) -> Dict[str, Any]:
     """Get user data from the API by ID."""
     try:
         # Define the API endpoint
@@ -170,16 +170,16 @@ async def get_user_by_id(user_id: int) -> Dict[str, Any]:
             if settings.AM_LOG_LEVEL == "DEBUG":
                 console.print(f"Error getting user by ID {user_id}: HTTP {response.status_code}", style="red")
                 console.print(f"Using fallback user data", style="yellow")
-            # Return fallback data
-            return {"id": user_id, "email": f"user{user_id}@example.com", "name": f"User {user_id}"}
+            # Return fallback data with UUID-like user_id if needed
+            return {"id": user_id, "email": f"user@example.com", "name": f"User"}
     except Exception as e:
         if settings.AM_LOG_LEVEL == "DEBUG":
             console.print(f"Error getting user from API: {str(e)}", style="red")
             console.print(f"Using fallback user data", style="yellow")
-        # Return fallback data
-        return {"id": user_id, "email": f"user{user_id}@example.com", "name": f"User {user_id}"}
+        # Return fallback data with UUID-like user_id if needed
+        return {"id": user_id, "email": f"user@example.com", "name": f"User"}
 
-async def run_agent(agent_name: str, input_message: str, session_name: str = None, user_id: int = 1) -> dict:
+async def run_agent(agent_name: str, input_message: str, session_name: str = None, user_id: Optional[str] = None) -> dict:
     """Run the agent with the given message using the API."""
     try:
         # Check if debug mode is enabled either via settings or directly from environment variable
@@ -195,10 +195,13 @@ async def run_agent(agent_name: str, input_message: str, session_name: str = Non
         # Prepare the payload according to the API's expected format
         payload = {
             "message_content": input_message,
-            "user_id": user_id,
             "context": {"debug": debug_mode},
             "session_origin": "cli"  # Always include session_origin for consistency
         }
+        
+        # Add user_id to payload only if provided
+        if user_id is not None:
+            payload["user_id"] = user_id
         
         # Add session_name if provided
         if session_name:
@@ -375,7 +378,7 @@ def print_help() -> None:
     console.print("[cyan]/session [name][/] - Set or show the current session name")
     console.print("")
 
-async def chat_loop(agent_name: str, session_name: str = None, user_id: int = 1) -> None:
+async def chat_loop(agent_name: str, session_name: str = None, user_id: Optional[str] = None) -> None:
     """Run an interactive chat loop with the specified agent."""
     # Check if debug mode is enabled either via settings or directly from environment variable
     debug_mode = (settings.AM_LOG_LEVEL == "DEBUG") or (os.environ.get("AM_LOG_LEVEL") == "DEBUG")
@@ -383,8 +386,10 @@ async def chat_loop(agent_name: str, session_name: str = None, user_id: int = 1)
     current_session_name = session_name
     current_session_id = None
     
-    # Get user info
-    user = await get_user_by_id(user_id)
+    # Get user info if user_id is provided
+    user = None
+    if user_id is not None:
+        user = await get_user_by_id(user_id)
     
     # First check if the agent exists
     agents = get_available_agents()
@@ -579,7 +584,7 @@ async def chat_loop(agent_name: str, session_name: str = None, user_id: int = 1)
 def start(
     agent: str = typer.Option(..., "--agent", "-a", help="Agent to chat with"),
     session: Optional[str] = typer.Option(None, "--session", "-s", help="Session name to use/create"),
-    user: int = typer.Option(1, "--user", "-u", help="User ID to use"),
+    user: Optional[str] = typer.Option(None, "--user", "-u", help="User ID (UUID) to use"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug mode", is_flag=True, hidden=True)
 ):
     """

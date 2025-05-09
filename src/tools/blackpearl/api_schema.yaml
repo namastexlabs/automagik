@@ -795,6 +795,22 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/catalogo/imagens/delete/:
+    delete:
+      operationId: v1_catalogo_imagens_delete_destroy
+      description: |-
+        API para deletar todas as imagens de um produto
+
+        Exemplo de uso:
+        DELETE api/v1/catalogo/imagens/delete/?produto_id={produto_id}
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
   /api/v1/catalogo/imagensdeproduto/:
     get:
       operationId: v1_catalogo_imagensdeproduto_list
@@ -1682,13 +1698,13 @@ paths:
       responses:
         '200':
           description: No response body
-  /api/v1/dashboard/conversas/{session_name}/:
+  /api/v1/dashboard/conversas/{session_id}/:
     get:
       operationId: v1_dashboard_conversas_retrieve_2
       description: API para exibir uma conversa específica.
       parameters:
       - in: path
-        name: session_name
+        name: session_id
         schema:
           type: string
         required: true
@@ -1720,14 +1736,105 @@ paths:
     get:
       operationId: v1_dashboard_pedidos_abertos_count_retrieve
       description: |-
-        API para exibir a contagem de vendas em aberto por período
+        API para exibir a contagem de vendas em aberto por período.
 
-        Filtros disponíveis:
-        - start_date: string (default: 30 dias atras)
-        - end_date: string (default: hoje)
+        Esta view permite recuperar o número total de pedidos em aberto dentro de um período específico.
+        Requer autenticação JWT e permissões de usuário autenticado.
 
-        Exemplo de uso:
-        GET api/v1/dashboard/pedidos/abertos/count/?start_date=2024-01-01&end_date=2024-03-01
+        Query Parameters:
+            start_date (str): Data inicial no formato YYYY-MM-DD (default: 30 dias atrás)
+            end_date (str): Data final no formato YYYY-MM-DD (default: hoje)
+
+        Returns:
+            Response: Dicionário contendo:
+                - total (int): Número total de pedidos em aberto
+                - periodo (dict): Datas de início e fim do período
+
+        Raises:
+            HTTP 400: Formato de data inválido
+            HTTP 500: Erro interno do servidor
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/alterar/quantidade/{item_id}/:
+    patch:
+      operationId: v1_dashboard_pedidos_alterar_quantidade_partial_update
+      description: |-
+        API para alterar a quantidade de um produto em um pedido específico.
+
+        Esta view permite alterar a quantidade de um produto em um pedido de venda.
+        Requer autenticação JWT e permissões de usuário autenticado.
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/cancelar/{pedido_id}/:
+    get:
+      operationId: v1_dashboard_pedidos_cancelar_retrieve
+      description: |-
+        API para cancelar um pedido específico.
+
+        Esta view permite marcar um pedido de venda como cancelado.
+        Requer autenticação JWT e permissões de usuário autenticado.
+
+        Args:
+            pedido_id (int): ID do pedido a ser cancelado
+
+        Returns:
+            Response: Dicionário contendo mensagem de sucesso
+
+        Raises:
+            HTTP 404: Pedido não encontrado
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/exibir/{pedido_id}/:
+    get:
+      operationId: v1_dashboard_pedidos_exibir_retrieve
+      description: |-
+        API para exibir detalhes de um pedido específico.
+
+        Esta view permite recuperar informações detalhadas de um pedido de venda,
+        incluindo seus itens e informações relacionadas.
+        Requer autenticação JWT e permissões de usuário autenticado.
+
+        Args:
+            pedido_id (int): ID do pedido a ser recuperado
+
+        Returns:
+            Response: Dicionário contendo todos os detalhes do pedido
+
+        Raises:
+            HTTP 404: Pedido não encontrado
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
       tags:
       - v1
       security:
@@ -1739,14 +1846,23 @@ paths:
     get:
       operationId: v1_dashboard_pedidos_faturados_count_retrieve
       description: |-
-        API para exibir a contagem de vendas por período
+        API para exibir a contagem de vendas faturadas por período.
 
-        Filtros disponíveis:
-        - start_date: string (default: 30 dias atras)
-        - end_date: string (default: hoje)
+        Esta view permite recuperar o número total de pedidos faturados dentro de um período específico.
+        Requer autenticação JWT e permissões de usuário autenticado.
 
-        Exemplo de uso:
-        GET api/v1/dashboard/pedidos/faturados/count/?start_date=2024-01-01&end_date=2024-03-01
+        Query Parameters:
+            start_date (str): Data inicial no formato YYYY-MM-DD (default: 30 dias atrás)
+            end_date (str): Data final no formato YYYY-MM-DD (default: hoje)
+
+        Returns:
+            Response: Dicionário contendo:
+                - total (int): Número total de pedidos faturados
+                - periodo (dict): Datas de início e fim do período
+
+        Raises:
+            HTTP 400: Formato de data inválido
+            HTTP 500: Erro interno do servidor
       tags:
       - v1
       security:
@@ -1758,11 +1874,46 @@ paths:
     get:
       operationId: v1_dashboard_pedidos_listar_retrieve
       description: |-
-        API para listar os pedidos
+        API para listar pedidos com paginação.
+
+        Esta view permite recuperar uma lista paginada de pedidos, com opção de filtro por status.
+        Requer autenticação JWT e permissões de usuário autenticado.
 
         Query Parameters:
-        - status_negociacao: string (opcional) - Filtra pedidos por status de negociação
-        - page: integer (opcional) - Número da página
+            status_negociacao (str): Filtra pedidos por status de negociação (opcional)
+            page (int): Número da página (opcional)
+            page_size (int): Tamanho da página (opcional, max: 100)
+
+        Returns:
+            Response: Dicionário contendo:
+                - count (int): Total de pedidos
+                - total_pages (int): Total de páginas
+                - current_page (int): Página atual
+                - results (list): Lista de pedidos
+
+        Raises:
+            HTTP 500: Erro interno do servidor
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/pedidos/remover/item/{item_id}/:
+    get:
+      operationId: v1_dashboard_pedidos_remover_item_retrieve
+      description: |-
+        API para remover um produto de um pedido específico.
+
+        Esta view permite remover um produto de um pedido de venda.
+        Requer autenticação JWT e permissões de usuário autenticado.
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: integer
+        required: true
       tags:
       - v1
       security:
@@ -1787,7 +1938,21 @@ paths:
       operationId: v1_pedidos_aprovar_retrieve
       description: |-
         Realiza o cadastro do pedido na API Omie.
-        Retorna os dados e o codigo_pedido_omie
+
+        Args:
+            request: Requisição HTTP
+            pedido_id (int): ID do pedido a ser enviado
+
+        Returns:
+            Response: Resposta HTTP contendo:
+                - Em caso de sucesso: código do pedido Omie e detalhes
+                - Em caso de erro: mensagem de erro apropriada
+
+        Raises:
+            HTTP 404: Pedido não encontrado
+            HTTP 400: Dados inválidos ou incompletos
+            HTTP 502: Erro de conexão com API Omie
+            HTTP 504: Timeout na API Omie
       parameters:
       - in: path
         name: pedido_id
@@ -2005,6 +2170,14 @@ paths:
     get:
       operationId: v1_pedidos_vendas_list
       parameters:
+      - in: query
+        name: cancelado
+        schema:
+          type: boolean
+      - in: query
+        name: cliente_id
+        schema:
+          type: integer
       - name: limit
         required: false
         in: query
@@ -2029,6 +2202,42 @@ paths:
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: status_negociacao
+        schema:
+          type: string
+          title: Status da Negociação
+          enum:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+        description: |-
+          * `0` - Negociação
+          * `1` - Análise
+          * `2` - Renegociação
+          * `3` - Reprovado
+          * `4` - Aprovado
+      - in: query
+        name: status_pedido
+        schema:
+          type: string
+          title: Status do Pedido na Omie
+          enum:
+          - '0'
+          - '10'
+          - '20'
+          - '50'
+          - '60'
+          - '70'
+        description: |-
+          * `0` - Pedido em Aberto
+          * `10` - Pedido de Venda
+          * `20` - Separar Estoque
+          * `50` - Faturar
+          * `60` - Faturado
+          * `70` - Entrega
       tags:
       - v1
       security:
@@ -2176,7 +2385,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/RegraDeFrete'
-        required: true
       security:
       - jwtAuth: []
       - {}
@@ -2374,11 +2582,23 @@ components:
           items:
             $ref: '#/components/schemas/Contato'
           readOnly: true
+        contatos_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
         vendedores:
           type: array
           items:
             $ref: '#/components/schemas/Vendedor'
           readOnly: true
+        vendedores_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
         razao_social:
           type: string
         nome_fantasia:
@@ -2891,36 +3111,28 @@ components:
         id:
           type: integer
           readOnly: true
+        produto_detalhes:
+          allOf:
+          - $ref: '#/components/schemas/Produto'
+          readOnly: true
         quantidade:
           type: integer
           maximum: 2147483647
           minimum: 0
-        valor_unitario_currency:
-          type: string
-          readOnly: true
         valor_unitario:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
           title: Valor Unitário
-        desconto_currency:
-          type: string
-          readOnly: true
         desconto:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
         porcentagem_desconto:
           type: number
           format: double
           title: Porcentagem de Desconto
-        valor_total_currency:
-          type: string
-          readOnly: true
         valor_total:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
         codigo_item_integracao:
           type: string
           nullable: true
@@ -2932,15 +3144,10 @@ components:
         produto:
           type: integer
       required:
-      - desconto
-      - desconto_currency
       - id
       - pedido
       - produto
-      - valor_total
-      - valor_total_currency
-      - valor_unitario
-      - valor_unitario_currency
+      - produto_detalhes
     Marca:
       type: object
       properties:
@@ -3297,11 +3504,23 @@ components:
           items:
             $ref: '#/components/schemas/Contato'
           readOnly: true
+        contatos_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
         vendedores:
           type: array
           items:
             $ref: '#/components/schemas/Vendedor'
           readOnly: true
+        vendedores_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
         razao_social:
           type: string
         nome_fantasia:
@@ -3575,36 +3794,28 @@ components:
         id:
           type: integer
           readOnly: true
+        produto_detalhes:
+          allOf:
+          - $ref: '#/components/schemas/Produto'
+          readOnly: true
         quantidade:
           type: integer
           maximum: 2147483647
           minimum: 0
-        valor_unitario_currency:
-          type: string
-          readOnly: true
         valor_unitario:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
           title: Valor Unitário
-        desconto_currency:
-          type: string
-          readOnly: true
         desconto:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
         porcentagem_desconto:
           type: number
           format: double
           title: Porcentagem de Desconto
-        valor_total_currency:
-          type: string
-          readOnly: true
         valor_total:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
         codigo_item_integracao:
           type: string
           nullable: true
@@ -3666,6 +3877,7 @@ components:
           type: boolean
         cliente:
           type: integer
+          nullable: true
         pagamento:
           type: integer
           nullable: true
@@ -3870,13 +4082,9 @@ components:
           type: string
           nullable: true
           maxLength: 128
-        valor_minimo_comum_currency:
-          type: string
-          readOnly: true
         valor_minimo_comum:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
           title: Valor mínimo (Comum)
         transportadora_comum:
           type: string
@@ -3887,13 +4095,9 @@ components:
           type: string
           nullable: true
           title: Observações (Frete Comum)
-        valor_minimo_autocare_currency:
-          type: string
-          readOnly: true
         valor_minimo_autocare:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
           title: Valor mínimo (AutoCare)
         transportadora_autocare:
           type: string
@@ -4003,6 +4207,7 @@ components:
           type: boolean
         cliente:
           type: integer
+          nullable: true
         pagamento:
           type: integer
           nullable: true
@@ -4017,7 +4222,6 @@ components:
             title: Vendedor(es)
           title: Vendedor(es)
       required:
-      - cliente
       - cliente_detalhes
       - data_emissao
       - id
@@ -4292,13 +4496,9 @@ components:
           type: string
           nullable: true
           maxLength: 128
-        valor_minimo_comum_currency:
-          type: string
-          readOnly: true
         valor_minimo_comum:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
           title: Valor mínimo (Comum)
         transportadora_comum:
           type: string
@@ -4309,13 +4509,9 @@ components:
           type: string
           nullable: true
           title: Observações (Frete Comum)
-        valor_minimo_autocare_currency:
-          type: string
-          readOnly: true
         valor_minimo_autocare:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          type: number
+          format: double
           title: Valor mínimo (AutoCare)
         transportadora_autocare:
           type: string
@@ -4328,10 +4524,6 @@ components:
           title: Observações (Frete AutoCare)
       required:
       - id
-      - valor_minimo_autocare
-      - valor_minimo_autocare_currency
-      - valor_minimo_comum
-      - valor_minimo_comum_currency
     RegraDeNegocio:
       type: object
       properties:
