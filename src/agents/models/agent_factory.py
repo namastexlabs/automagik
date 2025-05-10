@@ -146,7 +146,7 @@ class AgentFactory:
                         base_name = agent_name.replace("_agent", "")
                         if base_name != agent_name:
                             cls.register_agent_creator(base_name, module.create_agent)
-                        logger.info(f"Discovered and registered agent: {agent_name}")
+                        logger.debug(f"Discovered and registered agent: {agent_name}")
                 except Exception as e:
                     logger.error(f"Error importing agent from {item.name}: {str(e)}")
     

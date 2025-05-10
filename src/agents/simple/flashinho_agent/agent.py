@@ -7,11 +7,13 @@ import logging
 import traceback
 from typing import Dict, Any, Optional, Union
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
+
+from src.tools.flashed.tool import get_user_data, get_user_score, get_user_roadmap, get_user_objectives, get_last_card_round, get_user_energy
 
 # Import only necessary utilities
 from src.agents.common.message_parser import (
@@ -81,6 +83,15 @@ class FlashinhoAgent(AutomagikAgent):
         
         # Convert tools to PydanticAI format
         tools = self.tool_registry.convert_to_pydantic_tools()
+        
+        # Add external tools via wrappers
+        tools.append(self._create_get_user_data_wrapper())
+        tools.append(self._create_get_user_score_wrapper())
+        tools.append(self._create_get_user_roadmap_wrapper())
+        tools.append(self._create_get_user_objectives_wrapper())
+        tools.append(self._create_get_last_card_round_wrapper())
+        tools.append(self._create_get_user_energy_wrapper())
+
         logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
                     
         try:
@@ -97,6 +108,165 @@ class FlashinhoAgent(AutomagikAgent):
         except Exception as e:
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
+    
+    def _create_get_user_data_wrapper(self):
+        """Create a wrapper for the get_user_data function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_user_data function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_user_data_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user data from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                User data containing cadastro and metadata
+            """
+            # Use the captured context reference directly
+            return await get_user_data(agent_context)
+            
+        return get_user_data_wrapper
+
+    def _create_get_user_score_wrapper(self):
+        """Create a wrapper for the get_user_score function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_user_score function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_user_score_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user score data from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                - score: User score data
+                    - flashinhoEnergy: User's current energy
+                    - sequence: Study streak
+                    - dailyProgress: Daily progress percentage
+            """
+            # Use the captured context reference directly
+            return await get_user_score(agent_context)
+            
+        return get_user_score_wrapper
+
+    def _create_get_user_roadmap_wrapper(self):
+        """Create a wrapper for the get_user_roadmap function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_user_roadmap function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_user_roadmap_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user roadmap data from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                User roadmap data containing subjects and due date
+            """
+            # Use the captured context reference directly
+            return await get_user_roadmap(agent_context)
+            
+        return get_user_roadmap_wrapper
+
+    def _create_get_user_objectives_wrapper(self):
+        """Create a wrapper for the get_user_objectives function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_user_objectives function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_user_objectives_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user objectives from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                List of objectives ordered by completion date
+            """
+            # Use the captured context reference directly
+            return await get_user_objectives(agent_context)
+            
+        return get_user_objectives_wrapper
+
+    def _create_get_last_card_round_wrapper(self):
+        """Create a wrapper for the get_last_card_round function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_last_card_round function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_last_card_round_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get last card round data from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                Last card round data with cards and round length
+            """
+            # Use the captured context reference directly
+            return await get_last_card_round(agent_context)
+            
+        return get_last_card_round_wrapper
+
+    def _create_get_user_energy_wrapper(self):
+        """Create a wrapper for the get_user_energy function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_user_energy function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_user_energy_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user energy value from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                User energy data with current energy value
+            """
+            # Use the captured context reference directly
+            return await get_user_energy(agent_context)
+            
+        return get_user_energy_wrapper
         
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[Dict] = None,
@@ -126,6 +296,7 @@ class FlashinhoAgent(AutomagikAgent):
         
         # Prepare user input (handle multimodal content)
         user_input = input_text
+        # hehe
         if multimodal_content:
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)

@@ -228,6 +228,7 @@ class MessageModel(BaseResponseModel):
     ]]] = None
     tool_calls: Optional[List[ToolCallModel]] = None
     tool_outputs: Optional[List[ToolOutputModel]] = None
+    system_prompt: Optional[str] = None
 
     model_config = ConfigDict(
         exclude_none=True,
@@ -248,6 +249,7 @@ class SessionResponse(BaseResponseModel):
     total_messages: int
     current_page: int
     total_pages: int
+    system_prompt: Optional[str] = None
 
 class SessionInfo(BaseResponseModel):
     """Information about a session."""
@@ -260,6 +262,7 @@ class SessionInfo(BaseResponseModel):
     message_count: Optional[int] = None
     agent_name: Optional[str] = None
     session_origin: Optional[str] = None  # Origin of the session (e.g., "web", "api", "discord")
+    system_prompt: Optional[str] = None
 
 class SessionListResponse(BaseResponseModel):
     """Response model for listing all sessions."""
@@ -272,10 +275,9 @@ class SessionListResponse(BaseResponseModel):
     
     # Make sure both total and total_count have the same value for backward compatibility
     def __init__(self, **data):
+        if 'total' in data and 'total_count' not in data:
+            data['total_count'] = data['total']
         super().__init__(**data)
-        # Set total_count to total if only total is provided
-        if self.total_count is None and hasattr(self, 'total'):
-            self.total_count = self.total
 
 # UserCreate moved to before AgentRunRequest
 
@@ -302,4 +304,10 @@ class UserListResponse(BaseResponseModel):
     page_size: int = 50
     total_pages: int = 1
     has_next: Optional[bool] = None
-    has_prev: Optional[bool] = None 
+    has_prev: Optional[bool] = None
+
+class DeleteMessageResponse(BaseResponseModel):
+    """Response model for message deletion."""
+    status: str = "success"
+    message_id: uuid.UUID
+    detail: str = "Message deleted successfully" 

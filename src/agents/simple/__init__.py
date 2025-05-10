@@ -28,7 +28,6 @@ def discover_agents():
                 if hasattr(module, "create_agent") and callable(module.create_agent):
                     agent_name = item.name
                     agents[agent_name] = module.create_agent
-                    logger.info(f"Discovered agent: {agent_name}")
             except Exception as e:
                 logger.error(f"Error importing agent from {item.name}: {str(e)}")
     

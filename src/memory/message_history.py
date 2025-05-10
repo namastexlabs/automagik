@@ -809,23 +809,28 @@ class MessageHistory:
             
             # Convert database messages to dictionaries
             result = []
-            for msg in messages:
-                # Messages from list_session_messages are already dictionaries
-                message_dict = {
-                    "id": str(msg.get("id", "")),
-                    "role": msg.get("role", ""),
-                    "content": msg.get("text_content", ""),
-                    "created_at": msg.get("created_at", "").isoformat() if msg.get("created_at") else None
+            for msg_from_db in messages: # msg_from_db is a dict from list_session_messages
+                api_message = {
+                    "id": str(msg_from_db.get("id", "")),
+                    "role": msg_from_db.get("role", ""),
+                    "content": msg_from_db.get("text_content", ""), # Map db 'text_content' to api 'content'
+                    "created_at": msg_from_db.get("created_at", "").isoformat() if msg_from_db.get("created_at") else None,
                 }
+
+                # Add optional fields if they exist in the DB message
+                if "tool_calls" in msg_from_db and msg_from_db["tool_calls"]:
+                    api_message["tool_calls"] = msg_from_db["tool_calls"]
                 
-                # Add tool calls and outputs if present
-                if msg.get("tool_calls"):
-                    message_dict["tool_calls"] = msg["tool_calls"]
+                if "tool_outputs" in msg_from_db and msg_from_db["tool_outputs"]:
+                    api_message["tool_outputs"] = msg_from_db["tool_outputs"]
+
+                # Special handling for system_prompt for assistant messages
+                # Use the system_prompt stored with the message itself
+                if msg_from_db.get("role") == "assistant":
+                    if "system_prompt" in msg_from_db and msg_from_db["system_prompt"]:
+                        api_message["system_prompt"] = msg_from_db["system_prompt"]
                 
-                if msg.get("tool_outputs"):
-                    message_dict["tool_outputs"] = msg["tool_outputs"]
-                    
-                result.append(message_dict)
+                result.append(api_message)
             
             return result, total_count
         except Exception as e:
