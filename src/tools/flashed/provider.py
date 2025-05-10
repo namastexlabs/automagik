@@ -9,12 +9,9 @@ import aiohttp
 # from src.tools.blackpearl.interface import validate_api_response, handle_api_error, format_api_request, filter_none_params
 from src.tools.flashed.interface import format_api_request, filter_none_params
 from src.config import settings
-from .config import FLASHED_API_KEY
 
 logger = logging.getLogger(__name__)
 
-# Hardcoded for now
-FLASHED_URL = "https://api.flashed.tech/admin/"
 
 class FlashedProvider():
     """Client for interacting with the Flashed API."""
@@ -24,13 +21,13 @@ class FlashedProvider():
         
         Args:
         """
-        self.base_url = (FLASHED_URL).rstrip('/')
+        self.base_url = (settings.FLASHED_API_URL).rstrip('/')
         if not self.base_url:
             raise ValueError("API URL is not set. Provide a base URL or set FLASHED_URL environment variable.")
             
         self.session: Optional[aiohttp.ClientSession] = None
 
-        self.auth_token = FLASHED_API_KEY
+        self.auth_token = settings.FLASHED_API_KEY
         if not self.auth_token:
             raise ValueError("Auth token not set. Provide a token or set the FLASHED_API_KEY environment variable.")
 
