@@ -296,6 +296,7 @@ class FlashinhoAgent(AutomagikAgent):
         
         # Prepare user input (handle multimodal content)
         user_input = input_text
+        # hehe
         if multimodal_content:
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)
