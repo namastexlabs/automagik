@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     BLACKPEARL_API_URL: Optional[str] = Field(None, description="BlackPearl API URL")
     BLACKPEARL_DB_URI: Optional[str] = Field(None, description="BlackPearl database URI")
 
+    FLASHED_API_KEY: Optional[str] = Field(None, description="Flashed API key")
+    FLASHED_API_URL: Optional[str] = Field(None, description="Flashed API URL")
+
     # Discord
     DISCORD_BOT_TOKEN: str = Field(..., description="Discord bot token for authentication")
 
