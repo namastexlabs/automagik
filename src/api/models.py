@@ -310,4 +310,38 @@ class DeleteMessageResponse(BaseResponseModel):
     """Response model for message deletion."""
     status: str = "success"
     message_id: uuid.UUID
-    detail: str = "Message deleted successfully" 
+    detail: str = "Message deleted successfully"
+
+# Prompt API models
+class PromptResponse(BaseResponseModel):
+    """Response model for a single prompt."""
+    id: int
+    agent_id: int
+    prompt_text: str
+    version: int
+    is_active: bool
+    is_default_from_code: bool
+    status_key: str
+    name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class PromptListResponse(BaseResponseModel):
+    """Response model for listing prompts."""
+    prompts: List[PromptResponse]
+    total: int
+    agent_id: int
+
+class PromptCreateRequest(BaseResponseModel):
+    """Request model for creating a new prompt."""
+    prompt_text: str
+    status_key: str = "default"
+    name: Optional[str] = None
+    is_active: bool = False
+    version: int = 1
+
+class PromptUpdateRequest(BaseResponseModel):
+    """Request model for updating an existing prompt."""
+    prompt_text: Optional[str] = None
+    name: Optional[str] = None
+    is_active: Optional[bool] = None 
