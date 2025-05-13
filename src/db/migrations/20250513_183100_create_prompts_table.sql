@@ -1,5 +1,5 @@
 -- Create a new table to store agent prompt versions
-CREATE TABLE prompts (
+CREATE TABLE IF NOT EXISTS prompts (
     id SERIAL PRIMARY KEY,
     agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
     prompt_text TEXT NOT NULL,
@@ -14,10 +14,10 @@ CREATE TABLE prompts (
 );
 
 -- Add an index on agent_id and status_key for faster lookups
-CREATE INDEX idx_prompts_agent_id_status_key ON prompts(agent_id, status_key);
+CREATE INDEX IF NOT EXISTS idx_prompts_agent_id_status_key ON prompts(agent_id, status_key);
 
 -- Add an index to find active prompts quickly
-CREATE INDEX idx_prompts_active ON prompts(agent_id, status_key) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_prompts_active ON prompts(agent_id, status_key) WHERE is_active = TRUE;
 
 -- Add a comment explaining the table's purpose
 COMMENT ON TABLE prompts IS 'Stores versioned system prompts for agents, with different prompts possible per status_key'; 

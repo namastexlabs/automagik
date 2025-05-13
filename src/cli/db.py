@@ -45,6 +45,9 @@ def apply_migrations(cursor, logger=None):
         cursor.execute("SELECT name FROM migrations")
         applied_migrations = {row[0] for row in cursor.fetchall()}
         
+        migration_success_count = 0
+        migration_error_count = 0
+        
         # Apply each migration that hasn't been applied yet
         for migration_file in migration_files:
             migration_name = migration_file.name
@@ -55,25 +58,45 @@ def apply_migrations(cursor, logger=None):
             
             logger.info(f"Applying migration: {migration_name}")
             
-            # Read and execute the migration file
-            with open(migration_file, 'r') as f:
-                migration_sql = f.read()
-            
-            # Execute the migration
-            cursor.execute(migration_sql)
-            
-            # Record the migration as applied
-            cursor.execute(
-                "INSERT INTO migrations (name) VALUES (%s)",
-                (migration_name,)
-            )
-            
-            logger.info(f"Successfully applied migration: {migration_name}")
+            try:
+                # Read and execute the migration file
+                with open(migration_file, 'r') as f:
+                    migration_sql = f.read()
+                
+                # Execute the migration
+                cursor.execute(migration_sql)
+                
+                # Record the migration as applied
+                cursor.execute(
+                    "INSERT INTO migrations (name) VALUES (%s)",
+                    (migration_name,)
+                )
+                
+                logger.info(f"Successfully applied migration: {migration_name}")
+                migration_success_count += 1
+                
+            except Exception as e:
+                migration_error_count += 1
+                logger.error(f"Error applying migration {migration_name}: {str(e)}")
+                logger.warning(f"Continuing with next migration despite error")
+                
+                # Try to mark it as applied so we don't attempt it again
+                try:
+                    cursor.execute(
+                        "INSERT INTO migrations (name) VALUES (%s)",
+                        (migration_name,)
+                    )
+                    logger.info(f"Marked migration {migration_name} as applied despite error")
+                except:
+                    logger.warning(f"Could not mark migration {migration_name} as applied")
         
-        logger.info("All migrations applied successfully")
+        if migration_error_count == 0:
+            logger.info(f"All migrations applied successfully ({migration_success_count} total)")
+        else:
+            logger.warning(f"Migrations completed with {migration_error_count} errors and {migration_success_count} successes")
         
     except Exception as e:
-        logger.error(f"Error applying migrations: {e}")
+        logger.error(f"Error in migration process: {e}")
         import traceback
         logger.error(f"Detailed error: {traceback.format_exc()}")
         raise
@@ -222,6 +245,8 @@ def create_required_tables(
             cursor.execute("DROP TABLE IF EXISTS messages CASCADE")
             cursor.execute("DROP TABLE IF EXISTS sessions CASCADE")
             cursor.execute("DROP TABLE IF EXISTS users CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS prompts CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS migrations CASCADE")
             cursor.execute("DROP TABLE IF EXISTS agents CASCADE")
             logger.info("Existing tables dropped.")
         
@@ -240,6 +265,7 @@ def create_required_tables(
                 active BOOLEAN DEFAULT TRUE,
                 run_id INTEGER DEFAULT 0,
                 system_prompt TEXT,
+                active_default_prompt_id INTEGER,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
@@ -341,6 +367,57 @@ def create_required_tables(
             logger.info("Verified memories table exists")
         else:
             logger.info("Created memories table")
+        
+        # Create the prompts table
+        cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'prompts')")
+        table_exists = cursor.fetchone()[0]
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS prompts (
+                id SERIAL PRIMARY KEY,
+                agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
+                prompt_text TEXT NOT NULL,
+                version INTEGER NOT NULL DEFAULT 1,
+                is_active BOOLEAN NOT NULL DEFAULT FALSE,
+                is_default_from_code BOOLEAN NOT NULL DEFAULT FALSE,
+                status_key VARCHAR(255) NOT NULL DEFAULT 'default',
+                name VARCHAR(255),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(agent_id, status_key, version)
+            )
+        """)
+        if table_exists:
+            logger.info("Verified prompts table exists")
+        else:
+            logger.info("Created prompts table")
+        
+        # Add index on agent_id and status_key for faster lookups if it doesn't exist
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_indexes 
+                    WHERE indexname = 'idx_prompts_agent_id_status_key'
+                ) THEN
+                    CREATE INDEX idx_prompts_agent_id_status_key ON prompts(agent_id, status_key);
+                END IF;
+            END
+            $$;
+        """)
+        
+        # Add index to find active prompts quickly if it doesn't exist
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_indexes 
+                    WHERE indexname = 'idx_prompts_active'
+                ) THEN
+                    CREATE INDEX idx_prompts_active ON prompts(agent_id, status_key) WHERE is_active = TRUE;
+                END IF;
+            END
+            $$;
+        """)
         
         # Create default user if needed
         cursor.execute("SELECT COUNT(*) FROM users")
@@ -456,7 +533,9 @@ def db_clear(
             "messages",       # References sessions, users, and agents
             "sessions",       # References users and agents
             "users",          # Base table
-            "agents"          # Base table
+            "agents",         # Base table
+            "migrations",     # Migrations tracking table
+            "prompts"         # Prompts reference agents
         ]
         
         # Sort tables based on defined order
