@@ -18,6 +18,16 @@ from src.agents.common.dependencies_helper import (
     close_http_client
 )
 
+# Import prompt repository functions
+from src.db.repository.prompt import (
+    get_active_prompt,
+    find_code_default_prompt,
+    get_latest_version_for_status,
+    create_prompt, 
+    set_prompt_active
+)
+from src.db.models import PromptCreate
+
 logger = logging.getLogger(__name__)
 
 # Define a generic type variable for dependencies
@@ -95,12 +105,11 @@ class AutomagikAgent(ABC, Generic[T]):
     and utility methods using the common utilities.
     """
 
-    def __init__(self, config: Union[Dict[str, str], AgentConfig], system_prompt: str):
+    def __init__(self, config: Union[Dict[str, str], AgentConfig]):
         """Initialize the agent.
 
         Args:
             config: Dictionary or AgentConfig object with configuration options.
-            system_prompt: The system prompt to use for this agent.
         """
         # Convert config to AgentConfig if it's a dictionary
         if isinstance(config, dict):
@@ -108,8 +117,8 @@ class AutomagikAgent(ABC, Generic[T]):
         else:
             self.config = config
             
-        # Store the system prompt
-        self.system_prompt = system_prompt
+        # Initialize current prompt template (will be set by load_active_prompt_template)
+        self.current_prompt_template: Optional[str] = None
         
         # Get agent name from config
         self.name = self.config.get("name", self.__class__.__name__.lower())
@@ -119,7 +128,7 @@ class AutomagikAgent(ABC, Generic[T]):
         
         # Initialize core components
         self.tool_registry = ToolRegistry()
-        self.template_vars = PromptBuilder.extract_template_variables(system_prompt)
+        self.template_vars = []  # Will be populated when a prompt is loaded
         
         # Initialize context
         self.context = {"agent_id": self.db_id}
@@ -141,7 +150,7 @@ class AutomagikAgent(ABC, Generic[T]):
                     logger.info(f"Using existing agent ID {self.db_id} for {self.name}")
                 else:
                     # Extract agent metadata
-                    agent_type = self.name.replace("_agent", "")
+                    agent_type = self.name.replace('_agent', '')
                     description = getattr(self, "description", f"{self.name} agent")
                     model = getattr(self.config, "model", "openai:gpt-3.5-turbo")
                     
@@ -171,6 +180,182 @@ class AutomagikAgent(ABC, Generic[T]):
                 logger.error(traceback.format_exc())
         
         logger.info(f"Initialized {self.__class__.__name__} with ID: {self.db_id}")
+    
+    async def initialize_prompts(self) -> bool:
+        """Initialize agent prompts during server startup.
+        
+        This method registers code-defined prompts for the agent during server startup.
+        Agent implementations should set self._code_prompt_text and self._prompt_registered
+        in their __init__ method.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        # Check if the agent has the required attributes
+        has_prompt_text = hasattr(self, '_code_prompt_text') and self._code_prompt_text is not None
+        has_registration_flag = hasattr(self, '_prompt_registered')
+        
+        if not has_prompt_text:
+            logger.info(f"No _code_prompt_text found for {self.__class__.__name__}, skipping prompt registration")
+            return True
+            
+        if not has_registration_flag:
+            # Initialize the registration flag if it doesn't exist
+            self._prompt_registered = False
+            
+        # Use the shared method for prompt registration
+        return await self._check_and_register_prompt()
+    
+    async def _check_and_register_prompt(self) -> bool:
+        """Check if prompt needs registration and register it if needed.
+        
+        This is a helper method used by both initialize_prompts and run methods.
+        
+        Returns:
+            True if the prompt is registered (or already was), False on failure
+        """
+        if not self._prompt_registered and self.db_id:
+            try:
+                agent_name = self.__class__.__name__
+                prompt_id = await self._register_code_defined_prompt(
+                    self._code_prompt_text,
+                    status_key="default",
+                    prompt_name=f"Default {agent_name} Prompt", 
+                    is_primary_default=True
+                )
+                if prompt_id:
+                    self._prompt_registered = True
+                    # Load the prompt template to extract template variables
+                    await self.load_active_prompt_template(status_key="default")
+                    logger.info(f"Successfully registered and loaded {agent_name} prompt with ID {prompt_id}")
+                    return True
+                else:
+                    logger.warning(f"Failed to register {agent_name} prompt during initialization")
+                    return False
+            except Exception as e:
+                logger.error(f"Error initializing {self.__class__.__name__} prompts: {str(e)}")
+                return False
+        elif not self.db_id:
+            logger.warning(f"Cannot register {self.__class__.__name__} prompt: Agent ID is not set")
+            return False
+        else:  # Already registered
+            logger.debug(f"{self.__class__.__name__} prompt already registered")
+            return True
+    
+    async def _register_code_defined_prompt(self, 
+                                         code_prompt_text: str, 
+                                         status_key: str = "default", 
+                                         prompt_name: Optional[str] = None, 
+                                         is_primary_default: bool = False) -> Optional[int]:
+        """Register a prompt defined in code for this agent.
+        
+        This will check if a prompt with is_default_from_code=True for this agent_id and status_key exists.
+        If not, it will create one. If is_primary_default is True, it will set this prompt as active and
+        update the agent's active_default_prompt_id.
+        
+        Args:
+            code_prompt_text: The prompt text from code
+            status_key: The status key for this prompt (default: "default")
+            prompt_name: Optional name for the prompt (defaults to f"{self.name} {status_key} Prompt")
+            is_primary_default: Whether to set this as the primary default prompt for the agent
+            
+        Returns:
+            The prompt ID if successful, None otherwise
+        """
+        if not self.db_id:
+            logger.warning("Cannot register prompt: Agent ID is not set")
+            return None
+            
+        try:
+            # Check if a prompt with is_default_from_code=True for this agent_id and status_key exists
+            existing_prompt = find_code_default_prompt(self.db_id, status_key)
+            
+            if existing_prompt:
+                logger.info(f"Found existing code-defined prompt for agent {self.db_id}, status {status_key}")
+                
+                # If is_primary_default is True and the prompt is not already active, set it as active
+                if is_primary_default and not existing_prompt.is_active:
+                    set_prompt_active(existing_prompt.id, True)
+                    logger.info(f"Set existing prompt {existing_prompt.id} as active")
+                    
+                return existing_prompt.id
+                
+            # No existing prompt found, create a new one
+            if not prompt_name:
+                prompt_name = f"{self.name} {status_key} Prompt"
+                
+            # Create PromptCreate object
+            prompt_data = PromptCreate(
+                agent_id=self.db_id,
+                prompt_text=code_prompt_text,
+                version=1,  # First version
+                is_active=is_primary_default,  # Set active if is_primary_default
+                is_default_from_code=True,
+                status_key=status_key,
+                name=prompt_name
+            )
+            
+            # Create the prompt
+            prompt_id = create_prompt(prompt_data)
+            
+            if prompt_id:
+                logger.info(f"Registered new code-defined prompt for agent {self.db_id}, status {status_key} with ID {prompt_id}")
+                
+                # No need to call set_prompt_active here as create_prompt handles it when is_active=True
+                
+                return prompt_id
+            else:
+                logger.error(f"Failed to create code-defined prompt for agent {self.db_id}, status {status_key}")
+                return None
+                
+        except Exception as e:
+            import traceback
+            logger.error(f"Error registering code-defined prompt: {str(e)}")
+            logger.error(traceback.format_exc())
+            return None
+    
+    async def load_active_prompt_template(self, status_key: str = "default") -> bool:
+        """Load the active prompt template for the given status key.
+        
+        This will set self.current_prompt_template and update self.template_vars.
+        
+        Args:
+            status_key: The status key to load the prompt for (default: "default")
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.db_id:
+            logger.warning("Cannot load prompt template: Agent ID is not set")
+            return False
+            
+        try:
+            # Get the active prompt for this agent and status key
+            active_prompt = get_active_prompt(self.db_id, status_key)
+            
+            if not active_prompt:
+                # Try the default status key if this is not already the default
+                if status_key != "default":
+                    logger.warning(f"No active prompt found for agent {self.db_id}, status {status_key}. Trying default status.")
+                    active_prompt = get_active_prompt(self.db_id, "default")
+                    
+                # If still no active prompt, return failure
+                if not active_prompt:
+                    logger.error(f"No active prompt found for agent {self.db_id}, status {status_key} or default")
+                    return False
+            
+            # Set the current prompt template
+            self.current_prompt_template = active_prompt.prompt_text
+            
+            # Update template variables
+            self.template_vars = PromptBuilder.extract_template_variables(self.current_prompt_template)
+            
+            logger.info(f"Loaded active prompt for agent {self.db_id}, status {status_key} (prompt ID: {active_prompt.id})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error loading active prompt template: {str(e)}")
+            return False
     
     def register_tool(self, tool_func):
         """Register a tool with the agent.
@@ -282,7 +467,13 @@ class AutomagikAgent(ABC, Generic[T]):
         if self.context and 'system_prompt' in self.context:
             # Use the overridden system prompt
             logger.info("Using system prompt override from context")
-            return self.context['system_prompt']
+            prompt_template = self.context['system_prompt']
+        elif self.current_prompt_template:
+            # Use the loaded prompt template
+            prompt_template = self.current_prompt_template
+        else:
+            logger.error("No prompt template available. Load a prompt template first.")
+            return "ERROR: No prompt template available."
         
         # Check and ensure memory variables exist
         MemoryHandler.check_and_ensure_memory_variables(
@@ -299,7 +490,7 @@ class AutomagikAgent(ABC, Generic[T]):
         
         # Fill system prompt with variables
         filled_prompt = await PromptBuilder.get_filled_system_prompt(
-            prompt_template=self.system_prompt,
+            prompt_template=prompt_template,
             memory_vars=memory_vars,
             run_id=run_id,
             agent_id=self.db_id,

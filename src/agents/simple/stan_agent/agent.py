@@ -5,6 +5,8 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
+import glob
+import os
 from typing import Dict, Optional, Any
 
 from pydantic_ai import Agent, RunContext
@@ -54,14 +56,11 @@ class StanAgent(AutomagikAgent):
         Args:
             config: Dictionary with configuration options
         """
-        # Import the default prompt (not_registered)
-        from src.agents.simple.stan_agent.prompts.not_registered import PROMPT as DEFAULT_PROMPT
+        # First initialize the base agent without a system prompt
+        super().__init__(config)
         
-        # Initialize the base agent with the default prompt
-        super().__init__(config, DEFAULT_PROMPT)
-        
-        # Explicitly set the system prompt for this agent instance
-        self._system_prompt = DEFAULT_PROMPT
+        # Flag to track if we've registered the prompts yet
+        self._prompts_registered = False
         
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
@@ -86,30 +85,104 @@ class StanAgent(AutomagikAgent):
         
         logger.info("StanAgentAgent initialized successfully")
 
-    def _use_prompt_based_on_contact_status(self, status: StatusAprovacaoEnum, contact_id: str) -> None:
-        """Updates the system_prompt based on the contact's approval status."""
-        # Import prompts dynamically within the cases to avoid loading all at once
-        match status:
-            case StatusAprovacaoEnum.NOT_REGISTERED:
-                logger.info(f" Contact {contact_id} is not registered yet")
-                from src.agents.simple.stan_agent.prompts.not_registered import PROMPT as STATUS_PROMPT
-            case StatusAprovacaoEnum.PENDING_REVIEW:
-                logger.info(f" Contact {contact_id} is pending approval")
-                from src.agents.simple.stan_agent.prompts.pending_review import PROMPT as STATUS_PROMPT
-            case StatusAprovacaoEnum.VERIFYING:
-                logger.info(f" Contact {contact_id} is being verified")
-                from src.agents.simple.stan_agent.prompts.verifying import PROMPT as STATUS_PROMPT
-            case StatusAprovacaoEnum.APPROVED:
-                logger.info(f" Contact {contact_id} is approved")
-                from src.agents.simple.stan_agent.prompts.approved import PROMPT as STATUS_PROMPT
-            case StatusAprovacaoEnum.REJECTED:
-                logger.info(f" Contact {contact_id} was rejected")
-                from src.agents.simple.stan_agent.prompts.rejected import PROMPT as STATUS_PROMPT
-            case _:
-                logger.warning(f" Contact {contact_id} has unknown status: {status}. Using UNKNOWN prompt.")
-                from src.agents.simple.stan_agent.prompts.not_registered import PROMPT as STATUS_PROMPT
+    async def initialize_prompts(self) -> bool:
+        """Initialize agent prompts during server startup.
         
-        self.system_prompt = STATUS_PROMPT
+        This method registers code-defined prompts for the agent during server startup.
+        For StanAgent, we have a custom implementation that loads multiple prompts
+        from files.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Use our custom method to register all prompts
+            await self._register_all_prompts()
+            return True
+        except Exception as e:
+            logger.error(f"Error in StanAgent.initialize_prompts: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False
+            
+    async def _register_all_prompts(self) -> None:
+        """Register all prompts from the prompts directory.
+        
+        This will load all the prompt files in the prompts directory and register them with
+        the appropriate status keys based on the filename.
+        """
+        if self._prompts_registered:
+            return
+            
+        # Find all prompt files in the prompts directory
+        prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
+        prompt_files = glob.glob(os.path.join(prompts_dir, "*.py"))
+        
+        for prompt_file in prompt_files:
+            filename = os.path.basename(prompt_file)
+            status_key = os.path.splitext(filename)[0].upper()  # Use filename without extension as status key, uppercase
+            
+            # Skip __init__.py or any other non-prompt files
+            if status_key.startswith("__") or status_key == "PROMPT":
+                continue
+                
+            # Dynamically import the prompt
+            module_name = f"src.agents.simple.stan_agent.prompts.{status_key.lower()}"
+            try:
+                module = __import__(module_name, fromlist=["PROMPT"])
+                prompt_text = getattr(module, "PROMPT")
+                
+                # Register this prompt with the appropriate status key
+                # If this is the NOT_REGISTERED status, set it as the primary default
+                is_primary_default = (status_key == "NOT_REGISTERED")
+                
+                # Store the prompt text in _code_prompt_text temporarily
+                self._code_prompt_text = prompt_text
+                status_key_copy = status_key  # Make a copy for the closure
+                
+                # Register with the shared method
+                prompt_id = await self._register_code_defined_prompt(
+                    prompt_text,
+                    status_key=status_key,
+                    prompt_name=f"StanAgent {status_key} Prompt",
+                    is_primary_default=is_primary_default
+                )
+                
+                logger.info(f"Registered prompt for status key: {status_key}")
+                
+            except (ImportError, AttributeError) as e:
+                logger.error(f"Failed to import prompt from {module_name}: {str(e)}")
+                
+        self._prompts_registered = True
+        logger.info("All prompts registered successfully")
+
+    async def _use_prompt_based_on_contact_status(self, status: StatusAprovacaoEnum, contact_id: str) -> bool:
+        """Updates the current prompt template based on the contact's approval status.
+        
+        Args:
+            status: The approval status
+            contact_id: The contact ID
+            
+        Returns:
+            True if the prompt was loaded successfully, False otherwise
+        """
+        logger.info(f"Loading prompt for contact {contact_id} with status {status}")
+        
+        # Convert the status enum to a string to use as the status_key
+        status_key = str(status)
+        
+        # Load the appropriate prompt template
+        result = await self.load_active_prompt_template(status_key=status_key)
+        
+        if not result:
+            # If no prompt for this status, try the default (NOT_REGISTERED)
+            logger.warning(f"No prompt found for status {status_key}, falling back to NOT_REGISTERED")
+            result = await self.load_active_prompt_template(status_key="NOT_REGISTERED")
+            
+            if not result:
+                logger.error(f"Failed to load any prompt for contact {contact_id}")
+                return False
+                
+        return True
 
     async def _initialize_pydantic_agent(self) -> None:
         """Initialize the underlying PydanticAI agent."""
@@ -128,7 +201,7 @@ class StanAgent(AutomagikAgent):
             self._create_backoffice_agent_wrapper(),
         ]
         
-        # Initialize Agent with tools
+        # Initialize Agent with tools (no system_prompt - will be in message history)
         self._agent_instance = Agent(
             self.dependencies.model_name,
             deps_type=AutomagikAgentsDependencies,
@@ -306,6 +379,11 @@ class StanAgent(AutomagikAgent):
         
         user_id = self.context.get("user_id")
         logger.info(f"Context User ID: {user_id}")
+        
+        # Register prompts if not already done
+        if not self._prompts_registered and self.db_id:
+            await self._register_all_prompts()
+            
         # Convert channel_payload to EvolutionMessagePayload if provided
         evolution_payload = None
         if channel_payload:
@@ -361,7 +439,8 @@ class StanAgent(AutomagikAgent):
                         "blackpearl_contact_id": contato_blackpearl.get("id"),
                         "blackpearl_cliente_id": self.context["blackpearl_cliente_id"]
                     })
-            update_user_data(user_id, {"blackpearl_contact_id": contato_blackpearl.get("id"), "blackpearl_cliente_id": self.context["blackpearl_cliente_id"]})
+            
+            update_user_data(user_id, {"blackpearl_contact_id": contato_blackpearl.get("id"), "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id")})
             
             logger.info(f" BlackPearl Contact ID: {contato_blackpearl.get('id')} and Name: {user_name}")
 
@@ -369,7 +448,10 @@ class StanAgent(AutomagikAgent):
         # Handle different contact registration statuses
         if contato_blackpearl:
             status_aprovacao_str = contato_blackpearl.get("status_aprovacao", "NOT_REGISTERED")
-            self._use_prompt_based_on_contact_status(status_aprovacao_str, contato_blackpearl.get('id'))
+            await self._use_prompt_based_on_contact_status(status_aprovacao_str, contato_blackpearl.get('id'))
+        else:
+            # Use default prompt
+            await self.load_active_prompt_template(status_key="NOT_REGISTERED")
 
         # Ensure memory variables are initialized
         if self.db_id:

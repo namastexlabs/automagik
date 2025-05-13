@@ -52,7 +52,13 @@ class StanEmailAgent(AutomagikAgent):
         from src.agents.simple.stan_email_agent.prompts.prompt import AGENT_PROMPT
         
         # Initialize the base agent
-        super().__init__(config, AGENT_PROMPT)
+        super().__init__(config)
+        
+        # Register the code-defined prompt for this agent
+        # This call is asynchronous but we're in a synchronous __init__,
+        # so we'll register the prompt later during the first run
+        self._prompt_registered = False
+        self._code_prompt_text = AGENT_PROMPT
         
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
@@ -114,7 +120,6 @@ class StanEmailAgent(AutomagikAgent):
             # Create agent instance
             self._agent_instance = Agent(
                 model="google-gla:gemini-2.0-flash",
-                system_prompt=self.system_prompt,
                 result_type=ExtractedLeadEmailInfo,
                 deps_type=AutomagikAgentsDependencies
             )
@@ -276,6 +281,11 @@ class StanEmailAgent(AutomagikAgent):
         Returns:
             AgentResponse with the agent's response
         """
+        # Register the code-defined prompt if not already done
+        await self._check_and_register_prompt()
+        
+        # Load the active prompt template for this agent
+        await self.load_active_prompt_template(status_key="default")
         
         # Create fetch emails input
         fetch_input = FetchEmailsInput(

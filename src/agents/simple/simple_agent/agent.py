@@ -42,10 +42,17 @@ class SimpleAgent(AutomagikAgent):
         Args:
             config: Dictionary with configuration options
         """
+        # First initialize the base agent without a system prompt
+        super().__init__(config)
+        
+        # Load and register the code-defined prompt
         from src.agents.simple.simple_agent.prompts.prompt import AGENT_PROMPT
         
-        # Initialize the base agent
-        super().__init__(config, AGENT_PROMPT)
+        # Register the code-defined prompt for this agent
+        # This call is asynchronous but we're in a synchronous __init__,
+        # so we'll register the prompt later during the first run
+        self._prompt_registered = False
+        self._code_prompt_text = AGENT_PROMPT
         
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
@@ -84,10 +91,9 @@ class SimpleAgent(AutomagikAgent):
         logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
                     
         try:
-            # Create agent instance
+            # Create agent instance - system_prompt will be passed in message history
             self._agent_instance = Agent(
                 model=model_name,
-                system_prompt=self.system_prompt,
                 tools=tools,
                 model_settings=model_settings,
                 deps_type=AutomagikAgentsDependencies
@@ -112,6 +118,12 @@ class SimpleAgent(AutomagikAgent):
         Returns:
             AgentResponse object with result and metadata
         """
+        # Register the code-defined prompt if not already done
+        await self._check_and_register_prompt()
+        
+        # Load the active prompt template for this agent
+        await self.load_active_prompt_template(status_key="default")
+        
         # Ensure memory variables are initialized
         if self.db_id:
             await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))

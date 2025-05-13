@@ -54,7 +54,13 @@ class DiscordAgent(AutomagikAgent):
         from src.agents.simple.discord_agent.prompts.prompt import AGENT_PROMPT
         
         # Initialize the base agent
-        super().__init__(config, AGENT_PROMPT)
+        super().__init__(config)
+        
+        # Register the code-defined prompt for this agent
+        # This call is asynchronous but we're in a synchronous __init__,
+        # so we'll register the prompt later during the first run
+        self._prompt_registered = False
+        self._code_prompt_text = AGENT_PROMPT
         
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
@@ -108,7 +114,6 @@ class DiscordAgent(AutomagikAgent):
             # Create agent instance
             self._agent_instance = Agent(
                 model='openai:gpt-4o',
-                system_prompt=self.system_prompt,
                 tools=tools,
                 model_settings=model_settings,
                 deps_type=AutomagikAgentsDependencies
@@ -247,6 +252,12 @@ class DiscordAgent(AutomagikAgent):
                 success=False,
                 error_message="DISCORD_BOT_TOKEN is required"
             )
+
+        # Register the code-defined prompt if not already done
+        await self._check_and_register_prompt()
+        
+        # Load the active prompt template for this agent
+        await self.load_active_prompt_template(status_key="default")
         
         # Ensure memory variables are initialized
         if self.db_id:

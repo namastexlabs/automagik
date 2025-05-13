@@ -105,11 +105,11 @@ def create_agent(agent: Agent) -> Optional[int]:
             """
             INSERT INTO agents (
                 name, type, model, description, 
-                config, version, active, run_id, system_prompt,
+                config, version, active, run_id,
                 created_at, updated_at
             ) VALUES (
                 %s, %s, %s, %s, 
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
                 NOW(), NOW()
             ) RETURNING id
             """,
@@ -121,8 +121,7 @@ def create_agent(agent: Agent) -> Optional[int]:
                 config_json,
                 agent.version,
                 agent.active,
-                agent.run_id,
-                agent.system_prompt
+                agent.run_id
             )
         )
         
@@ -164,7 +163,6 @@ def update_agent(agent: Agent) -> Optional[int]:
                 version = %s,
                 active = %s,
                 run_id = %s,
-                system_prompt = %s,
                 updated_at = NOW()
             WHERE id = %s
             """,
@@ -177,7 +175,6 @@ def update_agent(agent: Agent) -> Optional[int]:
                 agent.version,
                 agent.active,
                 agent.run_id,
-                agent.system_prompt,
                 agent.id
             ),
             fetch=False
@@ -263,10 +260,10 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
             """
             INSERT INTO agents (
                 name, type, model, description, config, active, 
-                version, run_id, system_prompt, created_at, updated_at
+                version, run_id, created_at, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, true, 
-                %s, 1, NULL, NOW(), NOW()
+                %s, 1, NOW(), NOW()
             ) RETURNING id
             """,
             (

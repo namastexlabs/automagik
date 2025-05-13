@@ -24,16 +24,19 @@ class PlaceholderAgent(AutomagikAgent):
         error_msg = config.get("error", "Unknown error")
         name = config.get("name", "placeholder_agent")
         
-        system_prompt = f"You are a placeholder agent named {name}. " \
-                        f"The original agent failed to initialize with error: {error_msg}"
+        # Initialize the base agent first
+        super().__init__(config)
         
-        super().__init__(config, system_prompt)
+        # Set up prompt text to be registered later
+        self._code_prompt_text = f"You are a placeholder agent named {name}. " \
+                        f"The original agent failed to initialize with error: {error_msg}"
+        self._prompt_registered = False
         
         self.error = error_msg
         self.name = name
         logger.warning(f"Created placeholder agent '{name}' with error: {error_msg}")
         
-    async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj=None) -> AgentResponse:
+    async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj=None, channel_payload=None, message_limit=None) -> AgentResponse:
         """Run the placeholder agent.
         
         Args:
@@ -41,10 +44,17 @@ class PlaceholderAgent(AutomagikAgent):
             multimodal_content: Optional multimodal content
             system_message: Optional system message
             message_history_obj: Optional MessageHistory instance
+            channel_payload: Optional channel-specific payload
+            message_limit: Optional message limit
             
         Returns:
             AgentResponse with error message
         """
+        # Try to register and load the prompt
+        if self.db_id:
+            await self._check_and_register_prompt()
+            await self.load_active_prompt_template(status_key="default")
+        
         message = f"I'm sorry, but the agent failed to initialize with error: {self.error}"
         
         return AgentResponse(

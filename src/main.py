@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 import uuid
 import os
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +28,7 @@ configure_logging()
 # Get our module's logger
 logger = logging.getLogger(__name__)
 
-def initialize_all_agents():
+async def initialize_all_agents():
     """Initialize agents at startup.
     
     If AGENTS_NAMES environment variable is set, only initialize those specific agents.
@@ -64,17 +65,41 @@ def initialize_all_agents():
         else:
             logger.info(f"🔧 Initializing all {len(available_agents)} available agents...")
         
+        # List to collect all initialized agents
+        initialized_agents = []
+        
         # Initialize each agent
         for agent_name in agents_to_initialize:
             try:
                 logger.info(f"Initializing agent: {agent_name}")
                 # This will create and register the agent
-                AgentFactory.get_agent(agent_name)
+                agent = AgentFactory.get_agent(agent_name)
+                initialized_agents.append((agent_name, agent))
                 logger.info(f"✅ Agent {agent_name} initialized successfully")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize agent {agent_name}: {str(e)}")
         
-        logger.info(f"✅ Agent initialization completed. {len(agents_to_initialize)} agents initialized.")
+        # Now initialize prompts for all agents - this needs to be done after agents are registered
+        # Initialize prompts asynchronously
+        prompt_init_tasks = []
+        
+        for agent_name, agent in initialized_agents:
+            logger.debug(f"Registering prompts for agent: {agent_name}")
+            task = asyncio.create_task(agent.initialize_prompts())
+            prompt_init_tasks.append((agent_name, task))
+        
+        # Wait for all prompt initialization tasks to complete
+        for agent_name, task in prompt_init_tasks:
+            try:
+                success = await task
+                if success:
+                    logger.debug(f"✅ Prompts for {agent_name} initialized successfully")
+                else:
+                    logger.warning(f"⚠️ Prompts for {agent_name} could not be fully initialized")
+            except Exception as e:
+                logger.error(f"❌ Error initializing prompts for {agent_name}: {str(e)}")
+        
+        logger.info(f"✅ Agent initialization completed. {len(initialized_agents)} agents initialized.")
     except Exception as e:
         logger.error(f"❌ Failed to initialize agents: {str(e)}")
         import traceback
@@ -104,8 +129,8 @@ def create_app() -> FastAPI:
             import traceback
             logger.error(f"Detailed error: {traceback.format_exc()}")
             
-        # Initialize all agents at startup
-        initialize_all_agents()
+        # Initialize all agents at startup - now this is async so we can await it
+        await initialize_all_agents()
         yield
         # Cleanup can be done here if needed
     

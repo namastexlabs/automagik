@@ -63,3 +63,16 @@ from src.db.repository.memory import (
     update_memory,
     delete_memory
 )
+
+# Prompt repository functions
+from src.db.repository.prompt import (
+    get_prompt_by_id,
+    get_active_prompt,
+    find_code_default_prompt,
+    get_latest_version_for_status,
+    create_prompt,
+    update_prompt,
+    set_prompt_active,
+    get_prompts_by_agent_id,
+    delete_prompt
+)
