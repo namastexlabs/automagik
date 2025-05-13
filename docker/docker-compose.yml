@@ -2,16 +2,43 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: estruturar_postgres
+    container_name: automagik_postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - estruturar_postgres_data:/var/lib/postgresql/data
+      - automagik_postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  neo4j:
+    image: neo4j:5.22.0
+    container_name: automagik_neo4j
+    ports:
+      - "7474:7474"  # HTTP interface
+      - "${NEO4J_PORT:-7687}:7687"  # Bolt interface
+    volumes:
+      - neo4j_data:/data
+    environment:
+      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+    restart: always
+
+  graphiti:
+    image: zepai/graphiti:latest
+    container_name: automagik_graphiti
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USER=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
+      - GRAPHITI_ENV=${GRAPHITI_ENV:-development}
     restart: always
 
 volumes:
-  estruturar_postgres_data: 
+  automagik_postgres_data:
+  neo4j_data: 

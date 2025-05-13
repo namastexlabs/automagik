@@ -129,6 +129,31 @@ def create_app() -> FastAPI:
             import traceback
             logger.error(f"Detailed error: {traceback.format_exc()}")
             
+        # Initialize Graphiti indices and constraints if Neo4j is configured
+        if settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
+            try:
+                logger.info("🚀 Initializing Graphiti indices and constraints...")
+                # Import Graphiti here to avoid startup errors if the package is not installed
+                try:
+                    from graphiti import Graphiti
+                    graphiti_temp = Graphiti(
+                        agent_id=settings.GRAPHITI_NAMESPACE_ID,
+                        env=settings.GRAPHITI_ENV,
+                        api_key=settings.OPENAI_API_KEY,
+                        db_url=settings.NEO4J_URI,
+                        db_user=settings.NEO4J_USERNAME,
+                        db_pass=settings.NEO4J_PASSWORD,
+                    )
+                    await graphiti_temp.build_indices_and_constraints()
+                    await graphiti_temp.close()
+                    logger.info("✅ Graphiti indices and constraints initialized successfully")
+                except ImportError:
+                    logger.warning("⚠️ graphiti-core package not found, skipping Graphiti initialization")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize Graphiti indices and constraints: {str(e)}")
+                import traceback
+                logger.error(f"Detailed error: {traceback.format_exc()}")
+            
         # Initialize all agents at startup - now this is async so we can await it
         await initialize_all_agents()
         yield

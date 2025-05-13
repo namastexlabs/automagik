@@ -32,6 +32,13 @@ We built Automagik because we needed to save time while creating high-quality, p
   - Dynamic memory injection via {{variable}} templating
   - Memory creation, reading, and updating tools
 
+- **Knowledge Graph Integration**
+  - Graphiti knowledge graph framework integration
+  - Automatic storage of user interactions as episodes
+  - Built-in Neo4j connectivity for graph database operations
+  - Extensible data model for rich semantic understanding
+  - Groundwork for advanced knowledge extraction and retrieval
+
 - **Built-in Templates**
   - **Simple Agent**: Basic chat functionality with memory tools
   - **Sofia Agent**: Memory-enhanced agent with comprehensive knowledge management and dynamic prompt templating
@@ -79,6 +86,13 @@ We built Automagik because we needed to save time while creating high-quality, p
    
    # For Discord agent (optional)
    DISCORD_BOT_TOKEN=your_discord_token
+   
+   # For Graphiti knowledge graph (optional)
+   NEO4J_URI=bolt://localhost:7687
+   NEO4J_USERNAME=neo4j
+   NEO4J_PASSWORD=your_password
+   GRAPHITI_NAMESPACE_ID=automagik
+   GRAPHITI_ENV=development
    ```
    Make sure you have access to a PosgreSQL 15 database by:
    a. Setting up a local instance via docker-compose:
@@ -107,7 +121,17 @@ We built Automagik because we needed to save time while creating high-quality, p
    automagik-agents db init
    ```
 
-4. **Start the API Server**
+4. **Optional: Start the Neo4j and Graphiti services (for knowledge graph):**
+   If you want to use the knowledge graph functionality, you can start Neo4j and Graphiti using Docker:
+   ```bash
+   cd docker
+   docker-compose --env-file ../.env up -d neo4j graphiti
+   ```
+   This will start Neo4j (available at http://localhost:7474) and Graphiti (available at http://localhost:8000).
+   
+   For more details, see the [Docker Setup](docker/README.md).
+
+5. **Start the API Server**
    ```bash
    automagik-agents api start --reload # Initialize the API with hot-reloading
    ```
@@ -147,6 +171,13 @@ A powerful toolkit for quickly building and deploying AI agents using the Pydant
 - **Tool Interaction Tracking**: Record tool calls and outputs
 - **Structured Storage**: Organized message repository
 
+### Knowledge Graph Integration
+- **Graphiti Knowledge Graph Framework Integration**: Integrate Graphiti for advanced knowledge graph capabilities
+- **Automatic Storage of User Interactions as Episodes**: Store user interactions as episodes for rich semantic understanding
+- **Built-in Neo4j Connectivity for Graph Database Operations**: Use Neo4j for efficient graph database operations
+- **Extensible Data Model for Rich Semantic Understanding**: Build an extensible data model for rich semantic understanding and advanced knowledge extraction
+- **Groundwork for Advanced Knowledge Extraction and Retrieval**: Lay the groundwork for advanced knowledge extraction and retrieval
+
 ### Built-in Templates
 - **Simple Agent**: Basic chat functionality with datetime tools
 - **Notion Agent**: Full Notion integration with database management
@@ -174,6 +205,13 @@ OPENAI_MODEL=openai:gpt-4o-mini  # or your preferred model
 
 # For Notion agent (optional)
 NOTION_TOKEN=your_notion_token
+
+# For Graphiti knowledge graph (optional)
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_password
+GRAPHITI_NAMESPACE_ID=automagik
+GRAPHITI_ENV=development
 ```
 
 ### Creating Your First Agent

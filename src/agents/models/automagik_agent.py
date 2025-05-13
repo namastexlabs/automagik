@@ -6,6 +6,13 @@ import uuid
 from src.memory.message_history import MessageHistory
 from src.agents.models.dependencies import BaseDependencies
 from src.agents.models.response import AgentResponse
+from src.config import settings
+
+# Try to import Graphiti, but don't fail if not available
+try:
+    from graphiti import Graphiti
+except ImportError:
+    Graphiti = None
 
 # Import common utilities
 from src.agents.common.prompt_builder import PromptBuilder
@@ -135,6 +142,27 @@ class AutomagikAgent(ABC, Generic[T]):
         
         # Initialize dependencies (to be set by subclasses)
         self.dependencies = None
+        
+        # Initialize Graphiti client if Neo4j settings are configured
+        self.graphiti_client = None
+        if Graphiti is not None and settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
+            try:
+                # Create a namespaced agent ID with the format "namespace:agent_id"
+                agent_id = self.db_id if self.db_id else self.name
+                namespaced_agent_id = f"{settings.GRAPHITI_NAMESPACE_ID}:{agent_id}"
+                
+                self.graphiti_client = Graphiti(
+                    agent_id=str(namespaced_agent_id),
+                    env=settings.GRAPHITI_ENV,
+                    api_key=settings.OPENAI_API_KEY,  # Graphiti uses this for its LLM features
+                    db_url=settings.NEO4J_URI,
+                    db_user=settings.NEO4J_USERNAME,
+                    db_pass=settings.NEO4J_PASSWORD,
+                )
+                logger.info(f"Graphiti client initialized for agent '{self.name}' using namespaced ID '{namespaced_agent_id}' and env '{settings.GRAPHITI_ENV}'.")
+            except Exception as e:
+                logger.error(f"Failed to initialize Graphiti client for agent '{self.name}': {e}")
+                self.graphiti_client = None
         
         # Register in database if no ID provided
         if self.db_id is None:
@@ -590,6 +618,19 @@ class AutomagikAgent(ABC, Generic[T]):
                 agent_id=self.db_id
             )
             message_history.add_message(agent_db_message)
+        
+        # Add the episode to Graphiti if enabled
+        additional_metadata = {}
+        if hasattr(response, "tool_calls") and response.tool_calls:
+            additional_metadata["tool_calls"] = response.tool_calls
+        if hasattr(response, "tool_outputs") and response.tool_outputs:
+            additional_metadata["tool_outputs"] = response.tool_outputs
+            
+        await self._add_episode_to_graphiti(
+            user_input=content, 
+            agent_response=response.text, 
+            metadata=additional_metadata
+        )
                 
         return response
         
@@ -597,6 +638,57 @@ class AutomagikAgent(ABC, Generic[T]):
         """Clean up resources used by the agent."""
         if hasattr(self.dependencies, 'http_client') and self.dependencies.http_client:
             await close_http_client(self.dependencies.http_client)
+            
+        if self.graphiti_client:
+            try:
+                await self.graphiti_client.close()
+                logger.info(f"Graphiti client closed for agent '{self.name}'.")
+            except Exception as e:
+                logger.error(f"Error closing Graphiti client for agent '{self.name}': {e}")
+    
+    async def _add_episode_to_graphiti(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None) -> None:
+        """Add an episode to the Graphiti knowledge graph.
+        
+        Args:
+            user_input: The text input from the user
+            agent_response: The text response from the agent
+            metadata: Optional additional metadata for the episode
+        """
+        if not self.graphiti_client:
+            return
+
+        try:
+            # Construct episode details
+            episode_data = {
+                "user_input": user_input,
+                "llm_response": agent_response,
+                "agent_name": self.name,
+                "agent_id": str(self.db_id) if self.db_id else None,
+            }
+            
+            # Add context info if available
+            if self.context:
+                session_id = self.context.get("session_id")
+                if session_id:
+                    episode_data["session_id"] = str(session_id)
+            
+            # Add user_id if available in dependencies
+            if hasattr(self.dependencies, 'user_id') and self.dependencies.user_id:
+                episode_data["user_id"] = str(self.dependencies.user_id)
+            
+            # Add additional metadata if provided
+            if metadata:
+                episode_data.update(metadata)
+
+            # Add the episode to Graphiti
+            await self.graphiti_client.add_episode(
+                input_text=user_input,
+                output_text=agent_response,
+                metadata=episode_data
+            )
+            logger.info(f"Added episode to Graphiti for agent '{self.name}'.")
+        except Exception as e:
+            logger.error(f"Failed to add episode to Graphiti for agent '{self.name}': {e}")
             
     async def __aenter__(self):
         """Async context manager entry."""
