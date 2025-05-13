@@ -20,6 +20,30 @@ class AgentFactory:
     _initialized_agents = {}  # Store initialized agents for re-use
     
     @classmethod
+    def _normalize_agent_name(cls, name: str) -> str:
+        """Normalize agent name to ensure consistency.
+        
+        This function standardizes agent names by:
+        1. Converting to lowercase
+        2. Ensuring the name always ends with '_agent'
+        3. Removing any duplicate '_agent' suffixes
+        
+        Args:
+            name: The agent name to normalize
+            
+        Returns:
+            Normalized agent name
+        """
+        # Convert to lowercase
+        normalized = name.lower() if name else "simple_agent"
+        
+        # Remove any existing _agent suffix
+        base_name = normalized.replace('_agent', '')
+        
+        # Always add _agent suffix
+        return f"{base_name}_agent"
+    
+    @classmethod
     def register_agent_class(cls, name: str, agent_class: Type[AutomagikAgent]) -> None:
         """Register an agent class with the factory.
         
@@ -27,7 +51,8 @@ class AgentFactory:
             name: The name of the agent class
             agent_class: The agent class to register
         """
-        cls._agent_classes[name] = agent_class
+        normalized_name = cls._normalize_agent_name(name)
+        cls._agent_classes[normalized_name] = agent_class
         
     @classmethod
     def register_agent_creator(cls, name: str, creator_fn) -> None:
@@ -37,7 +62,8 @@ class AgentFactory:
             name: The name of the agent type
             creator_fn: The function to create an agent
         """
-        cls._agent_creators[name] = creator_fn
+        normalized_name = cls._normalize_agent_name(name)
+        cls._agent_creators[normalized_name] = creator_fn
     
     @classmethod
     def create_agent(cls, agent_type: str, config: Optional[Dict[str, str]] = None) -> AutomagikAgent:
@@ -63,52 +89,48 @@ class AgentFactory:
             agent_type = "simple"
         
         # Normalize agent type
-        base_agent_type = agent_type
-        if not agent_type.endswith("_agent"):
-            base_agent_type = f"{agent_type}_agent"
+        normalized_agent_type = cls._normalize_agent_name(agent_type)
         
         # Try to create using a registered creator function
-        if base_agent_type in cls._agent_creators or agent_type in cls._agent_creators:
+        if normalized_agent_type in cls._agent_creators:
             try:
-                creator_key = base_agent_type if base_agent_type in cls._agent_creators else agent_type
-                agent = cls._agent_creators[creator_key](config)
-                logger.info(f"Successfully created {agent_type} agent using creator function")
+                agent = cls._agent_creators[normalized_agent_type](config)
+                logger.info(f"Successfully created {normalized_agent_type} agent using creator function")
                 return agent
             except Exception as e:
-                logger.error(f"Error creating {agent_type} agent: {str(e)}")
+                logger.error(f"Error creating {normalized_agent_type} agent: {str(e)}")
                 logger.error(traceback.format_exc())
-                return PlaceholderAgent({"name": f"{agent_type}_error", "error": str(e)})
+                return PlaceholderAgent({"name": f"{normalized_agent_type}_error", "error": str(e)})
         
         # Try to create using a registered class
-        if base_agent_type in cls._agent_classes or agent_type in cls._agent_classes:
+        if normalized_agent_type in cls._agent_classes:
             try:
-                class_key = base_agent_type if base_agent_type in cls._agent_classes else agent_type
-                agent = cls._agent_classes[class_key](config)
-                logger.info(f"Successfully created {agent_type} agent using agent class")
+                agent = cls._agent_classes[normalized_agent_type](config)
+                logger.info(f"Successfully created {normalized_agent_type} agent using agent class")
                 return agent
             except Exception as e:
-                logger.error(f"Error creating {agent_type} agent: {str(e)}")
+                logger.error(f"Error creating {normalized_agent_type} agent: {str(e)}")
                 logger.error(traceback.format_exc())
-                return PlaceholderAgent({"name": f"{agent_type}_error", "error": str(e)})
+                return PlaceholderAgent({"name": f"{normalized_agent_type}_error", "error": str(e)})
         
         # Try dynamic import for agent types not explicitly registered
         try:
             # Try to import from simple agents folder
-            module_path = f"src.agents.simple.{base_agent_type}"
+            module_path = f"src.agents.simple.{normalized_agent_type}"
             module = importlib.import_module(module_path)
             
             if hasattr(module, "create_agent"):
                 agent = module.create_agent(config)
                 # Register for future use
-                cls.register_agent_creator(base_agent_type, module.create_agent)
-                logger.info(f"Successfully created {agent_type} agent via dynamic import")
+                cls.register_agent_creator(normalized_agent_type, module.create_agent)
+                logger.info(f"Successfully created {normalized_agent_type} agent via dynamic import")
                 return agent
         except ImportError:
-            logger.warning(f"Could not import agent module for {base_agent_type}")
+            logger.warning(f"Could not import agent module for {normalized_agent_type}")
         except Exception as e:
-            logger.error(f"Error dynamically creating agent {base_agent_type}: {str(e)}")
+            logger.error(f"Error dynamically creating agent {normalized_agent_type}: {str(e)}")
             logger.error(traceback.format_exc())
-            return PlaceholderAgent({"name": f"{agent_type}_error", "error": str(e)})
+            return PlaceholderAgent({"name": f"{normalized_agent_type}_error", "error": str(e)})
                 
         # Unknown agent type
         logger.error(f"Unknown agent type: {agent_type}")
@@ -140,13 +162,10 @@ class AgentFactory:
                     
                     # Check if the module has a create_agent function
                     if hasattr(module, "create_agent") and callable(module.create_agent):
-                        agent_name = item.name
-                        # Register both with and without _agent suffix for flexibility
-                        cls.register_agent_creator(agent_name, module.create_agent)
-                        base_name = agent_name.replace("_agent", "")
-                        if base_name != agent_name:
-                            cls.register_agent_creator(base_name, module.create_agent)
-                        logger.debug(f"Discovered and registered agent: {agent_name}")
+                        # Always normalize agent name
+                        normalized_name = cls._normalize_agent_name(item.name)
+                        cls.register_agent_creator(normalized_name, module.create_agent)
+                        logger.debug(f"Discovered and registered agent: {normalized_name}")
                 except Exception as e:
                     logger.error(f"Error importing agent from {item.name}: {str(e)}")
     
@@ -157,11 +176,15 @@ class AgentFactory:
         Returns:
             List of available agent names
         """
-        # Combine creators and classes
-        agents = list(cls._agent_creators.keys()) + list(cls._agent_classes.keys())
+        # Combine creators and classes, ensuring all are properly normalized
+        agents = []
         
-        # Ensure each agent is listed only once
-        return list(set(agents))
+        for name in list(cls._agent_creators.keys()) + list(cls._agent_classes.keys()):
+            normalized_name = cls._normalize_agent_name(name)
+            if normalized_name not in agents:
+                agents.append(normalized_name)
+        
+        return agents
         
     @classmethod
     def get_agent(cls, agent_name: str) -> AutomagikAgent:
@@ -176,27 +199,24 @@ class AgentFactory:
         Raises:
             ValueError: If the agent is not found
         """
+        # Normalize the agent name
+        normalized_name = cls._normalize_agent_name(agent_name)
+        
         # Check if we already have an initialized instance
-        if agent_name in cls._initialized_agents:
-            return cls._initialized_agents[agent_name]
-            
-        # Normalize agent name
-        base_name = agent_name
-        if not agent_name.endswith("_agent"):
-            base_name = f"{agent_name}_agent"
+        if normalized_name in cls._initialized_agents:
+            return cls._initialized_agents[normalized_name]
         
         # Create initial configuration with name
         config = {
-            "name": agent_name
+            "name": normalized_name
         }
             
         # Try to create a new agent
         # The agent will register itself in the database during initialization
-        agent = cls.create_agent(base_name, config)
+        agent = cls.create_agent(normalized_name, config)
         
         # Store for reuse
-        cls._initialized_agents[agent_name] = agent
-        cls._initialized_agents[base_name] = agent
+        cls._initialized_agents[normalized_name] = agent
             
         return agent
     
