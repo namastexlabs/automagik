@@ -19,6 +19,11 @@ from src.agents.models.agent_factory import AgentFactory
 from src.db import ensure_default_user_exists
 from src.db.connection import generate_uuid
 
+# Configure Neo4j logging to reduce verbosity
+logging.getLogger("neo4j").setLevel(logging.WARNING)
+logging.getLogger("neo4j.io").setLevel(logging.ERROR)
+logging.getLogger("neo4j.bolt").setLevel(logging.ERROR)
+
 # Import db_init
 from src.cli.db import db_init
 
@@ -79,14 +84,21 @@ async def initialize_all_agents():
             except Exception as e:
                 logger.error(f"❌ Failed to initialize agent {agent_name}: {str(e)}")
         
-        # Now initialize prompts for all agents - this needs to be done after agents are registered
-        # Initialize prompts asynchronously
+        # Now initialize prompts and Graphiti for all agents
         prompt_init_tasks = []
+        graphiti_init_tasks = []
         
         for agent_name, agent in initialized_agents:
+            # Initialize prompts
             logger.debug(f"Registering prompts for agent: {agent_name}")
-            task = asyncio.create_task(agent.initialize_prompts())
-            prompt_init_tasks.append((agent_name, task))
+            prompt_task = asyncio.create_task(agent.initialize_prompts())
+            prompt_init_tasks.append((agent_name, prompt_task))
+            
+            # Initialize Graphiti
+            if hasattr(agent, 'initialize_graphiti'):
+                logger.debug(f"Initializing Graphiti for agent: {agent_name}")
+                graphiti_task = asyncio.create_task(agent.initialize_graphiti())
+                graphiti_init_tasks.append((agent_name, graphiti_task))
         
         # Wait for all prompt initialization tasks to complete
         for agent_name, task in prompt_init_tasks:
@@ -98,6 +110,17 @@ async def initialize_all_agents():
                     logger.warning(f"⚠️ Prompts for {agent_name} could not be fully initialized")
             except Exception as e:
                 logger.error(f"❌ Error initializing prompts for {agent_name}: {str(e)}")
+        
+        # Wait for all Graphiti initialization tasks to complete
+        for agent_name, task in graphiti_init_tasks:
+            try:
+                success = await task
+                if success:
+                    logger.debug(f"✅ Graphiti for {agent_name} initialized successfully")
+                else:
+                    logger.debug(f"ℹ️ Graphiti for {agent_name} not enabled or could not be initialized")
+            except Exception as e:
+                logger.error(f"❌ Error initializing Graphiti for {agent_name}: {str(e)}")
         
         logger.info(f"✅ Agent initialization completed. {len(initialized_agents)} agents initialized.")
     except Exception as e:
@@ -133,20 +156,20 @@ def create_app() -> FastAPI:
         if settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
             try:
                 logger.info("🚀 Initializing Graphiti indices and constraints...")
-                # Import Graphiti here to avoid startup errors if the package is not installed
+                # Import the client asynchronously with retry logic
                 try:
-                    from graphiti import Graphiti
-                    graphiti_temp = Graphiti(
-                        agent_id=settings.GRAPHITI_NAMESPACE_ID,
-                        env=settings.GRAPHITI_ENV,
-                        api_key=settings.OPENAI_API_KEY,
-                        db_url=settings.NEO4J_URI,
-                        db_user=settings.NEO4J_USERNAME,
-                        db_pass=settings.NEO4J_PASSWORD,
-                    )
-                    await graphiti_temp.build_indices_and_constraints()
-                    await graphiti_temp.close()
-                    logger.info("✅ Graphiti indices and constraints initialized successfully")
+                    from src.agents.models.automagik_agent import get_graphiti_client_async
+                    
+                    # Initialize the shared client with retry logic (5 attempts, 2 second initial delay)
+                    client = await get_graphiti_client_async(max_retries=5, retry_delay=2.0)
+                    
+                    if client:
+                        # The build_indices_and_constraints should have already been called
+                        # during client initialization, but let's log that it's ready
+                        logger.info("✅ Graphiti client initialized and indices built successfully")
+                    else:
+                        logger.warning("⚠️ Failed to initialize shared Graphiti client")
+                        
                 except ImportError:
                     logger.warning("⚠️ graphiti-core package not found, skipping Graphiti initialization")
             except Exception as e:
@@ -157,7 +180,18 @@ def create_app() -> FastAPI:
         # Initialize all agents at startup - now this is async so we can await it
         await initialize_all_agents()
         yield
-        # Cleanup can be done here if needed
+        
+        # Cleanup shared resources
+        try:
+            # Close shared Graphiti client if it exists
+            from src.agents.models.automagik_agent import _shared_graphiti_client
+            if _shared_graphiti_client is not None:
+                logger.info("Closing shared Graphiti client...")
+                await _shared_graphiti_client.close()
+                logger.info("✅ Shared Graphiti client closed successfully")
+        except Exception as e:
+            logger.error(f"❌ Error closing shared Graphiti client: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
     
     # Create the FastAPI app
     app = FastAPI(
