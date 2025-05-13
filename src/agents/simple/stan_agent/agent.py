@@ -102,7 +102,30 @@ class StanAgent(AutomagikAgent):
         except Exception as e:
             logger.error(f"Error in StanAgent.initialize_prompts: {str(e)}")
             logger.error(traceback.format_exc())
-            return False
+            
+            # Try to fall back to the base implementation
+            logger.info("Falling back to base class prompt initialization")
+            try:
+                # Set a default prompt text if needed
+                if not hasattr(self, '_code_prompt_text') or not self._code_prompt_text:
+                    # Try to load the NOT_REGISTERED prompt
+                    try:
+                        from src.agents.simple.stan_agent.prompts.not_registered import PROMPT
+                        self._code_prompt_text = PROMPT
+                    except ImportError:
+                        # If that fails, try to load the primary prompt.py
+                        try:
+                            from src.agents.simple.stan_agent.prompts.prompt import AGENT_PROMPT
+                            self._code_prompt_text = AGENT_PROMPT
+                        except ImportError:
+                            logger.error("Failed to load any prompt for StanAgent")
+                
+                # Call the base implementation
+                return await super().initialize_prompts()
+            except Exception as e2:
+                logger.error(f"Error in base initialize_prompts: {str(e2)}")
+                logger.error(traceback.format_exc())
+                return False
             
     async def _register_all_prompts(self) -> None:
         """Register all prompts from the prompts directory.
@@ -116,6 +139,10 @@ class StanAgent(AutomagikAgent):
         # Find all prompt files in the prompts directory
         prompts_dir = os.path.join(os.path.dirname(__file__), "prompts")
         prompt_files = glob.glob(os.path.join(prompts_dir, "*.py"))
+        
+        # Keep track of the primary default prompt ID
+        primary_default_prompt_id = None
+        not_registered_prompt_id = None
         
         for prompt_file in prompt_files:
             filename = os.path.basename(prompt_file)
@@ -132,12 +159,11 @@ class StanAgent(AutomagikAgent):
                 prompt_text = getattr(module, "PROMPT")
                 
                 # Register this prompt with the appropriate status key
-                # If this is the NOT_REGISTERED status, set it as the primary default
+                # If this is the NOT_REGISTERED status, mark it for special handling
                 is_primary_default = (status_key == "NOT_REGISTERED")
                 
                 # Store the prompt text in _code_prompt_text temporarily
                 self._code_prompt_text = prompt_text
-                status_key_copy = status_key  # Make a copy for the closure
                 
                 # Register with the shared method
                 prompt_id = await self._register_code_defined_prompt(
@@ -147,10 +173,80 @@ class StanAgent(AutomagikAgent):
                     is_primary_default=is_primary_default
                 )
                 
-                logger.info(f"Registered prompt for status key: {status_key}")
+                # Keep track of the NOT_REGISTERED prompt ID for later use
+                if status_key == "NOT_REGISTERED" and prompt_id:
+                    not_registered_prompt_id = prompt_id
+                    
+                # If this is actually a "default" status prompt, set it as the primary default
+                if status_key == "DEFAULT" and prompt_id:
+                    primary_default_prompt_id = prompt_id
+                
+                logger.info(f"Registered prompt for status key: {status_key} with ID: {prompt_id}")
                 
             except (ImportError, AttributeError) as e:
                 logger.error(f"Failed to import prompt from {module_name}: {str(e)}")
+        
+        # Create a "default" status prompt that points to NOT_REGISTERED if it doesn't exist
+        # This ensures that the active_default_prompt_id is properly set
+        if not primary_default_prompt_id and not_registered_prompt_id and self.db_id:
+            try:
+                # First, check if a default prompt already exists
+                from src.db.repository.prompt import get_prompts_by_agent_id, get_prompt_by_id, create_prompt, set_prompt_active
+                
+                default_prompts = get_prompts_by_agent_id(self.db_id, status_key="default")
+                
+                if not default_prompts:
+                    # Get the NOT_REGISTERED prompt to use its text
+                    not_registered_prompt = get_prompt_by_id(not_registered_prompt_id)
+                    
+                    if not_registered_prompt:
+                        # Create a new prompt with status_key="default" using the NOT_REGISTERED prompt text
+                        from src.db.models import PromptCreate
+                        
+                        # Create the default prompt
+                        default_prompt_data = PromptCreate(
+                            agent_id=self.db_id,
+                            prompt_text=not_registered_prompt.prompt_text,
+                            version=1,
+                            is_active=True,  # Make it active
+                            is_default_from_code=True,
+                            status_key="default",
+                            name=f"StanAgent Default Prompt (maps to NOT_REGISTERED)"
+                        )
+                        
+                        # Create the prompt
+                        default_prompt_id = create_prompt(default_prompt_data)
+                        logger.info(f"Created default status prompt with ID {default_prompt_id} that maps to NOT_REGISTERED")
+                    else:
+                        logger.error(f"Could not find NOT_REGISTERED prompt with ID {not_registered_prompt_id}")
+                else:
+                    # Use the first default prompt
+                    default_prompt_id = default_prompts[0].id
+                    # Make sure it's active
+                    set_prompt_active(default_prompt_id, True)
+                    logger.info(f"Set existing default prompt {default_prompt_id} as active")
+                
+                # Explicitly update the agents table to ensure the active_default_prompt_id is set
+                # This is a backup in case the normal flow in set_prompt_active didn't work
+                if default_prompt_id or not_registered_prompt_id:
+                    prompt_id_to_use = default_prompt_id or not_registered_prompt_id
+                    
+                    # Update the agent record
+                    from src.db.connection import execute_query
+                    execute_query(
+                        """
+                        UPDATE agents SET 
+                            active_default_prompt_id = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (prompt_id_to_use, self.db_id),
+                        fetch=False
+                    )
+                    logger.info(f"Explicitly updated agent {self.db_id} with active_default_prompt_id {prompt_id_to_use}")
+            except Exception as e:
+                logger.error(f"Error setting up default prompt: {str(e)}")
+                logger.error(traceback.format_exc())
                 
         self._prompts_registered = True
         logger.info("All prompts registered successfully")
