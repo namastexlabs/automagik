@@ -779,7 +779,7 @@ class AutomagikAgent(ABC, Generic[T]):
             # Only print start message in non-background mode
             if not metadata.get("is_background", False):
                 logger.info(f"🔄 GRAPHITI: Adding episode to Graphiti for agent '{self.name}'...")
-          
+            
             # Construct episode details (stored as local variables for logging but not used in API call)
             episode_data = {
                 "user_input": user_input,
@@ -787,6 +787,9 @@ class AutomagikAgent(ABC, Generic[T]):
                 "agent_name": self.name,
                 "agent_id": str(self.db_id) if self.db_id else None,
             }
+            
+            # Get user ID if available
+            user_id = None
             
             # Add context info if available
             if self.context:
@@ -796,36 +799,46 @@ class AutomagikAgent(ABC, Generic[T]):
             
             # Add user_id if available in dependencies
             if hasattr(self.dependencies, 'user_id') and self.dependencies.user_id:
-                episode_data["user_id"] = str(self.dependencies.user_id)
+                user_id = str(self.dependencies.user_id)
+                episode_data["user_id"] = user_id
             
             # Add additional metadata if provided
             if metadata:
+                # If metadata contains user_id, use it
+                if metadata.get("user_id") and not user_id:
+                    user_id = str(metadata.get("user_id"))
                 episode_data.update(metadata)
 
             # Only print in non-background mode to reduce noise
             if not metadata.get("is_background", False):
                 logger.info(f"🔄 GRAPHITI: Episode data prepared")
-            # Prepare the episode name using the agent ID we stored
+                
+            # Create a namespaced group ID that includes namespace, agent ID, and user ID
+            base_group = self.graphiti_agent_id  # Already contains namespace:agent_id
+            
+            # Add user ID to the group if available
+            group_id = f"{base_group}:user_{user_id}" if user_id else base_group
+            
+            # Prepare the episode name using the agent ID and user ID
             episode_uuid = uuid.uuid4()
-            episode_name = f"conversation_{self.graphiti_agent_id}_{episode_uuid}"
+            episode_name = f"conversation_{group_id}_{episode_uuid}"
             
             # Create the episode body text combining user input and agent response
             episode_body = f"User: {user_input}\n\nAgent: {agent_response}"
             
             # Add the episode to Graphiti using the API's actual parameter names
-            # Use lowercase enum value (text) instead of uppercase (TEXT)
             result = await self.graphiti_client.add_episode(
                 name=episode_name,
                 episode_body=episode_body,
                 source_description=f"Conversation with {self.name}",
                 reference_time=datetime.datetime.now(datetime.timezone.utc),
-                source=EpisodeType.text,  # Use lowercase "text" instead of "TEXT"
-                group_id=self.graphiti_agent_id,  # Use agent ID as the group ID
+                source=EpisodeType.text,
+                group_id=group_id,  # Use the fully namespaced group ID
             )
             
             # Print minimal success message with episode ID
             episode_id = result.episode.uuid if hasattr(result, 'episode') and hasattr(result.episode, 'uuid') else episode_uuid
-            logger.info(f"Added episode to Graphiti for agent '{self.name}' - ID: {episode_id}")
+            logger.info(f"Added episode to Graphiti for agent '{self.name}' - ID: {episode_id} - Group: {group_id}")
         except Exception as e:
             logger.error(f"Failed to add episode to Graphiti for agent '{self.name}': {e}")
             
