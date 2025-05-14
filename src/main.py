@@ -76,11 +76,11 @@ async def initialize_all_agents():
         # Initialize each agent
         for agent_name in agents_to_initialize:
             try:
-                logger.info(f"Initializing agent: {agent_name}")
+                logger.debug(f"Initializing agent: {agent_name}")
                 # This will create and register the agent
                 agent = AgentFactory.get_agent(agent_name)
                 initialized_agents.append((agent_name, agent))
-                logger.info(f"✅ Agent {agent_name} initialized successfully")
+                logger.debug(f"✅ Agent {agent_name} initialized successfully")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize agent {agent_name}: {str(e)}")
         

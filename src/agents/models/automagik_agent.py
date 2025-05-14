@@ -260,7 +260,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 if existing_agent:
                     # Use existing ID
                     self.db_id = existing_agent.id
-                    logger.info(f"Using existing agent ID {self.db_id} for {self.name}")
+                    logger.debug(f"Using existing agent ID {self.db_id} for {self.name}")
                 else:
                     # Extract agent metadata
                     agent_type = self.name.replace('_agent', '')
@@ -292,7 +292,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 logger.error(f"Error registering agent in database: {str(e)}")
                 logger.error(traceback.format_exc())
         
-        logger.info(f"Initialized {self.__class__.__name__} with ID: {self.db_id}")
+        logger.debug(f"Initialized {self.__class__.__name__} with ID: {self.db_id}")
     
     async def initialize_prompts(self) -> bool:
         """Initialize agent prompts during server startup.

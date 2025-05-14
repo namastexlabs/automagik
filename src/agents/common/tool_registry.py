@@ -208,7 +208,7 @@ class ToolRegistry:
             self.register_tool(get_memory_tool)
             self.register_tool(list_memories_tool)
             
-        logger.info("Default tools registered")
+        logger.debug("Default tools registered")
     
     def get_registered_tools(self) -> Dict[str, Callable]:
         """Get all registered tools.

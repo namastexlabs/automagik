@@ -60,9 +60,10 @@
   - [ ] Updated `src/api/controllers/agent_controller.py` to off-load heavy DB calls and MessageHistory usage via `run_in_threadpool`.
   - [ ] Files modified: `src/db/connection.py`, `src/api/controllers/agent_controller.py`, `src/api/controllers/session_controller.py`, `src/api/controllers/prompt_controller.py`, `src/api/controllers/user_controller.py`, `src/api/controllers/message_controller.py`
 - [ ] Implementation 3 (Step 2.1 & 2.2)
-  - [ ] Refactored `AgentFactory` to cache a template per agent under thread lock and return `copy.deepcopy` for each request, making agents stateless.
+  - [ ] Refactored `AgentFactory` to cache a template per agent and return a fresh instance built from the template's config (avoids deepcopy issues).
   - [ ] Added imports `copy` and `Lock`; replaced `_initialized_agents` with `_agent_templates`.
   - [ ] Files modified: `src/agents/models/agent_factory.py`
+  - [ ] Fixed bug: cached only config dict in `AgentFactory` instead of live instance to prevent method shadowing causing 'NoneType not callable'.
 
 ## Summary
 - [ ] Files modified: `
