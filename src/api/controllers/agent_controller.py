@@ -7,6 +7,7 @@ import inspect
 from typing import List, Optional, Dict, Any, Union
 from fastapi import HTTPException
 from datetime import datetime
+from fastapi.concurrency import run_in_threadpool
 
 from src.agents.models.agent_factory import AgentFactory
 from src.config import settings
@@ -17,6 +18,7 @@ from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
 from src.db.repository.session import get_session_by_name, create_session
 from src.db.repository.agent import list_agents as list_db_agents
+from src.db.repository.user import list_users
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
@@ -28,7 +30,8 @@ async def list_registered_agents() -> List[AgentInfo]:
     """
     try:
         # Get all registered agents from the database
-        registered_agents = list_db_agents(active_only=True)
+        # Off-load blocking DB call to threadpool
+        registered_agents = await run_in_threadpool(list_db_agents, active_only=True)
         
         # Group agents by their normalized name to handle duplicates
         # Normalize name by removing "_agent" suffix where present
@@ -89,8 +92,7 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
     # If no user ID or data, use the default user
     if not user_id and not user_data:
         # Try to find the first user in the database (the default user)
-        from src.db.repository.user import list_users
-        users, _ = list_users(page=1, page_size=1)
+        users, _ = await run_in_threadpool(list_users, page=1, page_size=1)
         
         if users and len(users) > 0:
             logger.debug(f"Using default user with ID: {users[0].id}")
@@ -123,7 +125,7 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
                     logger.warning(f"Invalid UUID format for user_id: {user_id}")
                     
             # Try to get user by ID
-            user = get_user(user_id)
+            user = await run_in_threadpool(get_user, user_id)
         except Exception as e:
             logger.error(f"Error getting user by ID {user_id}: {str(e)}")
     
@@ -140,7 +142,7 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
             
         # Update user in database
         from src.db import update_user
-        updated_id = update_user(user)
+        updated_id = await run_in_threadpool(update_user, user)
         return updated_id
         
     # If user doesn't exist but we have user_data, create new user
@@ -152,14 +154,14 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
             phone_number=user_data.phone_number,
             user_data=user_data.user_data
         )
-        created_id = create_user(new_user)
+        created_id = await run_in_threadpool(create_user, new_user)
         return created_id
         
     # If user doesn't exist and we don't have user_data, create minimal user
     elif user_id and not user:
         # Create minimal user with just the ID
         new_user = User(id=user_id)
-        created_id = create_user(new_user)
+        created_id = await run_in_threadpool(create_user, new_user)
         return created_id
         
     # User exists but no updates needed
@@ -189,7 +191,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         db_agent_name = f"{agent_name}_agent" if not agent_name.endswith('_agent') else agent_name
         
         # Try to get the agent from the database to get its ID
-        agent_db = get_agent_by_name(db_agent_name)
+        agent_db = await run_in_threadpool(get_agent_by_name, db_agent_name)
         agent_id = agent_db.id if agent_db else None
         
         # Get or create session based on request parameters
@@ -237,7 +239,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             success = factory.link_agent_to_session(agent_name, session_id)
             if success:
                 # Reload the agent by name to get its ID
-                agent_db = get_agent_by_name(db_agent_name)
+                agent_db = await run_in_threadpool(get_agent_by_name, db_agent_name)
                 if agent_db:
                     # Set the db_id directly on the agent object
                     agent.db_id = agent_db.id
@@ -367,7 +369,7 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
 
     elif session_name:
         # Try to find existing session by name
-        session = get_session_by_name(session_name)
+        session = await run_in_threadpool(get_session_by_name, session_name)
         
         if session:
             # Use existing session
@@ -383,7 +385,7 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
                 user_id=user_id
             )
             
-            if not create_session(session):
+            if not await run_in_threadpool(create_session, session):
                 logger.error(f"Failed to create session with name {session_name}")
                 raise HTTPException(status_code=500, detail="Failed to create session")
             

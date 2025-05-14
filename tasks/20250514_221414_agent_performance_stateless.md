@@ -57,7 +57,8 @@
   - [ ] Added async wrappers `async_execute_query` and `async_execute_batch` in `src/db/connection.py` (lines TBD) that delegate to `run_in_threadpool`.
   - [ ] Next: incrementally migrate repository functions or controller paths to use these wrappers.
 - [ ] Implementation 2
-  - [ ] Files modified: `src/db/connection.py`
+  - [ ] Updated `src/api/controllers/agent_controller.py` to off-load heavy DB calls via `run_in_threadpool`.
+  - [ ] Files modified: `src/db/connection.py`, `src/api/controllers/agent_controller.py`
 
 ## Summary
 - [ ] Files modified: `filename.ext` (lines X-Y)
