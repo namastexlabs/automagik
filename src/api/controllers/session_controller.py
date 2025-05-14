@@ -18,11 +18,10 @@ async def get_sessions(page: int, page_size: int, sort_desc: bool) -> SessionLis
     Get a paginated list of sessions
     """
     try:
-        sessions, total_count = list_sessions(
-            page=page, 
-            page_size=page_size, 
-            sort_desc=sort_desc
-        )
+        sessions, total_count = await run_in_threadpool(list_sessions,
+            page=page,
+            page_size=page_size,
+            sort_desc=sort_desc)
         
         # Convert Session objects to SessionInfo objects
         session_infos = []
@@ -59,14 +58,14 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
         session = None
         
         # First try to get session by name regardless of UUID format
-        session = get_session_by_name(session_id_or_name)
+        session = await run_in_threadpool(get_session_by_name, session_id_or_name)
         if session:
             session_id = str(session.id)
             logger.info(f"Found session with name '{session_id_or_name}', id: {session_id}")
         # If not found by name, try as UUID if it looks like one
         elif safe_uuid(session_id_or_name):
             try:
-                session = db_get_session(uuid.UUID(session_id_or_name))
+                session = await run_in_threadpool(db_get_session, uuid.UUID(session_id_or_name))
                 if session:
                     session_id = str(session.id)
                     logger.info(f"Found session with id: {session_id}")
@@ -151,14 +150,14 @@ async def delete_session(session_id_or_name: str) -> bool:
         session = None
         
         # First try to get session by name regardless of UUID format
-        session = get_session_by_name(session_id_or_name)
+        session = await run_in_threadpool(get_session_by_name, session_id_or_name)
         if session:
             session_id = str(session.id)
             logger.info(f"Found session with name '{session_id_or_name}', id: {session_id}")
         # If not found by name, try as UUID if it looks like one
         elif safe_uuid(session_id_or_name):
             try:
-                session = db_get_session(uuid.UUID(session_id_or_name))
+                session = await run_in_threadpool(db_get_session, uuid.UUID(session_id_or_name))
                 if session:
                     session_id = str(session.id)
                     logger.info(f"Found session with id: {session_id}")

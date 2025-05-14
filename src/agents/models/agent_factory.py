@@ -5,6 +5,8 @@ import traceback
 import uuid
 import importlib
 from pathlib import Path
+import copy
+from threading import Lock
 
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import BaseDependencies
@@ -17,7 +19,8 @@ class AgentFactory:
 
     _agent_classes = {}
     _agent_creators = {}
-    _initialized_agents = {}  # Store initialized agents for re-use
+    _agent_templates: Dict[str, AutomagikAgent] = {}  # Store one template per agent
+    _agent_locks: Dict[str, Lock] = {}  # Per-agent creation locks
     
     @classmethod
     def _normalize_agent_name(cls, name: str) -> str:
@@ -202,23 +205,25 @@ class AgentFactory:
         # Normalize the agent name
         normalized_name = cls._normalize_agent_name(agent_name)
         
-        # Check if we already have an initialized instance
-        if normalized_name in cls._initialized_agents:
-            return cls._initialized_agents[normalized_name]
-        
-        # Create initial configuration with name
-        config = {
-            "name": normalized_name
-        }
-            
-        # Try to create a new agent
-        # The agent will register itself in the database during initialization
-        agent = cls.create_agent(normalized_name, config)
-        
-        # Store for reuse
-        cls._initialized_agents[normalized_name] = agent
-            
-        return agent
+        # Ensure only one thread builds the template first time
+        lock = cls._agent_locks.setdefault(normalized_name, Lock())
+        with lock:
+            if normalized_name in cls._agent_templates:
+                # Return a deep copy to guarantee statelessness
+                return copy.deepcopy(cls._agent_templates[normalized_name])
+
+            # Create initial configuration with name
+            config = {
+                "name": normalized_name
+            }
+
+            # Build a new template agent (will self-register prompts etc.)
+            template_agent = cls.create_agent(normalized_name, config)
+
+            # Cache template for future requests
+            cls._agent_templates[normalized_name] = template_agent
+
+            return copy.deepcopy(template_agent)
     
     @classmethod
     def link_agent_to_session(cls, agent_name: str, session_id_or_name: str) -> bool:
