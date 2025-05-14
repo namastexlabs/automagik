@@ -2,10 +2,112 @@ import logging
 from typing import Dict, Optional, Union,  Any, TypeVar, Generic
 from abc import ABC, abstractmethod
 import uuid
+import datetime
+import asyncio
+import time
 
 from src.memory.message_history import MessageHistory
 from src.agents.models.dependencies import BaseDependencies
 from src.agents.models.response import AgentResponse
+from src.config import settings
+
+# Configure logging to reduce Neo4j driver verbosity
+logging.getLogger("neo4j").setLevel(logging.WARNING)
+logging.getLogger("neo4j.io").setLevel(logging.ERROR)
+logging.getLogger("neo4j.bolt").setLevel(logging.ERROR)
+
+# Shared Graphiti client for all agents
+_shared_graphiti_client = None
+_graphiti_initialized = False
+_graphiti_init_lock = asyncio.Lock()  # Lock to prevent concurrent initialization
+
+# Try to import Graphiti, but don't fail if not available
+try:
+    from graphiti_core import Graphiti
+    from graphiti_core.nodes import EpisodeType
+    
+    # Synchronous version for non-async contexts
+    def get_graphiti_client():
+        global _shared_graphiti_client
+        return _shared_graphiti_client
+    
+    # Async version with retry logic
+    async def get_graphiti_client_async(max_retries: int = 5, retry_delay: float = 1.0):
+        """Get or initialize the shared Graphiti client with retry logic.
+        
+        Args:
+            max_retries: Maximum number of connection attempts
+            retry_delay: Initial delay between retries (will increase exponentially)
+            
+        Returns:
+            Initialized Graphiti client or None if all attempts fail
+        """
+        global _shared_graphiti_client, _graphiti_initialized
+        
+        
+        if _shared_graphiti_client is not None:
+            return _shared_graphiti_client
+            
+        # Use a lock to prevent multiple initialization attempts
+        async with _graphiti_init_lock:
+            # Double-check inside the lock
+            if _shared_graphiti_client is not None:
+                return _shared_graphiti_client
+                
+            if _graphiti_initialized:
+                return None  # Already tried and failed
+                
+            if not settings.NEO4J_URI or not settings.NEO4J_USERNAME or not settings.NEO4J_PASSWORD:
+                logger.warning("Neo4j settings not fully configured. Graphiti client will not be initialized.")
+                _graphiti_initialized = True
+                return None
+                
+            # Try to initialize with retries
+            attempt = 0
+            current_delay = retry_delay
+            
+            while attempt < max_retries:
+                attempt += 1
+                try:
+                    logger.info(f"Attempt {attempt}/{max_retries}: Initializing shared Graphiti client with Neo4j at {settings.NEO4J_URI}")
+                    
+                    client = Graphiti(
+                        settings.NEO4J_URI,
+                        settings.NEO4J_USERNAME,
+                        settings.NEO4J_PASSWORD
+                    )
+                    
+                    # Test the connection by trying to access a property
+                    # This will trigger a connection attempt
+                    await client.build_indices_and_constraints()
+                    
+                    _shared_graphiti_client = client
+                    _graphiti_initialized = True
+                    
+                    logger.info(f"✅ Shared Graphiti client successfully initialized on attempt {attempt}")
+                    
+                    return _shared_graphiti_client
+                    
+                except Exception as e:
+                    logger.warning(f"Attempt {attempt}/{max_retries} failed: {e}")
+                    
+                    if attempt < max_retries:
+                        # Wait with exponential backoff before retrying
+                        wait_time = current_delay * (2 ** (attempt - 1))  # Exponential backoff
+                        logger.info(f"Waiting {wait_time:.1f}s before retry...")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.error(f"Failed to initialize shared Graphiti client after {max_retries} attempts: {e}")
+            
+            _graphiti_initialized = True  # Mark as attempted even if all retries fail
+            return None
+        
+except ImportError:
+    Graphiti = None
+    def get_graphiti_client():
+        return None
+    async def get_graphiti_client_async(max_retries: int = 5, retry_delay: float = 1.0):
+        return None
 
 # Import common utilities
 from src.agents.common.prompt_builder import PromptBuilder
@@ -136,6 +238,17 @@ class AutomagikAgent(ABC, Generic[T]):
         # Initialize dependencies (to be set by subclasses)
         self.dependencies = None
         
+        # Store Graphiti agent ID for later async initialization
+        self.graphiti_agent_id = None
+        self.graphiti_client = None
+        
+        # Debug Neo4j configuration
+        
+        if Graphiti is not None and settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
+            agent_id = self.db_id if self.db_id else self.name
+            self.graphiti_agent_id = f"{settings.GRAPHITI_NAMESPACE_ID}:{agent_id}"
+        else:
+            logger.warning("Graphiti is not configured, skipping Graphiti agent ID setup")
         # Register in database if no ID provided
         if self.db_id is None:
             try:
@@ -538,6 +651,10 @@ class AutomagikAgent(ABC, Generic[T]):
         Returns:
             AgentResponse object with the agent's response
         """
+        # Force Graphiti initialization if available
+        if hasattr(self, 'initialize_graphiti') and self.graphiti_agent_id:
+            await self.initialize_graphiti()
+        
         from src.agents.common.message_parser import parse_user_message
         from src.agents.common.session_manager import create_context, validate_agent_id, validate_user_id, extract_multimodal_content
 
@@ -590,13 +707,140 @@ class AutomagikAgent(ABC, Generic[T]):
                 agent_id=self.db_id
             )
             message_history.add_message(agent_db_message)
+        
+        # Prepare metadata for Graphiti
+        additional_metadata = {}
+        if hasattr(response, "tool_calls") and response.tool_calls:
+            additional_metadata["tool_calls"] = response.tool_calls
+        if hasattr(response, "tool_outputs") and response.tool_outputs:
+            additional_metadata["tool_outputs"] = response.tool_outputs
+            
+        # Start Graphiti processing in background without waiting for it
+        # Store references needed for processing
+        user_input = content
+        agent_response_text = response.text
+        
+        # Use asyncio.create_task to run Graphiti processing in background
+        asyncio.create_task(
+            self._add_episode_to_graphiti_background(
+                user_input=user_input, 
+                agent_response=agent_response_text, 
+                metadata=additional_metadata
+            )
+        )
                 
         return response
         
+    async def _add_episode_to_graphiti_background(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None) -> None:
+        """Background version of _add_episode_to_graphiti that handles exceptions internally.
+        
+        Args:
+            user_input: The text input from the user
+            agent_response: The text response from the agent
+            metadata: Optional additional metadata for the episode
+        """
+        try:
+            # Create a copy of metadata with is_background flag
+            bg_metadata = metadata.copy() if metadata else {}
+            bg_metadata["is_background"] = True
+            
+            # Call the regular method but catch any exceptions to prevent them from affecting the parent task
+            await self._add_episode_to_graphiti(user_input, agent_response, bg_metadata)
+        except Exception as e:
+            # Log the error but don't propagate it
+            logger.error(f"Background Graphiti processing failed: {e}")
+            # Don't re-raise the exception since this is running in background
+    
     async def cleanup(self) -> None:
         """Clean up resources used by the agent."""
         if hasattr(self.dependencies, 'http_client') and self.dependencies.http_client:
             await close_http_client(self.dependencies.http_client)
+        
+        # We don't close the graphiti_client here anymore since it's shared
+        # The print statements for Graphiti cleanup are also removed
+    
+    async def _add_episode_to_graphiti(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None) -> None:
+        """Add an episode to the Graphiti knowledge graph.
+        
+        Args:
+            user_input: The text input from the user
+            agent_response: The text response from the agent
+            metadata: Optional additional metadata for the episode
+        """
+        # Check if client is initialized, initialize if needed
+        if not self.graphiti_client and self.graphiti_agent_id:
+            await self.initialize_graphiti()
+            
+        # If still not initialized, skip episode creation
+        if not self.graphiti_client:
+            return
+
+        try:
+            # Only print start message in non-background mode
+            if not metadata.get("is_background", False):
+                logger.info(f"🔄 GRAPHITI: Adding episode to Graphiti for agent '{self.name}'...")
+            
+            # Construct episode details (stored as local variables for logging but not used in API call)
+            episode_data = {
+                "user_input": user_input,
+                "llm_response": agent_response,
+                "agent_name": self.name,
+                "agent_id": str(self.db_id) if self.db_id else None,
+            }
+            
+            # Get user ID if available
+            user_id = None
+            
+            # Add context info if available
+            if self.context:
+                session_id = self.context.get("session_id")
+                if session_id:
+                    episode_data["session_id"] = str(session_id)
+            
+            # Add user_id if available in dependencies
+            if hasattr(self.dependencies, 'user_id') and self.dependencies.user_id:
+                user_id = str(self.dependencies.user_id)
+                episode_data["user_id"] = user_id
+            
+            # Add additional metadata if provided
+            if metadata:
+                # If metadata contains user_id, use it
+                if metadata.get("user_id") and not user_id:
+                    user_id = str(metadata.get("user_id"))
+                episode_data.update(metadata)
+
+            # Only print in non-background mode to reduce noise
+            if not metadata.get("is_background", False):
+                logger.info(f"🔄 GRAPHITI: Episode data prepared")
+                
+            # Create a namespaced group ID that includes namespace, agent ID, and user ID
+            base_group = self.graphiti_agent_id  # Already contains namespace:agent_id
+            
+            # Add user ID to the group if available
+            group_id = f"{base_group}:user_{user_id}" if user_id else base_group
+            
+            # Prepare the episode name using the agent ID and user ID
+            episode_uuid = uuid.uuid4()
+            episode_name = f"conversation_{group_id}_{episode_uuid}"
+            
+            # Create the episode body text combining user input and agent response
+            episode_body = f"User: {user_input}\n\nAgent: {agent_response}"
+            
+            # Add the episode to Graphiti using the API's actual parameter names
+            result = await self.graphiti_client.add_episode(
+                name=episode_name,
+                episode_body=episode_body,
+                source_description=f"Conversation with {self.name}",
+                reference_time=datetime.datetime.now(datetime.timezone.utc),
+                source=EpisodeType.text,
+                group_id=group_id,  # Use the fully namespaced group ID
+            )
+            
+            # Print minimal success message with episode ID
+            episode_id = result.episode.uuid if hasattr(result, 'episode') and hasattr(result.episode, 'uuid') else episode_uuid
+            logger.info(f"Added episode to Graphiti for agent '{self.name}' - ID: {episode_id} - Group: {group_id}")
+        except Exception as e:
+            logger.error(f"Failed to add episode to Graphiti for agent '{self.name}': {e}")
             
     async def __aenter__(self):
         """Async context manager entry."""
@@ -604,4 +848,73 @@ class AutomagikAgent(ABC, Generic[T]):
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        await self.cleanup() 
+        await self.cleanup()
+    
+    async def test_neo4j_connection(self) -> bool:
+        """Test if the Neo4j connection is working.
+        
+        Returns:
+            bool: True if connection is successful, False otherwise
+        """
+        
+        try:
+            from neo4j import GraphDatabase
+            
+            driver = GraphDatabase.driver(
+                settings.NEO4J_URI, 
+                auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD)
+            )
+            
+            # Test the connection
+            with driver.session() as session:
+                result = session.run("RETURN 1 AS test")
+                record = result.single()
+                test_value = record["test"]
+                
+            driver.close()
+            
+            if test_value == 1:
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            return False 
+
+    async def initialize_graphiti(self, max_retries: int = 5, retry_delay: float = 1.0) -> bool:
+        """Initialize the Graphiti client with retry logic.
+        
+        Args:
+            max_retries: Maximum number of connection attempts
+            retry_delay: Initial delay between retries (will increase exponentially)
+            
+        Returns:
+            True if initialization was successful, False otherwise
+        """
+        
+        if not self.graphiti_agent_id:
+            return False  # Not configured for Graphiti
+            
+        if self.graphiti_client:
+            return True  # Already initialized
+            
+        try:
+            # Check if the shared client exists
+            existing_client = get_graphiti_client()
+            if existing_client:
+                self.graphiti_client = existing_client
+                return True
+                
+            # Get the shared client with retry logic
+            self.graphiti_client = await get_graphiti_client_async(max_retries, retry_delay)
+            
+            if self.graphiti_client:
+                logger.info(f"Using shared Graphiti client for agent '{self.name}' with ID '{self.graphiti_agent_id}'")
+                return True
+            else:
+                logger.warning(f"Shared Graphiti client is not available for agent '{self.name}'")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to set up Graphiti for agent '{self.name}': {e}")
+            self.graphiti_client = None
+            return False 

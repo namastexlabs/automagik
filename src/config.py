@@ -107,6 +107,13 @@ class Settings(BaseSettings):
         description="Default WhatsApp number to use if none is provided in the context"
     )
 
+    # Graphiti / Neo4j (Optional)
+    NEO4J_URI: Optional[str] = Field(None, description="Neo4j connection URI (e.g., bolt://localhost:7687 or neo4j://localhost:7687)")
+    NEO4J_USERNAME: Optional[str] = Field(None, description="Neo4j username")
+    NEO4J_PASSWORD: Optional[str] = Field(None, description="Neo4j password")
+    GRAPHITI_NAMESPACE_ID: str = Field("automagik", description="Project namespace ID for Graphiti, used as a prefix for agent IDs")
+    GRAPHITI_ENV: str = Field("default", description="Environment for Graphiti, e.g., 'development', 'production'")
+
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=True,
