@@ -8,6 +8,7 @@ from src.api.models import SessionResponse, SessionListResponse, SessionInfo, Me
 from src.db.repository.session import get_system_prompt
 from typing import List, Optional, Dict, Any
 import uuid
+from fastapi.concurrency import run_in_threadpool
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
             raise HTTPException(status_code=404, detail=f"Session not found: {session_id_or_name}")
         
         # Create message history with the session_id
-        message_history = MessageHistory(session_id=session_id)
+        message_history = await run_in_threadpool(lambda: MessageHistory(session_id=session_id))
         
         # Get session info
         session_info = {
@@ -93,13 +94,12 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
         # Get system prompt only if requested
         system_prompt = None
         if show_system_prompt:
-            system_prompt = get_system_prompt(uuid.UUID(session_id))
+            system_prompt = await run_in_threadpool(get_system_prompt, uuid.UUID(session_id))
 
         # Get messages with pagination
-        messages, total_count = message_history.get_messages(
-            page=page, 
-            page_size=page_size, 
-            sort_desc=sort_desc
+        messages, total_count = await run_in_threadpool(
+            message_history.get_messages,
+            page, page_size, sort_desc
         )
         
         # If hide_tools is True, filter out tool calls and outputs from the messages
@@ -169,10 +169,10 @@ async def delete_session(session_id_or_name: str) -> bool:
             raise HTTPException(status_code=404, detail=f"Session not found: {session_id_or_name}")
         
         # Create message history with the session_id
-        message_history = MessageHistory(session_id=session_id)
+        message_history = await run_in_threadpool(lambda: MessageHistory(session_id=session_id))
         
         # Delete the session
-        success = message_history.delete_session()
+        success = await run_in_threadpool(message_history.delete_session)
         if not success:
             raise HTTPException(status_code=404, detail=f"Session not found or failed to delete: {session_id_or_name}")
         

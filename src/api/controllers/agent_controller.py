@@ -277,7 +277,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             messages = request.messages
         elif message_history:
             # Use message history
-            history_messages, _ = message_history.get_messages(page=1, page_size=100, sort_desc=False)
+            history_messages, _ = await run_in_threadpool(message_history.get_messages, 1, 100, False)
             messages = history_messages
         
         # Update context with system_prompt if provided
@@ -359,10 +359,10 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
         if not safe_uuid(session_id):
             raise HTTPException(status_code=400, detail=f"Invalid session ID format: {session_id}")
         
-        history = MessageHistory(session_id=session_id, user_id=user_id)
+        history = await run_in_threadpool(lambda: MessageHistory(session_id=session_id, user_id=user_id))
         
         # Verify session exists
-        if not history.get_session_info():
+        if not await run_in_threadpool(history.get_session_info):
             raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
         
         return session_id, history
@@ -374,7 +374,7 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
         if session:
             # Use existing session
             session_id = str(session.id)
-            return session_id, MessageHistory(session_id=session_id, user_id=user_id)
+            return session_id, await run_in_threadpool(lambda: MessageHistory(session_id=session_id, user_id=user_id))
         else:
             # Create new named session
             session_id = generate_uuid()
@@ -389,9 +389,9 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
                 logger.error(f"Failed to create session with name {session_name}")
                 raise HTTPException(status_code=500, detail="Failed to create session")
             
-            return str(session_id), MessageHistory(session_id=str(session_id), user_id=user_id)
+            return str(session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(session_id), user_id=user_id))
 
     else:
         # Create temporary session
         temp_session_id = str(uuid.uuid4())
-        return temp_session_id, MessageHistory(session_id=temp_session_id, no_auto_create=True)
+        return temp_session_id, await run_in_threadpool(lambda: MessageHistory(session_id=temp_session_id, no_auto_create=True))
