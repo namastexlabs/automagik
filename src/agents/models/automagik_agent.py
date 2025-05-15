@@ -126,9 +126,10 @@ from src.db.repository.prompt import (
     find_code_default_prompt,
     get_latest_version_for_status,
     create_prompt, 
-    set_prompt_active
+    set_prompt_active,
+    update_prompt as _update_prompt
 )
-from src.db.models import PromptCreate
+from src.db.models import PromptCreate, PromptUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -386,11 +387,28 @@ class AutomagikAgent(ABC, Generic[T]):
             if existing_prompt:
                 logger.info(f"Found existing code-defined prompt for agent {self.db_id}, status {status_key}")
                 
+                # Always update the prompt text to ensure code and DB stay in sync
+                try:
+                    update_success = _update_prompt(
+                        existing_prompt.id,
+                        PromptUpdate(prompt_text=code_prompt_text)
+                    )
+                    if update_success:
+                        logger.info(
+                            f"Updated prompt text for existing code-defined prompt {existing_prompt.id} (agent {self.db_id})"
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to update prompt text for existing code-defined prompt {existing_prompt.id}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error while updating existing code-defined prompt text: {str(e)}")
+
                 # If is_primary_default is True and the prompt is not already active, set it as active
                 if is_primary_default and not existing_prompt.is_active:
                     set_prompt_active(existing_prompt.id, True)
                     logger.info(f"Set existing prompt {existing_prompt.id} as active")
-                    
+                
                 return existing_prompt.id
                 
             # No existing prompt found, create a new one
