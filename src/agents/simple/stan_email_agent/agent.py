@@ -404,9 +404,9 @@ class StanEmailAgent(AutomagikAgent):
                     
                 # Update the thread with extracted information
                 black_pearl_client = None
-                if email_agent_result.data and email_agent_result.data.black_pearl_client_id: 
+                if email_agent_result.output and email_agent_result.output.black_pearl_client_id: 
                     try:
-                        black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.data.black_pearl_client_id)
+                        black_pearl_client = await blackpearl.get_cliente(ctx=self.context, cliente_id=email_agent_result.output.black_pearl_client_id)
                         
                         # Log the response for debugging
                         logger.info(f"Got BlackPearl client response of type: {type(black_pearl_client)}")
@@ -430,15 +430,15 @@ class StanEmailAgent(AutomagikAgent):
                         
                         black_pearl_contact = await blackpearl.get_contato(ctx=self.context, contato_id=contact_id)
                         
-                        thread['extracted_info'] = email_agent_result.data
+                        thread['extracted_info'] = email_agent_result.output
                         thread['black_pearl_client'] = black_pearl_client
                         thread['black_pearl_contact'] = black_pearl_contact
                         
                         # Update contato and cliente with extracted information
-                        self._safe_set_attribute(black_pearl_contact, 'status_aprovacao', email_agent_result.data.approval_status)
-                        self._safe_set_attribute(black_pearl_client, 'status_aprovacao', email_agent_result.data.approval_status)
-                        self._safe_set_attribute(black_pearl_client, 'valor_limite_credito', email_agent_result.data.credit_score)
-                        self._safe_set_attribute(black_pearl_contact, 'detalhes_aprovacao', email_agent_result.data.extra_information)
+                        self._safe_set_attribute(black_pearl_contact, 'status_aprovacao', email_agent_result.output.approval_status)
+                        self._safe_set_attribute(black_pearl_client, 'status_aprovacao', email_agent_result.output.approval_status)
+                        self._safe_set_attribute(black_pearl_client, 'valor_limite_credito', email_agent_result.output.credit_score)
+                        self._safe_set_attribute(black_pearl_contact, 'detalhes_aprovacao', email_agent_result.output.extra_information)
                         
                         # Track current client and contact for summary
                         current_client = black_pearl_client
@@ -477,7 +477,7 @@ class StanEmailAgent(AutomagikAgent):
                             current_user_info = user
                             
                             # Apply approval status updates regardless of whether we're sending a message
-                            client_status_aprovacao = email_agent_result.data.approval_status
+                            client_status_aprovacao = email_agent_result.output.approval_status
                             logger.info(f"Using approval status from email extraction: {client_status_aprovacao}")
                             
                             # Apply approval status updates
@@ -577,9 +577,9 @@ class StanEmailAgent(AutomagikAgent):
                                 user_info = (f"Nome: {self._safe_get_attribute(black_pearl_contact, 'nome')} "
                                             f"Email: {self._safe_get_attribute(black_pearl_client, 'email')} "
                                             f"Telefone: {user.phone_number}")
-                                approval_status_info = f"Status de aprovação: {email_agent_result.data.approval_status}"
-                                credit_score_info = f"Pontuação de crédito: {email_agent_result.data.credit_score}"
-                                extra_information = f"Informações extras: {email_agent_result.data.extra_information}"
+                                approval_status_info = f"Status de aprovação: {email_agent_result.output.approval_status}"
+                                credit_score_info = f"Pontuação de crédito: {email_agent_result.output.credit_score}"
+                                extra_information = f"Informações extras: {email_agent_result.output.extra_information}"
                                 
                                 user_sessions = list_sessions(user_id=user_id, agent_id=agent_id)
                                 user_message_history = []
