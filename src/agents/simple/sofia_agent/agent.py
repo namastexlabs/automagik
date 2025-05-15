@@ -27,6 +27,9 @@ from src.agents.common.dependencies_helper import (
     add_system_message_to_history
 )
 
+# Evolution payload helper (shared across agents)
+from src.agents.common.evolution import EvolutionMessagePayload
+
 logger = logging.getLogger(__name__)
 
 class SofiaAgent(AutomagikAgent):
@@ -128,6 +131,32 @@ class SofiaAgent(AutomagikAgent):
         if self.db_id:
             await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
                 
+        # -------------------------------------------------------------
+        # Evolution (WhatsApp) channel payload handling
+        # -------------------------------------------------------------
+        evolution_payload = None  # type: Optional[EvolutionMessagePayload]
+        if channel_payload:
+            try:
+                # Convert raw dict coming from webhook into the Pydantic model
+                evolution_payload = EvolutionMessagePayload(**channel_payload)
+                logger.debug(
+                    "Successfully converted channel_payload to EvolutionMessagePayload"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to convert channel_payload to EvolutionMessagePayload: {str(e)}"
+                )
+
+        if evolution_payload is not None:
+            # Make it available to any downstream tool / agent wrappers
+            self.context["evolution_payload"] = evolution_payload
+
+            # Keep existing context (if any) and merge
+            if hasattr(self.dependencies, 'set_context'):
+                # Merge with current dependencies context rather than replacing
+                combined_ctx = {**getattr(self.dependencies, 'context', {}), "evolution_payload": evolution_payload}
+                self.dependencies.set_context(combined_ctx)
+        
         # Initialize the agent
         await self._initialize_pydantic_agent()
         
