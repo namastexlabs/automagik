@@ -200,6 +200,14 @@ class SofiaAgent(AutomagikAgent):
                 # Merge with current dependencies context rather than replacing
                 combined_ctx = {**getattr(self.dependencies, 'context', {}), "evolution_payload": evolution_payload}
                 self.dependencies.set_context(combined_ctx)
+
+            # Detect if we are in a group chat
+            if evolution_payload.is_group_chat():
+                self.context["is_group_chat"] = True
+                self.context["group_jid"] = evolution_payload.get_group_jid()
+            else:
+                self.context.pop("is_group_chat", None)
+                self.context.pop("group_jid", None)
         
         # Initialize the agent
         await self._initialize_pydantic_agent()
