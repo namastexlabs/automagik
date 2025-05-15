@@ -151,6 +151,50 @@ class SofiaAgent(AutomagikAgent):
             # Make it available to any downstream tool / agent wrappers
             self.context["evolution_payload"] = evolution_payload
 
+            # Extract basic user info from the payload
+            user_number: Optional[str] = None
+            user_name: Optional[str] = None
+
+            try:
+                user_number = evolution_payload.get_user_number()
+                user_name = evolution_payload.get_user_name()
+                logger.debug(
+                    f"Extracted user info from evolution_payload: number={user_number}, name={user_name}"
+                )
+            except Exception as e:
+                logger.error(f"Error extracting user info from evolution_payload: {str(e)}")
+
+            # Persist user information into memory so it can be injected into the
+            # system prompt via the {{user_information}} template variable (same
+            # pattern used by StanAgent).
+            if self.db_id and (user_number or user_name):
+                try:
+                    from src.db.models import Memory
+                    from src.db.repository import create_memory
+
+                    # Build info dict without None values
+                    info_dict: Dict[str, Any] = {
+                        k: v for k, v in {
+                            "user_name": user_name,
+                            "user_number": user_number,
+                        }.items() if v is not None
+                    }
+
+                    if info_dict:
+                        memory_to_create = Memory(
+                            name="user_information",
+                            content=str(info_dict),
+                            user_id=self.context.get("user_id"),
+                            agent_id=self.db_id,
+                            read_mode="system_prompt",
+                            access="read_write",
+                        )
+
+                        create_memory(memory=memory_to_create)
+                        logger.info("Created/Updated user_information memory for SofiaAgent run")
+                except Exception as e:
+                    logger.error(f"Failed to create user_information memory: {str(e)}")
+
             # Keep existing context (if any) and merge
             if hasattr(self.dependencies, 'set_context'):
                 # Merge with current dependencies context rather than replacing

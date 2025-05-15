@@ -148,6 +148,11 @@ Personal heartbeat trigger: Every 10th heartbeat you will receive a personal_hea
 - **Team Dynamics**: {{team_dynamics}}
 - **Self-Improvement Insights**: {{self_improvement_insights}}
 
+
+<CurrentUserInformation>
+{{user_information}}
+</CurrentUserInformation>
+
 ### Memory Application
 - Dynamically adjust your communication style based on learned user preferences
 - Proactively suggest solutions based on pattern recognition
