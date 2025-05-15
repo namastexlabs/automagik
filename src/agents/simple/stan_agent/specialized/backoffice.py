@@ -70,7 +70,7 @@ async def make_conversation_summary(message_history) -> str:
                 message_history_str += f"message: {str(msg)}\n"
         # Run the summary agent with the message history
         summary_result = await summary_agent.run(user_prompt=message_history_str)
-        summary_result_str = summary_result.data
+        summary_result_str = summary_result.output
         logger.info(f"Summary result: {summary_result_str}")
         return summary_result_str
     else:
@@ -127,7 +127,7 @@ async def make_lead_email(lead_information: str, extra_context: str = None) -> s
     )
     
     email_result = await email_agent.run(user_prompt=email_prompt)
-    formatted_email = email_result.data
+    formatted_email = email_result.output
     
     logger.info("Email formatted successfully")
     return formatted_email
@@ -630,7 +630,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
     try:
         result = await backoffice_agent.run(input_text, deps=ctx)
         logger.info(f"Backoffice agent response: {result}")
-        return result.data
+        return result.output
     except Exception as e:
         error_msg = f"Error in backoffice agent: {str(e)}"
         logger.error(error_msg)

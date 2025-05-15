@@ -270,7 +270,7 @@ class SofiaAgent(AutomagikAgent):
             
             # Create response
             return AgentResponse(
-                text=result.data,
+                text=result.output,
                 success=True,
                 tool_calls=tool_calls,
                 tool_outputs=tool_outputs,
@@ -313,8 +313,8 @@ class SofiaAgent(AutomagikAgent):
             if not evo_payload:
                 return {"success": False, "error": "evolution_payload not found in context"}
 
-            remote_jid = getattr(evo_payload.data.key, "remoteJid", None)
-            message_id = getattr(evo_payload.data.key, "id", None)
+            remote_jid = getattr(evo_payload.output.key, "remoteJid", None)
+            message_id = getattr(evo_payload.output.key, "id", None)
 
             if not remote_jid or not message_id:
                 return {"success": False, "error": "Missing remote_jid or message_id"}
