@@ -140,12 +140,18 @@ async def get_chat_history(ctx: RunContext[Dict], token: str, phone: str, limit:
 # New Evolution helper tools
 # -----------------------------------------------------------------------------
 
+# NOTE: All Evolution wrappers now try to pull credentials directly from the
+# incoming EvolutionMessagePayload (when available). If not found we fall back
+# to settings so local tests still work.
+
 async def send_reaction(
     ctx: RunContext[Dict],
     remote_jid: str,
     message_id: str,
     reaction: str,
     instance: str = None,
+    api_url: str = None,
+    api_key: str = None,
 ) -> Dict[str, Any]:
     """Send an emoji reaction to a specific WhatsApp message.
 
@@ -159,7 +165,14 @@ async def send_reaction(
     from .api import send_reaction as _api_send_reaction
 
     instance_name = instance or settings.EVOLUTION_INSTANCE
-    success, info = await _api_send_reaction(instance_name, remote_jid, message_id, reaction)
+    success, info = await _api_send_reaction(
+        instance_name,
+        remote_jid,
+        message_id,
+        reaction,
+        api_url=api_url,
+        api_key=api_key,
+    )
     return {"success": success, "info": info}
 
 async def send_audio(
@@ -169,22 +182,39 @@ async def send_audio(
     instance: str = None,
     delay_ms: int = 0,
     ptt: bool = True,
+    api_url: str = None,
+    api_key: str = None,
 ) -> Dict[str, Any]:
     """Send a WhatsApp audio (PTT) message via Evolution API."""
     from .api import send_whatsapp_audio as _api_send_audio
 
     instance_name = instance or settings.EVOLUTION_INSTANCE
-    success, info = await _api_send_audio(instance_name, phone, audio_url, delay_ms, ptt)
+    success, info = await _api_send_audio(
+        instance_name,
+        phone,
+        audio_url,
+        delay_ms,
+        ptt,
+        api_url=api_url,
+        api_key=api_key,
+    )
     return {"success": success, "info": info}
 
 async def get_group_info(
     ctx: RunContext[Dict],
     group_jid: str,
     instance: str = None,
+    api_url: str = None,
+    api_key: str = None,
 ) -> Dict[str, Any]:
     """Fetch metadata about a WhatsApp group (participants, subject, etc.)."""
     from .api import get_group_info as _api_group
 
     instance_name = instance or settings.EVOLUTION_INSTANCE
-    success, data = await _api_group(instance_name, group_jid)
+    success, data = await _api_group(
+        instance_name,
+        group_jid,
+        api_url=api_url,
+        api_key=api_key,
+    )
     return {"success": success, "data": data} 

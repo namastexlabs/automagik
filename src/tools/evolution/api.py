@@ -5,7 +5,14 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Environment variables for Evolution API
+# ---------------------------------------------------------------------------
+# Default configuration (env-based fallback)
+# ---------------------------------------------------------------------------
+# These are still read once at import time but will be used ONLY if the caller
+# does not provide explicit api_url / api_key parameters. This allows agents to
+# supply the credentials that arrive in an Evolution webhook payload while
+# maintaining backward compatibility for local testing.
+
 EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY")
 
@@ -13,17 +20,23 @@ async def send_evolution_media_logic(
     instance_name: str,
     number: str,
     media_url: str,
-    media_type: str, # e.g., "image", "document", "audio", "video"
+    media_type: str,  # e.g., "image", "document", "audio", "video"
     caption: Optional[str] = None,
-    file_name: Optional[str] = None # Sometimes needed, e.g., for documents
+    file_name: Optional[str] = None,  # Sometimes needed, e.g., for documents
+    *,
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """Core async logic to send media using the Evolution API."""
-    if not EVOLUTION_API_KEY or not EVOLUTION_API_URL:
-        logger.error("Evolution API URL or Key not configured in environment variables.")
+    api_url = api_url or EVOLUTION_API_URL
+    api_key = api_key or EVOLUTION_API_KEY
+
+    if not api_key or not api_url:
+        logger.error("Evolution API URL or Key not provided.")
         return False, "Evolution API URL or Key not configured."
 
-    api_endpoint = f"{EVOLUTION_API_URL}/message/sendMedia/{instance_name}"
-    headers = {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
+    api_endpoint = f"{api_url}/message/sendMedia/{instance_name}"
+    headers = {"apikey": api_key, "Content-Type": "application/json"}
     
     # Construct payload according to the correct documentation structure
     payload = {
@@ -69,13 +82,23 @@ async def send_evolution_media_logic(
 # -----------------------------------------------------------------------------
 
 
-async def send_text_message(instance_name: str, number: str, text: str) -> Tuple[bool, str]:
+async def send_text_message(
+    instance_name: str,
+    number: str,
+    text: str,
+    *,
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Tuple[bool, str]:
     """Send plain text via Evolution API."""
-    if not EVOLUTION_API_KEY or not EVOLUTION_API_URL:
+    api_url = api_url or EVOLUTION_API_URL
+    api_key = api_key or EVOLUTION_API_KEY
+
+    if not api_key or not api_url:
         return False, "Evolution API URL or Key not configured."
 
-    endpoint = f"{EVOLUTION_API_URL}/message/sendText/{instance_name}"
-    headers = {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
+    endpoint = f"{api_url}/message/sendText/{instance_name}"
+    headers = {"apikey": api_key, "Content-Type": "application/json"}
 
     payload = {"number": number, "text": text}
 
@@ -95,23 +118,28 @@ async def send_reaction(
     remote_jid: str,
     message_id: str,
     reaction: str,
+    *,
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """Send a reaction (emoji) to a specific message."""
-    if not EVOLUTION_API_KEY or not EVOLUTION_API_URL:
+    api_url = api_url or EVOLUTION_API_URL
+    api_key = api_key or EVOLUTION_API_KEY
+
+    if not api_key or not api_url:
         return False, "Evolution API credentials missing"
 
-    endpoint = f"{EVOLUTION_API_URL}/message/sendReaction/{instance_name}"
-    headers = {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
+    endpoint = f"{api_url}/message/sendReaction/{instance_name}"
+    headers = {"apikey": api_key, "Content-Type": "application/json"}
 
+    # Evolution API expects "key" and "reaction" at the root, not nested.
     payload = {
-        "reactionMessage": {
-            "key": {
-                "remoteJid": remote_jid,
-                "fromMe": True,
-                "id": message_id,
-            },
-            "reaction": reaction,
-        }
+        "key": {
+            "remoteJid": remote_jid,
+            "fromMe": True,
+            "id": message_id,
+        },
+        "reaction": reaction,
     }
 
     logger.debug(f"Evolution send_reaction payload: {payload}")
@@ -119,10 +147,15 @@ async def send_reaction(
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(endpoint, headers=headers, json=payload)
-            if resp.status_code == 201 or resp.status_code == 200:
+            if resp.status_code in (200, 201):
                 return True, "Reaction sent"
             else:
-                return False, f"HTTP {resp.status_code}: {resp.text}"
+                # Try to extract JSON error if available for clarity
+                try:
+                    err_body = resp.json()
+                except Exception:
+                    err_body = resp.text
+                return False, f"HTTP {resp.status_code}: {err_body}"
     except Exception as e:
         logger.error(f"Evolution reaction error: {e}")
         return False, str(e)
@@ -134,13 +167,19 @@ async def send_whatsapp_audio(
     audio_url: str,
     delay: int = 0,
     encoding: bool = True,
+    *,
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """Send an audio (PTT) message to a number."""
-    if not EVOLUTION_API_KEY or not EVOLUTION_API_URL:
+    api_url = api_url or EVOLUTION_API_URL
+    api_key = api_key or EVOLUTION_API_KEY
+
+    if not api_key or not api_url:
         return False, "Evolution API credentials missing"
 
-    endpoint = f"{EVOLUTION_API_URL}/message/sendWhatsAppAudio/{instance_name}"
-    headers = {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
+    endpoint = f"{api_url}/message/sendWhatsAppAudio/{instance_name}"
+    headers = {"apikey": api_key, "Content-Type": "application/json"}
 
     payload = {
         "number": number,
@@ -159,13 +198,22 @@ async def send_whatsapp_audio(
         return False, str(e)
 
 
-async def get_group_info(instance_name: str, group_jid: str) -> Tuple[bool, dict]:
+async def get_group_info(
+    instance_name: str,
+    group_jid: str,
+    *,
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Tuple[bool, dict]:
     """Fetch group metadata for a given group JID."""
-    if not EVOLUTION_API_KEY or not EVOLUTION_API_URL:
+    api_url = api_url or EVOLUTION_API_URL
+    api_key = api_key or EVOLUTION_API_KEY
+
+    if not api_key or not api_url:
         return False, {}
 
-    endpoint = f"{EVOLUTION_API_URL}/group/findGroupInfos/{instance_name}"
-    headers = {"apikey": EVOLUTION_API_KEY}
+    endpoint = f"{api_url}/group/findGroupInfos/{instance_name}"
+    headers = {"apikey": api_key}
 
     params = {"groupJid": group_jid}
 

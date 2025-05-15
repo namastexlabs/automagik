@@ -12,6 +12,7 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
+from src.config import settings
 
 # Import only necessary utilities
 from src.agents.common.message_parser import (
@@ -318,10 +319,20 @@ class SofiaAgent(AutomagikAgent):
             if not remote_jid or not message_id:
                 return {"success": False, "error": "Missing remote_jid or message_id"}
 
-            # Prefer instance from payload, else config
+            # Prefer credentials from payload, else config
             instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+            api_url = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
+            api_key = getattr(evo_payload, "apikey", None) or getattr(settings, "EVOLUTION_API_KEY", None)
 
-            return await evo_send_reaction(ctx, remote_jid, message_id, reaction, instance=instance_name)
+            return await evo_send_reaction(
+                ctx,
+                remote_jid,
+                message_id,
+                reaction,
+                instance=instance_name,
+                api_url=api_url,
+                api_key=api_key,
+            )
 
         # Add metadata for tool registration
         send_reaction_wrapper.__name__ = "send_reaction"
@@ -354,10 +365,19 @@ class SofiaAgent(AutomagikAgent):
             if not phone_number:
                 return {"success": False, "error": "Could not determine user number"}
 
-            # Prefer instance from payload, else config
+            # Prefer credentials from payload, else config
             instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+            api_url = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
+            api_key = getattr(evo_payload, "apikey", None) or getattr(settings, "EVOLUTION_API_KEY", None)
 
-            return await evo_send_text(ctx, phone=phone_number, message=text, instance=instance_name)
+            return await evo_send_text(
+                ctx,
+                phone=phone_number,
+                message=text,
+                instance=instance_name,
+                api_url=api_url,
+                token=api_key,
+            )
 
         send_text_wrapper.__name__ = "send_text_to_user"
         send_text_wrapper.__doc__ = "Send plain text to the current user via Evolution API. Auto-fills phone number."
