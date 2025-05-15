@@ -121,16 +121,7 @@ class SofiaAgent(AutomagikAgent):
         Returns:
             AgentResponse object with result and metadata
         """
-        # Register the code-defined prompt if not already done
-        await self._check_and_register_prompt()
-        
-        # Load the active prompt template for this agent
-        await self.load_active_prompt_template(status_key="default")
-        
-        # Ensure memory variables are initialized
-        if self.db_id:
-            await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
-                
+      
         # -------------------------------------------------------------
         # Evolution (WhatsApp) channel payload handling
         # -------------------------------------------------------------
@@ -209,6 +200,16 @@ class SofiaAgent(AutomagikAgent):
                 self.context.pop("is_group_chat", None)
                 self.context.pop("group_jid", None)
         
+          # Register the code-defined prompt if not already done
+        await self._check_and_register_prompt()
+        
+        # Load the active prompt template for this agent
+        await self.load_active_prompt_template(status_key="default")
+        
+        # Ensure memory variables are initialized
+        if self.db_id:
+            await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
+                
         # Initialize the agent
         await self._initialize_pydantic_agent()
         

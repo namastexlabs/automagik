@@ -4,25 +4,25 @@ from datetime import datetime
 
 
 class DeviceListMetadata(BaseModel):
-    senderKeyHash: str
-    senderTimestamp: str
-    recipientKeyHash: str
-    recipientTimestamp: str
+    senderKeyHash: Optional[str] = None
+    senderTimestamp: Optional[str] = None
+    recipientKeyHash: Optional[str] = None
+    recipientTimestamp: Optional[str] = None
 
 
 class MessageContextInfo(BaseModel):
-    deviceListMetadata: DeviceListMetadata
-    deviceListMetadataVersion: int
+    deviceListMetadata: Optional[DeviceListMetadata] = None
+    deviceListMetadataVersion: Optional[int] = None
 
 
 class DisappearingMode(BaseModel):
-    initiator: str
+    initiator: Optional[str] = None
 
 
 class ContextInfo(BaseModel):
     expiration: Optional[int] = None
-    disappearingMode: DisappearingMode
-    ephemeralSettingTimestamp: str
+    disappearingMode: Optional[DisappearingMode] = None
+    ephemeralSettingTimestamp: Optional[str] = None
 
 
 class MessageKey(BaseModel):
