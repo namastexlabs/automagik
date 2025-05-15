@@ -54,4 +54,4 @@ async def generate_approval_status_message(input_text: str) -> str:
     result = await lead_message_sender.run(input_text)
     logger.info("Message generator model response received")
     
-    return result.data
+    return result.output

@@ -199,7 +199,7 @@ class OmieProvider:
             
             return ClientSearchResult(
                 success=True,
-                data=result
+                output=result
             )
 
         except requests.exceptions.HTTPError as e:
@@ -243,8 +243,8 @@ class OmieProvider:
         result = await self.search_clients(input)
         
         # Extract client data if found
-        if result.success and result.data:
-            clients = result.data.get("clients", [])
+        if result.success and result.output:
+            clients = result.output.get("clients", [])
             if clients:
                 return ClientSimplifiedResult(
                     success=True,
