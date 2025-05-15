@@ -30,6 +30,9 @@ from src.agents.common.dependencies_helper import (
 # Evolution payload helper (shared across agents)
 from src.agents.common.evolution import EvolutionMessagePayload
 
+# For typing wrappers
+from pydantic_ai import RunContext
+
 logger = logging.getLogger(__name__)
 
 class SofiaAgent(AutomagikAgent):
@@ -77,6 +80,10 @@ class SofiaAgent(AutomagikAgent):
         
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
+        
+        # Register additional Evolution tools with context-aware wrappers
+        self.tool_registry.register_tool(self._create_send_reaction_wrapper())
+        self.tool_registry.register_tool(self._create_send_text_wrapper())
         
         logger.info("SofiaAgent initialized successfully")
     
@@ -139,8 +146,12 @@ class SofiaAgent(AutomagikAgent):
                 )
 
         if evolution_payload is not None:
-            # Make it available to any downstream tool / agent wrappers
+            # Make it available in context/dependencies
             self.context["evolution_payload"] = evolution_payload
+
+            if hasattr(self.dependencies, 'set_context'):
+                combined_ctx = {**getattr(self.dependencies, 'context', {}), "evolution_payload": evolution_payload}
+                self.dependencies.set_context(combined_ctx)
 
             # Extract basic user info from the payload
             user_number: Optional[str] = None
@@ -155,6 +166,15 @@ class SofiaAgent(AutomagikAgent):
             except Exception as e:
                 logger.error(f"Error extracting user info from evolution_payload: {str(e)}")
 
+            
+            # Detect if we are in a group chat
+            if evolution_payload.is_group_chat():
+                self.context["is_group_chat"] = True
+                self.context["group_jid"] = evolution_payload.get_group_jid()
+            else:
+                self.context.pop("is_group_chat", None)
+                self.context.pop("group_jid", None)
+                
             # Persist user information into memory so it can be injected into the
             # system prompt via the {{user_information}} template variable (same
             # pattern used by StanAgent).
@@ -186,19 +206,6 @@ class SofiaAgent(AutomagikAgent):
                 except Exception as e:
                     logger.error(f"Failed to create user_information memory: {str(e)}")
 
-            # Keep existing context (if any) and merge
-            if hasattr(self.dependencies, 'set_context'):
-                # Merge with current dependencies context rather than replacing
-                combined_ctx = {**getattr(self.dependencies, 'context', {}), "evolution_payload": evolution_payload}
-                self.dependencies.set_context(combined_ctx)
-
-            # Detect if we are in a group chat
-            if evolution_payload.is_group_chat():
-                self.context["is_group_chat"] = True
-                self.context["group_jid"] = evolution_payload.get_group_jid()
-            else:
-                self.context.pop("is_group_chat", None)
-                self.context.pop("group_jid", None)
         
           # Register the code-defined prompt if not already done
         await self._check_and_register_prompt()
@@ -278,3 +285,80 @@ class SofiaAgent(AutomagikAgent):
                 error_message=str(e),
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
             ) 
+
+    # ------------------------------------------------------------------
+    # Evolution tool wrappers
+    # ------------------------------------------------------------------
+
+    def _create_send_reaction_wrapper(self):
+        """Wrap send_reaction to auto-fill JIDs from evolution payload."""
+        from src.tools.evolution.tool import send_reaction as evo_send_reaction
+
+        async def send_reaction_wrapper(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            reaction: str,
+        ) -> Dict[str, Any]:
+            # Try multiple locations to mirror product.py logic
+            evo_payload = None
+            if hasattr(ctx, "evolution_payload"):
+                evo_payload = ctx.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "evolution_payload"):
+                evo_payload = ctx.deps.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "context") and ctx.deps.context:
+                evo_payload = ctx.deps.context.get("evolution_payload")
+            if not evo_payload and hasattr(ctx, "parent_context") and isinstance(ctx.parent_context, dict):
+                evo_payload = ctx.parent_context.get("evolution_payload")
+
+            if not evo_payload:
+                return {"success": False, "error": "evolution_payload not found in context"}
+
+            remote_jid = getattr(evo_payload.data.key, "remoteJid", None)
+            message_id = getattr(evo_payload.data.key, "id", None)
+
+            if not remote_jid or not message_id:
+                return {"success": False, "error": "Missing remote_jid or message_id"}
+
+            # Prefer instance from payload, else config
+            instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+
+            return await evo_send_reaction(ctx, remote_jid, message_id, reaction, instance=instance_name)
+
+        # Add metadata for tool registration
+        send_reaction_wrapper.__name__ = "send_reaction"
+        send_reaction_wrapper.__doc__ = "Send a reaction (emoji) to the last user message via Evolution. Auto-detects JID and message ID from context."
+        return send_reaction_wrapper
+
+    def _create_send_text_wrapper(self):
+        """Wrap send_message tool to auto-fill phone number and instance."""
+        from src.tools.evolution.tool import send_message as evo_send_text
+
+        async def send_text_wrapper(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            text: str,
+        ) -> Dict[str, Any]:
+            # Get evolution payload
+            evo_payload = None
+            if hasattr(ctx, "evolution_payload"):
+                evo_payload = ctx.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "evolution_payload"):
+                evo_payload = ctx.deps.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "context") and ctx.deps.context:
+                evo_payload = ctx.deps.context.get("evolution_payload")
+            if not evo_payload and hasattr(ctx, "parent_context") and isinstance(ctx.parent_context, dict):
+                evo_payload = ctx.parent_context.get("evolution_payload")
+
+            if not evo_payload:
+                return {"success": False, "error": "evolution_payload not found"}
+
+            phone_number = evo_payload.get_user_number()
+            if not phone_number:
+                return {"success": False, "error": "Could not determine user number"}
+
+            # Prefer instance from payload, else config
+            instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+
+            return await evo_send_text(ctx, phone=phone_number, message=text, instance=instance_name)
+
+        send_text_wrapper.__name__ = "send_text_to_user"
+        send_text_wrapper.__doc__ = "Send plain text to the current user via Evolution API. Auto-fills phone number."
+        return send_text_wrapper 
