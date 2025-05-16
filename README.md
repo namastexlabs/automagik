@@ -194,7 +194,7 @@ pip install automagik-agents
 
 ```bash
 # Copy example environment file
-cp .env-example .env
+cp .env.example .env
 
 # Configure required variables
 AM_API_KEY=your_api_key_here
