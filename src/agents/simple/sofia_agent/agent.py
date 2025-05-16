@@ -95,6 +95,7 @@ class SofiaAgent(AutomagikAgent):
             
         # Get model configuration
         model_name = "google-gla:gemini-2.5-pro-preview-05-06"
+        # model_name = get_model_name(self.dependencies.model_settings)
         model_settings = create_model_settings(self.dependencies.model_settings)
         
         # Convert tools to PydanticAI format
@@ -270,6 +271,23 @@ class SofiaAgent(AutomagikAgent):
 
                             with open(img_path, "rb") as _fh:
                                 img_bytes = _fh.read()
+
+                            # Some models (e.g., Google Gemini) reject raw binary inputs. Maintain a
+                            # small blacklist of substrings to detect unsupported models.
+                            _UNSUPPORTED_BINARY_MODELS = [
+                                "google-gla:gemini-2.5-pro-preview-05-06",          # All Gemini variants
+                                # "gpt-4o-mini",     # hypothetical example
+                            ]
+
+                            current_model_name = str(getattr(self._agent_instance, "model", "")).lower()
+                            binary_not_supported = any(k in current_model_name for k in _UNSUPPORTED_BINARY_MODELS)
+
+                            if binary_not_supported or BinaryContent is None:
+                                logger.debug(
+                                    f"Model '{current_model_name}' does not support binary images – sending ImageUrl."
+                                )
+                                successfully_converted_at_least_one = True
+                                return ImageUrl(url=data_content)
 
                             logger.debug(
                                 f"Downloaded image URL and converted to BinaryContent (size={len(img_bytes)} bytes)"
