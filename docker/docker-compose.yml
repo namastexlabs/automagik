@@ -14,7 +14,7 @@ services:
     restart: always
 
   neo4j:
-    image: neo4j:5.22.0
+    image: neo4j:5
     container_name: automagik_neo4j
     ports:
       - "7474:7474"  # HTTP interface

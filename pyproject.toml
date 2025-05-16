@@ -1,17 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "automagik-agents"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Automagik agents templates"
 readme = "README.md"
-requires-python = ">=3.10, <3.13"
-license = {text = "MIT"}
-authors = [
-    {name = "Cezar Vasconcelos", email = "cezar@namastex.ai"}
-]
+license = "MIT"
+authors = ["Cezar Vasconcelos <cezar@namastex.ai>"]
 keywords = ["ai", "agents", "pydantic", "fastapi", "notion"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -22,47 +19,51 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-dependencies = [
-    "python-dotenv>=1.0.1",
-    "notion-client>=2.3.0",
-    "rich>=13.9.4",
-    "logfire>=3.6.1",
-    "fastapi>=0.104.1",
-    "uvicorn>=0.24.0",
-    "pydantic-settings>=2.8.0",
-    "typer>=0.9.0",
-    "build>=1.2.2.post1",
-    "twine>=6.1.0",
-    "discord-py>=2.4.0",
-    "psycopg2-binary>=2.9.10",
-    "pydantic-ai-graph>=0.0.0",
-    "pydantic-ai>=0.0.36",
-    "pytest>=8.3.5",
-    "pytest-html>=4.1.1",
-    "pytest-json-report>=1.5.0",
-    "pytest-xdist>=3.6.1",
-    "requests>=2.32.3",
-    "ruff>=0.10.0",
-    "uv>=0.6.8",
-    "pydantic-ai-slim[duckduckgo]>=0.0.42",
-    "pip>=25.0.1",
-    "pydantic[email]>=2.10.6",
-    "pytest-asyncio>=0.26.0",
-    "google-api-python-client>=2.165.0",
-    "google-auth-httplib2>=0.2.0",
-    "google-auth-oauthlib>=1.2.1",
-    "pytz>=2025.2",
-    "supabase>=2.15.0",
-    "graphiti-core>=0.1.0",
-    "graph-service>=1.0.0.7",
-]
+packages = [{include = "src"}]
 
-[project.urls]
+[tool.poetry.dependencies]
+python = ">=3.10, <3.13"
+python-dotenv = ">=1.0.1"
+notion-client = ">=2.3.0"
+rich = ">=13.9.4"
+logfire = ">=3.6.1"
+fastapi = ">=0.104.1"
+uvicorn = ">=0.24.0"
+pydantic-settings = ">=2.8.0"
+typer = ">=0.9.0"
+build = ">=1.2.2.post1"
+twine = ">=6.1.0"
+discord-py = ">=2.4.0"
+psycopg2-binary = ">=2.9.10"
+pydantic-ai-graph = ">=0.0.0"
+pydantic-ai = ">=0.0.36"
+pytest = ">=8.3.5"
+pytest-html = ">=4.1.1"
+pytest-json-report = ">=1.5.0"
+pytest-xdist = ">=3.6.1"
+requests = ">=2.32.3"
+ruff = ">=0.10.0"
+uv = ">=0.6.8"
+pydantic-ai-slim = {extras = ["duckduckgo"], version = ">=0.0.42"}
+pip = ">=25.0.1"
+pydantic = {extras = ["email"], version = ">=2.10.6"}
+pytest-asyncio = ">=0.26.0"
+google-api-python-client = ">=2.165.0"
+google-auth-httplib2 = ">=0.2.0"
+google-auth-oauthlib = ">=1.2.1"
+pytz = ">=2025.2"
+supabase = ">=2.15.0"
+graphiti-core = ">=0.1.0"
+graph-service = ">=1.0.0.7"
+
+[tool.poetry.group.dev.dependencies]
+
+[tool.poetry.urls]
 Homepage = "https://github.com/namastexlabs/automagik-agents"
 Repository = "https://github.com/namastexlabs/automagik-agents"
 Issues = "https://github.com/namastexlabs/automagik-agents/issues"
 
-[project.scripts]
+[tool.poetry.scripts]
 automagik-agents = "src.cli:app"
 
 [tool.setuptools]
@@ -75,7 +76,6 @@ version = {attr = "src.version.__version__"}
 ignore_no_config = true
 
 [tool.codeflash]
-# All paths are relative to this pyproject.toml's directory.
 module-root = "src"
 tests-root = "tests"
 test-framework = "pytest"
