@@ -234,10 +234,14 @@ class SofiaAgent(AutomagikAgent):
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)
             
+            # Attempt to import the rich multimodal types from *pydantic_ai*.
+            # We fall back gracefully if running with an older/stripped version
+            # of the library.
             try:
-                from pydantic_ai import ImageUrl #, BinaryContent # Add BinaryContent etc. when supporting base64/local files
+                from pydantic_ai import ImageUrl, BinaryContent  # type: ignore
             except ImportError:
-                ImageUrl = None
+                ImageUrl = None  # type: ignore
+                BinaryContent = None  # type: ignore
 
             pydantic_ai_input_list: list[Any] = [input_text] # Start with the text prompt
             successfully_converted_at_least_one = False
@@ -252,23 +256,41 @@ class SofiaAgent(AutomagikAgent):
                 mime_type = image_item_payload.get("mime_type", "")
 
                 if isinstance(data_content, str) and mime_type.startswith("image/"):
-                    if data_content.lower().startswith("http"): # It's a URL
-                        logger.debug(f"Converting image URL to ImageUrl: {data_content[:100]}...")
-                        successfully_converted_at_least_one = True
-                        return ImageUrl(url=data_content)
-                    # elif not data_content.lower().startswith("http"): # Potential Base64
-                        # from pydantic_ai import BinaryContent # Ensure import
-                        # try:
-                        #     import base64
-                        #     img_bytes = base64.b64decode(data_content)
-                        #     logger.debug(f"Converting base64 image data to BinaryContent (mime: {mime_type})")
-                        #     successfully_converted_at_least_one = True
-                        #     return BinaryContent(data=img_bytes, media_type=mime_type)
-                        # except Exception as e:
-                        #     logger.warning(f"Failed to convert base64 image data to BinaryContent: {e}")
-                        #     pass # Fall through to return original item
+                    # ------------------------------------------------------------------
+                    # Remote image (HTTP/S)  →  download & wrap as BinaryContent
+                    # ------------------------------------------------------------------
+                    # Attempt to download the image (also works for presigned MinIO/S3 URLs)
+                    if data_content.lower().startswith("http"):
+                        try:
+                            from src.utils.image_utils import download_image
+
+                            img_path, detected_mime = download_image(data_content)
+                            # Prefer explicit payload mime over detected one
+                            mime_for_bc = mime_type or detected_mime
+
+                            with open(img_path, "rb") as _fh:
+                                img_bytes = _fh.read()
+
+                            logger.debug(
+                                f"Downloaded image URL and converted to BinaryContent (size={len(img_bytes)} bytes)"
+                            )
+                            successfully_converted_at_least_one = True
+                            return BinaryContent(data=img_bytes, media_type=mime_for_bc)
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to convert image URL to BinaryContent – falling back to ImageUrl: {e}"
+                            )
+                        # Fallback: send as ImageUrl (requires remote fetch by model)
+                        if ImageUrl is not None:
+                            logger.debug(
+                                f"Converting image URL to ImageUrl object: {data_content[:100]}…"
+                            )
+                            successfully_converted_at_least_one = True
+                            return ImageUrl(url=data_content)
                 
-                logger.debug(f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}...")
+                logger.debug(
+                    f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}…"
+                )
                 return image_item_payload # Return original if not a convertible image URL or recognized format
 
             # Process the 'images' list from the multimodal_content dictionary
