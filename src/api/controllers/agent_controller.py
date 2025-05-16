@@ -278,10 +278,18 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             history_messages, _ = message_history.get_messages(page=1, page_size=100, sort_desc=False)
             messages = history_messages
         
-        # Update context with system_prompt if provided
-        context = request.context or {}
+        # -----------------------------------------------
+        # Prepare context (system prompt + multimodal)
+        # -----------------------------------------------
+        context = request.context.copy() if request.context else {}
+
+        # Attach system prompt override (if any)
         if request.system_prompt:
-            context.update({"system_prompt": request.system_prompt})
+            context["system_prompt"] = request.system_prompt
+
+        # Attach multimodal content so downstream agent can detect it
+        if multimodal_content:
+            context["multimodal_content"] = multimodal_content
         
         # Run the agent
         response_content = None
