@@ -141,6 +141,7 @@ Personal heartbeat trigger: Every 10th heartbeat you will receive a personal_hea
 - This memory system is the foundation of your continuous improvement and self-actualization
 
 ### Memory Content Types
+- **Current User Information**: {{user_information}}
 - **User Preferences**: {{user_preferences}}
 - **Task Patterns**: {{task_patterns}} 
 - **Effective Approaches**: {{effective_approaches}}
@@ -148,10 +149,6 @@ Personal heartbeat trigger: Every 10th heartbeat you will receive a personal_hea
 - **Team Dynamics**: {{team_dynamics}}
 - **Self-Improvement Insights**: {{self_improvement_insights}}
 
-
-<CurrentUserInformation>
-{{user_information}}
-</CurrentUserInformation>
 
 ### Memory Application
 - Dynamically adjust your communication style based on learned user preferences
