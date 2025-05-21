@@ -35,6 +35,7 @@ from src.agents.common.evolution import EvolutionMessagePayload
 from pydantic_ai import RunContext
 
 from src.tools.airtable import airtable_tools
+from src.agents.simple.sofia_agent.specialized.airtable import run_airtable_assistant  # NEW IMPORT
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,8 @@ class SofiaAgent(AutomagikAgent):
         # Register additional Evolution tools with context-aware wrappers
         self.tool_registry.register_tool(self._create_send_reaction_wrapper())
         self.tool_registry.register_tool(self._create_send_text_wrapper())
+        # Register specialized Airtable sub-agent as a tool
+        self.tool_registry.register_tool(self._create_airtable_agent_wrapper())  # NEW LINE
         
         logger.info("SofiaAgent initialized successfully")
     
@@ -513,3 +516,62 @@ class SofiaAgent(AutomagikAgent):
         send_text_wrapper.__name__ = "send_text_to_user"
         send_text_wrapper.__doc__ = "Send plain text to the current user via Evolution API. Auto-fills phone number."
         return send_text_wrapper 
+
+    # ------------------------------------------------------------------
+    # Airtable specialized sub-agent wrapper
+    # ------------------------------------------------------------------
+
+    def _create_airtable_agent_wrapper(self):
+        """Create a wrapper for the Airtable specialized agent (run_airtable_assistant).
+
+        This exposes the entire Airtable Assistant as a single callable tool so the
+        main SofiaAgent can delegate complex, multi-step Airtable workflows such as
+        creating/updating tasks, sending accountability messages, or resolving
+        blockers. The wrapper ensures the Evolution payload (WhatsApp context) is
+        forwarded into the sub-agent, mirroring the pattern used by other wrappers.
+        """
+        # Capture a reference to the parent context at creation time
+        parent_ctx = self.context
+
+        async def airtable_agent_wrapper(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            input_text: str,
+        ) -> str:
+            """Delegate Airtable-related queries to the specialized Airtable Assistant.
+
+            Args:
+                ctx: RunContext propagated by PydanticAI during tool execution.
+                input_text: The user's question or instruction regarding Airtable
+                    (tasks, milestones, team members, blockers, etc.).
+
+            Returns:
+                Natural-language response produced by the Airtable Assistant.
+            """
+            # Ensure Evolution payload is passed down for WhatsApp utilities
+            if ctx.deps and parent_ctx and "evolution_payload" in parent_ctx:
+                evo_payload = parent_ctx["evolution_payload"]
+                # 1. Attach directly to deps
+                ctx.deps.evolution_payload = evo_payload  # type: ignore
+                # 2. Merge into deps.context dict
+                merged = dict(ctx.deps.context) if hasattr(ctx.deps, "context") and ctx.deps.context else {}
+                merged["evolution_payload"] = evo_payload
+                ctx.deps.set_context(merged)
+                # 3. Keep reference on RunContext for downstream convenience
+                ctx.__dict__["evolution_payload"] = evo_payload  # type: ignore
+                ctx.__dict__["parent_context"] = parent_ctx      # type: ignore
+
+            # Delegate to the specialized agent
+            return await run_airtable_assistant(ctx, input_text)
+
+        # Tool metadata for the LLM
+        airtable_agent_wrapper.__name__ = "airtable_assistant"
+        airtable_agent_wrapper.__doc__ = (
+            "High-level Airtable Assistant capable of multi-step workflows across "
+            "the Tasks, projetos, and Team Members tables. Use this to create or "
+            "update tasks, send WhatsApp notifications, or resolve blockers when "
+            "a single CRUD call is insufficient. Accepts free-form instructions in "
+            "Portuguese and returns a natural-language answer after performing the "
+            "necessary Airtable tool calls."
+        )
+
+        return airtable_agent_wrapper 

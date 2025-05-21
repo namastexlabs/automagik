@@ -91,33 +91,53 @@ def _request(
 
 def get_list_records_description() -> str:
     return (
-        "List records from an Airtable table. Supports optional filtering, view, fields, and pagination. "
-        "Returns up to 100 records per page (Airtable limit)."
+        "List up to 100 records from a specific Airtable table (parameter: table – the table id like 'tblXXXX'). "
+        "Requires a base_id argument OR rely on the default ENV setting AIRTABLE_DEFAULT_BASE_ID. "
+        "If you do NOT yet know the table id, FIRST call `airtable_list_tables` (pass base_id) to discover it. "
+        "Optional keyword args: view, fields (list of names), filter_formula (Airtable formula), page_size, offset."
     )
 
 
 def get_get_record_description() -> str:
-    return "Retrieve a single Airtable record by its record ID."
+    return (
+        "Retrieve a single Airtable record by its record ID. Params: table (tbl id), record_id (rec id). "
+        "Make sure you have discovered table id first via `airtable_list_tables` if unknown."
+    )
 
 
 def get_create_records_description() -> str:
-    return "Create one or more records in an Airtable table (max 10 per request)."
+    return (
+        "Create up to 10 records in a table. Params: table (tbl id), records (list of field dictionaries). "
+        "Use `airtable_list_tables` to discover the table id if necessary."
+    )
 
 
 def get_update_records_description() -> str:
-    return "Update one or more existing Airtable records (max 10 per request)."
+    return (
+        "Update up to 10 existing records. Each element in `records` list must contain id and fields keys. "
+        "Useful flow: 1) `airtable_list_records` with filter to find rec ids -> 2) call this tool to update."
+    )
 
 
 def get_delete_records_description() -> str:
-    return "Delete one or more records from an Airtable table (max 10 per request)."
+    return (
+        "Delete up to 10 records from a table. Supply table id and list of record ids. "
+        "Consider calling `airtable_list_records` first to gather the record ids you wish to remove."
+    )
 
 
 def get_list_bases_description() -> str:
-    return "Return a list of Airtable bases (id and name) the current token can access."
+    return (
+        "Return a list of Airtable bases (id & name) available to the auth token. "
+        "Typical first step before any other Airtable operations if the base id is unknown."
+    )
 
 
 def get_list_tables_description() -> str:
-    return "Return a list of tables (id and name) inside a given Airtable base ID. Useful for discovering table ids before record operations."
+    return (
+        "Return tables (id & name) for the given base_id. Always call this if you only have the human table name; "
+        "then use the returned table id in subsequent record CRUD tools."
+    )
 
 
 # ---------------------------------------------------------------------------
