@@ -26,6 +26,8 @@ from .schema import (
     CreateRecordsResponse,
     UpdateRecordsResponse,
     DeleteRecordsResponse,
+    ListBasesResponse,
+    ListTablesResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,6 +110,14 @@ def get_update_records_description() -> str:
 
 def get_delete_records_description() -> str:
     return "Delete one or more records from an Airtable table (max 10 per request)."
+
+
+def get_list_bases_description() -> str:
+    return "Return a list of Airtable bases (id and name) the current token can access."
+
+
+def get_list_tables_description() -> str:
+    return "Return a list of tables (id and name) inside a given Airtable base ID. Useful for discovering table ids before record operations."
 
 
 # ---------------------------------------------------------------------------
@@ -283,4 +293,34 @@ async def delete_records(
         return DeleteRecordsResponse(success=True, deleted_record_ids=deleted_ids).model_dump()
     except Exception as e:
         logger.error("Error deleting Airtable records: %s", e)
-        return DeleteRecordsResponse(success=False, error=str(e)).model_dump() 
+        return DeleteRecordsResponse(success=False, error=str(e)).model_dump()
+
+
+async def list_bases(ctx: RunContext[Dict]) -> Dict[str, Any]:
+    """List bases the PAT has access to."""
+    url = f"{API_BASE_URL}/meta/bases"
+    try:
+        response = _request("GET", url)
+        if response.status_code != 200:
+            return ListBasesResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").model_dump()
+        data = response.json()
+        bases = [{"id": b.get("id"), "name": b.get("name")} for b in data.get("bases", data.get("bases", []))] or data.get("bases", [])
+        return ListBasesResponse(success=True, bases=bases).model_dump()
+    except Exception as e:
+        logger.error("Error listing Airtable bases: %s", e)
+        return ListBasesResponse(success=False, error=str(e)).model_dump()
+
+
+async def list_tables(ctx: RunContext[Dict], base_id: str) -> Dict[str, Any]:
+    """List tables inside a base (requires base_id)."""
+    url = f"{API_BASE_URL}/meta/bases/{base_id}/tables"
+    try:
+        response = _request("GET", url)
+        if response.status_code != 200:
+            return ListTablesResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").model_dump()
+        data = response.json()
+        tables = [{"id": t.get("id"), "name": t.get("name")} for t in data.get("tables", [])]
+        return ListTablesResponse(success=True, tables=tables).model_dump()
+    except Exception as e:
+        logger.error("Error listing Airtable tables: %s", e)
+        return ListTablesResponse(success=False, error=str(e)).model_dump() 

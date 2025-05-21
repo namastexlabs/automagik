@@ -44,4 +44,24 @@ class UpdateRecordsResponse(BaseAirtableResponse):
 class DeleteRecordsResponse(BaseAirtableResponse):
     """Response model for delete_records tool."""
 
-    deleted_record_ids: List[str] = Field(default_factory=list, description="IDs of deleted records") 
+    deleted_record_ids: List[str] = Field(default_factory=list, description="IDs of deleted records")
+
+
+class AirtableBase(BaseModel):
+    """Airtable base metadata."""
+    id: str = Field(..., description="Base ID (e.g., appXXXXXXXXXXXXXX)")
+    name: str = Field(..., description="Human-readable name of the base")
+
+
+class AirtableTable(BaseModel):
+    """Simplified Airtable table metadata."""
+    id: str = Field(..., description="Table ID (e.g., tblXXXXXXXXXXXXXX)")
+    name: str = Field(..., description="Table name")
+
+
+class ListBasesResponse(BaseAirtableResponse):
+    bases: List[AirtableBase] = Field(default_factory=list, description="List of bases user can access")
+
+
+class ListTablesResponse(BaseAirtableResponse):
+    tables: List[AirtableTable] = Field(default_factory=list, description="List of tables in the base") 
