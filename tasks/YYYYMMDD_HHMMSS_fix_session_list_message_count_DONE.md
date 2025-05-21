@@ -1,7 +1,7 @@
 # Task: Fix Message Count in List Sessions Endpoint
 
 **ID**: {YYYYMMDD_HHMMSS}
-**Status**: Open
+**Status**: Completed
 **Priority**: High
 **Assignee**: Unassigned
 **Reporter**: User

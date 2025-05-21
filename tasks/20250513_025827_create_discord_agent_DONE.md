@@ -64,8 +64,8 @@
   - [x] `src/agents/simple/discord_agent/prompts/__init__.py`
   - [x] `tests/test_discord_agent.py` (Unit tests)
   - [x] `scripts/test_discord_agent_api.py` (API test script)
-- [ ] Files potentially modified:
-  - [ ] `src/config.py` (for Discord-specific settings if needed)
+- [x] Files potentially modified:
+  - [x] `src/config.py` (for Discord-specific settings if needed)
 - [x] Dependencies added/changed: None (using existing)
 - [x] Edge cases considered:
   - [x] Handling API rate limits
