@@ -64,6 +64,11 @@
   - [ ] Added imports `copy` and `Lock`; replaced `_initialized_agents` with `_agent_templates`.
   - [ ] Files modified: `src/agents/models/agent_factory.py`
   - [ ] Fixed bug: cached only config dict in `AgentFactory` instead of live instance to prevent method shadowing causing 'NoneType not callable'.
+- [ ] Implementation 4 (Step 3.1 & 3.2)
+  - [ ] Created `SessionQueue` class in `src/utils/session_queue.py` that manages per-session ordered processing.
+  - [ ] Implemented message merging when multiple messages arrive for same session - saves unnecessary LLM calls.
+  - [ ] Uses asyncio primitives for thread-safety: locks, queues, futures for cross-task communication.
+  - [ ] Files modified: `src/utils/session_queue.py` (new file), `src/api/routes/agent_routes.py`
 
 ## Summary
 - [ ] Files modified: `
