@@ -65,8 +65,8 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = Field("postgres", description="PostgreSQL username")
     POSTGRES_PASSWORD: str = Field("postgres", description="PostgreSQL password")
     POSTGRES_DB: str = Field("automagik", description="PostgreSQL database name")
-    POSTGRES_POOL_MIN: int = Field(1, description="Minimum connections in the pool")
-    POSTGRES_POOL_MAX: int = Field(10, description="Maximum connections in the pool")
+    POSTGRES_POOL_MIN: int = Field(10, description="Minimum connections in the pool")
+    POSTGRES_POOL_MAX: int = Field(25, description="Maximum connections in the pool")
 
     # Server
     AM_PORT: int = Field(8881, description="Port to run the server on")
@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     # Logging
     AM_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
     AM_VERBOSE_LOGGING: bool = Field(False, description="Enable verbose logging with additional details")
+    AM_LOG_TO_FILE: bool = Field(False, description="Enable logging to file for debugging")
+    AM_LOG_FILE_PATH: str = Field("debug.log", description="Path to log file when file logging is enabled")
     LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
     LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
 
@@ -138,6 +140,16 @@ class Settings(BaseSettings):
     GRAPHITI_BACKGROUND_MODE: bool = Field(
         default=True,
         description="Process Graphiti operations in background (non-blocking)"
+    )
+
+    # LLM Concurrency / Retry
+    LLM_MAX_CONCURRENT_REQUESTS: int = Field(
+        default=15,
+        description="Maximum number of concurrent requests to the LLM provider (OpenAI) per API instance"
+    )
+    LLM_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Number of retry attempts for LLM calls on transient errors (rate limits, 5xx)"
     )
 
     # Airtable (Optional)

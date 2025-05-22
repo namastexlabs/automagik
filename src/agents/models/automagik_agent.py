@@ -21,6 +21,18 @@ _shared_graphiti_client = None
 _graphiti_initialized = False
 _graphiti_init_lock = asyncio.Lock()  # Lock to prevent concurrent initialization
 
+# Concurrency control for LLM provider calls (shared across all agents)
+_llm_semaphore: Optional[asyncio.BoundedSemaphore] = None
+
+def get_llm_semaphore() -> asyncio.BoundedSemaphore:
+    """Return a bounded semaphore limiting concurrent LLM calls.
+    The semaphore is created lazily using the limit from settings.
+    """
+    global _llm_semaphore
+    if _llm_semaphore is None:
+        _llm_semaphore = asyncio.BoundedSemaphore(settings.LLM_MAX_CONCURRENT_REQUESTS)
+    return _llm_semaphore
+
 # Try to import Graphiti, but don't fail if not available
 try:
     from graphiti_core import Graphiti
