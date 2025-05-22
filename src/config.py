@@ -156,6 +156,16 @@ class Settings(BaseSettings):
     AIRTABLE_TOKEN: Optional[str] = Field(None, description="Airtable personal access token (PAT)")
     AIRTABLE_DEFAULT_BASE_ID: Optional[str] = Field(None, description="Default Airtable base ID for tools if not provided explicitly")
 
+    # Uvicorn request handling limits
+    UVICORN_LIMIT_CONCURRENCY: int = Field(
+        default=100,
+        description="Maximum number of concurrent in-process requests Uvicorn should allow before back-pressure kicks in"
+    )
+    UVICORN_LIMIT_MAX_REQUESTS: int = Field(
+        default=1000,
+        description="Maximum number of requests to handle before the worker is recycled (helps avoid memory bloat)"
+    )
+
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=True,
