@@ -54,6 +54,7 @@ dependencies = [
     "pytz>=2025.2",
     "supabase>=2.15.0",
     "graphiti-core>=0.1.0",
+    "graph-service>=1.0.0.7",
 ]
 
 [project.urls]

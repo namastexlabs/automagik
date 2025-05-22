@@ -4,25 +4,25 @@ from datetime import datetime
 
 
 class DeviceListMetadata(BaseModel):
-    senderKeyHash: str
-    senderTimestamp: str
-    recipientKeyHash: str
-    recipientTimestamp: str
+    senderKeyHash: Optional[str] = None
+    senderTimestamp: Optional[str] = None
+    recipientKeyHash: Optional[str] = None
+    recipientTimestamp: Optional[str] = None
 
 
 class MessageContextInfo(BaseModel):
-    deviceListMetadata: DeviceListMetadata
-    deviceListMetadataVersion: int
+    deviceListMetadata: Optional[DeviceListMetadata] = None
+    deviceListMetadataVersion: Optional[int] = None
 
 
 class DisappearingMode(BaseModel):
-    initiator: str
+    initiator: Optional[str] = None
 
 
 class ContextInfo(BaseModel):
     expiration: Optional[int] = None
-    disappearingMode: DisappearingMode
-    ephemeralSettingTimestamp: str
+    disappearingMode: Optional[DisappearingMode] = None
+    ephemeralSettingTimestamp: Optional[str] = None
 
 
 class MessageKey(BaseModel):
@@ -84,30 +84,57 @@ class EvolutionMessagePayload(BaseModel):
     
     def get_user_number(self) -> Optional[str]:
         """Extract the user phone number (stripping suffix and prefix) from the payload."""
-        user_number = None
-        
-        # Get the full JID first
-        if hasattr(self.data, "key") and hasattr(self.data.key, "remoteJid"):
-            remote_jid = self.data.key.remoteJid
-            if remote_jid and "@" in remote_jid:
-                # Split to get number part
-                user_number = remote_jid.split("@")[0]
-                
-        # Remove country code if present 
-        if user_number and user_number.startswith("55"):
+        user_number: Optional[str] = None
+
+        # In direct chats the remoteJid is the user's JID (number@s.whatsapp.net)
+        # In group chats remoteJid ends with "@g.us" and the actual sender is in
+        # data.key.participant (number@s.whatsapp.net)
+
+        remote_jid: Optional[str] = None
+        participant_jid: Optional[str] = None
+
+        if hasattr(self.data, "key"):
+            remote_jid = getattr(self.data.key, "remoteJid", None)
+            participant_jid = getattr(self.data.key, "participant", None)
+
+        # Decide which JID represents the user (sender)
+        chosen_jid = participant_jid if (remote_jid and remote_jid.endswith("@g.us")) else remote_jid
+
+        if chosen_jid and "@" in chosen_jid:
+            user_number = chosen_jid.split("@")[0]
+
+        # Remove Brazil country code if present (keep generic for now)
+        if user_number and user_number.startswith("55") and len(user_number) > 2:
             user_number = user_number[2:]
-            
+
         return user_number
 
     def get_user_jid(self) -> Optional[str]:
         """Extract the full user JID (number@s.whatsapp.net) from the payload."""
-        remote_jid = None
-        
-        # Directly return the full remoteJid if available
-        if hasattr(self.data, "key") and hasattr(self.data.key, "remoteJid"):
-            remote_jid = self.data.key.remoteJid
-            
+        if not hasattr(self.data, "key"):
+            return None
+
+        remote_jid = getattr(self.data.key, "remoteJid", None)
+        participant_jid = getattr(self.data.key, "participant", None)
+
+        # If remote_jid is a group, return participant_jid; else remote_jid
+        if remote_jid and remote_jid.endswith("@g.us") and participant_jid:
+            return participant_jid
+
         return remote_jid
+
+    def is_group_chat(self) -> bool:
+        """Return True if the message originated from a WhatsApp group chat."""
+        if hasattr(self.data, "key") and hasattr(self.data.key, "remoteJid"):
+            remote_jid = self.data.key.remoteJid or ""
+            return remote_jid.endswith("@g.us")
+        return False
+
+    def get_group_jid(self) -> Optional[str]:
+        """Return the group JID (identifier@g.us) if this is a group chat."""
+        if self.is_group_chat():
+            return getattr(self.data.key, "remoteJid", None)
+        return None
 
     def get_user_name(self) -> Optional[str]:
         """Extract the user name from the payload."""

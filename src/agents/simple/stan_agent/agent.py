@@ -626,7 +626,7 @@ class StanAgent(AutomagikAgent):
             
             # Create response
             return AgentResponse(
-                text=result.data,
+                text=result.output,
                 success=True,
                 tool_calls=tool_calls,
                 tool_outputs=tool_outputs,

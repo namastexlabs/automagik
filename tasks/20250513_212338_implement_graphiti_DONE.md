@@ -3,37 +3,37 @@
 **Objective:** Integrate the Graphiti knowledge graph framework into the `AutomagikAgent` base class to process and store information from each user message and agent response as episodes in the knowledge graph.
 
 ## Requirements
-- [ ] Integrate the `graphiti-core` library.
-- [ ] Initialize Graphiti with Neo4j connection parameters and other relevant configurations (e.g., agent ID, environment).
-- [ ] Modify the agent's message processing methods (`run` and/or `process_message`) to add episodes to Graphiti for each interaction.
-- [ ] Ensure Neo4j credentials and other sensitive information are handled securely via configuration settings.
-- [ ] Implement proper error handling and logging for Graphiti operations.
-- [ ] Ensure the Graphiti client is gracefully closed during agent cleanup.
+- [x] Integrate the `graphiti-core` library.
+- [x] Initialize Graphiti with Neo4j connection parameters and other relevant configurations (e.g., agent ID, environment).
+- [x] Modify the agent's message processing methods (`run` and/or `process_message`) to add episodes to Graphiti for each interaction.
+- [x] Ensure Neo4j credentials and other sensitive information are handled securely via configuration settings.
+- [x] Implement proper error handling and logging for Graphiti operations.
+- [x] Ensure the Graphiti client is gracefully closed during agent cleanup.
 
 ## Key Considerations & Challenges
-- [ ] **Configuration Management:** How to best manage Neo4j URI, username, password, and Graphiti-specific settings (like agent ID for namespacing, environment tag).
-- [ ] **Asynchronous Operations:** Graphiti operations (like `add_episode`) are typically asynchronous. Ensure they are correctly awaited and integrated into the agent's async workflow.
-- [ ] **Neo4j Availability:** Handle potential connection issues with the Neo4j instance gracefully.
-- [ ] **Performance:** Assess and mitigate any performance impact of adding an episode for every message.
-- [ ] **Data Model for Episodes:** Decide on the structure and content of the episodes (e.g., what metadata from the user message, agent response, context, and tool calls should be included).
-- [ ] **One-time Setup:** `graphiti.build_indices_and_constraints()` should ideally be called once at application startup. Determine the best place for this (e.g., in `main.py` during `lifespan` events or a global agent setup routine).
+- [x] **Configuration Management:** How to best manage Neo4j URI, username, password, and Graphiti-specific settings (like agent ID for namespacing, environment tag).
+- [x] **Asynchronous Operations:** Graphiti operations (like `add_episode`) are typically asynchronous. Ensure they are correctly awaited and integrated into the agent's async workflow.
+- [x] **Neo4j Availability:** Handle potential connection issues with the Neo4j instance gracefully.
+- [x] **Performance:** Assess and mitigate any performance impact of adding an episode for every message.
+- [x] **Data Model for Episodes:** Decide on the structure and content of the episodes (e.g., what metadata from the user message, agent response, context, and tool calls should be included).
+- [x] **One-time Setup:** `graphiti.build_indices_and_constraints()` should ideally be called once at application startup. Determine the best place for this (e.g., in `main.py` during `lifespan` events or a global agent setup routine).
 
 ## Dependencies
-- [ ] `graphiti-core` library (add to `pyproject.toml` or `requirements.txt`).
-- [ ] `neo4j` Python driver (usually a dependency of `graphiti-core`, but confirm).
-- [ ] A running Neo4j instance.
+- [x] `graphiti-core` library (add to `pyproject.toml` or `requirements.txt`).
+- [x] `neo4j` Python driver (usually a dependency of `graphiti-core`, but confirm).
+- [x] A running Neo4j instance.
 
 ## Detailed Implementation Plan
 
 ### Step 1: Add Dependencies and Configuration
 
-- [ ] **Add `graphiti-core` to Project Dependencies:**
+- [x] **Add `graphiti-core` to Project Dependencies:**
   - Modify `pyproject.toml` (if using Poetry) or `requirements.txt` to include `graphiti-core`.
     ```toml
     # Example for pyproject.toml
     # graphiti-core = "^0.x.y" # Replace with the latest appropriate version
     ```
-- [ ] **Define Configuration in `src/config.py`:**
+- [x] **Define Configuration in `src/config.py`:**
   - Add the following fields to the `Settings` class in `src/config.py`:
     ```python
     # Inside class Settings(BaseSettings):
@@ -51,13 +51,13 @@
 
 ### Step 2: Initialize Graphiti Client in `AutomagikAgent`
 
-- [ ] **Import necessary modules in `src/agents/models/automagik_agent.py`:**
+- [x] **Import necessary modules in `src/agents/models/automagik_agent.py`:**
   ```python
   from graphiti import Graphiti
   from src.config import settings # Assuming 'settings' is the global config instance
   import asyncio # For one-time setup
   ```
-- [ ] **Modify `AutomagikAgent.__init__`:**
+- [x] **Modify `AutomagikAgent.__init__`:**
   - Add a `self.graphiti_client: Optional[Graphiti] = None` attribute.
   - Inside `__init__`, check if `settings.NEO4J_URI`, `settings.NEO4J_USERNAME`, and `settings.NEO4J_PASSWORD` are set.
   - If they are, initialize `self.graphiti_client`:
@@ -84,7 +84,7 @@
     else:
         logger.info("Graphiti/Neo4j settings not fully configured. Graphiti client will not be initialized.")
     ```
-- [ ] **Implement `graphiti.build_indices_and_constraints()` call (One-time Setup):**
+- [x] **Implement `graphiti.build_indices_and_constraints()` call (One-time Setup):**
   - This should be done once when the application starts. The best place is likely in `src/main.py` within an `async def lifespan(app: FastAPI):` context manager or similar global startup hook.
   - If it must be per-agent (less ideal for global indices), a lock mechanism (`asyncio.Lock`) could be used in `AutomagikAgent.__init__` to ensure it's called only by the first agent instance if multiple agents share the same Graphiti config. For now, assume a global setup is preferred.
     ```python
@@ -99,7 +99,7 @@
 
 ### Step 3: Integrate `add_episode` in Message Processing
 
-- [ ] **Create a helper method in `AutomagikAgent`:**
+- [x] **Create a helper method in `AutomagikAgent`:**
   - `async def _add_episode_to_graphiti(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None):`
     ```python
     async def _add_episode_to_graphiti(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None) -> None:
@@ -133,7 +133,7 @@
         except Exception as e:
             logger.error(f"Failed to add episode to Graphiti for agent '{self.name}': {e}")
     ```
-- [ ] **Call `_add_episode_to_graphiti` from `AutomagikAgent.process_message` (or `run`):**
+- [x] **Call `_add_episode_to_graphiti` from `AutomagikAgent.process_message` (or `run`):**
   - The `process_message` method seems suitable as it handles both user input and agent output formatting.
   - After the `response = await self.run(...)` call and before returning, call `_add_episode_to_graphiti`.
     ```python
@@ -150,7 +150,7 @@
 
 ### Step 4: Implement Cleanup
 
-- [ ] **Modify `AutomagikAgent.cleanup`:**
+- [x] **Modify `AutomagikAgent.cleanup`:**
   - If `self.graphiti_client` exists, call `await self.graphiti_client.close()`.
     ```python
     # Inside AutomagikAgent.cleanup
@@ -167,21 +167,21 @@
 
 ### Step 5: Testing
 
-- [ ] **Unit Tests:**
+- [x] **Unit Tests:**
   - Test `AutomagikAgent.__init__` to ensure `graphiti_client` is initialized (or not) based on configuration.
   - Mock `Graphiti` and test `_add_episode_to_graphiti` to verify it's called with correct parameters.
   - Test `cleanup` to ensure `graphiti_client.close()` is called.
-- [ ] **Integration Tests (Requires running Neo4j):**
+- [x] **Integration Tests (Requires running Neo4j):**
   - Create a test that sends a message to an agent and verifies that an episode is actually created in the Neo4j database.
   - This will require querying Neo4j directly in the test or using Graphiti's retrieval methods if applicable.
 
 ### Step 6: Documentation
 
-- [ ] Update `README.md` or other relevant documentation to include:
+- [x] Update `README.md` or other relevant documentation to include:
   - New dependencies (`graphiti-core`).
   - Required environment variables for Neo4j and Graphiti (`NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `GRAPHITI_AGENT_ID`, `GRAPHITI_ENV`).
   - A brief explanation of the Graphiti integration and its purpose.
 
 ## Next Steps (After Basic Episode Logging)
-- [ ] Explore using Graphiti for knowledge extraction from episodes (e.g., `graphiti.extract_knowledge(...)`).
-- [ ] Investigate how Graphiti's retrieval capabilities (`graphiti.search_similar_episodes(...)` or `graphiti.query_knowledge_graph(...)`) can be used to provide context to the agent.
+- [x] Explore using Graphiti for knowledge extraction from episodes (e.g., `graphiti.extract_knowledge(...)`).
+- [x] Investigate how Graphiti's retrieval capabilities (`graphiti.search_similar_episodes(...)` or `graphiti.query_knowledge_graph(...)`) can be used to provide context to the agent.

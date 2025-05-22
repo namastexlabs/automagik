@@ -265,6 +265,30 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     # Add other content types as needed
                     pass
         
+        # ------------------------------------------------------------------
+        # Legacy single-media fields support (mediaUrl + optional mime_type)
+        # ------------------------------------------------------------------
+        if request.mediaUrl:
+            try:
+                from src.utils.multimodal import detect_content_type, is_image_type
+            except ImportError:
+                # Fallback: simple extension check
+                def detect_content_type(url_or_data: str) -> str:  # type: ignore
+                    import mimetypes, pathlib
+                    return mimetypes.guess_type(url_or_data)[0] or "application/octet-stream"
+
+                def is_image_type(mime_type: str) -> bool:  # type: ignore
+                    return mime_type.startswith("image/")
+
+            mime = request.mime_type or detect_content_type(request.mediaUrl)
+
+            # For now we only support images via legacy fields – extend as needed
+            if is_image_type(mime):
+                multimodal_content.setdefault("images", []).append({
+                    "data": request.mediaUrl,
+                    "mime_type": mime,
+                })
+        
         # Add multimodal content to the message
         combined_content = {"text": content}
         if multimodal_content:
@@ -280,10 +304,18 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             history_messages, _ = await run_in_threadpool(message_history.get_messages, 1, 100, False)
             messages = history_messages
         
-        # Update context with system_prompt if provided
-        context = request.context or {}
+        # -----------------------------------------------
+        # Prepare context (system prompt + multimodal)
+        # -----------------------------------------------
+        context = request.context.copy() if request.context else {}
+
+        # Attach system prompt override (if any)
         if request.system_prompt:
-            context.update({"system_prompt": request.system_prompt})
+            context["system_prompt"] = request.system_prompt
+
+        # Attach multimodal content so downstream agent can detect it
+        if multimodal_content:
+            context["multimodal_content"] = multimodal_content
         
         # Run the agent
         response_content = None

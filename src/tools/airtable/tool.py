@@ -1,0 +1,286 @@
+"""Airtable tool implementation.
+
+This module provides the core functionality for Airtable tools.
+It mirrors the style of existing Notion / Google Drive tools.
+
+The functions below are deliberately lightweight wrappers around the
+Airtable Web API, returning response payloads that conform to our
+pydantic response models defined in `schema.py`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from typing import Dict, Any, List, Optional
+
+import requests
+from pydantic_ai import RunContext
+
+from src.config import settings
+
+from .schema import (
+    ListRecordsResponse,
+    GetRecordResponse,
+    CreateRecordsResponse,
+    UpdateRecordsResponse,
+    DeleteRecordsResponse,
+)
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Helper utilities
+# ---------------------------------------------------------------------------
+
+API_BASE_URL = "https://api.airtable.com/v0"
+DEFAULT_PAGE_SIZE = 100  # Airtable maximum
+MAX_RECORDS_PER_BATCH = 10  # Airtable maximum for writes
+
+
+def _get_token() -> str:
+    """Return the Airtable personal access token from configuration."""
+    token = getattr(settings, "AIRTABLE_TOKEN", None)
+    if not token:
+        raise ValueError("AIRTABLE_TOKEN is not configured. Please set it in your .env")
+    return token
+
+
+def _headers() -> Dict[str, str]:
+    """Common HTTP headers for Airtable requests."""
+    return {
+        "Authorization": f"Bearer {_get_token()}",
+        "Content-Type": "application/json",
+        "User-Agent": "automagik-agents/airtable-tool",
+    }
+
+
+def _request(
+    method: str,
+    url: str,
+    *,
+    params: Optional[Dict[str, Any]] = None,
+    json: Optional[Dict[str, Any]] = None,
+    retry_on_rate_limit: bool = True,
+) -> requests.Response:
+    """Make an HTTP request with basic rate-limit retry logic."""
+
+    while True:
+        response = requests.request(method, url, headers=_headers(), params=params, json=json, timeout=30)
+        if response.status_code != 429:
+            # Normal exit path
+            return response
+
+        # Handle 429 — wait 30 seconds as per docs, then retry once
+        if not retry_on_rate_limit:
+            return response
+
+        wait_time = 30
+        logger.warning("Airtable rate-limited (429). Sleeping for %s seconds and retrying once…", wait_time)
+        time.sleep(wait_time)
+        # Only retry once
+        retry_on_rate_limit = False
+
+
+# ---------------------------------------------------------------------------
+# Description helpers (used by interface.py)
+# ---------------------------------------------------------------------------
+
+def get_list_records_description() -> str:
+    return (
+        "List records from an Airtable table. Supports optional filtering, view, fields, and pagination. "
+        "Returns up to 100 records per page (Airtable limit)."
+    )
+
+
+def get_get_record_description() -> str:
+    return "Retrieve a single Airtable record by its record ID."
+
+
+def get_create_records_description() -> str:
+    return "Create one or more records in an Airtable table (max 10 per request)."
+
+
+def get_update_records_description() -> str:
+    return "Update one or more existing Airtable records (max 10 per request)."
+
+
+def get_delete_records_description() -> str:
+    return "Delete one or more records from an Airtable table (max 10 per request)."
+
+
+# ---------------------------------------------------------------------------
+# Tool implementations
+# ---------------------------------------------------------------------------
+
+async def list_records(
+    ctx: RunContext[Dict],
+    table: str,
+    *,
+    base_id: Optional[str] = None,
+    view: Optional[str] = None,
+    fields: Optional[List[str]] = None,
+    filter_formula: Optional[str] = None,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    offset: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List (the first page of) records from a table."""
+
+    base = base_id or getattr(settings, "AIRTABLE_DEFAULT_BASE_ID", None)
+    if not base:
+        return ListRecordsResponse(success=False, error="Missing base_id and no default configured").dict()
+
+    params: Dict[str, Any] = {
+        "pageSize": min(page_size, DEFAULT_PAGE_SIZE),
+    }
+    if view:
+        params["view"] = view
+    if fields:
+        for field in fields:
+            params.setdefault("fields[]", []).append(field)
+    if filter_formula:
+        params["filterByFormula"] = filter_formula
+    if offset:
+        params["offset"] = offset
+
+    url = f"{API_BASE_URL}/{base}/{table}"
+
+    try:
+        response = _request("GET", url, params=params)
+        if response.status_code != 200:
+            return ListRecordsResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").dict()
+        data = response.json()
+        return ListRecordsResponse(
+            success=True,
+            records=data.get("records", []),
+            offset=data.get("offset"),
+        ).dict()
+    except Exception as e:
+        logger.error("Error listing Airtable records: %s", e)
+        return ListRecordsResponse(success=False, error=str(e)).dict()
+
+
+async def get_record(
+    ctx: RunContext[Dict],
+    table: str,
+    record_id: str,
+    *,
+    base_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    base = base_id or getattr(settings, "AIRTABLE_DEFAULT_BASE_ID", None)
+    if not base:
+        return GetRecordResponse(success=False, error="Missing base_id and no default configured").dict()
+
+    url = f"{API_BASE_URL}/{base}/{table}/{record_id}"
+    try:
+        response = _request("GET", url)
+        if response.status_code != 200:
+            return GetRecordResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").dict()
+        data = response.json()
+        return GetRecordResponse(success=True, record=data).dict()
+    except Exception as e:
+        logger.error("Error getting Airtable record: %s", e)
+        return GetRecordResponse(success=False, error=str(e)).dict()
+
+
+async def create_records(
+    ctx: RunContext[Dict],
+    table: str,
+    records: List[Dict[str, Any]],
+    *,
+    base_id: Optional[str] = None,
+    typecast: bool = False,
+) -> Dict[str, Any]:
+    """Create up to 10 records."""
+
+    base = base_id or getattr(settings, "AIRTABLE_DEFAULT_BASE_ID", None)
+    if not base:
+        return CreateRecordsResponse(success=False, error="Missing base_id and no default configured").dict()
+
+    if len(records) > MAX_RECORDS_PER_BATCH:
+        return CreateRecordsResponse(success=False, error="Airtable limit: max 10 records per create").dict()
+
+    url = f"{API_BASE_URL}/{base}/{table}"
+    payload = {
+        "records": [{"fields": r} for r in records],
+        "typecast": typecast,
+    }
+    try:
+        response = _request("POST", url, json=payload)
+        if response.status_code != 200 and response.status_code != 201:
+            return CreateRecordsResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").dict()
+        data = response.json()
+        return CreateRecordsResponse(success=True, records=data.get("records", [])).dict()
+    except Exception as e:
+        logger.error("Error creating Airtable records: %s", e)
+        return CreateRecordsResponse(success=False, error=str(e)).dict()
+
+
+async def update_records(
+    ctx: RunContext[Dict],
+    table: str,
+    records: List[Dict[str, Any]],
+    *,
+    base_id: Optional[str] = None,
+    typecast: bool = False,
+) -> Dict[str, Any]:
+    """Update up to 10 records. Each record dict must include an 'id' key and optional 'fields'."""
+
+    base = base_id or getattr(settings, "AIRTABLE_DEFAULT_BASE_ID", None)
+    if not base:
+        return UpdateRecordsResponse(success=False, error="Missing base_id and no default configured").dict()
+
+    if len(records) > MAX_RECORDS_PER_BATCH:
+        return UpdateRecordsResponse(success=False, error="Airtable limit: max 10 records per update").dict()
+
+    processed = []
+    for rec in records:
+        rec_id = rec.get("id")
+        fields = rec.get("fields", {})
+        if not rec_id:
+            return UpdateRecordsResponse(success=False, error="Each record must include an 'id'").dict()
+        processed.append({"id": rec_id, "fields": fields})
+
+    url = f"{API_BASE_URL}/{base}/{table}"
+    payload = {"records": processed, "typecast": typecast}
+    try:
+        response = _request("PATCH", url, json=payload)
+        if response.status_code != 200:
+            return UpdateRecordsResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").dict()
+        data = response.json()
+        return UpdateRecordsResponse(success=True, records=data.get("records", [])).dict()
+    except Exception as e:
+        logger.error("Error updating Airtable records: %s", e)
+        return UpdateRecordsResponse(success=False, error=str(e)).dict()
+
+
+async def delete_records(
+    ctx: RunContext[Dict],
+    table: str,
+    record_ids: List[str],
+    *,
+    base_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Delete up to 10 records."""
+
+    base = base_id or getattr(settings, "AIRTABLE_DEFAULT_BASE_ID", None)
+    if not base:
+        return DeleteRecordsResponse(success=False, error="Missing base_id and no default configured").dict()
+
+    if len(record_ids) > MAX_RECORDS_PER_BATCH:
+        return DeleteRecordsResponse(success=False, error="Airtable limit: max 10 records per delete").dict()
+
+    params = [("records[]", rid) for rid in record_ids]
+    url = f"{API_BASE_URL}/{base}/{table}"
+    try:
+        # Pass list of tuples directly to preserve duplicates
+        response = _request("DELETE", url, params=params)
+        if response.status_code != 200:
+            return DeleteRecordsResponse(success=False, error=f"HTTP {response.status_code}: {response.text}").dict()
+        data = response.json()
+        deleted_ids = [rec.get("id") for rec in data.get("records", []) if rec.get("deleted")]
+        return DeleteRecordsResponse(success=True, deleted_record_ids=deleted_ids).dict()
+    except Exception as e:
+        logger.error("Error deleting Airtable records: %s", e)
+        return DeleteRecordsResponse(success=False, error=str(e)).dict() 
