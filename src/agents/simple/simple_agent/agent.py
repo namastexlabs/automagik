@@ -195,4 +195,11 @@ class SimpleAgent(AutomagikAgent):
                 success=False,
                 error_message=str(e),
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
-            ) 
+            )
+
+    # ------------------------------------------------------------------
+    # Backwards-compatibility shim
+    # ------------------------------------------------------------------
+    async def _initialize_agent(self) -> None:  # noqa: D401
+        """Alias maintained for legacy tests – delegates to `_initialize_pydantic_agent`."""
+        await self._initialize_pydantic_agent() 

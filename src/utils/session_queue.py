@@ -28,6 +28,7 @@ class SessionQueue:
         self._workers: Dict[str, asyncio.Task] = {}
         self._session_locks: Dict[str, asyncio.Lock] = {}
         self._closed_sessions: Set[str] = set()
+        self._shutdown = False
         
     async def process(self, 
                      session_id: str, 
@@ -65,9 +66,9 @@ class SessionQueue:
         
         # Critical section - under session lock
         async with lock:
-            if session_id in self._closed_sessions:
+            if session_id in self._closed_sessions or self._shutdown:
                 # Session was closed while we were waiting
-                raise ValueError(f"Session {session_id} has been closed")
+                raise ValueError(f"Session {session_id} has been closed or system is shutting down")
                 
             # Check if there's an active task already
             if session_id in self._active_futures and not self._active_futures[session_id].done():
@@ -127,9 +128,13 @@ class SessionQueue:
             queue = self._queues[session_id]
             logger.debug(f"Starting worker loop for session {session_id}")
             
-            while True:
+            while not self._shutdown:
                 # Get the next message from the queue
-                item = await queue.get()
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=0.1)
+                except asyncio.TimeoutError:
+                    # Check shutdown status and continue
+                    continue
                 
                 message_contents = item["message_contents"]
                 future = item["future"]
@@ -161,7 +166,8 @@ class SessionQueue:
             logger.debug(f"Worker for session {session_id} cancelled")
         except Exception as e:
             # Unexpected error in the worker loop
-            logger.error(f"Session worker error: {str(e)}")
+            if not self._shutdown:  # Only log errors if not shutting down
+                logger.error(f"Session worker error: {str(e)}")
         finally:
             logger.debug(f"Worker loop for session {session_id} exiting")
             
@@ -195,6 +201,37 @@ class SessionQueue:
             self._workers.pop(session_id, None)
             self._active_futures.pop(session_id, None)
             
+    async def shutdown(self) -> None:
+        """
+        Shutdown the queue manager, cancelling all active workers and futures.
+        """
+        logger.debug("Shutting down SessionQueue")
+        self._shutdown = True
+        
+        # Cancel all active workers
+        for worker in list(self._workers.values()):
+            if not worker.done():
+                worker.cancel()
+                
+        # Cancel all active futures
+        for future in list(self._active_futures.values()):
+            if not future.done():
+                future.cancel()
+                
+        # Wait for workers to finish
+        workers = [w for w in self._workers.values() if not w.done()]
+        if workers:
+            try:
+                await asyncio.wait_for(asyncio.gather(*workers, return_exceptions=True), timeout=1.0)
+            except asyncio.TimeoutError:
+                logger.warning("Some workers did not shut down within timeout")
+                
+        # Clear all data structures
+        self._queues.clear()
+        self._workers.clear()
+        self._active_futures.clear()
+        self._session_locks.clear()
+        self._closed_sessions.clear()
 
 # Global instance for app-wide use
 _session_queues = SessionQueue()
@@ -202,4 +239,9 @@ _session_queues = SessionQueue()
 def get_session_queue() -> SessionQueue:
     """Get the global session queue instance."""
     global _session_queues
-    return _session_queues 
+    return _session_queues
+
+async def shutdown_session_queue() -> None:
+    """Shutdown the global session queue instance."""
+    global _session_queues
+    await _session_queues.shutdown() 
