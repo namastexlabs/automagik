@@ -1,0 +1,39 @@
+{
+  "test_name": "Agent Run Test",
+  "summary": {
+    "total_requests": 300,
+    "successful_requests": 34,
+    "failed_requests": 266,
+    "error_rate": "88.67%",
+    "duration_seconds": "24.09",
+    "requests_per_second": "12.45"
+  },
+  "latency_stats": {
+    "mean_ms": "1737.97",
+    "median_ms": "1062.22",
+    "p95_ms": "5721.83",
+    "max_ms": "11248.32",
+    "min_ms": "20.43"
+  },
+  "performance": {
+    "duration_seconds": 24.091585397720337,
+    "initial_memory_mb": 54.3125,
+    "peak_memory_mb": 59.8125,
+    "memory_growth_mb": 5.5,
+    "avg_cpu_percent": 22.106666666666666,
+    "max_open_files": 2,
+    "max_connections": 24
+  },
+  "errors": [
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error",
+    "HTTP 500: Internal Server Error"
+  ]
+}
