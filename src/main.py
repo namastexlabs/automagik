@@ -179,9 +179,31 @@ def create_app() -> FastAPI:
             
         # Initialize all agents at startup - now this is async so we can await it
         await initialize_all_agents()
+        
+        # Start Graphiti queue
+        try:
+            logger.info("🚀 Starting Graphiti queue...")
+            from src.utils.graphiti_queue import get_graphiti_queue
+            queue_manager = get_graphiti_queue()
+            await queue_manager.start()
+            logger.info("✅ Graphiti queue started successfully")
+        except Exception as e:
+            logger.error(f"❌ Error starting Graphiti queue: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
         yield
         
         # Cleanup shared resources
+        try:
+            # Stop Graphiti queue
+            logger.info("🛑 Stopping Graphiti queue...")
+            from src.utils.graphiti_queue import shutdown_graphiti_queue
+            await shutdown_graphiti_queue()
+            logger.info("✅ Graphiti queue stopped successfully")
+        except Exception as e:
+            logger.error(f"❌ Error stopping Graphiti queue: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
         try:
             # Close shared Graphiti client if it exists
             from src.agents.models.automagik_agent import _shared_graphiti_client
@@ -322,6 +344,21 @@ def setup_routes(app: FastAPI):
             version=SERVICE_INFO["version"],
             environment=settings.AM_ENV
         )
+
+    @app.get("/health/graphiti-queue", tags=["System"], summary="Graphiti Queue Health", description="Returns Graphiti queue status and statistics")
+    async def graphiti_queue_health():
+        """Get Graphiti queue status and statistics"""
+        try:
+            from src.utils.graphiti_queue import get_graphiti_queue
+            queue_manager = get_graphiti_queue()
+            return queue_manager.get_queue_status()
+        except Exception as e:
+            logger.error(f"❌ Error getting Graphiti queue status: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "enabled": settings.GRAPHITI_QUEUE_ENABLED
+            }
 
     # Include API router (with versioned prefix)
     app.include_router(api_router, prefix="/api/v1")

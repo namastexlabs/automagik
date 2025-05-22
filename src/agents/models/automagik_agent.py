@@ -733,21 +733,77 @@ class AutomagikAgent(ABC, Generic[T]):
         if hasattr(response, "tool_outputs") and response.tool_outputs:
             additional_metadata["tool_outputs"] = response.tool_outputs
             
-        # Start Graphiti processing in background without waiting for it
-        # Store references needed for processing
-        user_input = content
-        agent_response_text = response.text
-        
-        # Use asyncio.create_task to run Graphiti processing in background
-        asyncio.create_task(
-            self._add_episode_to_graphiti_background(
-                user_input=user_input, 
-                agent_response=agent_response_text, 
+        # Queue Graphiti processing in background without waiting for it
+        if settings.GRAPHITI_BACKGROUND_MODE:
+            await self._queue_graphiti_episode(
+                user_input=content,
+                agent_response=response.text,
                 metadata=additional_metadata
             )
-        )
+        else:
+            # Legacy: Run directly in background task (fallback mode)
+            asyncio.create_task(
+                self._add_episode_to_graphiti_background(
+                    user_input=content, 
+                    agent_response=response.text, 
+                    metadata=additional_metadata
+                )
+            )
                 
         return response
+    
+    async def _queue_graphiti_episode(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None) -> None:
+        """Queue Graphiti episode for background processing.
+        
+        Args:
+            user_input: The text input from the user
+            agent_response: The text response from the agent
+            metadata: Optional additional metadata for the episode
+        """
+        try:
+            from src.utils.graphiti_queue import get_graphiti_queue
+            
+            # Get user ID from dependencies or metadata
+            user_id = None
+            if hasattr(self.dependencies, 'user_id') and self.dependencies.user_id:
+                user_id = str(self.dependencies.user_id)
+            elif metadata and metadata.get("user_id"):
+                user_id = str(metadata.get("user_id"))
+            elif self.context and self.context.get("user_id"):
+                user_id = str(self.context.get("user_id"))
+            
+            # Use a default user if none found
+            if not user_id:
+                user_id = "default_user"
+            
+            # Prepare enhanced metadata
+            episode_metadata = {
+                "agent_name": self.name,
+                "agent_id": str(self.db_id) if self.db_id else None,
+                "is_background": True,
+                **(metadata or {})
+            }
+            
+            # Add session info if available
+            if self.context:
+                session_id = self.context.get("session_id")
+                if session_id:
+                    episode_metadata["session_id"] = str(session_id)
+            
+            # Enqueue the episode
+            queue_manager = get_graphiti_queue()
+            operation_id = await queue_manager.enqueue_episode(
+                user_id=user_id,
+                message=user_input,
+                response=agent_response,
+                metadata=episode_metadata
+            )
+            
+            logger.debug(f"📝 Queued Graphiti episode {operation_id[:8]}... for agent {self.name}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to queue Graphiti episode for agent {self.name}: {e}")
+            # Don't let Graphiti queue failures affect the agent response
         
     async def _add_episode_to_graphiti_background(self, user_input: str, agent_response: str, metadata: Optional[Dict] = None) -> None:
         """Background version of _add_episode_to_graphiti that handles exceptions internally.

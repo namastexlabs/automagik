@@ -114,6 +114,32 @@ class Settings(BaseSettings):
     GRAPHITI_NAMESPACE_ID: str = Field("automagik", description="Project namespace ID for Graphiti, used as a prefix for agent IDs")
     GRAPHITI_ENV: str = Field("default", description="Environment for Graphiti, e.g., 'development', 'production'")
 
+    # Graphiti Queue Configuration
+    GRAPHITI_QUEUE_ENABLED: bool = Field(
+        default=True,
+        description="Enable asynchronous Graphiti queue processing"
+    )
+    GRAPHITI_QUEUE_MAX_WORKERS: int = Field(
+        default=5,
+        description="Maximum number of Graphiti background workers"
+    )
+    GRAPHITI_QUEUE_MAX_SIZE: int = Field(
+        default=1000,
+        description="Maximum queue size for pending Graphiti operations"
+    )
+    GRAPHITI_QUEUE_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Maximum retry attempts for failed Graphiti operations"
+    )
+    GRAPHITI_QUEUE_RETRY_DELAY: int = Field(
+        default=5,
+        description="Delay in seconds between retry attempts"
+    )
+    GRAPHITI_BACKGROUND_MODE: bool = Field(
+        default=True,
+        description="Process Graphiti operations in background (non-blocking)"
+    )
+
     # Airtable (Optional)
     AIRTABLE_TOKEN: Optional[str] = Field(None, description="Airtable personal access token (PAT)")
     AIRTABLE_DEFAULT_BASE_ID: Optional[str] = Field(None, description="Default Airtable base ID for tools if not provided explicitly")
