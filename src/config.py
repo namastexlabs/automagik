@@ -114,6 +114,10 @@ class Settings(BaseSettings):
     GRAPHITI_NAMESPACE_ID: str = Field("automagik", description="Project namespace ID for Graphiti, used as a prefix for agent IDs")
     GRAPHITI_ENV: str = Field("default", description="Environment for Graphiti, e.g., 'development', 'production'")
 
+    # Airtable (Optional)
+    AIRTABLE_TOKEN: Optional[str] = Field(None, description="Airtable personal access token (PAT)")
+    AIRTABLE_DEFAULT_BASE_ID: Optional[str] = Field(None, description="Default Airtable base ID for tools if not provided explicitly")
+
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=True,

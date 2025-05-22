@@ -47,11 +47,17 @@ async def list_guilds_and_channels(
     """
     try:
         logger.info("Listing Discord guilds and channels")
+        logger.debug(f"Run context: {ctx}")
+        logger.debug(f"Using bot token: {'Provided' if bot_token else 'From environment'}")
         
         async with DiscordProvider(bot_token) as discord_client:
-            return await discord_client.list_guilds_and_channels()
+            logger.debug("Discord client initialized successfully")
+            result = await discord_client.list_guilds_and_channels()
+            logger.debug(f"Retrieved {len(result.get('guilds', []))} guilds")
+            return result
     except Exception as e:
         logger.error(f"Error listing Discord guilds: {str(e)}")
+        logger.debug(f"Full exception details: {e}", exc_info=True)
         return {"success": False, "error": f"Error: {str(e)}", "guilds": []}
 
 async def get_guild_info(

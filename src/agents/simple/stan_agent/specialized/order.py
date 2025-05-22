@@ -562,7 +562,7 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
             result = await product_agent(product_agent_ctx, query)
             logger.info(f"Product agent response received")
             
-            return result
+            return result.output
         except Exception as e:
             error_msg = f"Error communicating with Product agent: {e}"
             logger.error(error_msg)
@@ -574,7 +574,7 @@ async def order_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str:
         logger.info(f"Executing Order Agent with input: {input_text}")
         result = await order_agent.run(input_text, deps=ctx)
         logger.info(f"Order agent response: {result}")
-        return result.data
+        return result.output
     except Exception as e:
         error_msg = f"Error in order agent: {e}"
         logger.error(error_msg)

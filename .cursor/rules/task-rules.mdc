@@ -6,9 +6,9 @@ alwaysApply: true
 # Concise Task Management Protocol - Sequential Mode
 
 ## File Creation
-- Filename: `YYYYMMDD_HHMMSS_task_name.md` 
+- Filename: `TODO_YYYYMMDD_HHMMSS_task_name.md` 
 - IMPORTANT: Always include a descriptive task name after the timestamp (e.g., `20250404_135621_api_integration.md`)
-- Never create files with timestamp only
+- Never create files with timestamp only, and always include the `TODO_` prefix while the task is active
 - Store in `tasks/` directory
 
 ## Task Structure
@@ -44,6 +44,24 @@ alwaysApply: true
 
 ## Execution Rules
 - Execute one subtask at a time in sequence
+- Update the task file after EACH subtask is completed
+- Mark completed subtasks with [x] as they are finished
+- Update main task status throughout execution
+- Document work incrementally, not all at once
+- Never proceed to the next section until all subtasks in the current section are completed and marked
+
+### Completion & Archiving
+
+When a task reaches **Status: Completed**:
+1. Update all unchecked boxes (`[ ]`) to checked (`[x]`).
+2. Change the **Status** line to `Completed`.
+3. Rename the file by appending `_DONE` before the `.md` extension. For example:
+
+```
+TODO_20250404_135621_api_integration.md ➡ TODO_20250404_135621_api_integration_DONE.md
+```
+
+This mirrors the automated renaming process used in the repository tooling.
 - Update the task file after EACH subtask is completed
 - Mark completed subtasks with [x] as they are finished
 - Update main task status throughout execution

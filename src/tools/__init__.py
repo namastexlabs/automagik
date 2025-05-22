@@ -17,6 +17,7 @@ from .memory.tool import (
     list_memories_tool
 )
 from .notion import notion_tools
+from .airtable import airtable_tools
 
 # Export individual tools and groups
 __all__ = [
@@ -45,4 +46,7 @@ __all__ = [
     
     # Notion tools
     "notion_tools",
+    
+    # Airtable tools
+    "airtable_tools",
 ] 

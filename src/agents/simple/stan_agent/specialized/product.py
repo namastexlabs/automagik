@@ -882,7 +882,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     try:
         result = await product_catalog_agent.run(input_text, deps=ctx)
         logger.info(f"Product catalog agent response: {result}")
-        return result.data
+        return result.output
     except Exception as e:
         error_msg = f"Error in product catalog agent: {str(e)}"
         logger.error(error_msg)
