@@ -4,9 +4,11 @@ import json
 import uuid
 import os
 import asyncio
+import traceback
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
 from src.config import settings
@@ -125,7 +127,6 @@ async def initialize_all_agents():
         logger.info(f"✅ Agent initialization completed. {len(initialized_agents)} agents initialized.")
     except Exception as e:
         logger.error(f"❌ Failed to initialize agents: {str(e)}")
-        import traceback
         logger.error(f"Detailed error: {traceback.format_exc()}")
 
 def create_app() -> FastAPI:
@@ -149,7 +150,6 @@ def create_app() -> FastAPI:
             logger.info("✅ Database initialization check complete.")
         except Exception as e:
             logger.error(f"❌ Failed during database initialization check: {str(e)}")
-            import traceback
             logger.error(f"Detailed error: {traceback.format_exc()}")
             
         # Initialize Graphiti indices and constraints if Neo4j is configured
@@ -174,7 +174,6 @@ def create_app() -> FastAPI:
                     logger.warning("⚠️ graphiti-core package not found, skipping Graphiti initialization")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize Graphiti indices and constraints: {str(e)}")
-                import traceback
                 logger.error(f"Detailed error: {traceback.format_exc()}")
             
         # Initialize all agents at startup - now this is async so we can await it
@@ -240,7 +239,8 @@ def create_app() -> FastAPI:
                 "description": "Endpoints to manage and retrieve agent conversation sessions",
                 "order": 3,
             },
-        ]
+        ],
+        debug=True  # NEW: enable debug mode per Phase 2 instructions
     )
     
     # Setup API routes
@@ -311,15 +311,58 @@ def create_app() -> FastAPI:
         logger.error(f"❌ Failed to initialize database connection for message storage: {str(e)}")
         logger.error("⚠️ Application will fall back to in-memory message store")
         # Include traceback for debugging
-        import traceback
         logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Create an in-memory message history as fallback
         # Don't reference the non-existent message_store module
         logger.warning("⚠️ Using in-memory storage as fallback - MESSAGES WILL NOT BE PERSISTED!")
     
-    # Remove direct call since we're using the startup event
-    # initialize_all_agents()
+    # ---------------------------------------------------------------------
+    # Phase 2A/B/D Middleware for improved stability and visibility
+    # ---------------------------------------------------------------------
+
+    # Catch-all exception handler so that all 500s are logged with traceback
+    @app.middleware("http")
+    async def catch_all_exceptions_middleware(request: Request, call_next):
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as exc:
+            # Log the error with traceback so we can diagnose pre-router failures
+            logger.error(f"❌ Unhandled exception in request {request.url}: {exc}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Internal server error: {str(exc)}"},
+            )
+
+    # Bounded semaphore to limit the number of concurrent in-process requests
+    _request_semaphore = asyncio.BoundedSemaphore(
+        getattr(settings, "UVICORN_LIMIT_CONCURRENCY", 10)
+    )
+
+    @app.middleware("http")
+    async def limit_concurrent_requests(request: Request, call_next):
+        async with _request_semaphore:
+            return await call_next(request)
+
+    # Global request timeout so individual slow requests do not hog workers
+    REQUEST_TIMEOUT_SECONDS = 30.0  # Could be made configurable if needed
+
+    @app.middleware("http")
+    async def timeout_middleware(request: Request, call_next):
+        try:
+            return await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            logger.error(f"⏰ Request timeout after {REQUEST_TIMEOUT_SECONDS}s: {request.url}")
+            return JSONResponse(
+                status_code=408,
+                content={"detail": "Request timeout"},
+            )
+
+    # ---------------------------------------------------------------------
+    # Existing setup logic continues below
+    # ---------------------------------------------------------------------
 
     return app
 
