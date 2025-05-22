@@ -23,12 +23,11 @@ class SessionQueue:
     
     def __init__(self):
         """Initialize the session queue manager."""
-        self._queues: Dict[str, asyncio.Queue] = {}
-        self._active_futures: Dict[str, asyncio.Future] = {}
-        self._workers: Dict[str, asyncio.Task] = {}
         self._session_locks: Dict[str, asyncio.Lock] = {}
         self._closed_sessions: Set[str] = set()
         self._shutdown = False
+        # Track current processing for each session
+        self._current_processing: Dict[str, Dict[str, Any]] = {}
         
     async def process(self, 
                      session_id: str, 
@@ -57,9 +56,6 @@ class SessionQueue:
         # Get or create a lock for this session
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
         
-        # Ensure queue exists for this session
-        queue = self._queues.setdefault(session_id, asyncio.Queue())
-        
         # Create a future to represent this message's completion
         loop = asyncio.get_event_loop()
         future: asyncio.Future[T] = loop.create_future()
@@ -70,106 +66,111 @@ class SessionQueue:
                 # Session was closed while we were waiting
                 raise ValueError(f"Session {session_id} has been closed or system is shutting down")
                 
-            # Check if there's an active task already
-            if session_id in self._active_futures and not self._active_futures[session_id].done():
-                # Cancel the existing task - we'll merge messages
-                logger.info(f"Detected in-flight request for session {session_id}, merging messages")
-                old_future = self._active_futures[session_id]
-                old_future.cancel()
+            # Check if there's already processing happening for this session
+            if session_id in self._current_processing:
+                current = self._current_processing[session_id]
                 
-                # If there are pending items in the queue, get the old message content
-                if not queue.empty():
-                    old_message = await queue.get()
-                    # Put a merged message on the queue 
-                    await queue.put({
-                        "message_contents": [old_message["message_contents"][0], message_content],
-                        "future": future,
-                        "kwargs": kwargs
-                    })
-                else:
-                    # This shouldn't normally happen - put the new message only
-                    await queue.put({
-                        "message_contents": [message_content],
-                        "future": future,
-                        "kwargs": kwargs
-                    })
-            else:
-                # No active task or it's already completed - enqueue normally
-                await queue.put({
-                    "message_contents": [message_content],
-                    "future": future,
-                    "kwargs": kwargs
-                })
-            
-            # Store the future for potential cancellation
-            self._active_futures[session_id] = future
-            
-            # Start/ensure a worker is running for this session
-            if session_id not in self._workers or self._workers[session_id].done():
-                worker = asyncio.create_task(
-                    self._worker_loop(session_id, processor_fn)
+                # Cancel the existing future
+                if not current["future"].done():
+                    logger.info(f"📝 Detected in-flight request for session {session_id}, merging messages")
+                    current["future"].cancel()
+                
+                # Merge the messages
+                current["messages"].append(message_content)
+                current["future"] = future
+                current["kwargs"] = kwargs
+                current["processor_fn"] = processor_fn
+                
+                # Cancel the existing processing task if it exists
+                if "task" in current and not current["task"].done():
+                    current["task"].cancel()
+                
+                # Start a new processing task with the merged messages
+                task = asyncio.create_task(
+                    self._process_with_delay(session_id, current)
                 )
-                self._workers[session_id] = worker
+                current["task"] = task
+            else:
+                # No current processing - start new
+                processing_info = {
+                    "messages": [message_content],
+                    "future": future,
+                    "kwargs": kwargs,
+                    "processor_fn": processor_fn
+                }
+                self._current_processing[session_id] = processing_info
                 
-        # Return the future that will be completed by the worker
+                # Start processing with a small delay to allow for merging
+                task = asyncio.create_task(
+                    self._process_with_delay(session_id, processing_info)
+                )
+                processing_info["task"] = task
+                
+        # Return the future that will be completed by the processor
         return await future
         
-    async def _worker_loop(self, 
-                          session_id: str, 
-                          processor_fn: Callable[[str, List[str]], Awaitable[T]]) -> None:
+    async def _process_with_delay(self, session_id: str, processing_info: Dict[str, Any]) -> None:
         """
-        Worker loop that processes messages from a session's queue.
+        Process messages after a small delay to allow for potential merging.
         
         Args:
-            session_id: The session ID to process messages for
-            processor_fn: The function to call with message(s)
+            session_id: The session ID
+            processing_info: Dictionary containing messages, future, etc.
         """
         try:
-            queue = self._queues[session_id]
-            logger.debug(f"Starting worker loop for session {session_id}")
+            # Small delay to allow for message merging
+            await asyncio.sleep(0.005)
             
-            while not self._shutdown:
-                # Get the next message from the queue
-                try:
-                    item = await asyncio.wait_for(queue.get(), timeout=0.1)
-                except asyncio.TimeoutError:
-                    # Check shutdown status and continue
-                    continue
+            # Get the lock and check if we're still the current processor
+            lock = self._session_locks.get(session_id)
+            if not lock:
+                return
                 
-                message_contents = item["message_contents"]
-                future = item["future"]
-                kwargs = item.get("kwargs", {})
+            async with lock:
+                current = self._current_processing.get(session_id)
+                if not current or current is not processing_info:
+                    # We've been replaced by a newer processing request
+                    return
                 
-                try:
-                    # Process the message(s)
-                    result = await processor_fn(session_id, message_contents, **kwargs)
+                # Extract the information
+                messages = current["messages"]
+                future = current["future"]
+                kwargs = current.get("kwargs", {})
+                processor_fn = current["processor_fn"]
+                
+                # Remove from current processing
+                del self._current_processing[session_id]
+            
+            # Process outside the lock
+            try:
+                if future.done():
+                    # Future was already cancelled/completed
+                    return
                     
-                    # Complete the future with the result
-                    if not future.done():
-                        future.set_result(result)
-                except asyncio.CancelledError:
-                    # Expected cancellation (e.g. merged with newer message)
-                    logger.debug(f"Processing for session {session_id} was cancelled")
-                    if not future.done():
-                        future.cancel()
-                except Exception as e:
-                    # Unexpected error
-                    logger.error(f"Error processing message for session {session_id}: {str(e)}")
-                    if not future.done():
-                        future.set_exception(e)
-                finally:
-                    # Mark the task as done in the queue
-                    queue.task_done()
+                # Call the processor function
+                result = await processor_fn(session_id, messages, **kwargs)
                 
+                # Complete the future with the result
+                if not future.done():
+                    future.set_result(result)
+                    
+            except asyncio.CancelledError:
+                # Expected cancellation
+                logger.debug(f"Processing for session {session_id} was cancelled")
+                if not future.done():
+                    future.cancel()
+            except Exception as e:
+                # Unexpected error
+                logger.error(f"Error processing message for session {session_id}: {str(e)}")
+                if not future.done():
+                    future.set_exception(e)
+                    
         except asyncio.CancelledError:
-            # Worker task was cancelled
-            logger.debug(f"Worker for session {session_id} cancelled")
+            # Task was cancelled
+            logger.debug(f"🔍 Processing task for session {session_id} cancelled")
         except Exception as e:
-            # Unexpected error in the worker loop
-            if not self._shutdown:  # Only log errors if not shutting down
-                logger.error(f"Session worker error: {str(e)}")
-        finally:
-            logger.debug(f"Worker loop for session {session_id} exiting")
+            # Unexpected error in the processing task
+            logger.error(f"Session processing task error: {str(e)}")
             
     async def close_session(self, session_id: str) -> None:
         """
@@ -186,50 +187,43 @@ class SessionQueue:
             # Mark session as closed
             self._closed_sessions.add(session_id)
             
-            # Cancel any active worker
-            worker = self._workers.get(session_id)
-            if worker and not worker.done():
-                worker.cancel()
-                
-            # Cancel any active future
-            future = self._active_futures.get(session_id)
-            if future and not future.done():
-                future.cancel()
-                
-            # Clean up resources
-            self._queues.pop(session_id, None)
-            self._workers.pop(session_id, None)
-            self._active_futures.pop(session_id, None)
+            # Cancel any current processing
+            current = self._current_processing.get(session_id)
+            if current:
+                if "task" in current and not current["task"].done():
+                    current["task"].cancel()
+                    
+                if not current["future"].done():
+                    current["future"].cancel()
+                    
+                del self._current_processing[session_id]
             
     async def shutdown(self) -> None:
         """
         Shutdown the queue manager, cancelling all active workers and futures.
         """
-        logger.debug("Shutting down SessionQueue")
+        logger.debug("🔍 Shutting down SessionQueue")
         self._shutdown = True
         
-        # Cancel all active workers
-        for worker in list(self._workers.values()):
-            if not worker.done():
-                worker.cancel()
+        # Cancel all current processing
+        for current in list(self._current_processing.values()):
+            if "task" in current and not current["task"].done():
+                current["task"].cancel()
                 
-        # Cancel all active futures
-        for future in list(self._active_futures.values()):
-            if not future.done():
-                future.cancel()
+            if not current["future"].done():
+                current["future"].cancel()
                 
-        # Wait for workers to finish
-        workers = [w for w in self._workers.values() if not w.done()]
-        if workers:
+        # Wait for tasks to finish
+        tasks = [current["task"] for current in self._current_processing.values() 
+                if "task" in current and not current["task"].done()]
+        if tasks:
             try:
-                await asyncio.wait_for(asyncio.gather(*workers, return_exceptions=True), timeout=1.0)
+                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=1.0)
             except asyncio.TimeoutError:
-                logger.warning("Some workers did not shut down within timeout")
+                logger.warning("Some processing tasks did not shut down within timeout")
                 
         # Clear all data structures
-        self._queues.clear()
-        self._workers.clear()
-        self._active_futures.clear()
+        self._current_processing.clear()
         self._session_locks.clear()
         self._closed_sessions.clear()
 
