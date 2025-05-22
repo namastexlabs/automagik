@@ -141,29 +141,29 @@ class SessionQueue:
                 # Remove from current processing
                 del self._current_processing[session_id]
             
-            # Process outside the lock
-            try:
-                if future.done():
-                    # Future was already cancelled/completed
-                    return
-                    
-                # Call the processor function
-                result = await processor_fn(session_id, messages, **kwargs)
-                
-                # Complete the future with the result
-                if not future.done():
-                    future.set_result(result)
-                    
-            except asyncio.CancelledError:
+                # Process outside the lock
+                try:
+                    if future.done():
+                        # Future was already cancelled/completed
+                        return
+                        
+                    # Call the processor function
+                    result = await processor_fn(session_id, messages, **kwargs)
+                        
+                    # Complete the future with the result
+                    if not future.done():
+                        future.set_result(result)
+                        
+                except asyncio.CancelledError:
                 # Expected cancellation
-                logger.debug(f"Processing for session {session_id} was cancelled")
-                if not future.done():
-                    future.cancel()
-            except Exception as e:
-                # Unexpected error
-                logger.error(f"Error processing message for session {session_id}: {str(e)}")
-                if not future.done():
-                    future.set_exception(e)
+                    logger.debug(f"Processing for session {session_id} was cancelled")
+                    if not future.done():
+                        future.cancel()
+                except Exception as e:
+                    # Unexpected error
+                    logger.error(f"Error processing message for session {session_id}: {str(e)}")
+                    if not future.done():
+                        future.set_exception(e)
                     
         except asyncio.CancelledError:
             # Task was cancelled
@@ -192,10 +192,10 @@ class SessionQueue:
             if current:
                 if "task" in current and not current["task"].done():
                     current["task"].cancel()
-                    
+                
                 if not current["future"].done():
                     current["future"].cancel()
-                    
+                
                 del self._current_processing[session_id]
             
     async def shutdown(self) -> None:
