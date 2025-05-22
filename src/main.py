@@ -349,6 +349,14 @@ def setup_routes(app: FastAPI):
     async def graphiti_queue_health():
         """Get Graphiti queue status and statistics"""
         try:
+            # Quick check if queue is disabled
+            if not settings.GRAPHITI_QUEUE_ENABLED:
+                return {
+                    "status": "disabled",
+                    "enabled": False,
+                    "message": "Graphiti queue is disabled by configuration"
+                }
+            
             from src.utils.graphiti_queue import get_graphiti_queue
             queue_manager = get_graphiti_queue()
             return queue_manager.get_queue_status()

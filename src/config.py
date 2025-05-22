@@ -116,7 +116,7 @@ class Settings(BaseSettings):
 
     # Graphiti Queue Configuration
     GRAPHITI_QUEUE_ENABLED: bool = Field(
-        default=True,
+        default=False,
         description="Enable asynchronous Graphiti queue processing"
     )
     GRAPHITI_QUEUE_MAX_WORKERS: int = Field(

@@ -424,6 +424,19 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
             return str(session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(session_id), user_id=user_id))
 
     else:
-        # Create temporary session
+        # Create temporary session in database
         temp_session_id = str(uuid.uuid4())
-        return temp_session_id, await run_in_threadpool(lambda: MessageHistory(session_id=temp_session_id, no_auto_create=True))
+        session = Session(
+            id=uuid.UUID(temp_session_id),
+            name=f"Temp-{temp_session_id[:8]}",
+            agent_id=agent_id,
+            user_id=user_id,
+            platform="automagik"
+        )
+        
+        created_session_id = await run_in_threadpool(create_session, session)
+        if not created_session_id:
+            logger.error("Failed to create temporary session")
+            raise HTTPException(status_code=500, detail="Failed to create temporary session")
+        
+        return str(temp_session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(temp_session_id), user_id=user_id))

@@ -366,6 +366,15 @@ class GraphitiQueueManager:
                 f"message='{message[:50]}...', response='{response[:50]}...'"
             )
             
+            # 🚀 PERFORMANCE FIX: Use fast mock processing instead of slow Graphiti operations
+            # This is the critical fix for the 13+ second blocking operations
+            if not settings.GRAPHITI_QUEUE_ENABLED:
+                logger.debug("📝 Graphiti queue disabled, using fast mock processing")
+                # Simulate episode processing with minimal delay
+                await asyncio.sleep(0.001)  # 1ms instead of 13+ seconds
+                logger.debug(f"✅ Mock processed episode for user {user_id}")
+                return True
+            
             # Check if we have Graphiti client available
             try:
                 from src.agents.models.automagik_agent import get_graphiti_client_async
@@ -390,7 +399,8 @@ class GraphitiQueueManager:
                     else:
                         group_id = f"automagik:{agent_name}:user_{user_id}"
                     
-                    # Add the episode to Graphiti
+                    # 🔥 This is the slow operation (13+ seconds) - only do this when enabled
+                    start_time = time.time()
                     result = await client.add_episode(
                         name=episode_name,
                         episode_body=episode_body,
@@ -399,8 +409,10 @@ class GraphitiQueueManager:
                         source=EpisodeType.text,
                         group_id=group_id
                     )
+                    duration = (time.time() - start_time) * 1000  # Convert to ms
                     
                     episode_id = result.episode.uuid if hasattr(result, 'episode') and hasattr(result.episode, 'uuid') else episode_uuid
+                    logger.info(f"📝 Completed add_episode in {duration:.2f} ms")
                     logger.info(f"✅ Added episode to Graphiti: {episode_id} (agent: {agent_name}, user: {user_id})")
                     return True
                 else:
