@@ -1,5 +1,7 @@
-"""api_stress_test.py
-Comprehensive API stress testing tool for the Automagik Agents API.
+#!/usr/bin/env python3
+"""
+Comprehensive API stress testing tool with mocking capabilities.
+Supports both real API testing and mocked agent testing to avoid expensive provider calls.
 
 This tool extends the basic agent_run_bench.py with:
 - Multi-endpoint testing (agents, users, sessions, memories)
@@ -54,6 +56,17 @@ import sys
 import traceback
 
 import httpx
+
+# Import Pydantic AI components for mocking
+try:
+    from pydantic_ai import Agent, models
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.models.function import FunctionModel, AgentInfo
+    from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
+    PYDANTIC_AI_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AI_AVAILABLE = False
+    print("Warning: pydantic-ai not installed. Mocking features will be disabled.")
 
 try:
     import psutil
@@ -139,7 +152,7 @@ class PayloadGenerator:
         ]
         
         payload = {
-            "input_text": random.choice(messages),
+            "message_content": random.choice(messages),
             "message_type": "text",
             "preserve_system_prompt": False,
         }
@@ -152,8 +165,8 @@ class PayloadGenerator:
         if random.random() < 0.3:  # 30% chance
             payload["message_limit"] = random.randint(5, 20)
             
-        if random.random() < 0.2:  # 20% chance
-            payload["user_id"] = str(random.randint(1, 100))
+        # Use consistent default user ID to reduce server load
+        payload["user_id"] = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
             
         return payload
     
@@ -189,8 +202,173 @@ class PayloadGenerator:
         }
 
 
+class MockedAgentTester:
+    """Test agents using mocked models to avoid expensive provider calls."""
+    
+    def __init__(self):
+        if not PYDANTIC_AI_AVAILABLE:
+            raise ImportError("pydantic-ai is required for mocked testing")
+        
+        self.performance_monitor = PerformanceMonitor()
+        self.results = {
+            'successful_requests': 0,
+            'failed_requests': 0,
+            'errors': [],
+            'latencies': [],
+            'start_time': None,
+            'end_time': None,
+        }
+    
+    def create_test_agent(self, mock_type: str = "test") -> Agent:
+        """Create an agent with mocked model."""
+        # Safety measure to prevent accidental real requests
+        models.ALLOW_MODEL_REQUESTS = False
+        
+        if mock_type == "test":
+            # Use TestModel for simple, fast testing
+            agent = Agent(TestModel(), system_prompt="You are a helpful assistant.")
+        elif mock_type == "function":
+            # Use FunctionModel for more realistic responses
+            def mock_response(messages: List[ModelMessage], info: AgentInfo) -> ModelResponse:
+                # Generate a simple response based on the user input
+                user_msg = messages[-1].parts[-1].content if messages else "Hello"
+                
+                responses = [
+                    f"I understand you said: {user_msg}",
+                    f"That's an interesting question about: {user_msg}",
+                    f"Let me help you with: {user_msg}",
+                    f"Here's my response to: {user_msg}",
+                ]
+                
+                return ModelResponse(parts=[TextPart(random.choice(responses))])
+            
+            agent = Agent(FunctionModel(mock_response), system_prompt="You are a helpful assistant.")
+        else:
+            raise ValueError(f"Unknown mock type: {mock_type}")
+        
+        return agent
+    
+    async def _run_agent_worker(self, semaphore: asyncio.Semaphore, agent: Agent, 
+                               messages: List[str], worker_id: int = 0) -> None:
+        """Worker to run agent with mock model."""
+        async with semaphore:
+            try:
+                start_time = time.perf_counter()
+                
+                # Run the agent with a random message
+                message = random.choice(messages)
+                result = await agent.run(message)
+                
+                latency = time.perf_counter() - start_time
+                
+                # Simulate varying response times for realism
+                if random.random() < 0.1:  # 10% of requests have higher latency
+                    await asyncio.sleep(random.uniform(0.1, 0.3))
+                
+                # Track success
+                self.results['successful_requests'] += 1
+                self.results['latencies'].append(latency)
+                
+                # Log sample outputs
+                if worker_id % 100 == 0:
+                    logger.info(f"Sample response: {result.output[:100]}...")
+                    
+            except Exception as e:
+                self.results['failed_requests'] += 1
+                self.results['errors'].append(f"Agent error: {str(e)}")
+            
+            # Sample performance periodically
+            if worker_id % 10 == 0:
+                self.performance_monitor.sample()
+    
+    async def test_mocked_agents(self, mock_type: str, concurrency: int, 
+                                requests: int) -> Dict[str, Any]:
+        """Test mocked agents."""
+        logger.info(f"Testing mocked agents ({mock_type}) with {requests} requests, "
+                   f"concurrency {concurrency}")
+        
+        agent = self.create_test_agent(mock_type)
+        semaphore = asyncio.Semaphore(concurrency)
+        
+        # Test messages
+        messages = [
+            "What is the weather like today?",
+            "Tell me a joke",
+            "Explain quantum computing",
+            "What's the best programming language?",
+            "How do I bake a cake?",
+            "What is artificial intelligence?",
+            "Help me write an email",
+            "What's the capital of France?",
+            "Explain machine learning",
+            "How does the internet work?"
+        ]
+        
+        self.performance_monitor.start()
+        self.results['start_time'] = time.time()
+        
+        # Override the agent model to use our mock
+        with agent.override(model=agent.model):
+            tasks = [
+                asyncio.create_task(
+                    self._run_agent_worker(semaphore, agent, messages, i)
+                )
+                for i in range(requests)
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
+        
+        self.results['end_time'] = time.time()
+        return self._generate_report(f"Mocked Agent Test ({mock_type})")
+    
+    def _generate_report(self, test_name: str) -> Dict[str, Any]:
+        """Generate test report."""
+        if not self.results['latencies']:
+            return {"error": "No successful requests captured"}
+        
+        latencies = self.results['latencies']
+        duration = self.results['end_time'] - self.results['start_time']
+        
+        # Calculate statistics
+        mean_latency = statistics.mean(latencies)
+        median_latency = statistics.median(latencies)
+        p95_latency = statistics.quantiles(latencies, n=20)[18] if len(latencies) >= 20 else max(latencies)
+        max_latency = max(latencies)
+        min_latency = min(latencies)
+        
+        # Calculate throughput
+        total_requests = self.results['successful_requests'] + self.results['failed_requests']
+        rps = total_requests / duration if duration > 0 else 0
+        
+        # Error analysis
+        error_rate = self.results['failed_requests'] / total_requests if total_requests > 0 else 0
+        
+        # Performance summary
+        perf_summary = self.performance_monitor.get_summary()
+        
+        return {
+            "test_name": test_name,
+            "summary": {
+                "total_requests": total_requests,
+                "successful_requests": self.results['successful_requests'],
+                "failed_requests": self.results['failed_requests'],
+                "error_rate": f"{error_rate:.2%}",
+                "duration_seconds": f"{duration:.2f}",
+                "requests_per_second": f"{rps:.2f}",
+            },
+            "latency_stats": {
+                "mean_ms": f"{mean_latency * 1000:.2f}",
+                "median_ms": f"{median_latency * 1000:.2f}",
+                "p95_ms": f"{p95_latency * 1000:.2f}",
+                "max_ms": f"{max_latency * 1000:.2f}",
+                "min_ms": f"{min_latency * 1000:.2f}",
+            },
+            "performance": perf_summary,
+            "errors": self.results['errors'][:10] if self.results['errors'] else [],
+        }
+
+
 class APIStressTester:
-    """Main stress testing class."""
+    """Main stress testing class for real API endpoints."""
     
     def __init__(self, base_url: str, api_key: str, timeout: float = 30.0):
         self.base_url = base_url.rstrip('/')
@@ -431,16 +609,27 @@ class APIStressTester:
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Comprehensive API stress testing tool")
+    parser = argparse.ArgumentParser(description="Comprehensive API stress testing tool with mocking")
     
+    # Test mode selection
+    parser.add_argument("--mode", choices=["api", "mock"], default="api",
+                       help="Test mode: 'api' for real API testing, 'mock' for agent mocking")
+    
+    # API testing options
     parser.add_argument("--base-url", default="http://localhost:8000", 
-                       help="FastAPI server base URL")
-    parser.add_argument("--api-key", required=True,
-                       help="API key for authentication")
+                       help="FastAPI server base URL (for API mode)")
+    parser.add_argument("--api-key", 
+                       help="API key for authentication (required for API mode)")
     parser.add_argument("--test-type", choices=["agent_run", "session_queue", "full_api"], 
-                       default="agent_run", help="Type of test to run")
+                       default="agent_run", help="Type of API test to run")
     parser.add_argument("--agent-name", default="simple_agent", 
                        help="Agent name for agent tests")
+    
+    # Mocking options
+    parser.add_argument("--mock-type", choices=["test", "function"], default="test",
+                       help="Type of mock to use: 'test' for TestModel, 'function' for FunctionModel")
+    
+    # Common options
     parser.add_argument("--concurrency", type=int, default=100, 
                        help="Number of concurrent requests")
     parser.add_argument("--requests", type=int, default=500, 
@@ -465,21 +654,35 @@ async def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
-    # Create stress tester
-    tester = APIStressTester(args.base_url, args.api_key, args.timeout)
+    # Validate arguments based on mode
+    if args.mode == "api" and not args.api_key:
+        print("Error: --api-key is required for API mode")
+        return
     
     try:
-        # Run appropriate test
-        if args.test_type == "agent_run":
-            results = await tester.test_agent_run(args.agent_name, args.concurrency, args.requests)
-        elif args.test_type == "session_queue":
-            results = await tester.test_session_queue_merging(
-                args.session_count, args.messages_per_session, args.concurrency, args.agent_name
-            )
-        elif args.test_type == "full_api":
-            results = await tester.test_full_api(args.concurrency, args.requests)
+        if args.mode == "mock":
+            # Mocked agent testing
+            if not PYDANTIC_AI_AVAILABLE:
+                print("Error: pydantic-ai is required for mocked testing. Install with: pip install pydantic-ai")
+                return
+            
+            tester = MockedAgentTester()
+            results = await tester.test_mocked_agents(args.mock_type, args.concurrency, args.requests)
+            
         else:
-            raise ValueError(f"Unknown test type: {args.test_type}")
+            # Real API testing
+            tester = APIStressTester(args.base_url, args.api_key, args.timeout)
+            
+            if args.test_type == "agent_run":
+                results = await tester.test_agent_run(args.agent_name, args.concurrency, args.requests)
+            elif args.test_type == "session_queue":
+                results = await tester.test_session_queue_merging(
+                    args.session_count, args.messages_per_session, args.concurrency, args.agent_name
+                )
+            elif args.test_type == "full_api":
+                results = await tester.test_full_api(args.concurrency, args.requests)
+            else:
+                raise ValueError(f"Unknown test type: {args.test_type}")
         
         # Print results
         print("\n" + "="*80)
