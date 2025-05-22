@@ -7,6 +7,7 @@ Este script testa a capacidade do agente de produtos de lidar com consultas rela
 import asyncio
 import logging
 import os
+import pytest
 from dotenv import load_dotenv
 from pydantic_ai import RunContext
 from typing import Dict, Any
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+@pytest.mark.asyncio
 async def test_product_query():
     """Testar o agente de produtos com consultas em português."""
     # Criar um contexto simulado
