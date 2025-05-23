@@ -378,7 +378,7 @@ class GraphitiQueueManager:
             # Check if we have Graphiti client available
             try:
                 from src.agents.models.automagik_agent import get_graphiti_client_async
-                client = await get_graphiti_client_async()
+                client = await asyncio.wait_for(get_graphiti_client_async(), timeout=2.0)  # NEW: timeout
                 
                 if client:
                     # Process episode with actual Graphiti client
@@ -399,15 +399,18 @@ class GraphitiQueueManager:
                     else:
                         group_id = f"automagik:{agent_name}:user_{user_id}"
                     
-                    # 🔥 This is the slow operation (13+ seconds) - only do this when enabled
+                    # 🔥 This is the slow operation (13+ seconds) - add timeout to prevent hanging
                     start_time = time.time()
-                    result = await client.add_episode(
-                        name=episode_name,
-                        episode_body=episode_body,
-                        source_description=f"Conversation with {agent_name}",
-                        reference_time=datetime.utcnow(),
-                        source=EpisodeType.text,
-                        group_id=group_id
+                    result = await asyncio.wait_for(
+                        client.add_episode(
+                            name=episode_name,
+                            episode_body=episode_body,
+                            source_description=f"Conversation with {agent_name}",
+                            reference_time=datetime.utcnow(),
+                            source=EpisodeType.text,
+                            group_id=group_id
+                        ),
+                        timeout=10.0  # NEW: 10 second timeout to prevent hanging
                     )
                     duration = (time.time() - start_time) * 1000  # Convert to ms
                     
@@ -419,6 +422,9 @@ class GraphitiQueueManager:
                     logger.debug("📝 Graphiti client not available, skipping episode processing")
                     return True  # Don't fail if Graphiti is not available
                     
+            except asyncio.TimeoutError:
+                logger.warning("⏰ Graphiti processing timed out, continuing")
+                return True  # Don't fail on timeout
             except ImportError:
                 logger.debug("📝 Graphiti not installed, skipping episode processing")
                 return True  # Don't fail if Graphiti is not installed
@@ -429,8 +435,6 @@ class GraphitiQueueManager:
         except Exception as e:
             logger.error(f"💥 Episode processing failed: {e}")
             return False
-    
-
     
     async def _process_custom(self, operation: GraphitiOperation) -> bool:
         """
