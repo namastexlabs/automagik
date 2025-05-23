@@ -252,18 +252,79 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         multimodal_content = {}
         
         if request.media_contents:
+            logger.debug(f"Processing {len(request.media_contents)} media content items")
             for content_item in request.media_contents:
-                if getattr(content_item, "mime_type", "").startswith("image/"):
-                    if "images" not in multimodal_content:
-                        multimodal_content["images"] = []
+                try:
+                    mime_type = content_item.mime_type
+                    logger.debug(f"Processing media item with MIME type: {mime_type}")
                     
-                    multimodal_content["images"].append({
-                        "data": getattr(content_item, "data", None) or getattr(content_item, "media_url", None),
-                        "mime_type": content_item.mime_type
-                    })
-                else:
-                    # Add other content types as needed
-                    pass
+                    if mime_type.startswith("image/"):
+                        if "images" not in multimodal_content:
+                            multimodal_content["images"] = []
+                        
+                        # Get data from either URL or binary data field
+                        data_content = None
+                        if hasattr(content_item, 'data') and content_item.data:
+                            data_content = content_item.data
+                        elif hasattr(content_item, 'media_url') and content_item.media_url:
+                            data_content = content_item.media_url
+                        
+                        if data_content:
+                            multimodal_content["images"].append({
+                                "data": data_content,
+                                "mime_type": mime_type
+                            })
+                            logger.debug(f"Added image to multimodal content: {mime_type}")
+                        else:
+                            logger.warning(f"Image content item has no data or media_url")
+                            
+                    elif mime_type.startswith("audio/"):
+                        if "audio" not in multimodal_content:
+                            multimodal_content["audio"] = []
+                        
+                        # Get data from either URL or binary data field
+                        data_content = None
+                        if hasattr(content_item, 'data') and content_item.data:
+                            data_content = content_item.data
+                        elif hasattr(content_item, 'media_url') and content_item.media_url:
+                            data_content = content_item.media_url
+                        
+                        if data_content:
+                            multimodal_content["audio"].append({
+                                "data": data_content,
+                                "mime_type": mime_type
+                            })
+                            logger.debug(f"Added audio to multimodal content: {mime_type}")
+                        else:
+                            logger.warning(f"Audio content item has no data or media_url")
+                            
+                    elif mime_type.startswith(("application/", "text/")):
+                        if "documents" not in multimodal_content:
+                            multimodal_content["documents"] = []
+                        
+                        # Get data from either URL or binary data field
+                        data_content = None
+                        if hasattr(content_item, 'data') and content_item.data:
+                            data_content = content_item.data
+                        elif hasattr(content_item, 'media_url') and content_item.media_url:
+                            data_content = content_item.media_url
+                        
+                        if data_content:
+                            multimodal_content["documents"].append({
+                                "data": data_content,
+                                "mime_type": mime_type
+                            })
+                            logger.debug(f"Added document to multimodal content: {mime_type}")
+                        else:
+                            logger.warning(f"Document content item has no data or media_url")
+                    else:
+                        logger.warning(f"Unsupported MIME type: {mime_type}")
+                        
+                except Exception as e:
+                    logger.error(f"Error processing media content item: {str(e)}")
+                    continue
+            
+            logger.debug(f"Final multimodal_content: {multimodal_content}")
         
 
         # Add multimodal content to the message
