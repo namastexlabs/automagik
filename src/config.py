@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     )
 
     # Graphiti / Neo4j (Optional)
+    GRAPHITI_ENABLED: bool = Field(
+        default=True,
+        description="Master switch to enable/disable all Graphiti functionality"
+    )
     NEO4J_URI: Optional[str] = Field(None, description="Neo4j connection URI (e.g., bolt://localhost:7687 or neo4j://localhost:7687)")
     NEO4J_USERNAME: Optional[str] = Field(None, description="Neo4j username")
     NEO4J_PASSWORD: Optional[str] = Field(None, description="Neo4j password")

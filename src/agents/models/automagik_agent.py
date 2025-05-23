@@ -257,11 +257,18 @@ class AutomagikAgent(ABC, Generic[T]):
         
         # Debug Neo4j configuration
         
-        if Graphiti is not None and settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
+        if (settings.GRAPHITI_ENABLED and 
+            Graphiti is not None and 
+            settings.NEO4J_URI and 
+            settings.NEO4J_USERNAME and 
+            settings.NEO4J_PASSWORD):
             agent_id = self.db_id if self.db_id else self.name
             self.graphiti_agent_id = f"{settings.GRAPHITI_NAMESPACE_ID}:{agent_id}"
         else:
-            logger.warning("Graphiti is not configured, skipping Graphiti agent ID setup")
+            if not settings.GRAPHITI_ENABLED:
+                logger.info("Graphiti is disabled via GRAPHITI_ENABLED=false")
+            else:
+                logger.warning("Graphiti is not configured, skipping Graphiti agent ID setup")
         # Register in database if no ID provided
         if self.db_id is None:
             try:
@@ -746,7 +753,7 @@ class AutomagikAgent(ABC, Generic[T]):
             additional_metadata["tool_outputs"] = response.tool_outputs
             
         # Queue Graphiti processing in background without waiting for it
-        if settings.GRAPHITI_BACKGROUND_MODE:
+        if settings.GRAPHITI_ENABLED and settings.GRAPHITI_BACKGROUND_MODE:
             await self._queue_graphiti_episode(
                 user_input=content,
                 agent_response=response.text,
