@@ -13,8 +13,15 @@ source "$LIB_DIR/system.sh"
 source "$LIB_DIR/config.sh"
 
 # Docker-specific variables
-export INIT_GRAPHITI=false
+export INIT_GRAPHITI=true
 export FORCE_REBUILD=false
+
+AM_EFFECTIVE_PORT=$( { get_env_value "AM_PORT" "$ENV_FILE" || true; } )
+if [ -z "$AM_EFFECTIVE_PORT" ]; then
+    # .env may not exist yet (first-run). Use default port and continue; it will be refreshed after configuration step.
+    AM_EFFECTIVE_PORT="8881"
+    log "INFO" "AM_PORT is not yet defined. Using default port $AM_EFFECTIVE_PORT for now."
+fi
 
 # Show Docker installation options
 show_docker_options_menu() {
@@ -32,13 +39,15 @@ show_docker_options_menu() {
     
     # Graphiti setup
     echo
-    if confirm_action "Include Neo4j and Graphiti containers for knowledge graphs?" "n"; then
+    if confirm_action "Include Neo4j and Graphiti containers for knowledge graphs?" "y"; then
         INIT_GRAPHITI=true
+    else
+        INIT_GRAPHITI=false
     fi
     
     echo
     echo -e "${YELLOW}Docker installation will include:${NC}"
-    echo "• Automagik Agents container (port 18881)"
+    echo "• Automagik Agents container (port ${AM_EFFECTIVE_PORT})"
     echo "• PostgreSQL container"
     if [ "$INIT_GRAPHITI" = true ]; then
         echo "• Neo4j container (port 7474)"
@@ -180,9 +189,9 @@ run_docker_health_check() {
     
     # Test API endpoint
     log "INFO" "Testing API endpoint..."
-    sleep 2
-    if curl -s "http://localhost:18881/health" > /dev/null 2>&1; then
-        log "SUCCESS" "API endpoint is accessible at http://localhost:18881"
+    sleep 15
+    if curl -s "http://localhost:${AM_EFFECTIVE_PORT}/health" > /dev/null 2>&1; then
+        log "SUCCESS" "API endpoint is accessible at http://localhost:${AM_EFFECTIVE_PORT}"
     else
         log "WARN" "API endpoint test failed. The service might need more time to start."
     fi
@@ -233,10 +242,10 @@ print_docker_next_steps() {
     echo -e "${GREEN}Start all:${NC}           cd docker && docker compose up -d"
     
     echo
-    echo -e "${CYAN}📡 Service URLs:${NC}"
-    echo "• API Server: http://localhost:18881"
-    echo "• Health Check: http://localhost:18881/health"
-    echo "• API Documentation: http://localhost:1881/docs"
+    echo -e "${CYAN}📡 Service URLs (once started):${NC}"
+    echo "• API Server: http://localhost:${AM_EFFECTIVE_PORT}"
+    echo "• Health Check: http://localhost:${AM_EFFECTIVE_PORT}/health"
+    echo "• API Documentation: http://localhost:${AM_EFFECTIVE_PORT}/docs"
     
     if [ "$INIT_GRAPHITI" = true ]; then
         echo "• Neo4j Browser: http://localhost:7474"
@@ -292,6 +301,12 @@ install_agents_docker() {
     if ! setup_configuration true false "$FORCE_REBUILD"; then  # interactive, no docker db, force
         log "ERROR" "Configuration setup failed"
         exit 1
+    fi
+    
+    # Refresh port in case .env was just created or updated
+    AM_EFFECTIVE_PORT=$( { get_env_value "AM_PORT" "$ENV_FILE" || true; } )
+    if [ -z "$AM_EFFECTIVE_PORT" ]; then
+        AM_EFFECTIVE_PORT="8881"
     fi
     
     # Build and start containers
