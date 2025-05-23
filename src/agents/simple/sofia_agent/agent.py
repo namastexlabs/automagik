@@ -233,7 +233,7 @@ class SofiaAgent(AutomagikAgent):
             pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
         
         # Prepare user input (handle multimodal content)
-        user_input = input_text # Default to text-only
+        user_input = input_text if input_text else "empty message" # Default to text-only or empty message
 
         if multimodal_content:
             # This call is a placeholder in dependencies, but good to keep for intent
