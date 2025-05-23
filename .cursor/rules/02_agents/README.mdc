@@ -3,7 +3,6 @@ description: How to create or extend Automagik agents
 globs: ["src/agents/**/*.py", "tests/agents/**/*.py", "src/agents/**/prompts/**/*"]
 alwaysApply: false
 ---
-
 # Automagik Agent Development Rules
 
 *(This file has been moved from `automagik-agent-development.mdc` to follow the new structure.)*
@@ -36,7 +35,7 @@ src/agents/
 
 Every concrete agent **must** implement or override the following:
 
-1. `async initialize_prompts()` – register or load system prompts.  Keep it **idempotent**.
+1. `async initialize_prompts()` – register or load system prompts.  Keep it **idempotent**. *Alternatively, equivalent idempotent prompt initialization logic may be invoked during the agent's lifecycle (e.g., lazily on the first `run` call), ensuring prompts are ready before use.*
 2. `async run(input_text: str, …) -> AgentResponse` – core execution.  Always return `AgentResponse`; never naked strings.
 3. `tool_registry.register_default_tools(self.context)` – call this in `__init__` to ensure search/memory tools are present.
 4. If you create additional tool wrappers, add them through `self.tool_registry.register_tool(wrapper_fn)`.
@@ -95,7 +94,7 @@ Demonstrates:
 ## 5. Danger Zones (common mistakes)
 
 • Forgetting to pass `ctx` as first arg in tool wrappers → runtime validation fails.
-• Accessing environment vars directly inside an agent (`os.getenv`) instead of using `settings`.
+• Accessing environment vars directly inside an agent (`os.getenv`) instead of using `settings` (see [`04_config/README.mdc`](mdc:../04_config/README.mdc) for correct usage).
 • Returning raw strings instead of `AgentResponse`.
 • Neglecting to copy DB `evolution_payload` into dependencies → WhatsApp tools break.
 
