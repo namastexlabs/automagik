@@ -86,6 +86,8 @@ from src.config import settings
 api_key = settings.GOOGLE_API_KEY
 ```
 
+*Remember*: Using `os.environ.get()` or similar inside any tool **will break the rule-enforcer and fail CI*.
+
 8. Logging
 ----------
 • Import `logging` and log **at least** at INFO level for every external
@@ -114,3 +116,81 @@ Ask yourself:
 3. Is it discoverable via `__all__`?
 
 Only merge when the answer to all three is **yes**.
+
+---
+## 13. Anatomy of a Real-World Tool (Gmail example)
+
+```
+src/tools/gmail/
+├── schema.py      # SendEmailInput, SendEmailResult, … (pydantic models)
+├── provider.py    # OAuth flow + low-level Google API calls
+├── tool.py        # async send_email(ctx, input) → Dict
+├── interface.py   # gmail_send_email_tool = Tool(…)
+└── __init__.py    # re-exports gmail_tools list so loader can pick it up
+```
+
+Key take-aways:
+
+1. **Provider isolation** – all HTTP & OAuth code lives in `provider.py`, never inside `tool.py`.
+2. **Context first** – `send_email(ctx, input)` starts by logging via `logger.info`.
+3. **Error path** – catches **any** exception and returns a `SendEmailResult(success=False, error=…)` model → `.dict()`.
+4. **Interface layer** is responsible for human-readable description and mapping to `Tool` object.
+
+---
+## 14. Wrapper vs. Native Tool
+
+Sometimes you only need a *thin wrapper* around an existing SDK call (e.g. Blackpearl `verificar_cnpj`).
+
+Guideline:
+
+* If latency is negligible and logic is < 10 lines → write a **wrapper function** in `interface.py` and register directly.
+* If you require retries, pagination or auth refresh → implement a full `provider.py` + `tool.py` pair.
+
+---
+## 15. Creating a New Tool – Checklist
+
+1. `mkdir -p src/tools/<tool_name>`
+2. Write `schema.py` with **input & output** pydantic models (output includes `success: bool`).
+3. Implement **provider.py** for external API chatter (optional).
+4. Implement **tool.py** with one or more `async def` entry points:
+   * First param **must** be `ctx: RunContext[Dict]`.
+   * Return `.dict()` from your output model.
+5. Implement **interface.py**:
+   ```python
+   from pydantic_ai.tools import Tool
+   from .tool import send_foo, get_send_foo_description
+
+   send_foo_tool = Tool(
+       name="<namespace>_send_foo",
+       description=get_send_foo_description(),
+       function=send_foo,
+   )
+
+   <tool_name>_tools = [send_foo_tool]
+   ```
+6. Add exports in `src/tools/__init__.py`:
+   ```python
+   from .<tool_name> import <tool_name>_tools
+   __all__.append("<tool_name>_tools")
+   ```
+7. Write **unit tests** under `tests/tools/<tool_name>/` using `pytest-aiohttp` or recorded fixtures.
+
+---
+## 16. Danger Zones
+
+• Forgetting to convert pydantic models to primitives → Agents receive `ValidationError`.
+• Using blocking SDKs inside `tool.py` – always `async`/await or run in threadpool.
+• Returning raw exception objects; always wrap in `{success=False, error=str(e)}`.
+• Omitting the tool list export in `__init__.py` → loader silently ignores your tool.
+
+---
+## 17. Tool Loader Internals (FYI)
+
+The factory that aggregates tools:
+
+```
+src/tools/__init__.py → __all__ list
+src/agents/models/tool_registry.py → discovers *
+```
+
+It imports each `<tool_name>_tools` list and flattens them.  If your list variable name doesn't match the folder, it won't load.

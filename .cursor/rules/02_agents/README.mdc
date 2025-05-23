@@ -11,6 +11,95 @@ alwaysApply: false
 
 When developing or modifying agents (e.g., `simple_agent`), always **extend** rather than **modify** base functionality from `AutomagikAgent`. This ensures maintainability across all agents by keeping shared functionality intact.
 
+## 0. Anatomy at a Glance
+
+```
+src/agents/
+├── models/                 # Abstract base + shared helpers
+└── simple/                 # Reference implementations
+    ├── simple_agent/      # "Hello-world" style template
+    ├── stan_agent/        # Full CRM + Blackpearl integration (📞 phone-centric)
+    ├── sofia_agent/       # Advanced WhatsApp (Evolution) flow ✅ production-ready
+    └── flashinho_agent/   # Lightweight "Flashed" memory demo
+```
+
+* Clone **simple_agent** for quick prototypes.
+* Clone **stan_agent** when you need multi-prompt logic, tool wrappers and DB persistence.
+* Clone **sofia_agent** when building **WhatsApp/Evolution**-enabled personas (handles phone numbers, reactions, media, etc.).
+
+## 1. Base-Class Contract (`AutomagikAgent`)
+
+Every concrete agent **must** implement or override the following:
+
+1. `async initialize_prompts()` – register or load system prompts.  Keep it **idempotent**.
+2. `async run(input_text: str, …) -> AgentResponse` – core execution.  Always return `AgentResponse`; never naked strings.
+3. `tool_registry.register_default_tools(self.context)` – call this in `__init__` to ensure search/memory tools are present.
+4. If you create additional tool wrappers, add them through `self.tool_registry.register_tool(wrapper_fn)`.
+
+## 2. Sofia-Agent Playbook (WhatsApp)
+
+Sofia illustrates the full **WhatsApp → Evolution → Tool → LLM** loop.
+
+Key patterns to copy:
+
+1. **EvolutionMessagePayload**
+   ```python
+   from src.agents.common.evolution import EvolutionMessagePayload
+   payload = EvolutionMessagePayload(**channel_payload)
+   self.context["evolution_payload"] = payload
+   ```
+
+2. **Auto-wrapping Evolution tools** so agents don't need to ask for JIDs:
+   ```python
+   def _create_send_text_wrapper(self):
+       from src.tools.evolution.tool import send_message
+
+       async def send_text(ctx: RunContext[AutomagikAgentsDependencies], text: str):
+           phone = ctx.evolution_payload.get_user_number()
+           return await send_message(ctx, phone, text)
+       return send_text
+   ```
+
+3. **Prompt injection**: Sofia stores user info in `Memory` (name, phone) → referenced via `{{user_information}}` template vars.
+
+4. **Multimodal support**: converts incoming image URLs to `ImageUrl` / `BinaryContent` before passing to Pydantic-AI.
+
+## 3. Stan-Agent Playbook (CRM-heavy)
+
+Demonstrates:
+
+• **Multiple prompt versions** keyed by contact status (`NOT_REGISTERED`, `APPROVED`, …).  Prompts live in `prompts/*.py` and are auto-registered at startup.
+
+• **Sub-agents as tools**: Product / Order / Backoffice agents are exposed via lightweight wrapper functions so Stan can delegate.
+
+• **Blackpearl integration**: Uses `blackpearl.*` tools plus a custom `verificar_cnpj` wrapper.
+
+• **Dynamic dependencies**: `AutomagikAgentsDependencies` gets `usage_limits`, `agent_id`, and channel context injected before every LLM call.
+
+## 4. Checklist for Creating a New Agent
+
+1. `mkdir -p src/agents/simple/<your_agent>`
+2. Create `agent.py` inheriting `AutomagikAgent`.
+3. Copy the minimal template from `simple_agent` **or** start from Stan/Sofia if you need their features.
+4. Add `__init__.py` with `__all__ = ["<YourAgent>"]`.
+5. Register default tools and any wrappers in `__init__`.
+6. Place prompt template(s) in a `prompts/` subfolder — name `prompt.py` for default, others upper-case for status keys.
+7. Update `src/agents/simple/__init__.py` to export your agent class so the factory discovers it.
+8. Write at least one **unit test** under `tests/agents/` that instantiates the agent and calls `run()` with dummy input.
+
+## 5. Danger Zones (common mistakes)
+
+• Forgetting to pass `ctx` as first arg in tool wrappers → runtime validation fails.
+• Accessing environment vars directly inside an agent (`os.getenv`) instead of using `settings`.
+• Returning raw strings instead of `AgentResponse`.
+• Neglecting to copy DB `evolution_payload` into dependencies → WhatsApp tools break.
+
+## 6. Further Reference
+
+• Stan sub-agents: `src/agents/simple/stan_agent/specialized/*`
+• Sofia Airtable wrapper: `src/agents/simple/sofia_agent/specialized/airtable.py`
+• Agent factory: `src/agents/models/agent_factory.py` – how classes are discovered & instantiated.
+
 ## Class Hierarchy
 
 ```

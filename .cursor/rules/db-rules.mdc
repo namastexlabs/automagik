@@ -1,9 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-
-# Your rule content
-whenever doing any db operations, refer to [db_instructions.md](mdc:src/db/db_instructions.md), not to recreate anything that exists.
-

@@ -88,3 +88,29 @@ Never log secrets, passwords, JWTs or full email bodies.  Use placeholders or ha
 ## 9. Alerting
 
 `CRITICAL` messages emitted in production should trigger pager duty; integration TBD.
+
+## 10. Correlation IDs in Practice
+
+Add a unique `correlation_id` per inbound HTTP request – propagated via RunContext so tools can include it.
+
+```python
+import uuid, logging
+logger = logging.getLogger(__name__)
+
+cid = uuid.uuid4().hex
+logger.info("User logged in", extra={"correlation_id": cid})
+```
+
+When logging inside a tool, read the ID from `ctx.deps.context.get("correlation_id")`.
+
+## 11. Production Sinks
+
+• **Console** for dev, JSON formatted.
+• **Datadog**: ship via `DD_API_KEY` env var; use structured JSON.
+• **Logfire** token configured via `settings.LOGFIRE_TOKEN`.
+
+## 12. AI Agent Guidance
+
+• Never use `print()` for diagnostics—always `logger.debug`/`info`.
+• Always include contextual fields (`extra={...}`) instead of string interpolation.
+• Don't change global log level; override via `AM_LOG_LEVEL` env var when scripting.

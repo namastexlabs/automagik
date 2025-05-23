@@ -1,15 +1,26 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Project Rulebook Index
 
 This file lists **all rule documentation** available under `.cursor/rules/`.
-Start here when you join the project.
+Start here—whether you are a **human engineer** or an **AI code-assistant**.
+
+## How to Consume This Rulebook
+
+1. **Read in numerical order**.  Each section builds on concepts introduced by the previous one.
+2. **Follow _imperative_ sentences literally** (e.g. "Never access environment variables directly").  They are **hard rules**––not suggestions.
+3. When coding inside Cursor, **load only the sub-folders relevant to your task** to keep context windows small.
+4. If the code appears to violate a rule, prefer **raising an issue / PR** over silently patching it.
+5. AI agents must cite the rule *and line number* that justifies a design decision in their commit message.
+
+---
 
 | Section | Path | One-liner |
 |---------|------|-----------|
+| 00. Index & Usage | *(this file)* | How to navigate & obey the rulebook |
 | 01. Project Onboarding | [01_project/README.mdc](mdc:01_project/README.mdc) | Repository layout, setup & first steps |
 | 02. Agent Development  | [02_agents/README.mdc](mdc:02_agents/README.mdc)  | How to create or extend Automagik agents |
 | 03. Tool Development   | [03_tools/README.mdc](mdc:03_tools/README.mdc)   | Build self-contained tools for the agent runtime |
@@ -21,3 +32,19 @@ Start here when you join the project.
 | 09. Style & PR Etiquette | [09_style_pr/README.mdc](mdc:09_style_pr/README.mdc) | Code style, naming & pull-request checklist |
 
 > Each sub-folder contains a `README.mdc` that acts as the canonical document for that topic. Older standalone rule files will be migrated gradually.
+
+---
+
+## 🔍 Quick Lookup Matrix (for AI agents)
+
+| If your task involves… | Read these sections **before** coding |
+|------------------------|--------------------------------------|
+Updating environment variables | 04 Configuration, 08 Dependencies |
+Creating / editing an Agent class | 02 Agent Development, 01 Project |
+Adding a new external integration (HTTP, SDK) | 03 Tool Development, 07 Logging |
+Database schema or queries | 05 Database |
+Writing or updating tests | 06 Testing / CI |
+Adjusting logging behaviour | 07 Logging |
+Formatting, linting, PR flow | 09 Style & PR Etiquette |
+
+**Rule for AI assistants**: Before emitting any code change, consult the matrix, open relevant `README.mdc` files, and cite the section line(s) that justify your implementation.
