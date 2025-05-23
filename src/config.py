@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # Discord
     DISCORD_BOT_TOKEN: str = Field(..., description="Discord bot token for authentication")
 
+    # Meeting Bot
+    MEETING_BOT_URL: Optional[str] = Field(None, description="Meeting bot webhook service URL for creating bots")
+
     # Database (PostgreSQL)
     DATABASE_URL: str = Field("postgresql://postgres:postgres@localhost:5432/automagik", 
                           description="PostgreSQL connection string")
