@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Database Interaction Rules
+
+*(This file has been moved from `db-rules.mdc` to follow the new structure.)*
+
+Whenever doing any DB operations, **refer to** `[db_instructions.md](mdc:src/db/db_instructions.md)` – do **not** re-create anything that already exists.
