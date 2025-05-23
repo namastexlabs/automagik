@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Testing strategy and CI pipeline rules
+globs: ["tests/**/*.py", "**/*test*.py", "**/*_test.py", "test_*.py", "**/test_*.py", ".github/**/*.yml", ".github/**/*.yaml", "pytest.ini", "conftest.py"]
 alwaysApply: false
 ---
+
 # Testing & Continuous Integration Guidelines
 
 These rules standardise how we write tests, measure coverage and keep the main branch green.  They apply to *all* Python code under `src/`, `tests/` and any ad-hoc scripts.

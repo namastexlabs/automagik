@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Build self-contained tools for the agent runtime
+globs: ["src/tools/**/*.py", "tests/tools/**/*.py"]
 alwaysApply: false
 ---
+
 Automagik Tool Development Rules
 ===============================
 
@@ -75,6 +76,12 @@ search_files_tool = Tool(
 ----------------------
 After creating the tool package **add the list variable** to
 `src/tools/__init__.py.__all__` so the agent loader can pick it up.
+
+⚠️ **Special case — Memory tools**
+The historic `memory` package predates this convention and exports *individual helper
+functions* (`read_memory`, `create_memory`, …) instead of a single
+`memory_tools` list.  The loader treats these functions as built-ins, so
+rule 6 is considered satisfied for that package.
 
 7. Configuration & Secrets
 --------------------------

@@ -1,3 +1,9 @@
+---
+description: Task management protocol and TODO file conventions
+globs: ["TODO_*.md", "**/*todo*.md", "**/*task*.md", "CHANGELOG.md", "ROADMAP.md"]
+alwaysApply: false
+---
+
 # Concise Task Management Protocol - Sequential Mode
 
 ## File Creation

@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Rules for DB interactions, migrations, and data models
+globs: ["src/db/**/*.py", "**/*migration*.py", "**/*schema*.py", "**/*model*.py", "**/*repository*.py", "tests/db/**/*.py", "**/*alembic*"]
 alwaysApply: false
 ---
+
 # Database Interaction Rules
 
 *(This file has been moved from `db-rules.mdc` to follow the new structure.)*

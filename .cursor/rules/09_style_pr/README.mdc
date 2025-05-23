@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Code style, naming and pull-request checklist
+globs: ["**/*.py", "**/*.md", "**/*.yml", "**/*.yaml", ".pre-commit-config.yaml", ".gitignore", "**/*.toml", "**/*.json"]
 alwaysApply: false
 ---
+
 # Code Style & Pull-Request Etiquette
 
 Well-defined conventions keep diffs small and reviews quick.
