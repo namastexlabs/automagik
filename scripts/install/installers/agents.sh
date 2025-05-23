@@ -16,6 +16,10 @@ source "$LIB_DIR/service.sh"
 
 # Agents-specific variables
 export USE_DOCKER_DB=true
+export USE_DOCKER_NEO4J=true
+export USE_DOCKER_GRAPHITI=true
+export SKIP_NEO4J=false
+export SKIP_GRAPHITI=false
 export INSTALL_DEV_DEPS=false
 export INSTALL_AS_SERVICE=false
 export FORCE_REBUILD=false
@@ -84,7 +88,7 @@ setup_database() {
     print_header "Setting up database"
     
     if [ "$USE_DOCKER_DB" = true ]; then
-        log "INFO" "Starting database containers (PostgreSQL only)"
+        log "INFO" "Starting PostgreSQL container"
         cd "$ROOT_DIR/docker"
         
         # Check if PostgreSQL is already running
@@ -103,8 +107,68 @@ setup_database() {
         fi
         cd "$ROOT_DIR"
     else
-        log "WARN" "Skipping Docker database setup"
+        log "WARN" "Skipping Docker PostgreSQL setup"
         log "INFO" "Make sure PostgreSQL is running and accessible"
+    fi
+    
+    # Handle Neo4j setup
+    if [ "$SKIP_NEO4J" != true ]; then
+        if [ "$USE_DOCKER_NEO4J" = true ]; then
+            log "INFO" "Starting Neo4j container"
+            cd "$ROOT_DIR/docker"
+            
+            # Check if Neo4j is already running
+            if docker ps | grep -q "automagik_neo4j"; then
+                log "SUCCESS" "Neo4j container already running"
+            else
+                if docker compose version &> /dev/null; then
+                    docker compose --env-file "$ROOT_DIR/.env" --profile graphiti up -d neo4j
+                else
+                    docker-compose --env-file "$ROOT_DIR/.env" --profile graphiti up -d neo4j
+                fi
+                
+                log "INFO" "Waiting for Neo4j to be ready..."
+                sleep 15
+                log "SUCCESS" "Neo4j container started"
+                log "INFO" "Neo4j web interface available at: http://localhost:7474"
+            fi
+            cd "$ROOT_DIR"
+        else
+            log "WARN" "Skipping Docker Neo4j setup"
+            log "INFO" "Make sure Neo4j is running and accessible at bolt://localhost:7687"
+        fi
+    else
+        log "INFO" "Skipping Neo4j setup - Graph features will be disabled"
+    fi
+    
+    # Handle Graphiti setup
+    if [ "$SKIP_GRAPHITI" != true ]; then
+        if [ "$USE_DOCKER_GRAPHITI" = true ]; then
+            log "INFO" "Starting Graphiti container"
+            cd "$ROOT_DIR/docker"
+            
+            # Check if Graphiti is already running
+            if docker ps | grep -q "automagik_graphiti"; then
+                log "SUCCESS" "Graphiti container already running"
+            else
+                if docker compose version &> /dev/null; then
+                    docker compose --env-file "$ROOT_DIR/.env" --profile graphiti up -d graphiti
+                else
+                    docker-compose --env-file "$ROOT_DIR/.env" --profile graphiti up -d graphiti
+                fi
+                
+                log "INFO" "Waiting for Graphiti to be ready..."
+                sleep 10
+                log "SUCCESS" "Graphiti container started"
+                log "INFO" "Graphiti interface available at: http://localhost:8000"
+            fi
+            cd "$ROOT_DIR"
+        else
+            log "WARN" "Skipping Docker Graphiti setup"
+            log "INFO" "Make sure Graphiti is running and accessible at http://localhost:8000"
+        fi
+    else
+        log "INFO" "Skipping Graphiti setup - Graph features will be disabled"
     fi
     
     # Initialize database schema
@@ -125,6 +189,57 @@ setup_database() {
     else
         log "WARN" "Database CLI not available. You may need to initialize the database manually."
     fi
+}
+
+# Configure database URIs based on setup choices
+configure_database_uris() {
+    print_header "Configuring database connections"
+    
+    # Configure PostgreSQL URI
+    if [ "$USE_DOCKER_DB" = true ]; then
+        log "INFO" "Configuring PostgreSQL for Docker container (localhost)"
+        # PostgreSQL is accessible on localhost when running in Docker
+        local postgres_host="localhost"
+        update_env_value "POSTGRES_HOST" "$postgres_host"
+        update_env_value "DATABASE_URL" "postgresql://postgres:postgres@localhost:5432/automagik"
+    else
+        log "INFO" "Using existing PostgreSQL configuration"
+        # Keep existing PostgreSQL configuration for local installations
+    fi
+    
+    # Configure Neo4j URI
+    if [ "$SKIP_NEO4J" != true ]; then
+        if [ "$USE_DOCKER_NEO4J" = true ]; then
+            log "INFO" "Configuring Neo4j for Docker container (localhost)"
+            # Neo4j is accessible on localhost when running in Docker
+            update_env_value "NEO4J_URI" "bolt://localhost:7687"
+        else
+            log "INFO" "Using existing Neo4j configuration"
+            # Keep existing Neo4j configuration for local installations
+        fi
+    else
+        log "INFO" "Neo4j disabled - setting mock configuration"
+        # Set mock/disabled configuration
+        update_env_value "GRAPHITI_MOCK_ENABLED" "true"
+    fi
+    
+    # Configure Graphiti settings
+    if [ "$SKIP_GRAPHITI" != true ]; then
+        if [ "$USE_DOCKER_GRAPHITI" = true ]; then
+            log "INFO" "Configuring Graphiti for Docker container"
+            update_env_value "GRAPHITI_QUEUE_ENABLED" "true"
+            update_env_value "GRAPHITI_BACKGROUND_MODE" "true"
+        else
+            log "INFO" "Using existing Graphiti configuration"
+        fi
+    else
+        log "INFO" "Graphiti disabled - disabling queue features"
+        update_env_value "GRAPHITI_QUEUE_ENABLED" "false"
+        update_env_value "GRAPHITI_BACKGROUND_MODE" "false"
+        update_env_value "GRAPHITI_MOCK_ENABLED" "true"
+    fi
+    
+    log "SUCCESS" "Database connection configuration completed"
 }
 
 # Show local installation options menu
@@ -152,6 +267,36 @@ show_local_options_menu() {
         1) USE_DOCKER_DB=true ;;
         2) USE_DOCKER_DB=false ;;
         *) USE_DOCKER_DB=true ;;
+    esac
+    
+    # Neo4j/Graphiti options
+    echo
+    echo -e "${YELLOW}Graph Database Setup (for Graphiti features):${NC}"
+    echo "1) Use Docker for Neo4j + Graphiti (recommended)"
+    echo "2) Use existing Neo4j installation (Graphiti will be disabled)"
+    echo "3) Skip Neo4j and Graphiti setup (Graph features will be disabled)"
+    read -p "Choose Neo4j/Graphiti option (1-3): " neo4j_choice
+    
+    case $neo4j_choice in
+        1) 
+            USE_DOCKER_NEO4J=true
+            USE_DOCKER_GRAPHITI=true
+            ;;
+        2) 
+            USE_DOCKER_NEO4J=false
+            USE_DOCKER_GRAPHITI=false
+            SKIP_GRAPHITI=true
+            ;;
+        3) 
+            USE_DOCKER_NEO4J=false
+            USE_DOCKER_GRAPHITI=false
+            SKIP_NEO4J=true
+            SKIP_GRAPHITI=true
+            ;;
+        *) 
+            USE_DOCKER_NEO4J=true
+            USE_DOCKER_GRAPHITI=true
+            ;;
     esac
     
     # Development dependencies
@@ -361,6 +506,14 @@ print_local_next_steps() {
         echo "✅ PostgreSQL running in Docker container"
     fi
     
+    if [ "$USE_DOCKER_NEO4J" = true ]; then
+        echo "✅ Neo4j running in Docker container"
+    fi
+    
+    if [ "$USE_DOCKER_GRAPHITI" = true ]; then
+        echo "✅ Graphiti running in Docker container"
+    fi
+    
     if [ "$INSTALL_AS_SERVICE" = true ]; then
         echo "✅ System service installed and enabled"
     fi
@@ -386,6 +539,14 @@ print_local_next_steps() {
     echo "• API Server: http://localhost:$display_port"
     echo "• Health Check: http://localhost:$display_port/health"
     echo "• API Documentation: http://localhost:$display_port/docs"
+    
+    if [ "$USE_DOCKER_NEO4J" = true ]; then
+        echo "• Neo4j Browser: http://localhost:7474"
+    fi
+    
+    if [ "$USE_DOCKER_GRAPHITI" = true ]; then
+        echo "• Graphiti Interface: http://localhost:8000"
+    fi
     
     echo
     echo -e "${PURPLE}💡 Helpful Commands:${NC}"
@@ -454,6 +615,9 @@ install_agents_local() {
         exit 1
     fi
     
+    # Configure database URIs based on setup choices
+    configure_database_uris
+    
     # Run health check
     if ! run_health_check; then
         log "WARN" "Health check had issues, but installation may still be functional"
@@ -513,6 +677,16 @@ install_agents_local() {
     echo -e "${PURPLE}📋 Installation Summary:${NC}"
     echo -e "  🐍 Python Environment: ${GREEN}✅ Configured${NC}"
     echo -e "  🗄️  Database: ${GREEN}✅ PostgreSQL Ready${NC}"
+    if [ "$USE_DOCKER_NEO4J" = true ]; then
+        echo -e "  🌐 Graph Database: ${GREEN}✅ Neo4j Ready${NC}"
+    else
+        echo -e "  🌐 Graph Database: ${YELLOW}❌ Neo4j Skipped${NC}"
+    fi
+    if [ "$USE_DOCKER_GRAPHITI" = true ]; then
+        echo -e "  📊 Graph Interface: ${GREEN}✅ Graphiti Ready${NC}"
+    else
+        echo -e "  📊 Graph Interface: ${YELLOW}❌ Graphiti Skipped${NC}"
+    fi
     echo -e "  ⚙️  Configuration: ${GREEN}✅ $([ -f "$ROOT_DIR/.env.bkp" ] && echo "New from template" || echo "Existing preserved")${NC}"
     echo -e "  🔧 System Service: $([ "$INSTALL_AS_SERVICE" = "true" ] && echo -e "${GREEN}✅ Installed${NC}" || echo -e "${YELLOW}❌ Manual start${NC}")"
     echo -e "  🎯 Helper Commands: ${GREEN}✅ Available${NC}"
