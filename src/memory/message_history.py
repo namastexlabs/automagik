@@ -85,16 +85,18 @@ class MessageHistory:
             user_id: The user identifier to associate with this session (defaults to 1).
             no_auto_create: If True, don't automatically create a session in the database.
         """
+        # Flag to track if we're in local-only mode (for tests) – MUST be set
+        # **before** calling _ensure_session_id so that any changes made inside
+        # that method are preserved and not accidentally overwritten.
+        self._local_only: bool = False
+
         # Convert user_id to UUID for database compatibility
         self.user_id = self._ensure_user_id_uuid(user_id)
-        self.session_id = self._ensure_session_id(session_id, self.user_id, no_auto_create)
+        self.session_id, self._local_only = self._ensure_session_id(session_id, self.user_id, no_auto_create)
         
         # Local in-memory message list – used during unit tests when DB is
         # unavailable or when the caller explicitly wants an offline history.
         self._local_messages: List[ModelMessage] = []
-        
-        # Flag to track if we're in local-only mode (for tests)
-        self._local_only = False
         
         # Add system prompt if provided
         if system_prompt:
@@ -125,7 +127,7 @@ class MessageHistory:
             # Fallback for any other type
             return uuid.uuid5(uuid.NAMESPACE_OID, str(user_id))
     
-    def _ensure_session_id(self, session_id: str, user_id: uuid.UUID, no_auto_create: bool = False) -> str:
+    def _ensure_session_id(self, session_id: str, user_id: uuid.UUID, no_auto_create: bool = False) -> Tuple[str, bool]:
         """Ensure the session exists, creating it if necessary.
         
         Args:
@@ -134,7 +136,7 @@ class MessageHistory:
             no_auto_create: If True, don't automatically create a session
             
         Returns:
-            The validated session ID as a string
+            The validated session ID as a string and local_only flag
         """
         try:
             # Generate new UUID if session_id is None or invalid
@@ -159,7 +161,7 @@ class MessageHistory:
                     logger.info("Auto-creation disabled, not creating session in database")
                     self._local_only = True
                 
-                return str(new_uuid)
+                return str(new_uuid), self._local_only
             
             # Convert string to UUID
             if isinstance(session_id, str):
@@ -179,17 +181,21 @@ class MessageHistory:
                         platform="automagik"
                     )
                     create_session(session)
+                elif not session and no_auto_create:
+                    # Session doesn't exist and auto-creation is disabled, use local-only mode
+                    logger.info(f"Session {session_uuid} does not exist and auto-creation disabled, using local-only mode")
+                    self._local_only = True
             except Exception as e:
                 logger.warning(f"Could not access database for session: {e}. Using local-only mode.")
                 self._local_only = True
                 
-            return str(session_uuid)
+            return str(session_uuid), self._local_only
         except Exception as e:
             logger.error(f"Error ensuring session ID: {str(e)}")
             # Create a fallback UUID and use local-only mode
             fallback_uuid = uuid.uuid4()
             self._local_only = True
-            return str(fallback_uuid)
+            return str(fallback_uuid), self._local_only
     
     def add_system_prompt(self, content: str, agent_id: Optional[int] = None) -> ModelMessage:
         """Add or update the system prompt for this conversation.
