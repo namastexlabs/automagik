@@ -1,4 +1,3 @@
-import os
 from dotenv import load_dotenv
 from pydantic_ai import Agent, RunContext
 import logging
@@ -18,8 +17,6 @@ from src.config import settings
 from src.db.repository.user import get_user
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 
 def get_tabela_files_from_supabase():
@@ -647,8 +644,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             return "Erro: JID do usuário não encontrado no contexto. Não foi possível enviar a imagem."
             
         if not evolution_instance_name:
-            # Fallback to environment variable
-            evolution_instance_name = os.getenv("EVOLUTION_INSTANCE", "default")
+            # Fallback to settings value
+            evolution_instance_name = settings.EVOLUTION_INSTANCE
             logger.warning(f"Tool 'send_product_image_to_user': Evolution instance name not found in context, using '{evolution_instance_name}'.")
 
         logger.info(f"Tool 'send_product_image_to_user' called for product_id={product_id}, user={user_jid}, instance={evolution_instance_name}")
@@ -801,8 +798,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             return "Erro: JID do usuário não encontrado no contexto. Não foi possível enviar as imagens."
             
         if not evolution_instance_name:
-            # Fallback to environment variable
-            evolution_instance_name = os.getenv("EVOLUTION_INSTANCE", "default")
+            # Fallback to settings value
+            evolution_instance_name = settings.EVOLUTION_INSTANCE
             logger.warning(f"Tool 'send_multiple_product_images': Evolution instance name not found in context, using '{evolution_instance_name}'.")
 
         # Initialize result tracking

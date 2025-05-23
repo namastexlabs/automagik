@@ -1,6 +1,13 @@
 import importlib
 import sys
-from scripts import rules_enforcer
+import os
+
+# Add scripts directory to Python path
+scripts_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts')
+if scripts_path not in sys.path:
+    sys.path.insert(0, scripts_path)
+
+import rules_enforcer
 
 # Re-import to ensure latest code if modified during test run
 importlib.reload(rules_enforcer)

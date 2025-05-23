@@ -46,16 +46,12 @@ class SessionQueue:
             The result of processing the message(s)
             
         Note:
-            🔧 CONCURRENCY FIX: Reduced aggressive merging to prevent request cancellation issues.
-            Each request now gets its own processing to avoid 500 errors under concurrent load.
+            If a request is already processing for this session, it will be cancelled
+            and the new request will be processed with the latest message.
         """
         if not session_id:
             # Generate an ephemeral ID for non-session messages
             session_id = f"ephemeral_{str(uuid.uuid4())}"
-            
-        # 🔧 CONCURRENCY FIX: For anonymous sessions, use unique session IDs to prevent merging conflicts
-        if session_id == "_anonymous_":
-            session_id = f"_anonymous_{str(uuid.uuid4())}"
             
         # Get or create a lock for this session
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
@@ -70,66 +66,46 @@ class SessionQueue:
                 # Session was closed while we were waiting
                 raise ValueError(f"Session {session_id} has been closed or system is shutting down")
                 
-            # 🔧 CONCURRENCY FIX: Only merge for same-content messages, not all concurrent requests
+            # If there's already processing for this session, cancel it and replace
             if session_id in self._current_processing:
                 current = self._current_processing[session_id]
                 
-                # Only merge if the message content is identical (true duplicate)
-                if current["messages"] and current["messages"][-1] == message_content:
-                    logger.info(f"📝 Detected duplicate message for session {session_id}, merging")
-                    
-                    # Cancel the existing future
-                    if not current["future"].done():
-                        current["future"].cancel()
-                    
-                    # Merge the messages
-                    current["messages"].append(message_content)
-                    current["future"] = future
-                    current["kwargs"] = kwargs
-                    current["processor_fn"] = processor_fn
-                    
-                    # Cancel the existing processing task if it exists
-                    if "task" in current and not current["task"].done():
-                        current["task"].cancel()
-                    
-                    # Start a new processing task with the merged messages
-                    task = asyncio.create_task(
-                        self._process_with_delay(session_id, current)
-                    )
-                    current["task"] = task
-                else:
-                    # Different message content - process separately
-                    logger.debug(f"📝 Different message for session {session_id}, processing separately")
-                    # Generate unique session ID for this different message
-                    unique_session_id = f"{session_id}_{str(uuid.uuid4())[:8]}"
-                    processing_info = {
-                        "messages": [message_content],
-                        "future": future,
-                        "kwargs": kwargs,
-                        "processor_fn": processor_fn
-                    }
-                    self._current_processing[unique_session_id] = processing_info
-                    
-                    # Start processing without delay for different messages
-                    task = asyncio.create_task(
-                        self._process_immediately(unique_session_id, processing_info)
-                    )
-                    processing_info["task"] = task
-            else:
-                # No current processing - start new
-                processing_info = {
-                    "messages": [message_content],
-                    "future": future,
-                    "kwargs": kwargs,
-                    "processor_fn": processor_fn
-                }
-                self._current_processing[session_id] = processing_info
+                logger.info(f"📝 Cancelling existing request for session {session_id}")
                 
-                # Start processing immediately for new sessions
-                task = asyncio.create_task(
-                    self._process_immediately(session_id, processing_info)
-                )
-                processing_info["task"] = task
+                # Cancel the existing future first
+                if not current["future"].done():
+                    current["future"].cancel()
+                
+                # Cancel the existing processing task if it exists and wait for it
+                if "task" in current and not current["task"].done():
+                    current["task"].cancel()
+                    try:
+                        # Wait briefly for the task to acknowledge cancellation
+                        await asyncio.wait_for(current["task"], timeout=0.1)
+                    except (asyncio.CancelledError, asyncio.TimeoutError):
+                        # Expected - task was cancelled or timed out
+                        pass
+                    except Exception:
+                        # Other exceptions are fine too, just means task ended
+                        pass
+                
+                # Remove the old processing info
+                del self._current_processing[session_id]
+            
+            # Create new processing info (merge behavior - use latest message)
+            processing_info = {
+                "messages": [message_content],  # Use only the latest message
+                "future": future,
+                "kwargs": kwargs,
+                "processor_fn": processor_fn
+            }
+            self._current_processing[session_id] = processing_info
+            
+            # Start processing with a small delay to allow for potential message merging
+            task = asyncio.create_task(
+                self._process_with_delay(session_id, processing_info)
+            )
+            processing_info["task"] = task
                 
         # Return the future that will be completed by the processor
         return await future
@@ -148,6 +124,7 @@ class SessionQueue:
             if not lock:
                 return
                 
+            # Check if we're still the current processor before processing
             async with lock:
                 current = self._current_processing.get(session_id)
                 if not current or current is not processing_info:
@@ -160,36 +137,44 @@ class SessionQueue:
                 kwargs = current.get("kwargs", {})
                 processor_fn = current["processor_fn"]
                 
-                # Remove from current processing
-                del self._current_processing[session_id]
+                # Check if future was already cancelled
+                if future.done():
+                    return
             
-                # Process outside the lock
-                try:
-                    if future.done():
-                        # Future was already cancelled/completed
-                        return
-                        
-                    # Call the processor function
-                    result = await processor_fn(session_id, messages, **kwargs)
-                        
-                    # Complete the future with the result
-                    if not future.done():
-                        future.set_result(result)
-                        
-                except asyncio.CancelledError:
-                    # Expected cancellation
-                    logger.debug(f"Processing for session {session_id} was cancelled")
-                    if not future.done():
-                        future.cancel()
-                except Exception as e:
-                    # Unexpected error
-                    logger.error(f"Error processing message for session {session_id}: {str(e)}")
-                    if not future.done():
-                        future.set_exception(e)
+            # Process outside the lock
+            try:
+                # Call the processor function
+                result = await processor_fn(session_id, messages, **kwargs)
+                    
+                # Complete the future with the result
+                if not future.done():
+                    future.set_result(result)
+                    
+            except asyncio.CancelledError:
+                # Expected cancellation - propagate it to the future
+                logger.debug(f"Processing for session {session_id} was cancelled")
+                if not future.done():
+                    future.cancel()
+                raise  # Re-raise to ensure task ends with CancelledError
+            except Exception as e:
+                # Unexpected error
+                logger.error(f"Error processing message for session {session_id}: {str(e)}")
+                if not future.done():
+                    future.set_exception(e)
+            finally:
+                # Clean up processing info if we're still the current processor
+                async with lock:
+                    current = self._current_processing.get(session_id)
+                    if current is processing_info:
+                        del self._current_processing[session_id]
                     
         except asyncio.CancelledError:
             # Task was cancelled
             logger.debug(f"🔍 Processing task for session {session_id} cancelled")
+            # Make sure future is cancelled too
+            if not processing_info["future"].done():
+                processing_info["future"].cancel()
+            raise  # Re-raise to ensure task ends with CancelledError
         except Exception as e:
             # Unexpected error in the processing task
             logger.error(f"Session processing task error: {str(e)}")
@@ -203,15 +188,19 @@ class SessionQueue:
             processing_info: Dictionary containing messages, future, etc.
         """
         try:
-            # Reduced delay for faster processing
-            await asyncio.sleep(0.001)  # 1ms instead of 5ms
+            # Small delay for merging - but check for cancellation
+            await asyncio.sleep(0.001)  # 1ms delay
             
             # Delegate to immediate processing
             await self._process_immediately(session_id, processing_info)
                     
         except asyncio.CancelledError:
             # Task was cancelled
-            logger.debug(f"🔍 Processing task for session {session_id} cancelled")
+            logger.debug(f"🔍 Processing task for session {session_id} cancelled during delay")
+            # Make sure future is cancelled too
+            if not processing_info["future"].done():
+                processing_info["future"].cancel()
+            raise  # Re-raise to ensure task ends with CancelledError
         except Exception as e:
             # Unexpected error in the processing task
             logger.error(f"Session processing task error: {str(e)}")
