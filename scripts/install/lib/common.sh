@@ -13,10 +13,9 @@ export PURPLE='\033[0;35m'
 export CYAN='\033[0;36m'
 export NC='\033[0m' # No Color
 
-# Global variables
-export INSTALL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
-export ROOT_DIR="$( cd "$INSTALL_DIR/.." && pwd )"
-export LIB_DIR="$INSTALL_DIR/lib"
+# Global variables (INSTALL_DIR, ROOT_DIR, VENV_NAME, VENV_PATH are now set by the main setup.sh script)
+# LIB_DIR is the directory this common.sh script is in.
+export LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Print functions
 print_banner() {

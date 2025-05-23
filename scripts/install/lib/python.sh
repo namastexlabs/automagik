@@ -6,15 +6,16 @@
 
 # Source common utilities if not already loaded
 if [ -z "$COMMON_LOADED" ]; then
+    # LIB_DIR should be defined in common.sh relative to itself if common.sh is sourced directly.
+    # If common.sh is sourced by setup.sh, then LIB_DIR from common.sh might be incorrect here.
+    # It's safer if python.sh defines its own path to common.sh if needed.
+    # However, setup.sh sources common.sh first, so COMMON_LOADED should be true.
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
     COMMON_LOADED=true
 fi
 
-# Python-related variables
-export PYTHON_CMD=""
-export PIP_CMD=""
-export VENV_NAME=".venv"
-export VENV_PATH=""
+# Python-related variables (PYTHON_CMD, PIP_CMD are set in check_python_version)
+# VENV_NAME and VENV_PATH are now expected to be set by the main setup.sh script
 
 # Check Python version
 check_python_version() {
@@ -85,19 +86,14 @@ install_uv() {
 
 # Setup virtual environment
 setup_virtual_environment() {
-    local venv_name="${1:-$VENV_NAME}"
-    local force_recreate="${2:-false}"
+    # VENV_NAME and VENV_PATH are now global, set by setup.sh
+    local force_recreate="${1:-false}" # Renamed internal venv_name param to avoid conflict if any
     
-    log "INFO" "Setting up Python virtual environment: $venv_name"
+    log "INFO" "Setting up Python virtual environment: $VENV_NAME at $VENV_PATH"
     
-    cd "$ROOT_DIR"
-    
-    # Set venv path
-    export VENV_PATH="$ROOT_DIR/$venv_name"
-    
-    # Check if virtual environment already exists
+    # Check if virtual environment already exists AT THE CORRECT PATH (VENV_PATH)
     if [ -d "$VENV_PATH" ]; then
-        if [ "$force_recreate" = false ]; then
+        if [ "$force_recreate" = false ] && [ "$NON_INTERACTIVE" != "true" ]; then
             log "SUCCESS" "Virtual environment already exists at $VENV_PATH"
             if confirm_action "Do you want to recreate it?" "n"; then
                 force_recreate=true
@@ -105,17 +101,21 @@ setup_virtual_environment() {
                 log "SUCCESS" "Using existing virtual environment"
                 return 0
             fi
+        elif [ "$force_recreate" = false ] && [ "$NON_INTERACTIVE" = "true" ]; then
+             log "INFO" "Non-interactive: Using existing virtual environment at $VENV_PATH if present."
+             return 0
         fi
         
         if [ "$force_recreate" = true ]; then
-            log "INFO" "Removing existing virtual environment"
+            log "INFO" "Removing existing virtual environment at $VENV_PATH"
             rm -rf "$VENV_PATH"
         fi
     fi
     
-    log "INFO" "Creating virtual environment with UV"
-    if ! uv venv "$venv_name"; then
-        log "ERROR" "Failed to create virtual environment"
+    log "INFO" "Creating virtual environment with UV at $VENV_PATH"
+    cd "$ROOT_DIR" # Ensure we are in project root to create .venv there
+    if ! uv venv "$VENV_NAME"; then # uv venv uses VENV_NAME relative to CWD
+        log "ERROR" "Failed to create virtual environment $VENV_NAME in $ROOT_DIR"
         return 1
     fi
     
@@ -125,33 +125,25 @@ setup_virtual_environment() {
 
 # Activate virtual environment
 activate_virtual_environment() {
-    local venv_path="${1:-$VENV_PATH}"
+    # VENV_PATH is global
+    log "INFO" "Activating virtual environment: $VENV_PATH"
     
-    if [ -z "$venv_path" ]; then
-        venv_path="$ROOT_DIR/$VENV_NAME"
-    fi
-    
-    log "INFO" "Activating virtual environment: $venv_path"
-    
-    # Check if virtual environment exists
-    if [ ! -d "$venv_path" ]; then
-        log "ERROR" "Virtual environment not found at $venv_path"
+    if [ ! -d "$VENV_PATH" ]; then
+        log "ERROR" "Virtual environment not found at $VENV_PATH"
         return 1
     fi
     
-    # Activate based on OS
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-        source "$venv_path/Scripts/activate"
+        source "$VENV_PATH/Scripts/activate"
     else
-        source "$venv_path/bin/activate"
+        source "$VENV_PATH/bin/activate"
     fi
     
-    # Verify activation
-    if [ "$VIRTUAL_ENV" = "$venv_path" ]; then
+    if [ "$VIRTUAL_ENV" = "$VENV_PATH" ]; then
         log "SUCCESS" "Virtual environment activated"
         return 0
     else
-        log "ERROR" "Failed to activate virtual environment"
+        log "ERROR" "Failed to activate virtual environment. VIRTUAL_ENV is '$VIRTUAL_ENV', expected '$VENV_PATH'."
         return 1
     fi
 }
@@ -172,21 +164,26 @@ install_python_dependencies() {
         fi
     fi
     
-    log "INFO" "Installing project dependencies with UV"
-    if ! uv sync; then
+    local python_executable="$VENV_PATH/bin/python"
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+        python_executable="$VENV_PATH/Scripts/python.exe"
+    fi
+
+    log "INFO" "Installing project dependencies with UV using Python from $python_executable"
+    if ! uv sync --python "$python_executable"; then
         log "ERROR" "Failed to sync dependencies"
         return 1
     fi
     
-    log "INFO" "Installing project in editable mode"
-    if ! uv pip install -e .; then
+    log "INFO" "Installing project in editable mode using Python from $python_executable"
+    if ! uv pip install -e . --python "$python_executable"; then
         log "ERROR" "Failed to install project in editable mode"
         return 1
     fi
     
     if [ "$install_dev" = true ]; then
-        log "INFO" "Installing development dependencies"
-        if ! uv pip install pytest pytest-asyncio pytest-html ruff black isort mypy; then
+        log "INFO" "Installing development dependencies using Python from $python_executable"
+        if ! uv pip install --python "$python_executable" pytest pytest-asyncio pytest-html ruff black isort mypy; then
             log "WARN" "Some development dependencies failed to install"
         else
             log "SUCCESS" "Development dependencies installed"
@@ -199,16 +196,11 @@ install_python_dependencies() {
 
 # Get activation command for the user
 get_activation_command() {
-    local venv_path="${1:-$VENV_PATH}"
-    
-    if [ -z "$venv_path" ]; then
-        venv_path="$ROOT_DIR/$VENV_NAME"
-    fi
-    
+    # VENV_PATH is global
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-        echo "$venv_path\\Scripts\\activate"
+        echo "$VENV_PATH\\Scripts\\activate"
     else
-        echo "source $venv_path/bin/activate"
+        echo "source $VENV_PATH/bin/activate"
     fi
 }
 
@@ -252,7 +244,7 @@ setup_python_environment() {
     fi
     
     # Setup virtual environment
-    if ! setup_virtual_environment "$venv_name" "$force_recreate"; then
+    if ! setup_virtual_environment "$force_recreate"; then
         log "ERROR" "Virtual environment setup failed"
         return 1
     fi

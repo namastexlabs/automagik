@@ -6,18 +6,25 @@
 
 set -e  # Exit on any error
 
-# Install directory
-INSTALL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export INSTALL_DIR
+# Correctly define ROOT_DIR based on setup.sh's location
+# This script (setup.sh) is in scripts/install/, so ROOT_DIR is two levels up.
+export ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../.. && pwd)"
 
-# Source libraries
+# INSTALL_DIR is where the install scripts themselves live (e.g., scripts/install)
+export INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# VENV_NAME and VENV_PATH are now consistently defined relative to the true ROOT_DIR
+export VENV_NAME=".venv"
+export VENV_PATH="$ROOT_DIR/$VENV_NAME"
+
+# Source libraries (they will now inherit the correct ROOT_DIR and VENV_PATH)
 source "$INSTALL_DIR/lib/common.sh"
 source "$INSTALL_DIR/lib/system.sh"
 source "$INSTALL_DIR/lib/python.sh"
 source "$INSTALL_DIR/lib/config.sh"
 source "$INSTALL_DIR/lib/service.sh"
 
-# Mark libraries as loaded
+# Mark libraries as loaded (optional, for clarity if scripts check this)
 COMMON_LOADED=true
 SYSTEM_LOADED=true
 PYTHON_LOADED=true
