@@ -143,6 +143,4 @@ async def join_meeting_with_url(meeting_url: str, service: MeetingService = Meet
         logger.error(f"Unexpected error in join_meeting_with_url: {str(e)}")
         return error_msg
 
-# Alternative function names for backwards compatibility
-create_meeting_bot = join_meeting_with_url
-create_bot = join_meeting_with_url 
+ 

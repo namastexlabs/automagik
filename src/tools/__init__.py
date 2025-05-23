@@ -18,7 +18,7 @@ from .memory.tool import (
 )
 from .notion import notion_tools
 from .airtable import airtable_tools
-from .meeting import join_meeting_with_url, create_meeting_bot
+from .meeting import join_meeting_with_url
 
 # Export individual tools and groups
 __all__ = [
@@ -53,5 +53,4 @@ __all__ = [
     
     # Meeting tools
     "join_meeting_with_url",
-    "create_meeting_bot",  # Backwards compatibility
 ]
