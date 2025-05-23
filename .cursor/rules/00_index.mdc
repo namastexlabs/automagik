@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Project rulebook index and navigation guide for engineers and AI assistants
+globs: ["**/*.py", "**/*.mdc", "**/*.md", "**/*.yaml", "**/*.yml", "**/*.toml"]
 alwaysApply: true
 ---
+
 # Project Rulebook Index
 
 This file lists **all rule documentation** available under `.cursor/rules/`.

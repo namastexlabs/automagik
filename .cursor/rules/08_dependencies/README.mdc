@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Managing Python packages and versions
+globs: ["pyproject.toml", "requirements*.txt", "uv.lock", "setup.py", "setup.cfg", "Pipfile*", "poetry.lock", "package.json", "constraints.txt"]
 alwaysApply: false
 ---
+
 # Dependency Management Rules
 
 Proper dependency hygiene keeps builds reproducible and secure.

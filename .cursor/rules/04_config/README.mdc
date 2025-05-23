@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Centralised config and secrets management
+globs: ["src/config.py", "src/config/**/*.py", ".env*", "*.env", "**/*config*.py", "**/*settings*.py", "**/*.yaml", "**/*.yml", "**/*.toml"]
 alwaysApply: false
 ---
+
 # Configuration Management Rules
 
 *(This file has been moved from `config-rules.mdc` to follow the new structure.)*

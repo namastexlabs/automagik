@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Repository layout, setup and first steps for Automagik Agents project onboarding
+globs: ["src/**/*.py", "scripts/**/*", "*.py", "*.toml", "*.md", "docker/**/*"]
 alwaysApply: false
 ---
+
 # 01 · Project On-Boarding & Repository Layout
 
 Welcome to **Automagik Agents**—a layer on top of Pydantic AI that lets us ship production-grade AI agents in record time.  This document gives engineers (human _or_ AI) everything needed to pull the repo, run the stack and understand its anatomy.
@@ -122,7 +123,6 @@ AM_ENV=development                           # ✅ Working
 | **Run tests** | `pytest -q` |
 | **Chat with agent** | `automagik-agents agent chat start --agent simple` |
 | **CLI utilities** | `automagik-agents --help` |
-| **Rule enforcement** | `python scripts/rules_enforcer.py` |
 
 **Service Management (if installed with `--install-service`):**
 ```bash
@@ -183,13 +183,12 @@ The installer automatically validates your setup:
 │   ├── db/               # DB migrations & helpers
 │   ├── config.py         # Pydantic Settings (single source of truth)
 │   └── main.py           # `python -m src.main` boots everything
-├── scripts/              # One-off utilities & CI rule-enforcer
+├── scripts/              # One-off utilities
 │   ├── install/          # Comprehensive modular installer system ⭐
 │   │   ├── setup.sh      # Main installer orchestrator
 │   │   ├── lib/          # Shared installation utilities
 │   │   ├── installers/   # Component-specific installation logic
 │   │   └── templates/    # Helper scripts and configs
-│   └── rules_enforcer.py # Automated rule violation checker
 ├── tests/                # Unit / integration tests (pytest)
 ├── docker/               # Compose files for Postgres, Neo4j, etc.
 ├── .cursor/rules/        # Engineering rulebook (start at 00_index.mdc)
@@ -214,10 +213,6 @@ The installer automatically validates your setup:
 • Tests live under `tests/` (see 06_testing rules for pyramid strategy).   
 • Coverage must stay ≥ 90 %. CI will fail otherwise.   
 • `pre-commit install` hooks lint, format, enforce rules and run a quick test subset.
-• Rule enforcer (`scripts/rules_enforcer.py`) automatically checks for violations like:
-  - Direct `os.getenv()` usage (must use `src.config.settings`)
-  - Tool functions missing `ctx` parameter
-  - Missing documentation in rules index
 
 ---
 ## 9. Installation Modes Comparison
@@ -256,9 +251,6 @@ The installer automatically validates your setup:
 # Check service status
 agent status
 
-# Validate configuration  
-python scripts/rules_enforcer.py
-
 # Test API endpoint
 curl http://localhost:8881/health
 
@@ -278,7 +270,7 @@ agent logs
 ---
 ## 12. Further Reading
 
-• **Installation Details**: [`scripts/install/IMPROVED_INSTALLATION.md`](mdc:../../scripts/install/IMPROVED_INSTALLATION.md)  
+• **Installation Script**: [`scripts/install/setup.sh`](mdc:../../scripts/install/setup.sh)  
 • **Agent Development**: [`02_agents/README.mdc`](mdc:../02_agents/README.mdc)  
 • **Tool Building**: [`03_tools/README.mdc`](mdc:../03_tools/README.mdc)  
 • **Configuration**: [`04_config/README.mdc`](mdc:../04_config/README.mdc)

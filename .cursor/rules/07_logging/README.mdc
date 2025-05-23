@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Structured logging and error handling
+globs: ["src/**/*.py", "**/*log*.py", "**/*error*.py", "**/*exception*.py", "**/*logger*.py"]
 alwaysApply: false
 ---
+
 # Logging & Error Handling Guidelines
 
 Consistent logging makes debugging and monitoring possible in production.  These rules define *how* and *where* we log, plus how we surface and handle errors.

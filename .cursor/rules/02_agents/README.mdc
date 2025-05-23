@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: How to create or extend Automagik agents
+globs: ["src/agents/**/*.py", "tests/agents/**/*.py", "src/agents/**/prompts/**/*"]
 alwaysApply: false
 ---
+
 # Automagik Agent Development Rules
 
 *(This file has been moved from `automagik-agent-development.mdc` to follow the new structure.)*
@@ -20,7 +21,11 @@ src/agents/
     ├── simple_agent/      # "Hello-world" style template
     ├── stan_agent/        # Full CRM + Blackpearl integration (📞 phone-centric)
     ├── sofia_agent/       # Advanced WhatsApp (Evolution) flow ✅ production-ready
-    └── flashinho_agent/   # Lightweight "Flashed" memory demo
+    ├── flashinho_agent/   # Lightweight "Flashed" memory demo
+    ├── discord_agent/     # Discord chat-bot persona
+    ├── prompt_maker_agent/ # Meta-agent that generates prompt templates
+    ├── stan_email_agent/  # Email-centric CRM assistant
+    └── estruturar_agent/  # Structured-conversation Portuguese demo
 ```
 
 * Clone **simple_agent** for quick prototypes.
@@ -84,7 +89,7 @@ Demonstrates:
 4. Add `__init__.py` with `__all__ = ["<YourAgent>"]`.
 5. Register default tools and any wrappers in `__init__`.
 6. Place prompt template(s) in a `prompts/` subfolder — name `prompt.py` for default, others upper-case for status keys.
-7. Update `src/agents/simple/__init__.py` to export your agent class so the factory discovers it.
+7. (Optional) The Simple-agent factory **auto-discovers** any sub-folder that exposes a `create_agent()` function, so manual edits to `src/agents/simple/__init__.py` are usually unnecessary.  Only touch that file if you need custom loading logic.
 8. Write at least one **unit test** under `tests/agents/` that instantiates the agent and calls `run()` with dummy input.
 
 ## 5. Danger Zones (common mistakes)
