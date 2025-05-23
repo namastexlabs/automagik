@@ -1,13 +1,14 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "automagik-agents"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Automagik agents templates"
 readme = "README.md"
-license = "MIT"
+requires-python = ">=3.10, <3.13"
+license = {text = "MIT"}
 authors = [
     {name = "Cezar Vasconcelos", email = "cezar@namastex.ai"}
 ]
@@ -21,7 +22,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-requires-python = ">=3.10, <3.13"
 dependencies = [
     "python-dotenv>=1.0.1",
     "notion-client>=2.3.0",
@@ -77,6 +77,7 @@ version = {attr = "src.version.__version__"}
 ignore_no_config = true
 
 [tool.codeflash]
+# All paths are relative to this pyproject.toml's directory.
 module-root = "src"
 tests-root = "tests"
 test-framework = "pytest"
