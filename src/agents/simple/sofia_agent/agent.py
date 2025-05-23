@@ -33,6 +33,7 @@ from src.agents.common.evolution import EvolutionMessagePayload
 
 # For typing wrappers
 from pydantic_ai import RunContext
+from src.agents.simple.sofia_agent.specialized.airtable import run_airtable_assistant 
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,13 @@ class SofiaAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
+        # Register additional tools
+        
         # Register additional Evolution tools with context-aware wrappers
         self.tool_registry.register_tool(self._create_send_reaction_wrapper())
         self.tool_registry.register_tool(self._create_send_text_wrapper())
+        # Register specialized Airtable sub-agent as a tool
+        self.tool_registry.register_tool(self._create_airtable_agent_wrapper())  # NEW LINE
         
         logger.info("SofiaAgent initialized successfully")
     
@@ -95,6 +100,7 @@ class SofiaAgent(AutomagikAgent):
             
         # Get model configuration
         model_name = "google-gla:gemini-2.5-pro-preview-05-06"
+        # model_name = get_model_name(self.dependencies.model_settings)
         model_settings = create_model_settings(self.dependencies.model_settings)
         
         # Convert tools to PydanticAI format
@@ -227,11 +233,73 @@ class SofiaAgent(AutomagikAgent):
             pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
         
         # Prepare user input (handle multimodal content)
-        user_input = input_text
+        user_input = input_text if input_text else "empty message" # Default to text-only or empty message
+
         if multimodal_content:
+            # This call is a placeholder in dependencies, but good to keep for intent
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)
-            user_input = {"text": input_text, "multimodal_content": multimodal_content}
+            
+            # Attempt to import the rich multimodal types from *pydantic_ai*.
+            # We fall back gracefully if running with an older/stripped version
+            # of the library.
+            try:
+                from pydantic_ai import ImageUrl, BinaryContent  # type: ignore
+            except ImportError:
+                ImageUrl = None  # type: ignore
+                BinaryContent = None  # type: ignore
+
+            pydantic_ai_input_list: list[Any] = [input_text] # Start with the text prompt
+            successfully_converted_at_least_one = False
+
+            def _convert_image_payload_to_pydantic(image_item_payload: Dict[str, Any]) -> Any:
+                nonlocal successfully_converted_at_least_one
+                if not ImageUrl: # PydanticAI types not available
+                    return image_item_payload
+
+                # image_item_payload is expected to be like {'data': 'url_or_base64', 'mime_type': 'image/jpeg'}
+                data_content = image_item_payload.get("data")
+                mime_type = image_item_payload.get("mime_type", "")
+
+                if isinstance(data_content, str) and mime_type.startswith("image/"):
+                    if data_content.lower().startswith("http"):
+                        # ------------------------------------------------------------------
+                        # Remote image (HTTP/S)  →  wrap as ImageUrl
+                        # ------------------------------------------------------------------
+                        # Attempt to download the image (also works for presigned MinIO/S3 URLs)
+                        if ImageUrl is not None:
+                            logger.debug(
+                                f"Converting image URL to ImageUrl object: {data_content[:100]}…"
+                            )
+                            successfully_converted_at_least_one = True
+                            return ImageUrl(url=data_content)
+                
+                logger.debug(
+                    f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}…"
+                )
+                return image_item_payload # Return original if not a convertible image URL or recognized format
+
+            # Process the 'images' list from the multimodal_content dictionary
+            if isinstance(multimodal_content, dict) and "images" in multimodal_content:
+                image_list = multimodal_content.get("images", [])
+                if isinstance(image_list, list):
+                    for item_payload in image_list:
+                        if isinstance(item_payload, dict): # Ensure item in list is a dict
+                            converted_obj = _convert_image_payload_to_pydantic(item_payload)
+                            pydantic_ai_input_list.append(converted_obj)
+                        else:
+                            pydantic_ai_input_list.append(item_payload) # Append as-is if not a dict
+            # TODO: Add elif clauses here to handle other direct multimodal_content structures if necessary,
+            # e.g., if multimodal_content could be a list of URLs or a single URL string directly.
+            # For now, focusing on the {'images': [...]} structure from the API controller.
+            
+            if successfully_converted_at_least_one:
+                user_input = pydantic_ai_input_list
+                logger.debug(f"Using PydanticAI list format for user_input: {str(user_input)[:200]}")
+            else:
+                # Fallback if no items were successfully converted to PydanticAI objects
+                user_input = {"text": input_text, "multimodal_content": multimodal_content}
+                logger.debug(f"Using legacy dict format for user_input: {str(user_input)[:200]}")
         
         try:
             # Get filled system prompt
@@ -313,26 +381,46 @@ class SofiaAgent(AutomagikAgent):
             if not evo_payload:
                 return {"success": False, "error": "evolution_payload not found in context"}
 
-            remote_jid = getattr(evo_payload.output.key, "remoteJid", None)
-            message_id = getattr(evo_payload.output.key, "id", None)
+            try:
+                # -----------------------------
+                # 1. Locate message key safely
+                # -----------------------------
+                key_obj = None
+                if hasattr(evo_payload, "data") and hasattr(evo_payload.data, "key"):
+                    key_obj = evo_payload.data.key  # new structure
+                elif hasattr(evo_payload, "output") and hasattr(evo_payload.output, "key"):
+                    key_obj = evo_payload.output.key  # legacy structure
 
-            if not remote_jid or not message_id:
-                return {"success": False, "error": "Missing remote_jid or message_id"}
+                if not key_obj:
+                    return {"success": False, "error": "Message key not found in payload"}
 
-            # Prefer credentials from payload, else config
-            instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
-            api_url = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
-            api_key = getattr(evo_payload, "apikey", None) or getattr(settings, "EVOLUTION_API_KEY", None)
+                remote_jid = getattr(key_obj, "remoteJid", None)
+                message_id = getattr(key_obj, "id", None)
+                if not remote_jid or not message_id:
+                    return {"success": False, "error": "Missing remote_jid or message_id"}
 
-            return await evo_send_reaction(
-                ctx,
-                remote_jid,
-                message_id,
-                reaction,
-                instance=instance_name,
-                api_url=api_url,
-                api_key=api_key,
-            )
+                # -----------------------------
+                # 2. Credentials / config
+                # -----------------------------
+                instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+                api_url       = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
+                api_key       = getattr(evo_payload, "apikey", None)      or getattr(settings, "EVOLUTION_API_KEY", None)
+
+                # -----------------------------
+                # 3. Call evolution tool
+                # -----------------------------
+                return await evo_send_reaction(
+                    ctx,
+                    remote_jid,
+                    message_id,
+                    reaction,
+                    instance=instance_name,
+                    api_url=api_url,
+                    api_key=api_key,
+                )
+            except Exception as e:
+                logger.error(f"send_reaction_wrapper error: {e}")
+                return {"success": False, "error": str(e)}
 
         # Add metadata for tool registration
         send_reaction_wrapper.__name__ = "send_reaction"
@@ -361,24 +449,87 @@ class SofiaAgent(AutomagikAgent):
             if not evo_payload:
                 return {"success": False, "error": "evolution_payload not found"}
 
-            phone_number = evo_payload.get_user_number()
-            if not phone_number:
-                return {"success": False, "error": "Could not determine user number"}
+            try:
+                phone_number = evo_payload.get_user_number()
+                if not phone_number:
+                    return {"success": False, "error": "Could not determine user number"}
 
-            # Prefer credentials from payload, else config
-            instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
-            api_url = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
-            api_key = getattr(evo_payload, "apikey", None) or getattr(settings, "EVOLUTION_API_KEY", None)
+                # Prefer credentials from payload, else config
+                instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+                api_url       = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
+                api_key       = getattr(evo_payload, "apikey", None)      or getattr(settings, "EVOLUTION_API_KEY", None)
 
-            return await evo_send_text(
-                ctx,
-                phone=phone_number,
-                message=text,
-                instance=instance_name,
-                api_url=api_url,
-                token=api_key,
-            )
+                return await evo_send_text(
+                    ctx,
+                    phone=phone_number,
+                    message=text,
+                    instance=instance_name,
+                    api_url=api_url,
+                    token=api_key,
+                )
+            except Exception as e:
+                logger.error(f"send_text_wrapper error: {e}")
+                return {"success": False, "error": str(e)}
 
         send_text_wrapper.__name__ = "send_text_to_user"
         send_text_wrapper.__doc__ = "Send plain text to the current user via Evolution API. Auto-fills phone number."
         return send_text_wrapper 
+
+    # ------------------------------------------------------------------
+    # Airtable specialized sub-agent wrapper
+    # ------------------------------------------------------------------
+
+    def _create_airtable_agent_wrapper(self):
+        """Create a wrapper for the Airtable specialized agent (run_airtable_assistant).
+
+        This exposes the entire Airtable Assistant as a single callable tool so the
+        main SofiaAgent can delegate complex, multi-step Airtable workflows such as
+        creating/updating tasks, sending accountability messages, or resolving
+        blockers. The wrapper ensures the Evolution payload (WhatsApp context) is
+        forwarded into the sub-agent, mirroring the pattern used by other wrappers.
+        """
+        # Capture a reference to the parent context at creation time
+        parent_ctx = self.context
+
+        async def airtable_agent_wrapper(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            input_text: str,
+        ) -> str:
+            """Delegate Airtable-related queries to the specialized Airtable Assistant.
+
+            Args:
+                ctx: RunContext propagated by PydanticAI during tool execution.
+                input_text: The user's question or instruction regarding Airtable
+                    (tasks, milestones, team members, blockers, etc.).
+
+            Returns:
+                Natural-language response produced by the Airtable Assistant.
+            """
+            # Ensure Evolution payload is passed down for WhatsApp utilities
+            if ctx.deps and parent_ctx and "evolution_payload" in parent_ctx:
+                evo_payload = parent_ctx["evolution_payload"]
+                # 1. Attach directly to deps
+                ctx.deps.evolution_payload = evo_payload  # type: ignore
+                # 2. Merge into deps.context dict
+                merged = dict(ctx.deps.context) if hasattr(ctx.deps, "context") and ctx.deps.context else {}
+                merged["evolution_payload"] = evo_payload
+                ctx.deps.set_context(merged)
+                # 3. Keep reference on RunContext for downstream convenience
+                ctx.__dict__["evolution_payload"] = evo_payload  # type: ignore
+                ctx.__dict__["parent_context"] = parent_ctx      # type: ignore
+
+            # Delegate to the specialized agent
+            return await run_airtable_assistant(ctx, input_text)
+
+        # Tool metadata for the LLM
+        airtable_agent_wrapper.__name__ = "airtable_assistant"
+        airtable_agent_wrapper.__doc__ = (
+            "High-level Airtable Assistant capable of multi-step workflows across "
+            "the Tasks, projetos, and Team Members tables. Use this to create or "
+            "update tasks, send WhatsApp notifications, or resolve blockers when "
+            "a single CRUD call is insufficient. Accepts free-form instructions in "
+            "Portuguese and returns a natural-language answer after performing the "
+            "necessary Airtable tool calls."
+        )
+
+        return airtable_agent_wrapper 

@@ -72,12 +72,12 @@ async def test_get_cliente():
     
     result = await get_cliente(ctx, client_id)
     
-    # Basic validation of response format
-    assert isinstance(result, dict)
-    assert "id" in result
-    assert result["id"] == client_id
+    # Basic validation of response format - get_cliente returns a Cliente Pydantic model
+    from src.tools.blackpearl.schema import Cliente
+    assert isinstance(result, Cliente)
+    assert result.id == client_id
     
-    logger.info(f"Got client: {result.get('nome', '')}")
+    logger.info(f"Got client: {result.razao_social}")
     return result
 
 @skip_real_api_tests
@@ -110,12 +110,12 @@ async def test_get_contato():
     
     result = await get_contato(ctx, contact_id)
     
-    # Basic validation of response format
-    assert isinstance(result, dict)
-    assert "id" in result
-    assert result["id"] == contact_id
+    # Basic validation of response format - get_contato returns a Contato Pydantic model
+    from src.tools.blackpearl.schema import Contato
+    assert isinstance(result, Contato)
+    assert result.id == contact_id
     
-    logger.info(f"Got contact: {result.get('nome', '')}")
+    logger.info(f"Got contact: {result.nome}")
     return result
 
 @skip_real_api_tests
@@ -320,7 +320,7 @@ async def test_search_functionality():
     if not clients_result["results"]:
         pytest.skip("No clients available to test search functionality")
         
-    client_name = clients_result["results"][0]["nome"]
+    client_name = clients_result["results"][0]["razao_social"]  # Use razao_social instead of nome
     # Take just the first word to increase search results
     search_term = client_name.split()[0] if ' ' in client_name else client_name[:3]
     
@@ -339,7 +339,9 @@ async def test_search_functionality():
     if search_result["results"]:
         found = False
         for client in search_result["results"]:
-            if search_term.lower() in client["nome"].lower():
+            # Check both razao_social and nome_fantasia for the search term
+            if (search_term.lower() in client.get("razao_social", "").lower() or 
+                search_term.lower() in client.get("nome_fantasia", "").lower()):
                 found = True
                 break
         

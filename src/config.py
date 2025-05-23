@@ -68,8 +68,8 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = Field("postgres", description="PostgreSQL username")
     POSTGRES_PASSWORD: str = Field("postgres", description="PostgreSQL password")
     POSTGRES_DB: str = Field("automagik", description="PostgreSQL database name")
-    POSTGRES_POOL_MIN: int = Field(1, description="Minimum connections in the pool")
-    POSTGRES_POOL_MAX: int = Field(10, description="Maximum connections in the pool")
+    POSTGRES_POOL_MIN: int = Field(10, description="Minimum connections in the pool")
+    POSTGRES_POOL_MAX: int = Field(25, description="Maximum connections in the pool")
 
     # Server
     AM_PORT: int = Field(8881, description="Port to run the server on")
@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     # Logging
     AM_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
     AM_VERBOSE_LOGGING: bool = Field(False, description="Enable verbose logging with additional details")
+    AM_LOG_TO_FILE: bool = Field(False, description="Enable logging to file for debugging")
+    AM_LOG_FILE_PATH: str = Field("debug.log", description="Path to log file when file logging is enabled")
     LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
     LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
 
@@ -111,11 +113,71 @@ class Settings(BaseSettings):
     )
 
     # Graphiti / Neo4j (Optional)
+    GRAPHITI_ENABLED: bool = Field(
+        default=True,
+        description="Master switch to enable/disable all Graphiti functionality"
+    )
     NEO4J_URI: Optional[str] = Field(None, description="Neo4j connection URI (e.g., bolt://localhost:7687 or neo4j://localhost:7687)")
     NEO4J_USERNAME: Optional[str] = Field(None, description="Neo4j username")
     NEO4J_PASSWORD: Optional[str] = Field(None, description="Neo4j password")
     GRAPHITI_NAMESPACE_ID: str = Field("automagik", description="Project namespace ID for Graphiti, used as a prefix for agent IDs")
     GRAPHITI_ENV: str = Field("default", description="Environment for Graphiti, e.g., 'development', 'production'")
+
+    # Graphiti Queue Configuration
+    GRAPHITI_QUEUE_ENABLED: bool = Field(
+        default=True,
+        description="Enable asynchronous Graphiti queue processing"
+    )
+    GRAPHITI_QUEUE_MAX_WORKERS: int = Field(
+        default=10,
+        description="Maximum number of Graphiti background workers"
+    )
+    GRAPHITI_QUEUE_MAX_SIZE: int = Field(
+        default=1000,
+        description="Maximum queue size for pending Graphiti operations"
+    )
+    GRAPHITI_QUEUE_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Maximum retry attempts for failed Graphiti operations"
+    )
+    GRAPHITI_QUEUE_RETRY_DELAY: int = Field(
+        default=5,
+        description="Delay in seconds between retry attempts"
+    )
+    GRAPHITI_BACKGROUND_MODE: bool = Field(
+        default=True,
+        description="Process Graphiti operations in background (non-blocking)"
+    )
+    GRAPHITI_MOCK_ENABLED: bool = Field(
+        default=False,
+        description="Use fast mock processing for Graphiti operations instead of real API calls"
+    )
+
+    # LLM Concurrency / Retry
+    LLM_MAX_CONCURRENT_REQUESTS: int = Field(
+        default=15,
+        description="Maximum number of concurrent requests to the LLM provider (OpenAI) per API instance"
+    )
+    LLM_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Number of retry attempts for LLM calls on transient errors (rate limits, 5xx)"
+    )
+
+    # Airtable (Optional)
+    AIRTABLE_TOKEN: Optional[str] = Field(None, description="Airtable personal access token (PAT)")
+    AIRTABLE_DEFAULT_BASE_ID: Optional[str] = Field(None, description="Default Airtable base ID for tools if not provided explicitly")
+    AIRTABLE_TEST_BASE_ID: Optional[str] = Field(None, description="Airtable base ID specifically for integration testing (separate from production)")
+    AIRTABLE_TEST_TABLE: Optional[str] = Field(None, description="Airtable table ID/name for integration testing")
+
+    # Uvicorn request handling limits
+    UVICORN_LIMIT_CONCURRENCY: int = Field(
+        default=100,
+        description="Maximum number of concurrent in-process requests Uvicorn should allow before back-pressure kicks in"
+    )
+    UVICORN_LIMIT_MAX_REQUESTS: int = Field(
+        default=1000,
+        description="Maximum number of requests to handle before the worker is recycled (helps avoid memory bloat)"
+    )
 
     model_config = ConfigDict(
         env_file=".env",

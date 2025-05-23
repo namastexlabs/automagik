@@ -8,6 +8,7 @@ from src.api.models import SessionResponse, SessionListResponse, SessionInfo, Me
 from src.db.repository.session import get_system_prompt
 from typing import List, Optional, Dict, Any
 import uuid
+from fastapi.concurrency import run_in_threadpool
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
@@ -17,11 +18,10 @@ async def get_sessions(page: int, page_size: int, sort_desc: bool) -> SessionLis
     Get a paginated list of sessions
     """
     try:
-        sessions, total_count = list_sessions(
-            page=page, 
-            page_size=page_size, 
-            sort_desc=sort_desc
-        )
+        sessions, total_count = await run_in_threadpool(list_sessions,
+            page=page,
+            page_size=page_size,
+            sort_desc=sort_desc)
         
         # Convert Session objects to SessionInfo objects
         session_infos = []
@@ -58,14 +58,14 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
         session = None
         
         # First try to get session by name regardless of UUID format
-        session = get_session_by_name(session_id_or_name)
+        session = await run_in_threadpool(get_session_by_name, session_id_or_name)
         if session:
             session_id = str(session.id)
             logger.info(f"Found session with name '{session_id_or_name}', id: {session_id}")
         # If not found by name, try as UUID if it looks like one
         elif safe_uuid(session_id_or_name):
             try:
-                session = db_get_session(uuid.UUID(session_id_or_name))
+                session = await run_in_threadpool(db_get_session, uuid.UUID(session_id_or_name))
                 if session:
                     session_id = str(session.id)
                     logger.info(f"Found session with id: {session_id}")
@@ -76,7 +76,7 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
             raise HTTPException(status_code=404, detail=f"Session not found: {session_id_or_name}")
         
         # Create message history with the session_id
-        message_history = MessageHistory(session_id=session_id)
+        message_history = await run_in_threadpool(lambda: MessageHistory(session_id=session_id))
         
         # Get session info
         session_info = {
@@ -93,13 +93,12 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
         # Get system prompt only if requested
         system_prompt = None
         if show_system_prompt:
-            system_prompt = get_system_prompt(uuid.UUID(session_id))
+            system_prompt = await run_in_threadpool(get_system_prompt, uuid.UUID(session_id))
 
         # Get messages with pagination
-        messages, total_count = message_history.get_messages(
-            page=page, 
-            page_size=page_size, 
-            sort_desc=sort_desc
+        messages, total_count = await run_in_threadpool(
+            message_history.get_messages,
+            page, page_size, sort_desc
         )
         
         # If hide_tools is True, filter out tool calls and outputs from the messages
@@ -151,14 +150,14 @@ async def delete_session(session_id_or_name: str) -> bool:
         session = None
         
         # First try to get session by name regardless of UUID format
-        session = get_session_by_name(session_id_or_name)
+        session = await run_in_threadpool(get_session_by_name, session_id_or_name)
         if session:
             session_id = str(session.id)
             logger.info(f"Found session with name '{session_id_or_name}', id: {session_id}")
         # If not found by name, try as UUID if it looks like one
         elif safe_uuid(session_id_or_name):
             try:
-                session = db_get_session(uuid.UUID(session_id_or_name))
+                session = await run_in_threadpool(db_get_session, uuid.UUID(session_id_or_name))
                 if session:
                     session_id = str(session.id)
                     logger.info(f"Found session with id: {session_id}")
@@ -169,10 +168,10 @@ async def delete_session(session_id_or_name: str) -> bool:
             raise HTTPException(status_code=404, detail=f"Session not found: {session_id_or_name}")
         
         # Create message history with the session_id
-        message_history = MessageHistory(session_id=session_id)
+        message_history = await run_in_threadpool(lambda: MessageHistory(session_id=session_id))
         
         # Delete the session
-        success = message_history.delete_session()
+        success = await run_in_threadpool(message_history.delete_session)
         if not success:
             raise HTTPException(status_code=404, detail=f"Session not found or failed to delete: {session_id_or_name}")
         

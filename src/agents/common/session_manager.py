@@ -119,11 +119,19 @@ def validate_user_id(user_id: Optional[Union[uuid.UUID, str]]) -> Optional[uuid.
     if user_id is None:
         return None
     
-    # If already a UUID, return it
+    # Accept raw ints
+    if isinstance(user_id, int):
+        return user_id  # type: ignore[return-value]
+
+    # Accept UUID object directly
     if isinstance(user_id, uuid.UUID):
         return user_id
-    
-    # Try to convert string to UUID
+
+    # Accept numeric strings and cast to int
+    if isinstance(user_id, str) and user_id.isdigit():
+        return int(user_id)  # type: ignore[return-value]
+
+    # Finally, attempt to parse UUID strings
     try:
         return uuid.UUID(str(user_id))
     except (ValueError, TypeError, AttributeError):
