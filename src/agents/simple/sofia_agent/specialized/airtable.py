@@ -102,12 +102,12 @@ async def fetch_airtable_schema(base_id: Optional[str] = None, force_refresh: bo
             
             logger.info(f"📋 Analyzing table: {table_name} ({table_id})")
             
-            # Get a few sample records to understand field types
+            # Get fewer sample records to speed up the process
             records_result = await list_records(
                 ctx, 
                 table=table_id, 
                 base_id=target_base_id, 
-                page_size=5  # Just need a few samples
+                page_size=3  # Reduced from 5 to 3 for faster processing
             )
             
             schema_parts.append(f"### 📋 Table: `{table_name}` (ID: `{table_id}`)")

@@ -346,20 +346,6 @@ def create_app() -> FastAPI:
         async with _request_semaphore:
             return await call_next(request)
 
-    # Global request timeout so individual slow requests do not hog workers
-    REQUEST_TIMEOUT_SECONDS = 30.0  # Could be made configurable if needed
-
-    @app.middleware("http")
-    async def timeout_middleware(request: Request, call_next):
-        try:
-            return await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SECONDS)
-        except asyncio.TimeoutError:
-            logger.error(f"⏰ Request timeout after {REQUEST_TIMEOUT_SECONDS}s: {request.url}")
-            return JSONResponse(
-                status_code=408,
-                content={"detail": "Request timeout"},
-            )
-
     # ---------------------------------------------------------------------
     # Existing setup logic continues below
     # ---------------------------------------------------------------------
