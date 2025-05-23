@@ -4,479 +4,433 @@
 
 ## 🚀 From Ideas to Production in Minutes
 
-Automagik Agents is a powerful deployment layer over Pydantic AI that accelerates your AI agent development from concept to production. Born from our daily work at Namastex Labs, it provides a reliable, tested foundation for rapidly building, deploying, and managing AI agents with advanced capabilities like persistent memory and tool integration.
+Automagik Agents is a powerful deployment layer over Pydantic AI that accelerates your AI agent development from concept to production. Born from our daily work at Namastex Labs, it provides a reliable, tested foundation for rapidly building, deploying, and managing AI agents with advanced capabilities like persistent memory and knowledge graph integration.
 
 We built Automagik because we needed to save time while creating high-quality, production-ready agents. By focusing on standardized patterns, best practices, and reusable components, Automagik lets you create sophisticated AI assistants in minutes instead of days.
 
 ## 🌟 Features
 
-- **Extensible Agent System**
-  - Template-based agent creation
-  - Built-in templates: Simple Agent, Sofia Agent, Notion Agent, and Discord Agent
-  - Easy-to-use CLI for creating new agents
-  - Automatic tool registration and management
+### 🤖 **Extensible Agent System**
+- Template-based agent creation with built-in best practices
+- Ready-to-use templates: Simple Agent, Sofia Agent, Notion Agent, Discord Agent
+- Easy-to-use CLI for creating and managing agents
+- Automatic tool registration and management
+- High-performance async architecture
 
-- **Powerful API Integration**
-  - FastAPI-based RESTful endpoints
-  - Session management with conversation history
-  - Structured request/response models
-  - Built-in authentication and CORS support
-  - Health monitoring and version tracking
+### 🌐 **Powerful API Integration**
+- FastAPI-based RESTful endpoints with automatic documentation
+- Session management with conversation history
+- Structured request/response models with validation
+- Built-in authentication and CORS support
+- Health monitoring and version tracking
+- **Performance**: 200+ req/sec capability with proper configuration
 
-- **Advanced Memory System**
-  - Persistent conversation history
-  - Session-based memory management
-  - Tool call and output tracking
-  - Structured message storage
-  - Agent-specific memories with customizable access controls
-  - Dynamic memory injection via {{variable}} templating
-  - Memory creation, reading, and updating tools
+### 🧠 **Advanced Memory System**
+- Persistent conversation history with PostgreSQL storage
+- Session-based memory management
+- Tool call and output tracking
+- Agent-specific memories with customizable access controls
+- Dynamic memory injection via `{{variable}}` templating
+- Memory creation, reading, and updating tools
 
-- **Knowledge Graph Integration**
-  - Graphiti knowledge graph framework integration
-  - Automatic storage of user interactions as episodes
-  - Built-in Neo4j connectivity for graph database operations
-  - Extensible data model for rich semantic understanding
-  - Groundwork for advanced knowledge extraction and retrieval
+### 📊 **Knowledge Graph Integration (Graphiti)**
+- **Async Queue System**: High-performance background processing
+- **Scalable Architecture**: Handles thousands of requests without blocking
+- **Configurable Performance**: Adjustable workers, queue size, and retry logic
+- **Fast Mock Mode**: Testing without real Graphiti overhead
+- **Complete Disable Options**: Multiple levels of Graphiti control
+- Automatic storage of user interactions as episodes
+- Built-in Neo4j connectivity for graph database operations
+- Groundwork for advanced knowledge extraction and retrieval
 
-- **Built-in Templates**
-  - **Simple Agent**: Basic chat functionality with memory tools
-  - **Sofia Agent**: Memory-enhanced agent with comprehensive knowledge management and dynamic prompt templating
-  - **Notion Agent**: Full Notion integration with database management
-  - **Discord Agent**: Discord integration for managing servers, channels, and messages
+### 🧪 **Comprehensive Testing & Benchmarking**
+- **Mock Agent Testing**: Fast infrastructure testing without API costs
+- **Real API Benchmarks**: End-to-end performance validation
+- **Stress Testing Suite**: Validate performance under load
+- **Automated Reporting**: Markdown reports with performance metrics
+- **CPU & Memory Monitoring**: System resource tracking
 
-## 🚀 Quick Start
-
-1. **Installation**
-   ```bash
-   git clone https://github.com/namastexlabs/automagik-agents
-   cd automagik-agents
-   ```
-   Create and manage a virtual environment using [uv](https://docs.astral.sh/uv/):
-   ```bash
-   uv venv
-   ```
-   ```bash
-   # On Linux environments/WSL
-   source .venv/bin/activate
-   ```
-   ```bash
-   # On Windows
-   .venv/Scripts/activate
-   ```
-   Install all the dependencies
-   ```bash
-   uv pip install -e .
-   ```
-
-2. **Environment Setup**
-   ```bash
-   # Copy example environment file
-   cp .env-example .env
-
-   # Configure required variables
-   AM_API_KEY=your_api_key_here
-   AM_HOST=0.0.0.0
-   AM_PORT=8881
-   OPENAI_API_KEY=your_openai_key_here
-   OPENAI_MODEL=openai:gpt-4o-mini  # or your preferred model
-   
-   # For Notion agent (optional)
-   NOTION_TOKEN=your_notion_token
-   
-   # For Discord agent (optional)
-   DISCORD_BOT_TOKEN=your_discord_token
-   
-   # For Graphiti knowledge graph (optional)
-   NEO4J_URI=bolt://localhost:7687
-   NEO4J_USERNAME=neo4j
-   NEO4J_PASSWORD=your_password
-   GRAPHITI_NAMESPACE_ID=automagik
-   GRAPHITI_ENV=development
-   ```
-   Make sure you have access to a PosgreSQL 15 database by:
-   a. Setting up a local instance via docker-compose:
-   1. (Optional) Override the default .env variables
-   ```bash
-   POSTGRES_DB=
-   POSTGRES_USER=
-   POSTGRES_PASSWORD=
-   POSTGRES_PORT=
-
-   DATABASE_URL="your_custom_url"
-   ```
-   2. Create the Postgres container:
-   ```bash
-   cd docker/
-   # Initialize the container using the .env on root
-   docker-compose --env-file ../.env up
-   ```
-   **or**
-   b. Connecting to a existing database by overriding the DATABASE_URL .env variable:
-   ```bash
-   DATABASE_URL="your_database_url"
-   ```
-3. **Initialize automagik's database structure:**
-   ```bash
-   automagik-agents db init
-   ```
-
-4. **Optional: Start the Neo4j and Graphiti services (for knowledge graph):**
-   If you want to use the knowledge graph functionality, you can start Neo4j and Graphiti using Docker:
-   ```bash
-   cd docker
-   docker-compose --env-file ../.env up -d neo4j graphiti
-   ```
-   This will start Neo4j (available at http://localhost:7474) and Graphiti (available at http://localhost:8000).
-   
-   For more details, see the [Docker Setup](docker/README.md).
-
-5. **Start the API Server**
-   ```bash
-   automagik-agents api start --reload # Initialize the API with hot-reloading
-   ```
-5. **Hello world!**
-  To make sure your setup is running correctly, do a API health check:
-   ```bash
-   curl http://localhost:8881/health
-   ```
-   Start you first conversation session with a simple, template, agent:
-   ```bash
-   automagik-agents agent chat start --agent simple
-   ```
-
-=======
-# AutoMagik Agents
-
-A powerful toolkit for quickly building and deploying AI agents using the Pydantic AI framework. Create custom agents from templates, expose them through a RESTful API, and manage conversations with built-in memory and tool support. Perfect for teams looking to rapidly prototype and deploy AI agents with standardized patterns and best practices.
-
-## 🌟 Features
-
-### Extensible Agent System
-- **Template-Based Development**: Create new agents from pre-built templates
-- **Ready-to-Use Templates**: Start with Simple Agent or Notion Agent
-- **Intuitive CLI**: Generate agents with simple commands
-- **Automatic Tool Registration**: Register and manage tools effortlessly
-
-### Powerful API Integration
-- **FastAPI Backend**: High-performance RESTful endpoints
-- **Sophisticated Session Management**: Track conversation history
-- **Structured Data Models**: Clear request/response patterns
-- **Security**: Built-in authentication and CORS support
-- **Monitoring**: Health checks and version tracking
-
-### Advanced Memory System
-- **Persistent Conversation History**: Maintain context across sessions
-- **Session-Based Organization**: Efficient memory management
-- **Tool Interaction Tracking**: Record tool calls and outputs
-- **Structured Storage**: Organized message repository
-
-### Knowledge Graph Integration
-- **Graphiti Knowledge Graph Framework Integration**: Integrate Graphiti for advanced knowledge graph capabilities
-- **Automatic Storage of User Interactions as Episodes**: Store user interactions as episodes for rich semantic understanding
-- **Built-in Neo4j Connectivity for Graph Database Operations**: Use Neo4j for efficient graph database operations
-- **Extensible Data Model for Rich Semantic Understanding**: Build an extensible data model for rich semantic understanding and advanced knowledge extraction
-- **Groundwork for Advanced Knowledge Extraction and Retrieval**: Lay the groundwork for advanced knowledge extraction and retrieval
-
-### Built-in Templates
-- **Simple Agent**: Basic chat functionality with datetime tools
+### 📋 **Built-in Templates**
+- **Simple Agent**: Basic chat functionality with memory tools
+- **Sofia Agent**: Memory-enhanced agent with comprehensive knowledge management
 - **Notion Agent**: Full Notion integration with database management
+- **Discord Agent**: Discord integration for managing servers and channels
 
 ## 🚀 Quick Start
 
-### Installation
+### 1. Installation
 
 ```bash
-pip install automagik-agents
+git clone https://github.com/namastexlabs/automagik-agents
+cd automagik-agents
 ```
 
-### Environment Setup
+Create and manage a virtual environment using [uv](https://docs.astral.sh/uv/):
+```bash
+uv venv
+
+# On Linux/macOS/WSL
+source .venv/bin/activate
+
+# On Windows
+.venv/Scripts/activate
+
+# Install dependencies
+uv pip install -e .
+```
+
+### 2. Environment Setup
 
 ```bash
 # Copy example environment file
 cp .env-example .env
+```
 
-# Configure required variables
+Configure required variables in `.env`:
+```bash
+# Required - Authentication
 AM_API_KEY=your_api_key_here
-AM_HOST=0.0.0.0
-AM_PORT=8000
 OPENAI_API_KEY=your_openai_key_here
-OPENAI_MODEL=openai:gpt-4o-mini  # or your preferred model
+DISCORD_BOT_TOKEN=your_discord_token
 
-# For Notion agent (optional)
-NOTION_TOKEN=your_notion_token
+# Server Configuration
+AM_HOST=0.0.0.0
+AM_PORT=8881
+AM_ENV=development
 
-# For Graphiti knowledge graph (optional)
+# Database
+DATABASE_URL=postgresql://automagik:automagik@localhost:5432/automagik_agents
+
+# Optional - Graphiti Knowledge Graph
+GRAPHITI_ENABLED=true
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
-GRAPHITI_NAMESPACE_ID=automagik
-GRAPHITI_ENV=development
+
+# Optional - Third-party Integrations
+NOTION_TOKEN=your_notion_token
+AIRTABLE_TOKEN=your_airtable_token
 ```
 
-### Creating Your First Agent
+### 3. Database Setup
 
+**Option A: Docker Compose (Recommended)**
 ```bash
-# Create from simple template
-automagik-agents create-agent -n my_agent -t simple_agent
-
-# Create from Notion template
-automagik-agents create-agent -n my_notion_agent -t notion_agent
+cd docker/
+docker-compose --env-file ../.env up -d postgres
 ```
 
-### Starting the API Server
+**Option B: Existing Database**
+Update `DATABASE_URL` in `.env` with your connection string.
+
+**Initialize Database Structure:**
+```bash
+automagik-agents db init
+```
+
+### 4. Optional: Graphiti Setup
+
+For knowledge graph functionality:
+```bash
+cd docker
+docker-compose --env-file ../.env up -d neo4j
+```
+
+Neo4j will be available at http://localhost:7474
+
+### 5. Start the API Server
 
 ```bash
 automagik-agents api start --reload
+```
+
+### 6. Verify Installation
+
+**Health Check:**
+```bash
+curl http://localhost:8881/health
+```
+
+**Start Your First Chat:**
+```bash
+automagik-agents agent chat start --agent simple
 ```
 
 ## 💡 Usage Examples
 
 ### CLI Commands
 
-1. **Interactive Chat** - Useful when developing / debugging without an UI.
-   ```bash
-   # Start a chat session with an agent
-   automagik-agents agent chat start --agent my_agent
-   
-   # List available agents for chat
-   automagik-agents agent chat list
-   ```
+**Interactive Chat**
+```bash
+# Start chat session
+automagik-agents agent chat start --agent simple_agent
 
-2. **Agent Mode** - We made this so that we can provide another agent with tools to test the new agents under development.
-   ```bash
-   # Run a single message through an agent
-   automagik-agents agent run message --agent my_agent --message "What time is it?"
-   
-   # Run with session continuity
-   automagik-agents agent run message --agent my_agent --session my_session --message "Remember this information"
-   automagik-agents agent run message --agent my_agent --session my_session --message "What did I ask you to remember?"
-   ```
+# List available agents
+automagik-agents agent chat list
+```
 
-3. **Debug Mode**
-   ```bash
-   # Enable debug mode for detailed output
-   automagik-agents --debug agent run message --agent my_agent --message "Debug information"
-   ```
+**Agent Testing**
+```bash
+# Single message
+automagik-agents agent run message --agent simple_agent --message "What time is it?"
+
+# With session continuity
+automagik-agents agent run message --agent simple_agent --session my_session --message "Remember: I like coffee"
+automagik-agents agent run message --agent simple_agent --session my_session --message "What do I like?"
+```
+
+**Debug Mode**
+```bash
+automagik-agents --debug agent run message --agent simple_agent --message "Debug test"
+```
 
 ### API Endpoints
 
-1. **Health Check**
-   ```bash
-   curl http://localhost:8881/health
-   ```
-
-2. **Run an Agent**
-   ```bash
-   # Simple agent
-   curl -X POST http://localhost:8881/api/v1/agent/simple_agent/run \
-     -H "X-API-Key: your_api_key" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "message_content": "What time is it?",
-       "session_name": "optional_session_name"
-     }'
-   ```
-
-3. **Memory Management**
-   ```bash
-   # Create a memory
-   curl -X POST http://localhost:8881/api/v1/memories \
-     -H "X-API-Key: your_api_key" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "name": "user_preference",
-       "description": "User color preference",
-       "content": "The user prefers blue",
-       "agent_id": 1,
-       "read_mode": "tool_calling",
-       "access": "write"
-     }'
-     
-   # Get a memory
-   curl http://localhost:8881/api/v1/memories/{memory_id} \
-     -H "X-API-Key: your_api_key"
-     
-   # List memories
-   curl http://localhost:8881/api/v1/memories \
-     -H "X-API-Key: your_api_key"
-   ```
-
-4. **Session Management**
-   ```bash
-   # Get session history
-   curl http://localhost:8881/api/v1/sessions/{session_id_or_name} \
-     -H "X-API-Key: your_api_key"
-
-   # Delete session
-   curl -X DELETE http://localhost:8881/api/v1/sessions/{session_id_or_name} \
-     -H "X-API-Key: your_api_key"
-   ```
-=======
-#### Health Check
-
+**Agent Interaction**
 ```bash
-curl http://localhost:8000/health
-```
-
-#### Running Agents
-
-**Simple Agent**
-```bash
-curl -X POST http://localhost:8000/agent/simple_agent/run \
+# Run agent
+curl -X POST http://localhost:8881/api/v1/agent/simple_agent/run \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
-    "message_input": "What time is it?",
-    "session_id": "optional_session_id"
+    "message_content": "What time is it?",
+    "session_name": "my_session"
   }'
 ```
 
-**Notion Agent**
+**Memory Management**
 ```bash
-curl -X POST http://localhost:8000/agent/notion_agent/run \
+# Create memory
+curl -X POST http://localhost:8881/api/v1/memories \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
-    "message_input": "List my databases",
-    "session_id": "optional_session_id"
+    "name": "user_preference",
+    "content": "User prefers dark mode",
+    "agent_id": 1,
+    "read_mode": "tool_calling"
   }'
 ```
 
-#### Session Management
-
-**Retrieve Session History**
+**Session Management**
 ```bash
-curl http://localhost:8000/session/your_session_id \
+# Get session history
+curl http://localhost:8881/api/v1/sessions/my_session \
   -H "X-API-Key: your_api_key"
 ```
 
-**Clear Session Data**
+## 🧪 Testing & Benchmarking
+
+### Performance Benchmarking
+
+**Mock Testing (Fast Infrastructure Testing)**
 ```bash
-curl -X DELETE http://localhost:8000/session/your_session_id \
-  -H "X-API-Key: your_api_key"
+# Quick infrastructure test
+python scripts/benchmarks/comprehensive_benchmark.py --mode mock
+
+# Mock tests don't hit real APIs - perfect for CI/CD
 ```
 
-### Dynamic Memory System
-
-Automagik features a powerful dynamic memory system that can inject variable content into agent prompts:
-
-1. **Template Variables in Prompts**
-   ```python
-   # Example prompt with template variables
-   AGENT_PROMPT = (
-     """
-     You are an AI assistant with the following traits:
-     - Name: {{assistant_name}}
-     - Personality: {{personality}}
-     - Knowledge areas: {{knowledge_areas}}
-     
-     Current user preferences: {{user_preferences}}
-     """
-   )
-   ```
-
-2. **Creating Memories for Template Variables**
-   ```bash
-   # Create memories that will be injected into prompts
-   curl -X POST http://localhost:8881/api/v1/memories \
-     -H "X-API-Key: your_api_key" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "name": "personality",
-       "description": "Agent personality traits",
-       "content": "friendly, helpful, knowledgeable",
-       "agent_id": 3,
-       "read_mode": "system_prompt",
-       "access": "read"
-     }'
-   ```
-
-3. **How It Works**
-   - Template variables using `{{variable_name}}` syntax are identified in prompts
-   - The system automatically fetches memory values with matching names
-   - Values are injected into the prompt at runtime
-   - Special variables like `{{run_id}}` are handled automatically
-   - Memory values can be updated via API or agent tools
-   - This allows for dynamic agent personality and knowledge without redeployment
-
-### Creating Custom Agents
-
-1. **Create Agent Using CLI**
-   ```bash
-   automagik-agents agent create agent --name custom_agent --template simple_agent
-   ```
-
-2. **Customize Agent Files**
-   - Edit `src/agents/simple/custom_agent/prompts/prompt.py` for system prompts
-   - Add template variables with `{{variable_name}}` syntax for dynamic content
-   - Modify `src/agents/simple/custom_agent/agent.py` for behavior and tool registration
-   - Update `src/agents/simple/custom_agent/__init__.py` for configuration
-
-3. **Register Tools**
-   ```python
-   def register_tools(self):
-       """Register custom tools with the agent."""
-       # Register built-in memory tools
-       from src.tools.memory_tools import read_memory, create_memory, update_memory
-       self.agent.tool(read_memory)
-       self.agent.tool(create_memory)
-       self.agent.tool(update_memory)
-       
-       # Register custom tools
-       self.agent.tool(your_custom_tool)
-   ```
-=======
-#### 1. Create Agent Template
-
+**Real API Testing**
 ```bash
-automagik-agents create-agent -n custom -t simple_agent
+# End-to-end performance testing
+python scripts/benchmarks/comprehensive_benchmark.py --mode api --api-key your-key
+
+# Full stack validation with real OpenAI calls
 ```
 
-#### 2. Customize Agent Files
-
-- Edit `src/agents/custom_agent/prompts.py` for system prompts
-- Modify `src/agents/custom_agent/agent.py` for agent behavior
-- Update `src/agents/custom_agent/__init__.py` for configuration
-
-#### 3. Register Custom Tools
-
-```python
-def register_tools(self):
-    """Register custom tools with the agent."""
-    # Register built-in tools
-    self.agent.tool(self.get_current_time)
-    
-    # Register custom tools
-    self.agent.tool(your_custom_tool)
-    
-def your_custom_tool(self, param1: str) -> str:
-    """Custom tool description.
-    
-    Args:
-        param1: Description of parameter
-        
-    Returns:
-        Description of return value
-    """
-    # Tool implementation
-    return f"Processed: {param1}"
+**Custom Benchmarks**
+```bash
+# Individual stress test
+python scripts/benchmarks/api_stress_test.py \
+  --base-url http://localhost:8881 \
+  --test-type agent_run \
+  --concurrency 50 \
+  --requests 500 \
+  --api-key your-key
 ```
 
-### Testing
+### Test Suite
 
-Run all tests including memory, API, and CLI tests:
+**Run All Tests**
 ```bash
 python tests/run_all_tests.py
 ```
 
-Run specific test categories:
+**Specific Test Categories**
 ```bash
-# Run only memory tests
+# Memory tests only
 python tests/run_all_tests.py --memory --no-api --no-cli
 
-# Run with verbose output
+# Verbose output
 python tests/run_all_tests.py --verbose
+```
+
+### Benchmark Reports
+
+Results are automatically saved to `scripts/benchmarks/benchmark/`:
+- `benchmark_report_v{version}_{date}.md` - Human-readable report
+- `benchmark_data_v{version}_{date}.json` - Machine-readable data
+
+## ⚙️ Graphiti Configuration
+
+### Performance Modes
+
+**High Performance (Default)**
+```bash
+GRAPHITI_ENABLED=true
+GRAPHITI_QUEUE_ENABLED=true
+GRAPHITI_QUEUE_MAX_WORKERS=10
+GRAPHITI_MOCK_ENABLED=false
+```
+
+**Testing Mode (Fast)**
+```bash
+GRAPHITI_ENABLED=true
+GRAPHITI_MOCK_ENABLED=true  # 1ms mock operations
+```
+
+**Disabled Mode**
+```bash
+GRAPHITI_ENABLED=false  # Master disable switch
+```
+
+### Queue Configuration
+
+```bash
+# Performance tuning
+GRAPHITI_QUEUE_MAX_WORKERS=10        # Concurrent background workers
+GRAPHITI_QUEUE_MAX_SIZE=1000         # Queue capacity
+GRAPHITI_QUEUE_RETRY_ATTEMPTS=3      # Retry failed operations
+GRAPHITI_BACKGROUND_MODE=true        # Async processing
+```
+
+### Monitoring
+
+```bash
+# Check queue status
+curl -H "x-api-key: your-key" http://localhost:8881/health/graphiti-queue
+```
+
+## 🔧 Creating Custom Agents
+
+### 1. Generate Agent Template
+
+```bash
+automagik-agents agent create agent --name custom_agent --template simple_agent
+```
+
+### 2. Customize Agent Files
+
+**Prompt Template** (`src/agents/simple/custom_agent/prompts/prompt.py`):
+```python
+AGENT_PROMPT = """
+You are {{agent_name}} with personality: {{personality}}.
+Current user preferences: {{user_preferences}}
+
+Your capabilities include:
+- Memory management
+- Tool usage
+- Custom functionality
+"""
+```
+
+**Agent Implementation** (`src/agents/simple/custom_agent/agent.py`):
+```python
+def register_tools(self):
+    """Register tools with the agent."""
+    # Built-in memory tools
+    from src.tools.memory_tools import read_memory, create_memory
+    self.agent.tool(read_memory)
+    self.agent.tool(create_memory)
+    
+    # Custom tools
+    self.agent.tool(self.custom_tool)
+
+def custom_tool(self, query: str) -> str:
+    """Custom tool description."""
+    return f"Processed: {query}"
+```
+
+### 3. Dynamic Memory System
+
+**Template Variables**: Use `{{variable_name}}` syntax in prompts
+**Memory Creation**: Create memories with matching names
+**Automatic Injection**: Values are injected at runtime
+
+```bash
+# Create memory for template variable
+curl -X POST http://localhost:8881/api/v1/memories \
+  -d '{
+    "name": "personality",
+    "content": "friendly and helpful",
+    "agent_id": 1,
+    "read_mode": "system_prompt"
+  }'
+```
+
+## 📊 Performance Metrics
+
+### Benchmark Results (v0.1.3)
+
+**Infrastructure Performance (Mock Mode)**:
+- **Peak Throughput**: 585 req/sec
+- **Mean Latency**: 0.7ms
+- **Concurrency**: 500 concurrent requests
+- **Error Rate**: 0%
+
+**Real API Performance**:
+- **Throughput**: 2.86 req/sec (OpenAI limited)
+- **Queue Success**: 0% error rate (fixed from 85%)
+- **Memory Usage**: ~55MB peak
+- **CPU Efficiency**: <1% average
+
+### Configuration Recommendations
+
+**Development**:
+```bash
+GRAPHITI_MOCK_ENABLED=true    # Fast testing
+AM_LOG_LEVEL=DEBUG           # Detailed logging
+```
+
+**Production**:
+```bash
+GRAPHITI_ENABLED=true
+GRAPHITI_QUEUE_MAX_WORKERS=20
+LLM_MAX_CONCURRENT_REQUESTS=30
+UVICORN_LIMIT_CONCURRENCY=200
+```
+
+## 🚧 Troubleshooting
+
+### Common Issues
+
+**Graphiti Queue Issues**:
+```bash
+# Check queue status
+curl -H "x-api-key: your-key" http://localhost:8881/health/graphiti-queue
+
+# Disable if needed
+GRAPHITI_ENABLED=false
+```
+
+**Performance Issues**:
+```bash
+# Enable verbose logging
+AM_VERBOSE_LOGGING=true
+AM_LOG_TO_FILE=true
+
+# Run benchmark
+python scripts/benchmarks/comprehensive_benchmark.py --mode mock
+```
+
+**Database Connection**:
+```bash
+# Test database
+automagik-agents db check
+
+# Reset if needed
+automagik-agents db reset
 ```
 
 ## 📄 License
@@ -485,24 +439,26 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 API Documentation
 
-Explore the complete API documentation at `/api/v1/docs` when running the server.
+Interactive API documentation available at:
+- **Swagger UI**: http://localhost:8881/api/v1/docs
+- **ReDoc**: http://localhost:8881/api/v1/redoc
 
 ## 🗺️ Roadmap
 
 - **Graph Agents**: Advanced agent orchestration and workflows
-- **Seamless Deployment**: Built-in deployment solutions in namastex/automagik for agent automation
-- **Heartbeat Mode**: Our proprietary method to keep agents alive 24hrs doing tasks
-- **MCP Integration**: Model Context Protocol for easier tool reusing
-- **Support for Other Agent Frameworks**: Expand compatibility across the ecosystem
+- **MCP Integration**: Model Context Protocol for tool reusability
 - **Smart Context Management**: Optimal handling of large context windows
+- **Enhanced Benchmarking**: Real-time performance monitoring
+- **Agent Analytics**: Usage patterns and optimization insights
+- **Deployment Tools**: One-click deployment to major cloud providers
 
-Automagik Agents is and will always be open source. Since this is our daily work tool, we provide high priority maintenance and updates.
-=======
+## 🔗 Resources
+
+- **Documentation**: [Full documentation](docs/)
+- **Benchmarks**: [Performance reports](scripts/benchmarks/benchmark/)
+- **Examples**: [Example agents](examples/)
+- **Discord**: [Join our community](https://discord.gg/xcW8c7fF3R)
+
 ---
 
-<p align="center">
-  <b>Part of the AutoMagik Ecosystem</b><br>
-  <a href="https://github.com/namastexlabs/automagik">AutoMagik</a> |
-  <a href="https://github.com/namastexlabs/automagik-agents">AutoMagik Agents</a> |
-  <a href="https://github.com/namastexlabs/automagik-ui">AutoMagik UI</a>
-</p>
+Automagik Agents is and will always be open source. Since this is our daily work tool at Namastex Labs, we provide high priority maintenance and updates.
