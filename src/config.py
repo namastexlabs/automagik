@@ -118,11 +118,11 @@ class Settings(BaseSettings):
 
     # Graphiti Queue Configuration
     GRAPHITI_QUEUE_ENABLED: bool = Field(
-        default=False,
+        default=True,
         description="Enable asynchronous Graphiti queue processing"
     )
     GRAPHITI_QUEUE_MAX_WORKERS: int = Field(
-        default=5,
+        default=10,
         description="Maximum number of Graphiti background workers"
     )
     GRAPHITI_QUEUE_MAX_SIZE: int = Field(
@@ -140,6 +140,10 @@ class Settings(BaseSettings):
     GRAPHITI_BACKGROUND_MODE: bool = Field(
         default=True,
         description="Process Graphiti operations in background (non-blocking)"
+    )
+    GRAPHITI_MOCK_ENABLED: bool = Field(
+        default=False,
+        description="Use fast mock processing for Graphiti operations instead of real API calls"
     )
 
     # LLM Concurrency / Retry

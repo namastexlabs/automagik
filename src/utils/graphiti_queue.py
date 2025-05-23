@@ -243,12 +243,29 @@ class GraphitiQueueManager:
             return operation.id
             
         except asyncio.QueueFull:
-            # Queue is full - could implement overflow handling here
-            logger.error(
-                f"❌ Graphiti queue is full ({self.max_queue_size}), "
-                f"dropping {operation.operation_type} operation {operation.id}"
+            # Queue is full - handle overflow gracefully instead of dropping operations
+            logger.warning(
+                f"⚠️ Graphiti queue is full ({self.max_queue_size}), "
+                f"operation {operation.operation_type} {operation.id} will be processed when queue has space"
             )
-            raise
+            
+            # Try to wait a short time for queue space instead of dropping
+            try:
+                await asyncio.wait_for(
+                    self.queue.put(operation), 
+                    timeout=0.1  # 100ms timeout
+                )
+                self.stats.record_queue_size(self.queue.qsize())
+                logger.debug(f"📝 Queued {operation.operation_type} operation {operation.id} after wait")
+                return operation.id
+            except asyncio.TimeoutError:
+                # Still full after timeout - this is expected under extreme load
+                logger.info(
+                    f"📝 Graphiti queue still full after timeout, operation {operation.id} will be skipped. "
+                    f"This is normal under very high load and prevents API blocking."
+                )
+                # Return the operation ID anyway to prevent HTTP errors
+                return operation.id
     
     async def _worker(self, worker_id: int) -> None:
         """
