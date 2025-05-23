@@ -33,7 +33,8 @@ from src.agents.common.evolution import EvolutionMessagePayload
 
 # For typing wrappers
 from pydantic_ai import RunContext
-from src.agents.simple.sofia_agent.specialized.airtable import run_airtable_assistant 
+from src.agents.simple.sofia_agent.specialized.airtable import run_airtable_assistant
+from src.tools.meeting import join_meeting_with_url 
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,9 @@ class SofiaAgent(AutomagikAgent):
         self.tool_registry.register_default_tools(self.context)
         
         # Register additional tools
+        
+        # Register meeting tool
+        self.tool_registry.register_tool(join_meeting_with_url)
         
         # Register additional Evolution tools with context-aware wrappers
         self.tool_registry.register_tool(self._create_send_reaction_wrapper())
