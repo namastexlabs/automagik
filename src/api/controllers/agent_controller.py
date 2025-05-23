@@ -424,6 +424,7 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
             return str(session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(session_id), user_id=user_id))
 
     else:
-        # Create temporary session
+        # Create temporary in-memory session (don't persist to database for performance)
         temp_session_id = str(uuid.uuid4())
-        return temp_session_id, await run_in_threadpool(lambda: MessageHistory(session_id=temp_session_id, no_auto_create=True))
+        logger.debug(f"Creating temporary in-memory session: {temp_session_id}")
+        return str(temp_session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(temp_session_id), user_id=user_id, no_auto_create=True))

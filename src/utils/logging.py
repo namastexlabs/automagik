@@ -51,6 +51,8 @@ def configure_logging():
     # Get log level from settings
     log_level = get_log_level(settings.AM_LOG_LEVEL)
     verbose_logging = settings.AM_VERBOSE_LOGGING
+    log_to_file = getattr(settings, 'AM_LOG_TO_FILE', False)
+    log_file_path = getattr(settings, 'AM_LOG_FILE_PATH', 'debug.log')
     
     # Configure root logger
     root_logger = logging.getLogger()
@@ -61,9 +63,23 @@ def configure_logging():
         root_logger.removeHandler(handler)
 
     # Create and configure stream handler
-    handler = logging.StreamHandler()
-    handler.setFormatter(PrettyFormatter(include_timestamp=verbose_logging))
-    root_logger.addHandler(handler)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(PrettyFormatter(include_timestamp=verbose_logging))
+    root_logger.addHandler(stream_handler)
+    
+    # Add file handler if enabled
+    if log_to_file:
+        try:
+            file_handler = logging.FileHandler(log_file_path, mode='a')
+            # File logging always includes timestamp and no colors
+            file_formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            file_handler.setFormatter(file_formatter)
+            root_logger.addHandler(file_handler)
+            print(f"📝 File logging enabled: {log_file_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to enable file logging: {e}")
 
     # Configure module-specific log levels
     configure_module_log_levels(verbose_logging)

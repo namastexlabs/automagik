@@ -8,6 +8,7 @@ from pathlib import Path
 import copy
 from threading import Lock
 import inspect  # NEW - to help debug callable methods
+import asyncio  # NEW
 
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import BaseDependencies
@@ -22,6 +23,8 @@ class AgentFactory:
     _agent_creators = {}
     _agent_templates: Dict[str, AutomagikAgent] = {}  # Store one template per agent
     _agent_locks: Dict[str, Lock] = {}  # Per-agent creation locks
+    _agent_locks_async: Dict[str, asyncio.Lock] = {}  # NEW asyncio-based locks per agent
+    _lock_creation_lock = asyncio.Lock()  # NEW global lock to protect _agent_locks_async
     
     @classmethod
     def _normalize_agent_name(cls, name: str) -> str:
@@ -368,3 +371,22 @@ class AgentFactory:
                 return None
                 
         return None
+
+    @classmethod
+    async def _get_agent_lock(cls, agent_name: str) -> asyncio.Lock:
+        """Get or create an asyncio.Lock for a specific agent type in a threadsafe way."""
+        async with cls._lock_creation_lock:
+            if agent_name not in cls._agent_locks_async:
+                cls._agent_locks_async[agent_name] = asyncio.Lock()
+            return cls._agent_locks_async[agent_name]
+
+    @classmethod
+    async def get_agent_async(cls, agent_name: str):
+        """Asynchronous counterpart to get_agent that is safe under high concurrency."""
+        normalized_name = cls._normalize_agent_name(agent_name)
+        lock = await cls._get_agent_lock(normalized_name)
+        async with lock:
+            # Delegate to the synchronous get_agent for the heavy lifting.
+            # This approach keeps backward-compatibility while ensuring only one concurrent
+            # coroutine builds/initializes a given agent template at a time.
+            return cls.get_agent(normalized_name)
