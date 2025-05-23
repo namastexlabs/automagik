@@ -3,11 +3,17 @@ description: Project rulebook index and navigation guide for engineers and AI as
 globs: ["**/*.py", "**/*.mdc", "**/*.md", "**/*.yaml", "**/*.yml", "**/*.toml"]
 alwaysApply: true
 ---
-
 # Project Rulebook Index
 
 This file lists **all rule documentation** available under `.cursor/rules/`.
 Start here—whether you are a **human engineer** or an **AI code-assistant**.
+
+## Guiding Principles for AI & Human Engineers
+
+This rulebook represents the **target standard** for the codebase. An active effort is underway to align existing code with these principles. All engineers, human and AI, should:
+- Strive to write code that adheres to these guidelines.
+- Highlight discrepancies when existing code deviates from the rules and propose refactoring towards compliance.
+- Actively participate in the refinement of this rulebook. AI assistants, in particular, are encouraged to suggest improvements if rules are unclear, outdated, or if better practices are identified.
 
 ## How to Consume This Rulebook
 
