@@ -4,6 +4,45 @@
 #===========================================
 # Convenient commands for managing Automagik services
 
+# Determine ROOT_DIR and ENV_FILE to find AM_PORT
+# This helper script might be sourced from anywhere, so make a best guess.
+# It's typically installed at $HOME/.automagik/shell-helpers.sh
+# The project root is assumed to be $HOME/workspace/am-agents-labs or similar.
+
+_SHELL_HELPERS_AM_PORT_FROM_ENV=""
+# Try to find the .env file based on common project locations relative to $HOME
+_PROJECT_ROOT_CANDIDATES=(
+    "$HOME/workspace/am-agents-labs"
+    "$HOME/projects/am-agents-labs"
+    "$(pwd)" # If sourced from within the project
+)
+
+for r_candidate in "${_PROJECT_ROOT_CANDIDATES[@]}"; do
+    if [ -f "$r_candidate/.env" ]; then
+        _SHELL_HELPERS_ENV_FILE="$r_candidate/.env"
+        if grep -q "^AM_PORT=" "$_SHELL_HELPERS_ENV_FILE" 2>/dev/null; then
+            _SHELL_HELPERS_AM_PORT_FROM_ENV=$(grep "^AM_PORT=" "$_SHELL_HELPERS_ENV_FILE" | cut -d'=' -f2- | sed 's/^["\'\\\']//' | sed 's/["\'\\\']$//')
+            break
+        fi
+    fi
+done
+
+# If not found, try to locate it via this script's path if it was installed by the installer
+if [ -z "$_SHELL_HELPERS_AM_PORT_FROM_ENV" ] && [[ "${BASH_SOURCE[0]}" == *"/.automagik/shell-helpers.sh"* ]]; then
+    _INSTALLED_HELPERS_PATH="${BASH_SOURCE[0]}"
+    _AUTOMAGIK_DIR="$(dirname "$_INSTALLED_HELPERS_PATH")"
+    _POSSIBLE_ROOT_FROM_INSTALLER_PATH="$(dirname "$_AUTOMAGIK_DIR")" # Assumes $HOME/.automagik, so parent is $HOME
+    # This is still a guess; a robust solution would require the ROOT_DIR to be passed or set globally
+    # For now, we fall back to common locations check or the default.
+fi 
+
+_AM_EFFECTIVE_PORT_VALUE=${_SHELL_HELPERS_AM_PORT_FROM_ENV}
+if [ -z "$_AM_EFFECTIVE_PORT_VALUE" ]; then
+  echo "[ERROR] AM_PORT is not defined in a discoverable .env file. Helper commands may not work correctly." >&2
+  # Not exiting because this script is sourced. Commands will fail if port is needed and empty.
+fi
+AM_EFFECTIVE_PORT=${_AM_EFFECTIVE_PORT_VALUE}
+
 # Automagik Agents Management
 agent() {
     case "$1" in
@@ -66,7 +105,7 @@ agent() {
                         sleep 2
                         if systemctl is-active --quiet automagik-agents; then
                             echo "✅ automagik-agents service started successfully"
-                            echo "📡 API available at: http://localhost:18881"
+                            echo "📡 API available at: http://localhost:${AM_EFFECTIVE_PORT}"
                         else
                             echo "❌ Failed to start automagik-agents service"
                             echo "📋 Check logs with: agent logs"
@@ -78,7 +117,7 @@ agent() {
                         sleep 2
                         if docker ps | grep -q automagik_agents; then
                             echo "✅ automagik-agents container started successfully"
-                            echo "📡 API available at: http://localhost:18881"
+                            echo "📡 API available at: http://localhost:${AM_EFFECTIVE_PORT}"
                         else
                             echo "❌ Failed to start automagik-agents container"
                             echo "📋 Check logs with: agent logs"
@@ -96,7 +135,7 @@ agent() {
                 sleep 2
                 if systemctl is-active --quiet automagik-agents; then
                     echo "✅ automagik-agents service started successfully"
-                    echo "📡 API available at: http://localhost:18881"
+                    echo "📡 API available at: http://localhost:${AM_EFFECTIVE_PORT}"
                 else
                     echo "❌ Failed to start automagik-agents service"
                     echo "📋 Check logs with: agent logs"
@@ -109,7 +148,7 @@ agent() {
                 sleep 2
                 if docker ps | grep -q automagik_agents; then
                     echo "✅ automagik-agents container started successfully"
-                    echo "📡 API available at: http://localhost:18881"
+                    echo "📡 API available at: http://localhost:${AM_EFFECTIVE_PORT}"
                 else
                     echo "❌ Failed to start automagik-agents container"
                     echo "📋 Check logs with: agent logs"
@@ -300,8 +339,8 @@ agent() {
             
             # Quick API health check
             echo "🔗 API Health Check:"
-            if curl -s http://localhost:18881/health > /dev/null 2>&1; then
-                echo "✅ API is responding at http://localhost:18881"
+            if curl -s http://localhost:${AM_EFFECTIVE_PORT}/health > /dev/null 2>&1; then
+                echo "✅ API is responding at http://localhost:${AM_EFFECTIVE_PORT}"
             else
                 echo "❌ API is not responding"
             fi
@@ -340,12 +379,12 @@ agent() {
             ;;
         "health")
             echo "🔍 Checking automagik-agents health..."
-            if curl -s http://localhost:18881/health > /dev/null 2>&1; then
+            if curl -s http://localhost:${AM_EFFECTIVE_PORT}/health > /dev/null 2>&1; then
                 echo "✅ API is healthy and responding"
                 echo "📡 Available endpoints:"
-                echo "  • API: http://localhost:18881"
-                echo "  • Docs: http://localhost:18881/docs"
-                echo "  • Health: http://localhost:18881/health"
+                echo "  • API: http://localhost:${AM_EFFECTIVE_PORT}"
+                echo "  • Docs: http://localhost:${AM_EFFECTIVE_PORT}/docs"
+                echo "  • Health: http://localhost:${AM_EFFECTIVE_PORT}/health"
             else
                 echo "❌ API is not responding"
                 
@@ -440,9 +479,9 @@ agent() {
             echo "  agent help      - Show this help message"
             echo
             echo "📡 Service URLs:"
-            echo "  • API: http://localhost:18881"
-            echo "  • Documentation: http://localhost:18881/docs"
-            echo "  • Health Check: http://localhost:18881/health"
+            echo "  • API: http://localhost:${AM_EFFECTIVE_PORT}"
+            echo "  • Documentation: http://localhost:${AM_EFFECTIVE_PORT}/docs"
+            echo "  • Health Check: http://localhost:${AM_EFFECTIVE_PORT}/health"
             echo
             echo "💡 Works with both systemd services and Docker containers"
             ;;
