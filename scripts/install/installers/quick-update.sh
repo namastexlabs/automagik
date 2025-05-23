@@ -10,11 +10,19 @@ LIB_DIR="$(dirname "$INSTALLER_DIR")/lib"
 
 source "$LIB_DIR/common.sh"
 source "$LIB_DIR/system.sh"
+source "$LIB_DIR/config.sh"
 
 # Quick update variables
 export UPDATE_MODE="smart"  # smart, force, or minimal
 export PRESERVE_DATA=true
 export USE_CACHE=true
+
+AM_EFFECTIVE_PORT=$(get_env_value "AM_PORT" "$ENV_FILE")
+if [ -z "$AM_EFFECTIVE_PORT" ]; then
+    log "ERROR" "AM_PORT is not defined in $ENV_FILE. Please define it to continue."
+    # This script likely needs to exit if port is not defined for health checks etc.
+    exit 1
+fi
 
 # Detect what's currently running
 detect_current_deployment() {
@@ -272,7 +280,11 @@ quick_update_service() {
 quick_health_check() {
     print_header "Quick Health Check"
     
-    local port=18881
+    log "INFO" "Checking API health..."
+    
+    # Determine the port to use for health check
+    local port="$AM_EFFECTIVE_PORT"
+    
     local max_retries=10
     local retry_count=0
     
@@ -314,10 +326,10 @@ print_quick_update_summary() {
     echo "• agent health  - Test API health"
     
     echo
-    echo -e "${CYAN}📡 Endpoints:${NC}"
-    echo "• API: http://localhost:18881"
-    echo "• Health: http://localhost:18881/health"
-    echo "• Docs: http://localhost:18881/docs"
+    echo -e "${CYAN}📡 Service URLs:${NC}"
+    echo "• API: http://localhost:$AM_EFFECTIVE_PORT"
+    echo "• Health: http://localhost:$AM_EFFECTIVE_PORT/health"
+    echo "• Docs: http://localhost:$AM_EFFECTIVE_PORT/docs"
     
     echo
     echo -e "${PURPLE}💡 Development Workflow:${NC}"

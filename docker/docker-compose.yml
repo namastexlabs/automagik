@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   automagik-agents:
     build: 
@@ -74,7 +73,7 @@ services:
     volumes:
       - neo4j_data:/data
     environment:
-      - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4j}
+      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
     restart: unless-stopped
     networks:
       - automagik_network
@@ -89,8 +88,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USER=${NEO4J_USERNAME:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-neo4j}
+      - NEO4J_USER=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
       - GRAPHITI_ENV=${GRAPHITI_ENV:-development}
     depends_on:
