@@ -370,8 +370,17 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     message_limit=request.message_limit
                 )
             else:
-                # No content, run with empty string
-                response_content = await agent.process_message("")
+                # No content, run with empty string but still pass context for multimodal content
+                response_content = await agent.process_message(
+                    user_message="",
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    user_id=user_id,
+                    message_history=message_history if message_history else None,
+                    channel_payload=request.channel_payload,
+                    context=context,
+                    message_limit=request.message_limit
+                )
         except Exception as e:
             logger.error(f"Agent execution error: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}")
