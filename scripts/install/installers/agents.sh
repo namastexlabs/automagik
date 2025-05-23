@@ -29,10 +29,12 @@ detect_existing_setup() {
     local existing_docker_setup=false
     local existing_database=false
     
+    # VENV_PATH is now globally defined by setup.sh
+
     # Check for existing virtual environment
-    if [ -d "$ROOT_DIR/$VENV_NAME" ]; then
+    if [ -d "$VENV_PATH" ]; then
         existing_venv=true
-        log "SUCCESS" "Found existing virtual environment at $ROOT_DIR/$VENV_NAME"
+        log "SUCCESS" "Found existing virtual environment at $VENV_PATH"
     fi
     
     # Check for existing .env file
@@ -101,10 +103,11 @@ setup_database() {
     log "INFO" "Initializing database schema"
     
     # Activate virtual environment and run database initialization
+    # VENV_PATH is global
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-        source "$ROOT_DIR/$VENV_NAME/Scripts/activate"
+        source "$VENV_PATH/Scripts/activate"
     else
-        source "$ROOT_DIR/$VENV_NAME/bin/activate"
+        source "$VENV_PATH/bin/activate"
     fi
     
     # Check if the CLI command exists and run database initialization
@@ -231,10 +234,11 @@ run_health_check() {
     log "INFO" "Verifying Python environment and dependencies..."
     
     # Activate virtual environment
+    # VENV_PATH is global
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-        source "$ROOT_DIR/$VENV_NAME/Scripts/activate"
+        source "$VENV_PATH/Scripts/activate"
     else
-        source "$ROOT_DIR/$VENV_NAME/bin/activate"
+        source "$VENV_PATH/bin/activate"
     fi
     
     # Test basic imports and CLI availability
@@ -336,7 +340,7 @@ print_local_next_steps() {
     print_header "🎉 Local Installation Complete!"
     
     echo -e "${GREEN}Installation Summary:${NC}"
-    echo "✅ Virtual environment: $ROOT_DIR/$VENV_NAME"
+    echo "✅ Virtual environment: $VENV_PATH"
     echo "✅ Dependencies installed with UV"
     echo "✅ Environment configuration: $([ -f "$ROOT_DIR/.env.bkp" ] && echo "New from template (.env.bkp created)" || echo "Ready")"
     
