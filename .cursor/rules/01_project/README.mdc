@@ -3,7 +3,6 @@ description: Repository layout, setup and first steps for Automagik Agents proje
 globs: ["src/**/*.py", "scripts/**/*", "*.py", "*.toml", "*.md", "docker/**/*"]
 alwaysApply: false
 ---
-
 # 01 · Project On-Boarding & Repository Layout
 
 Welcome to **Automagik Agents**—a layer on top of Pydantic AI that lets us ship production-grade AI agents in record time.  This document gives engineers (human _or_ AI) everything needed to pull the repo, run the stack and understand its anatomy.
@@ -177,12 +176,21 @@ The installer automatically validates your setup:
 │   ├── agents/           # Agent implementations & templates
 │   │   ├── simple/ …
 │   │   └── models/       # Shared ABCs (AutomagikAgent, etc.)
-│   ├── tools/            # Self-contained tool packages (see 03_tools rules)
 │   ├── api/              # FastAPI app, routers & models
-│   ├── cli/              # Typer CLI entry-points
-│   ├── db/               # DB migrations & helpers
+│   ├── auth.py           # Authentication helpers and middleware [NEW]
+│   ├── cli/              # Typer CLI entry-points (directory for complex commands)
+│   ├── cli.py            # Top-level Typer app definition [NEW]
 │   ├── config.py         # Pydantic Settings (single source of truth)
-│   └── main.py           # `python -m src.main` boots everything
+│   ├── constants.py      # Project-wide constants [NEW]
+│   ├── db/               # DB migrations & helpers
+│   ├── main.py           # `python -m src.main` boots everything (or `python -m src`)
+│   ├── memory/           # Top-level memory components (if distinct from tools/memory) [NEW - Clarify Purpose]
+│   ├── tools/            # Self-contained tool packages (see 03_tools rules)
+│   │   └── memory/       # Pluggable memory providers (Postgres, Supabase, etc.) for tools
+│   ├── utils/            # General utility functions and classes [NEW]
+│   ├── version.py        # Application version information [NEW]
+│   ├── __init__.py       # Makes 'src' a package [NEW]
+│   └── __main__.py       # Entry point for `python -m src` [NEW]
 ├── scripts/              # One-off utilities
 │   ├── install/          # Comprehensive modular installer system ⭐
 │   │   ├── setup.sh      # Main installer orchestrator
@@ -203,6 +211,7 @@ The installer automatically validates your setup:
 1. **Agents** – subclasses of `AutomagikAgent` that encapsulate persona, memory and tool registration.
 2. **Tools** – asynchronous functions wrapped via `pydantic_ai.tools.Tool`.  Each lives in `src/tools/<name>/`.
 3. **Memory System** – pluggable providers (Postgres, Supabase, etc.) located under `src/tools/memory/`.
+   *Note: A top-level `src/memory/` directory also exists. Its distinct purpose and relationship to `src/tools/memory/` should be clarified or deprecated if redundant.* [NEW CLARIFICATION]
 4. **API** – REST interface (`src/api`) exposing agent invocation, memory CRUD, session history.
 5. **CLI** – developer ergonomics (`src/cli`) mirroring API capabilities for local testing.
 6. **Persistence** – SQL (Postgres) for messages, optional Neo4j for knowledge graph episodes.

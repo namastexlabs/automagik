@@ -3,7 +3,6 @@ description: Centralised config and secrets management
 globs: ["src/config.py", "src/config/**/*.py", ".env*", "*.env", "**/*config*.py", "**/*settings*.py", "**/*.yaml", "**/*.yml", "**/*.toml"]
 alwaysApply: false
 ---
-
 # Configuration Management Rules
 
 *(This file has been moved from `config-rules.mdc` to follow the new structure.)*
@@ -11,6 +10,8 @@ alwaysApply: false
 ## Core Rule
 
 Always use `src/config.py` for configuration. Never access environment variables directly.
+
+*CODEBASE ALERT: Numerous violations of this rule (direct use of `os.getenv`/`os.environ.get` outside `src/config.py`) exist across `src/`, `scripts/`, and `tests/`. These require immediate refactoring. All new code must strictly use `from src.config import settings`.* [CRITICAL]
 
 ## Do's and Don'ts
 
@@ -84,4 +85,16 @@ NEW_SETTING=value
 ## Environment Variable Reads vs Writes
 
 • **Reads** (`os.getenv`, `os.environ.get`, `os.environ["VAR"]`) are forbidden outside `src/config.py` – they bypass validation and confuse the rule-enforcer.
-• **Writes** (`os.environ["VAR"] = …`) are permissible in *scripts / CLI entry-points* **only** to force runtime overrides (e.g. setting `AM_LOG_LEVEL` to `DEBUG`). These writes must never be followed by a read in the same module.
+
+• **Writes** (`os.environ["VAR"] = …`) are permissible in *scripts / CLI entry-points* **only** to force runtime overrides (e.g. setting `AM_LOG_LEVEL` to `DEBUG`). These writes must not be followed by a direct `os.environ` read of that same variable for its value within the same module or configuration loading sequence; prefer reading from the `settings` object after it's initialized.
+
+*Internal `src/config.py` handling:*
+  - Direct `os.environ` reads or modifications *within `src/config.py`* should be limited to essential bootstrapping logic *before* the `Settings` object is fully initialized by Pydantic (e.g., loading `.env`, preprocessing environment specific to Pydantic's loading mechanism). 
+  - The goal is for the Pydantic `Settings` object to be the ultimate source of truth once loaded. Avoid patterns that re-read `os.environ` to override `Settings` object values *after* Pydantic has already performed its loading and validation, as this can obscure the configuration state and bypass Pydantic's built-in precedence.
+  - The comment-stripping logic in `src/config.py` is an example of such pre-Pydantic preprocessing. While it modifies `os.environ`, Pydantic subsequently reads the modified environment. This specific, contained manipulation during the setup phase is a tolerated exception, but such direct modifications should be minimized and clearly justified.
+
+## Guidance for Scripts and Tests
+
+To ensure consistency and leverage typed, validated settings, utility scripts in `scripts/` and test suites in `tests/` **should also** import and use the `settings` object from `src.config` for accessing configuration variables wherever possible. 
+
+If a script or test requires configuration values *before* the main application environment (and thus `src.config.settings`) can be reliably initialized, or for parameters not typically part of the application's `Settings` model (e.g., CI-specific flags), this needs careful consideration. Prefer passing such values as explicit command-line arguments or dedicated test environment variables that are then used to configure the test environment or script execution, rather than direct `os.getenv` calls scattered throughout.
