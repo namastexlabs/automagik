@@ -1,20 +1,21 @@
-import os
 import httpx # Using httpx for async requests
 import logging
 from typing import Optional, Tuple
 
+from src.config import settings
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Default configuration (env-based fallback)
+# Default configuration (settings-based fallback)
 # ---------------------------------------------------------------------------
 # These are still read once at import time but will be used ONLY if the caller
 # does not provide explicit api_url / api_key parameters. This allows agents to
 # supply the credentials that arrive in an Evolution webhook payload while
 # maintaining backward compatibility for local testing.
 
-EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
-EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY")
+EVOLUTION_API_URL = settings.EVOLUTION_API_URL or "http://localhost:8080"
+EVOLUTION_API_KEY = settings.EVOLUTION_API_KEY
 
 async def send_evolution_media_logic(
     instance_name: str,

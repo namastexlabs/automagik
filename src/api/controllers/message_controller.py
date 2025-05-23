@@ -2,6 +2,7 @@ import logging
 import uuid
 from fastapi import HTTPException
 from src.db.repository.message import delete_message as db_delete_message # Renaming for clarity
+from fastapi.concurrency import run_in_threadpool  # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ async def delete_message_controller(message_id: uuid.UUID) -> dict:
     Controller to handle the deletion of a specific message.
     """
     try:
-        success = db_delete_message(message_id=message_id)
+        success = await run_in_threadpool(db_delete_message, message_id=message_id)
         if success:
             logger.info(f"Successfully deleted message with ID: {message_id}")
             # The actual response model will be handled by the route's response_model

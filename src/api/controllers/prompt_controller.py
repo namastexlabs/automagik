@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 
 from src.api.models import PromptResponse, PromptListResponse
 from src.db.models import Prompt, PromptCreate, PromptUpdate
@@ -22,7 +23,7 @@ async def list_prompts(agent_id: int, status_key: Optional[str] = None) -> Promp
         PromptListResponse with the list of prompts
     """
     try:
-        prompts = prompt_repo.get_prompts_by_agent_id(agent_id, status_key)
+        prompts = await run_in_threadpool(prompt_repo.get_prompts_by_agent_id, agent_id, status_key)
         
         # Convert DB models to API response models
         prompt_responses = [
@@ -64,7 +65,7 @@ async def get_prompt(prompt_id: int) -> PromptResponse:
         PromptResponse with the prompt details
     """
     try:
-        prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         if not prompt:
             raise HTTPException(
@@ -117,7 +118,7 @@ async def create_prompt(agent_id: int, prompt_data: dict) -> PromptResponse:
         )
         
         # Create the prompt
-        prompt_id = prompt_repo.create_prompt(create_data)
+        prompt_id = await run_in_threadpool(prompt_repo.create_prompt, create_data)
         
         if not prompt_id:
             raise HTTPException(
@@ -126,7 +127,7 @@ async def create_prompt(agent_id: int, prompt_data: dict) -> PromptResponse:
             )
         
         # Get the created prompt
-        prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         return PromptResponse(
             id=prompt.id,
@@ -162,7 +163,7 @@ async def update_prompt(prompt_id: int, prompt_data: dict) -> PromptResponse:
     """
     try:
         # Get the existing prompt
-        existing_prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        existing_prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         if not existing_prompt:
             raise HTTPException(
@@ -178,7 +179,7 @@ async def update_prompt(prompt_id: int, prompt_data: dict) -> PromptResponse:
         )
         
         # Update the prompt
-        success = prompt_repo.update_prompt(prompt_id, update_data)
+        success = await run_in_threadpool(prompt_repo.update_prompt, prompt_id, update_data)
         
         if not success:
             raise HTTPException(
@@ -187,7 +188,7 @@ async def update_prompt(prompt_id: int, prompt_data: dict) -> PromptResponse:
             )
         
         # Get the updated prompt
-        updated_prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        updated_prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         return PromptResponse(
             id=updated_prompt.id,
@@ -223,7 +224,7 @@ async def set_prompt_active(prompt_id: int, is_active: bool = True) -> PromptRes
     """
     try:
         # Get the existing prompt
-        existing_prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        existing_prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         if not existing_prompt:
             raise HTTPException(
@@ -232,7 +233,7 @@ async def set_prompt_active(prompt_id: int, is_active: bool = True) -> PromptRes
             )
         
         # Set the prompt active status
-        success = prompt_repo.set_prompt_active(prompt_id, is_active)
+        success = await run_in_threadpool(prompt_repo.set_prompt_active, prompt_id, is_active)
         
         if not success:
             raise HTTPException(
@@ -241,7 +242,7 @@ async def set_prompt_active(prompt_id: int, is_active: bool = True) -> PromptRes
             )
         
         # Get the updated prompt
-        updated_prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        updated_prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         return PromptResponse(
             id=updated_prompt.id,
@@ -276,7 +277,7 @@ async def delete_prompt(prompt_id: int) -> dict:
     """
     try:
         # Get the existing prompt
-        existing_prompt = prompt_repo.get_prompt_by_id(prompt_id)
+        existing_prompt = await run_in_threadpool(prompt_repo.get_prompt_by_id, prompt_id)
         
         if not existing_prompt:
             raise HTTPException(
@@ -285,7 +286,7 @@ async def delete_prompt(prompt_id: int) -> dict:
             )
         
         # Delete the prompt
-        success = prompt_repo.delete_prompt(prompt_id)
+        success = await run_in_threadpool(prompt_repo.delete_prompt, prompt_id)
         
         if not success:
             raise HTTPException(

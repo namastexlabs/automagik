@@ -16,6 +16,7 @@ import psycopg2
 import psycopg2.extensions
 from psycopg2.extras import RealDictCursor, execute_values
 from psycopg2.pool import ThreadedConnectionPool, SimpleConnectionPool
+from fastapi.concurrency import run_in_threadpool  # NEW IMPORT FOR ASYNC WRAPPERS
 
 from src.config import settings
 
@@ -444,3 +445,28 @@ def verify_db_read_write():
             # Log as warning because the primary error (if any) is more important
             logger.warning(f"⚠️ Failed to clean up test user {test_user_id}: {str(cleanup_e)}")
             logger.warning(f"Cleanup error details: {traceback.format_exc()}") 
+
+# Add non-blocking wrappers ----------------------------------------------------
+async def async_execute_query(
+    query: str,
+    params: tuple | None = None,
+    *,
+    fetch: bool = True,
+    commit: bool = True,
+):
+    """Async wrapper around execute_query that runs in a threadpool.
+
+    This allows us to keep the existing synchronous psycopg2 code unchanged
+    while preventing it from blocking the event-loop.
+    """
+    return await run_in_threadpool(execute_query, query, params, fetch, commit)
+
+
+async def async_execute_batch(
+    query: str,
+    params_list: List[Tuple],
+    *,
+    commit: bool = True,
+):
+    """Async wrapper around execute_batch that runs in a threadpool."""
+    return await run_in_threadpool(execute_batch, query, params_list, commit) 

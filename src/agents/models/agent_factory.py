@@ -5,6 +5,10 @@ import traceback
 import uuid
 import importlib
 from pathlib import Path
+import copy
+from threading import Lock
+import inspect  # NEW - to help debug callable methods
+import asyncio  # NEW
 
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import BaseDependencies
@@ -17,7 +21,10 @@ class AgentFactory:
 
     _agent_classes = {}
     _agent_creators = {}
-    _initialized_agents = {}  # Store initialized agents for re-use
+    _agent_templates: Dict[str, AutomagikAgent] = {}  # Store one template per agent
+    _agent_locks: Dict[str, Lock] = {}  # Per-agent creation locks
+    _agent_locks_async: Dict[str, asyncio.Lock] = {}  # NEW asyncio-based locks per agent
+    _lock_creation_lock = asyncio.Lock()  # NEW global lock to protect _agent_locks_async
     
     @classmethod
     def _normalize_agent_name(cls, name: str) -> str:
@@ -82,7 +89,7 @@ class AgentFactory:
         if config is None:
             config = {}
             
-        logger.info(f"Creating agent of type {agent_type}")
+        logger.debug(f"Creating agent of type {agent_type}")
         
         # Default to simple agent
         if not agent_type:
@@ -95,7 +102,7 @@ class AgentFactory:
         if normalized_agent_type in cls._agent_creators:
             try:
                 agent = cls._agent_creators[normalized_agent_type](config)
-                logger.info(f"Successfully created {normalized_agent_type} agent using creator function")
+                logger.debug(f"Successfully created {normalized_agent_type} agent using creator function")
                 return agent
             except Exception as e:
                 logger.error(f"Error creating {normalized_agent_type} agent: {str(e)}")
@@ -106,7 +113,7 @@ class AgentFactory:
         if normalized_agent_type in cls._agent_classes:
             try:
                 agent = cls._agent_classes[normalized_agent_type](config)
-                logger.info(f"Successfully created {normalized_agent_type} agent using agent class")
+                logger.debug(f"Successfully created {normalized_agent_type} agent using agent class")
                 return agent
             except Exception as e:
                 logger.error(f"Error creating {normalized_agent_type} agent: {str(e)}")
@@ -123,7 +130,7 @@ class AgentFactory:
                 agent = module.create_agent(config)
                 # Register for future use
                 cls.register_agent_creator(normalized_agent_type, module.create_agent)
-                logger.info(f"Successfully created {normalized_agent_type} agent via dynamic import")
+                logger.debug(f"Successfully created {normalized_agent_type} agent via dynamic import")
                 return agent
         except ImportError:
             logger.warning(f"Could not import agent module for {normalized_agent_type}")
@@ -202,23 +209,50 @@ class AgentFactory:
         # Normalize the agent name
         normalized_name = cls._normalize_agent_name(agent_name)
         
-        # Check if we already have an initialized instance
-        if normalized_name in cls._initialized_agents:
-            return cls._initialized_agents[normalized_name]
+        # Ensure only one thread builds the template first time
+        lock = cls._agent_locks.setdefault(normalized_name, Lock())
+        logger.debug(f"Acquired lock for agent {normalized_name}")
         
-        # Create initial configuration with name
-        config = {
-            "name": normalized_name
-        }
+        with lock:
+            logger.debug(f"Template cache status for {normalized_name}: {'exists' if normalized_name in cls._agent_templates else 'needs creation'}")
             
-        # Try to create a new agent
-        # The agent will register itself in the database during initialization
-        agent = cls.create_agent(normalized_name, config)
-        
-        # Store for reuse
-        cls._initialized_agents[normalized_name] = agent
+            # Just create a fresh agent every time - simpler and safer than deepcopy
+            # Create initial configuration with name
+            config = {
+                "name": normalized_name
+            }
+                
+            # Create a new agent instance from scratch - most reliable way to avoid shared state
+            logger.debug(f"Creating fresh agent instance for {normalized_name}")
+            agent = cls.create_agent(normalized_name, config) 
             
-        return agent
+            # Set important template attributes like db_id if we had a previous template
+            if normalized_name in cls._agent_templates:
+                # Copy DB ID if available - one bit of state we do want to preserve
+                template = cls._agent_templates[normalized_name]
+                if hasattr(template, "db_id") and template.db_id:
+                    logger.debug(f"Copying db_id {template.db_id} from template to new agent instance")
+                    agent.db_id = template.db_id
+            else:
+                # First time, store a template for attribute reference
+                logger.debug(f"Storing new agent template for {normalized_name}")
+                cls._agent_templates[normalized_name] = agent
+            
+            # Verify the agent has a callable run method
+            has_run = hasattr(agent, "run") and callable(getattr(agent, "run"))
+            has_process = hasattr(agent, "process_message") and callable(getattr(agent, "process_message"))
+            
+            if not has_run or not has_process:
+                logger.error(f"INVALID AGENT: {normalized_name} missing callable methods: run={has_run}, process_message={has_process}")
+                # Dump agent structure for debugging
+                for name, value in inspect.getmembers(agent):
+                    if not name.startswith('_'):  # Skip private attributes
+                        is_callable = callable(value)
+                        logger.debug(f"Agent attribute: {name}={type(value)} callable={is_callable}")
+            else:
+                logger.debug(f"Verified agent {normalized_name} has required callable methods")
+            
+            return agent
     
     @classmethod
     def link_agent_to_session(cls, agent_name: str, session_id_or_name: str) -> bool:
@@ -337,3 +371,22 @@ class AgentFactory:
                 return None
                 
         return None
+
+    @classmethod
+    async def _get_agent_lock(cls, agent_name: str) -> asyncio.Lock:
+        """Get or create an asyncio.Lock for a specific agent type in a threadsafe way."""
+        async with cls._lock_creation_lock:
+            if agent_name not in cls._agent_locks_async:
+                cls._agent_locks_async[agent_name] = asyncio.Lock()
+            return cls._agent_locks_async[agent_name]
+
+    @classmethod
+    async def get_agent_async(cls, agent_name: str):
+        """Asynchronous counterpart to get_agent that is safe under high concurrency."""
+        normalized_name = cls._normalize_agent_name(agent_name)
+        lock = await cls._get_agent_lock(normalized_name)
+        async with lock:
+            # Delegate to the synchronous get_agent for the heavy lifting.
+            # This approach keeps backward-compatibility while ensuring only one concurrent
+            # coroutine builds/initializes a given agent template at a time.
+            return cls.get_agent(normalized_name)

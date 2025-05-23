@@ -80,10 +80,7 @@ class AgentRunRequest(BaseResponseModel):
     """Request model for running an agent."""
     message_content: str
     message_type: Optional[str] = None
-    # Legacy single media fields (maintained for backward compatibility)
-    mediaUrl: Optional[str] = None
-    mime_type: Optional[str] = None
-    # New multimodal content support
+    # Multimodal content support
     media_contents: Optional[List[Union[
         ImageUrlContent, ImageBinaryContent,
         AudioUrlContent, AudioBinaryContent,
@@ -108,8 +105,6 @@ class AgentRunRequest(BaseResponseModel):
             "example": {
                 "message_content": "string",
                 "message_type": "string",
-                "mediaUrl": "string",
-                "mime_type": "string",
                 "media_contents": [
                     {
                         "mime_type": "image/",
@@ -217,10 +212,7 @@ class MessageModel(BaseResponseModel):
     role: str
     content: str
     assistant_name: Optional[str] = None
-    # Legacy media fields (maintained for backward compatibility)
-    media_url: Optional[str] = None
-    mime_type: Optional[str] = None
-    # New multimodal content support
+    # Multimodal content support
     media_contents: Optional[List[Union[
         ImageUrlContent, ImageBinaryContent, 
         AudioUrlContent, AudioBinaryContent,

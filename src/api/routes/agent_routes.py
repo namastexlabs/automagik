@@ -8,6 +8,7 @@ from starlette import status
 from pydantic import ValidationError
 from src.api.models import AgentInfo, AgentRunRequest
 from src.api.controllers.agent_controller import list_registered_agents, handle_agent_run
+from src.utils.session_queue import get_session_queue
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -230,9 +231,34 @@ async def run_agent(
     - **user_id**: Optional user ID to associate with the request
     """
     try:
-        # Our middleware will have already fixed any JSON parsing issues
-        # FastAPI will have already validated the request against the AgentRunRequest model
-        return await handle_agent_run(agent_name, agent_request)
+        # Use session queue to ensure ordered processing per session
+        session_queue = get_session_queue()
+
+        # Determine a key to identify the session ordering scope
+        queue_key = agent_request.session_id or agent_request.session_name or "_anonymous_"
+
+        # Define processor function that will actually invoke the controller
+        async def _processor(_sid, messages: list[str], *, agent_name: str, prototype_request: AgentRunRequest):
+            # Merge message contents if multiple combined
+            merged_content = "\n---\n".join(messages)
+            # Create a new AgentRunRequest based on the prototype but with merged content
+            try:
+                new_request = prototype_request.model_copy(update={"message_content": merged_content})
+            except AttributeError:
+                # pydantic v1 fallback
+                new_request = prototype_request.copy(update={"message_content": merged_content})
+            return await handle_agent_run(agent_name, new_request)
+
+        # Enqueue and await result
+        result = await session_queue.process(
+            queue_key,
+            agent_request.message_content,
+            _processor,
+            agent_name=agent_name,
+            prototype_request=agent_request,
+        )
+
+        return result
     except HTTPException:
         # Re-raise HTTP exceptions
         raise

@@ -5,6 +5,7 @@ from src.db import get_user_by_identifier, list_users, update_user, create_user 
 from src.api.models import UserCreate, UserUpdate, UserInfo, UserListResponse
 from src.db.models import User
 from typing import Optional, List
+from fastapi.concurrency import run_in_threadpool
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ async def get_users(page: int, page_size: int) -> UserListResponse:
     Get a paginated list of users
     """
     try:
-        users, total_count = list_users(page=page, page_size=page_size)
+        users, total_count = await run_in_threadpool(list_users, page=page, page_size=page_size)
         
         # Convert User objects to UserInfo objects
         user_infos = []
@@ -54,12 +55,12 @@ async def create_user(user_create: UserCreate) -> UserInfo:
     try:
         # Check if user already exists with the provided email or phone
         if user_create.email:
-            existing_user = get_user_by_identifier(user_create.email)
+            existing_user = await run_in_threadpool(get_user_by_identifier, user_create.email)
             if existing_user:
                 raise HTTPException(status_code=400, detail=f"User with email {user_create.email} already exists")
                 
         if user_create.phone_number:
-            existing_user = get_user_by_identifier(user_create.phone_number)
+            existing_user = await run_in_threadpool(get_user_by_identifier, user_create.phone_number)
             if existing_user:
                 raise HTTPException(status_code=400, detail=f"User with phone number {user_create.phone_number} already exists")
         
@@ -71,13 +72,13 @@ async def create_user(user_create: UserCreate) -> UserInfo:
         )
         
         # Use repository function to create the user
-        user_id = db_create_user(user)
+        user_id = await run_in_threadpool(db_create_user, user)
         
         if not user_id:
             raise Exception("Failed to create user - no ID returned")
         
         # Get the newly created user
-        created_user = get_user_by_identifier(str(user_id))
+        created_user = await run_in_threadpool(get_user_by_identifier, str(user_id))
         
         return UserInfo(
             id=created_user.id,
@@ -99,7 +100,7 @@ async def get_user(user_identifier: str) -> UserInfo:
     Get a user by ID, email, or phone number
     """
     try:
-        user = get_user_by_identifier(user_identifier)
+        user = await run_in_threadpool(get_user_by_identifier, user_identifier)
         if not user:
             raise HTTPException(status_code=404, detail=f"User not found with identifier: {user_identifier}")
         
@@ -124,7 +125,7 @@ async def update_user_data(user_identifier: str, user_update: UserUpdate) -> Use
     """
     try:
         # Check if user exists
-        existing_user = get_user_by_identifier(user_identifier)
+        existing_user = await run_in_threadpool(get_user_by_identifier, user_identifier)
         if not existing_user:
             raise HTTPException(status_code=404, detail=f"User not found with identifier: {user_identifier}")
         
@@ -141,13 +142,13 @@ async def update_user_data(user_identifier: str, user_update: UserUpdate) -> Use
         )
         
         # Update the user using the repository function
-        user_id = update_user(updated_user_obj)
+        user_id = await run_in_threadpool(update_user, updated_user_obj)
         
         if not user_id:
             raise HTTPException(status_code=500, detail=f"Failed to update user: {user_identifier}")
         
         # Fetch the updated user to return
-        updated_user = get_user_by_identifier(str(user_id))
+        updated_user = await run_in_threadpool(get_user_by_identifier, str(user_id))
         
         return UserInfo(
             id=updated_user.id,
@@ -170,12 +171,12 @@ async def delete_user(user_identifier: str) -> bool:
     """
     try:
         # Check if user exists
-        existing_user = get_user_by_identifier(user_identifier)
+        existing_user = await run_in_threadpool(get_user_by_identifier, user_identifier)
         if not existing_user:
             raise HTTPException(status_code=404, detail=f"User not found with identifier: {user_identifier}")
         
         # Delete the user using repository function
-        success = db_delete_user(existing_user.id)
+        success = await run_in_threadpool(db_delete_user, existing_user.id)
         
         if not success:
             raise HTTPException(status_code=500, detail=f"Failed to delete user: {user_identifier}")

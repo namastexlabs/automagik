@@ -198,10 +198,9 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
         except Exception as e:
             logger.debug(f"Could not extract user_id from request context: {str(e)}")
     
-    # Fallback to default user_id if still not found
+    # If still no user_id we leave it as None – queries will be made without user filter.
     if user_id is None:
-        user_id = 1  # Default user ID as last resort
-        logger.warning(f"Using default user_id={user_id}, could not extract from any context")
+        logger.warning("user_id could not be determined; proceeding without user-specific filter")
     
     logger.info(f"Final resolved IDs: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
     return agent_id, user_id, session_id
@@ -281,13 +280,13 @@ async def get_memory_tool(ctx: dict, key: str) -> str:
         logger.error(f"Error getting memory: {str(e)}")
         return f"Error getting memory with key '{key}': {str(e)}"
 
-async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
+async def store_memory_tool(ctx: dict, key: str, content: str) -> str:
     """Store a memory with the given key.
     
     Args:
+        ctx: Context dictionary with agent and user information
         key: The key to store the memory under
         content: The memory content to store
-        ctx: Optional context dictionary with agent and user information
         
     Returns:
         Confirmation message
@@ -299,7 +298,7 @@ async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
         run_ctx = RunContext({}, model=model, usage=usage, prompt=prompt)
         logger.info(f"Create memory context: {run_ctx}")
         
-        # Create default context if not provided
+        # Use the provided context (ctx is now required)
         if ctx is None:
             ctx = {}
         
@@ -333,10 +332,9 @@ async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
             except Exception as e:
                 logger.warning(f"Could not extract user_id from request context: {str(e)}")
         
-        # Fallback to default user_id if not found
+        # If still no user_id we leave it as None so the memory is global to the agent
         if user_id is None:
-            user_id = 1
-            logger.warning(f"Using default user_id={user_id}, could not extract from context")
+            logger.warning("user_id could not be determined while storing memory; storing as agent-global memory")
         
         logger.info(f"Using values: agent_id={agent_id}, user_id={user_id}, session_id=None")
         
@@ -387,10 +385,11 @@ async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
         logger.error(error_msg)
         return error_msg
 
-async def list_memories_tool(prefix: Optional[str] = None) -> str:
+async def list_memories_tool(ctx: dict, prefix: Optional[str] = None) -> str:
     """List available memories, optionally filtered by prefix.
     
     Args:
+        ctx: The context dictionary
         prefix: Optional prefix to filter memory keys
         
     Returns:

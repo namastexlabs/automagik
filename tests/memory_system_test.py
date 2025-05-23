@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+import pytest
 
 # Configure logging
 logging.basicConfig(
@@ -20,6 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.agents.simple.simple_agent.agent import SimpleAgent
 from src.tools.memory.provider import MemoryProvider
 
+@pytest.mark.asyncio
 async def test_memory_provider():
     """Test the memory provider directly."""
     logger.info("Testing memory provider functionality")
@@ -95,6 +97,7 @@ async def test_memory_provider():
     logger.info("✅ All memory provider tests PASSED")
     return True
 
+@pytest.mark.asyncio
 async def test_template_extraction():
     """Test the template variable extraction from SimpleAgent."""
     logger.info("Testing template variable extraction")
@@ -112,7 +115,9 @@ async def test_template_extraction():
     And here's a {{third_variable}} with underscores.
     """
     
-    vars = agent._extract_template_vars(test_template)
+    # Import the correct method
+    from src.agents.common.prompt_builder import PromptBuilder
+    vars = PromptBuilder.extract_template_variables(test_template)
     expected_vars = {"variable1", "variable2", "third_variable"}
     
     if set(vars) == expected_vars:

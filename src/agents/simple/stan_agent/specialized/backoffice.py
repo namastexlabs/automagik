@@ -1,8 +1,9 @@
-import os
 from dotenv import load_dotenv
 from pydantic_ai import Agent, RunContext
 import logging
 from typing import Dict, Any, Optional
+
+from src.config import settings
 
 # Import Blackpearl tools
 from src.db.repository.user import get_user, update_user_data
@@ -34,9 +35,7 @@ from src.tools.omie.schema import ClientSearchInput
 
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-
-ENVIRIONMENT_MODE = os.getenv("AM_ENV")
+ENVIRIONMENT_MODE = settings.AM_ENV
 
 async def make_conversation_summary(message_history) -> str:
     """Make a summary of the conversation."""

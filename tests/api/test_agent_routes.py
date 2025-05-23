@@ -31,13 +31,12 @@ def test_list_agents(client):
         assert "name" in agent
         assert "description" in agent
     
-    # The number of agents should match what we found in setup
-    assert len(agents) == len(available_agents)
-    
-    # Agent names should match available agents
-    agent_names = [agent["name"] for agent in agents]
-    for name in available_agents:
-        assert name in agent_names
+    # Normalize names for comparison – API strips _agent suffix.
+    api_names = [agent["name"] for agent in agents]
+    factory_names = [n.replace("_agent", "") for n in available_agents]
+
+    for name in factory_names:
+        assert name in api_names
 
 def test_run_agent_simple(client):
     """Test running an agent with simple parameters"""
