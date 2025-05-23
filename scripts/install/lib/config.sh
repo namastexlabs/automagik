@@ -25,7 +25,7 @@ setup_environment_file() {
     mkdir -p "$ENV_BACKUP_DIR"
     
     # Check if .env file already exists
-    if [ -f "$ENV_FILE" ]; then
+    if [ -f "$ENV_FILE" ] && [ -s "$ENV_FILE" ]; then
         if [ "$force_recreate" = false ] && [ "$NON_INTERACTIVE" != "true" ]; then
             log "SUCCESS" ".env file already exists"
             echo
@@ -229,7 +229,7 @@ get_env_value() {
         return 1
     fi
     
-    grep "^${key}=" "$env_file" 2>/dev/null | cut -d'=' -f2- | sed 's/^["'\'']//' | sed 's/["'\'']$//'
+    grep "^${key}=" "$env_file" 2>/dev/null | cut -d'=' -f2- | sed 's/#.*//' | sed 's/^[ \t]*//;s/[ \t]*$//' | sed 's/^[\"'\'']//' | sed 's/[\"'\'']$//'
 }
 
 # Validate environment configuration
@@ -333,7 +333,7 @@ generate_api_key() {
     if check_command openssl; then
         openssl rand -hex 32
     elif check_command python3; then
-        python3 -c "import secrets; print(secrets.token_hex(32))"
+        command python3 -c 'import secrets; print(secrets.token_hex(32))'
     else
         # Fallback to a simple random string
         cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | head -n 1

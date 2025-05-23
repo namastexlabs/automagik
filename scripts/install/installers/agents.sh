@@ -20,6 +20,14 @@ export INSTALL_DEV_DEPS=false
 export INSTALL_AS_SERVICE=false
 export FORCE_REBUILD=false
 
+AM_EFFECTIVE_PORT=$( { get_env_value "AM_PORT" "$ENV_FILE" || true; } )
+if [ -z "$AM_EFFECTIVE_PORT" ]; then
+    log "ERROR" "AM_PORT is not defined in $ENV_FILE. Please define it to continue."
+    # Consider exiting if this script cannot function without AM_PORT
+    # exit 1 
+fi
+export AM_EFFECTIVE_PORT # Export for the Python script
+
 # Detect existing setup
 detect_existing_setup() {
     print_header "Detecting existing setup"
@@ -172,6 +180,8 @@ import time
 import requests
 import os
 
+AM_EFFECTIVE_PORT_PY = os.getenv('AM_EFFECTIVE_PORT')
+
 def timeout_handler(signum, frame):
     print("✅ Server startup test completed")
     sys.exit(0)
@@ -193,10 +203,13 @@ def test_server():
         
         # Test health endpoint
         try:
-            response = requests.get("http://localhost:18881/health", timeout=3)
+            if AM_EFFECTIVE_PORT_PY is None:
+                print("⚠️ AM_EFFECTIVE_PORT not set in environment for Python script.")
+            else:
+                response = requests.get(f"http://localhost:{AM_EFFECTIVE_PORT_PY}/health", timeout=3)
             if response.status_code == 200:
                 print("✅ Server is responding to health checks!")
-                print("✅ API available at: http://localhost:18881")
+                    print(f"✅ API available at: http://localhost:{AM_EFFECTIVE_PORT_PY}")
             else:
                 print("⚠️  Server started but health check returned:", response.status_code)
         except requests.exceptions.RequestException as e:
@@ -369,7 +382,7 @@ print_local_next_steps() {
     
     echo
     echo -e "${CYAN}📡 Service URLs:${NC}"
-    local display_port=$(detect_application_port)
+    local display_port="$AM_EFFECTIVE_PORT"
     echo "• API Server: http://localhost:$display_port"
     echo "• Health Check: http://localhost:$display_port/health"
     echo "• API Documentation: http://localhost:$display_port/docs"

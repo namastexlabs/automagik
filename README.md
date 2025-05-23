@@ -61,7 +61,7 @@ python -m src       # Manual start
 
 3. **Test it:**
 ```bash
-curl http://localhost:18881/health
+curl http://localhost:${AM_PORT}/health
 ```
 
 ## 🎯 Usage
@@ -88,19 +88,23 @@ python -m src --reload         # Development mode
 ### API Examples
 ```bash
 # Test agent
-curl -X POST http://localhost:18881/api/v1/agent/simple_agent/run \
+curl -X POST http://localhost:${AM_PORT}/api/v1/agent/simple_agent/run \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"message_content": "Hello!", "session_name": "test"}'
 
 # Create memory that auto-injects into prompts
-curl -X POST http://localhost:18881/api/v1/memories \
+curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"name": "personality", "content": "friendly and helpful", "agent_id": 1}'
 ```
 
-**API Docs:** http://localhost:18881/docs
+## Useful Endpoints
+
+*   **API Docs:** `http://localhost:${AM_PORT}/docs`
+*   **Health Check:** `http://localhost:${AM_PORT}/health`
+*   **List Agents:** `http://localhost:${AM_PORT}/api/v1/agents`
 
 ## 🛠️ Create Custom Agents
 
