@@ -3,11 +3,11 @@
 This module provides the core functionality for Notion tools.
 """
 import logging
-import os
 from typing import List, Optional, Dict, Any
 from pydantic_ai import RunContext
 from notion_client import Client
 
+from src.config import settings
 from .schema import (
     NotionResponse,
     DatabaseSearchResponse, 
@@ -25,10 +25,10 @@ class NotionError(Exception):
 
 # Helper functions
 def get_notion_token() -> str:
-    """Gets the Notion token from environment variables."""
-    token = os.getenv("NOTION_TOKEN")
+    """Gets the Notion token from settings."""
+    token = settings.NOTION_TOKEN
     if not token:
-        raise ValueError("NOTION_TOKEN environment variable not set")
+        raise ValueError("NOTION_TOKEN setting not configured")
     return token
 
 def initialize_notion_client() -> Client:

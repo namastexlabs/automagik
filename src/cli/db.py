@@ -7,6 +7,7 @@ import logging
 from dotenv import load_dotenv
 import psycopg2
 from pathlib import Path
+from src.config import settings
 
 # Create the database command group
 db_app = typer.Typer()
@@ -133,15 +134,15 @@ def db_init(
     # Load environment variables
     load_dotenv()
     
-    # Get database connection parameters from environment
-    db_host = os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost") 
-    db_port = os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "automagik_agents")
-    db_user = os.getenv("POSTGRES_USER") or os.getenv("DB_USER", "postgres")
-    db_password = os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", "postgres")
+    # Get database connection parameters from settings
+    db_host = settings.POSTGRES_HOST
+    db_port = str(settings.POSTGRES_PORT)
+    db_name = settings.POSTGRES_DB
+    db_user = settings.POSTGRES_USER
+    db_password = settings.POSTGRES_PASSWORD
     
     # Try to parse from DATABASE_URL if available
-    database_url = os.getenv("DATABASE_URL")
+    database_url = settings.DATABASE_URL
     if database_url:
         try:
             import urllib.parse
@@ -477,15 +478,15 @@ def db_clear(
     # Load environment variables
     load_dotenv()
     
-    # Get database connection parameters from environment
-    db_host = os.getenv("POSTGRES_HOST") or os.getenv("DB_HOST", "localhost") 
-    db_port = os.getenv("POSTGRES_PORT") or os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("POSTGRES_DB") or os.getenv("DB_NAME", "automagik_agents")
-    db_user = os.getenv("POSTGRES_USER") or os.getenv("DB_USER", "postgres")
-    db_password = os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", "postgres")
+    # Get database connection parameters from settings
+    db_host = settings.POSTGRES_HOST
+    db_port = str(settings.POSTGRES_PORT)
+    db_name = settings.POSTGRES_DB
+    db_user = settings.POSTGRES_USER
+    db_password = settings.POSTGRES_PASSWORD
     
     # Try to parse from DATABASE_URL if available
-    database_url = os.getenv("DATABASE_URL")
+    database_url = settings.DATABASE_URL
     if database_url:
         try:
             import urllib.parse

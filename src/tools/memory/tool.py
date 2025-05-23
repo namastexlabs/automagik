@@ -280,13 +280,13 @@ async def get_memory_tool(ctx: dict, key: str) -> str:
         logger.error(f"Error getting memory: {str(e)}")
         return f"Error getting memory with key '{key}': {str(e)}"
 
-async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
+async def store_memory_tool(ctx: dict, key: str, content: str) -> str:
     """Store a memory with the given key.
     
     Args:
+        ctx: Context dictionary with agent and user information
         key: The key to store the memory under
         content: The memory content to store
-        ctx: Optional context dictionary with agent and user information
         
     Returns:
         Confirmation message
@@ -298,7 +298,7 @@ async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
         run_ctx = RunContext({}, model=model, usage=usage, prompt=prompt)
         logger.info(f"Create memory context: {run_ctx}")
         
-        # Create default context if not provided
+        # Use the provided context (ctx is now required)
         if ctx is None:
             ctx = {}
         
@@ -385,10 +385,11 @@ async def store_memory_tool(key: str, content: str, ctx: dict = None) -> str:
         logger.error(error_msg)
         return error_msg
 
-async def list_memories_tool(prefix: Optional[str] = None) -> str:
+async def list_memories_tool(ctx: dict, prefix: Optional[str] = None) -> str:
     """List available memories, optionally filtered by prefix.
     
     Args:
+        ctx: The context dictionary
         prefix: Optional prefix to filter memory keys
         
     Returns:
