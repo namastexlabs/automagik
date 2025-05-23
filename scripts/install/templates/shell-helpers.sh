@@ -21,7 +21,7 @@ for r_candidate in "${_PROJECT_ROOT_CANDIDATES[@]}"; do
     if [ -f "$r_candidate/.env" ]; then
         _SHELL_HELPERS_ENV_FILE="$r_candidate/.env"
         if grep -q "^AM_PORT=" "$_SHELL_HELPERS_ENV_FILE" 2>/dev/null; then
-            _SHELL_HELPERS_AM_PORT_FROM_ENV=$(grep "^AM_PORT=" "$_SHELL_HELPERS_ENV_FILE" | cut -d'=' -f2- | sed 's/^["\'\\\']//' | sed 's/["\'\\\']$//')
+            _SHELL_HELPERS_AM_PORT_FROM_ENV=$(grep "^AM_PORT=" "$_SHELL_HELPERS_ENV_FILE" | cut -d'=' -f2- | sed 's/^["\x27]//' | sed 's/["\x27]$//')
             break
         fi
     fi
