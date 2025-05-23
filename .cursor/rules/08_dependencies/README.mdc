@@ -63,3 +63,26 @@ Avoid `pip install -e .` in CI – builds must use the sdist/wheel path to mirro
 
 * CI caches the Poetry/uv directory to speed up installs.
 * If the cache becomes corrupt, bump `CACHE_VERSION` in the workflow file.
+
+## 10. uv vs. pip – Why we chose uv
+
+`uv` resolves and installs dependencies roughly **10× faster** than vanilla pip while still producing a deterministic lockfile (`uv.lock`). Always use `uv pip …` commands when adding or upgrading packages.
+
+## 11. Pre-release / Beta Versions
+
+• Allowed only with an explicit justification in the PR description.
+• Pin the exact beta tag (`pydantic==2.7.0b1`)—never use loose specifiers like `>=`.
+
+## 12. Node / Front-end Deps
+
+If you must add Node tooling:
+
+1. Create `web/package.json` and `web/pnpm-lock.yaml` (pin versions).
+2. Document the build command in the project README.
+3. Ensure the CI workflow caches `~/.local/share/pnpm`.
+
+## 13. AI Agent Guidance
+
+• Prefer an existing library before vendoring a new one; search the codebase.
+• Never run `pip install` directly inside a script—use the installer or `make bump-deps`.
+• For private forks, append `-automagik` to the package name and update **this doc**.

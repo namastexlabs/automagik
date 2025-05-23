@@ -48,3 +48,39 @@ NEW_SETTING=value
 - Access via `settings.ATTRIBUTE` (not dict-style)
 - Document new env vars in README
 - Never hardcode values
+
+## Advanced Patterns & Dynamic Overrides
+
+1. **Runtime overrides for CLI scripts**
+   ```python
+   import os
+   os.environ["AM_LOG_LEVEL"] = "DEBUG"  # ✅ allowed write
+   from src.config import settings
+   # Reading `settings.AM_LOG_LEVEL` afterwards will now return "DEBUG"
+   ```
+
+2. **Model-specific tuning** – Use `get_model_settings()` helper:
+   ```python
+   from src.config import get_model_settings
+   gpt4_cfg = get_model_settings("gpt-4o-mini")
+   ```
+
+3. **Computed settings** – add `@property` methods in the `Settings` subclass rather than manual concatenation throughout the codebase.
+
+4. **Environment precedence** – Order of resolution:
+   1. Variable explicitly set via `os.environ[...]` in the *current* process.
+   2. Value in `.env` loaded by `dotenv`.
+   3. Default specified in `Field(default=…)`.
+
+5. **Adding a secret** – extend `.env-example` **and** `Settings` at the same PR; otherwise agents will fail validation.
+
+## AI Agent Guidance
+
+• When you need a new config value, open `src/config.py` and search first—don't duplicate a field.
+• If a feature truly requires a new env var, update **this doc**, `.env-example`, and `Settings` in the same commit.
+• Never read from `settings.model_dump()` inside hot paths—access attributes directly for speed.
+
+## Environment Variable Reads vs Writes
+
+• **Reads** (`os.getenv`, `os.environ.get`, `os.environ["VAR"]`) are forbidden outside `src/config.py` – they bypass validation and confuse the rule-enforcer.
+• **Writes** (`os.environ["VAR"] = …`) are permissible in *scripts / CLI entry-points* **only** to force runtime overrides (e.g. setting `AM_LOG_LEVEL` to `DEBUG`). These writes must never be followed by a read in the same module.

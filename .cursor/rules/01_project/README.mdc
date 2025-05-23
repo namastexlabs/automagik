@@ -7,6 +7,14 @@ alwaysApply: false
 
 Welcome to **Automagik Agents**—a layer on top of Pydantic AI that lets us ship production-grade AI agents in record time.  This document gives engineers (human _or_ AI) everything needed to pull the repo, run the stack and understand its anatomy.
 
+> **Special note for AI coding assistants**
+>
+> 1. Load this `01_project` guide **first**; it provides absolute paths and helper commands you will reference while coding.
+> 2. When you generate a shell command, **prefix it with `agent`** (our helper wrapper) whenever possible instead of calling `systemctl`, `docker`, etc. directly.
+> 3. Prefer `uv pip …` for Python dependencies; never use bare `pip install` unless explicitly told.
+> 4. When you describe a file path in a commit, always use the tree structure in *Section 6* as canonical.
+> 5. Before committing code, double-check that your changes don't break any of the quick diagnostics in *Section 10*.
+
 ---
 ## 1. Technical Prerequisites
 
