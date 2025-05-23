@@ -403,7 +403,7 @@ async def get_airtable_assistant(base_id: Optional[str] = None, force_refresh: b
         dynamic_prompt = await build_dynamic_system_prompt(base_id, force_refresh)
         
         airtable_assistant = Agent(
-            "openai:gpt-4o", 
+            "openai:gpt-4.1", 
             tools=[*airtable_tools, send_message],
             system_prompt=dynamic_prompt,
             deps_type=Dict[str, Any],
