@@ -1,17 +1,69 @@
 version: '3.8'
 services:
+  automagik-agents:
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - automagik-agents:latest
+    image: automagik-agents:latest
+    container_name: automagik_agents
+    env_file:
+      - ../.env
+    ports:
+      - "${AM_PORT:-8881}:8881"
+    environment:
+      - AM_API_KEY=${AM_API_KEY}
+      - AM_HOST=0.0.0.0
+      - AM_PORT=8881
+      - AM_ENV=${AM_ENV:-development}
+      - AM_LOG_LEVEL=${AM_LOG_LEVEL:-INFO}
+      - AM_TIMEZONE=${AM_TIMEZONE:-UTC}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4o-mini}
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/automagik
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-automagik}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ../src:/app/src
+    networks:
+      - automagik_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8881/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   postgres:
     image: postgres:15
     container_name: automagik_postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-automagik}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - automagik_postgres_data:/var/lib/postgresql/data
-    restart: always
+    restart: unless-stopped
+    networks:
+      - automagik_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-automagik}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   neo4j:
     image: neo4j:5.22.0
@@ -22,8 +74,12 @@ services:
     volumes:
       - neo4j_data:/data
     environment:
-      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
-    restart: always
+      - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4j}
+    restart: unless-stopped
+    networks:
+      - automagik_network
+    profiles:
+      - graphiti
 
   graphiti:
     image: zepai/graphiti:latest
@@ -32,13 +88,23 @@ services:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USERNAME:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-neo4j}
       - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
       - GRAPHITI_ENV=${GRAPHITI_ENV:-development}
-    restart: always
+    depends_on:
+      - neo4j
+    restart: unless-stopped
+    networks:
+      - automagik_network
+    profiles:
+      - graphiti
 
 volumes:
   automagik_postgres_data:
-  neo4j_data: 
+  neo4j_data:
+
+networks:
+  automagik_network:
+    driver: bridge

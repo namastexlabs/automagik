@@ -1,0 +1,109 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Automagik Agent Development Rules
+
+*(This file has been moved from `automagik-agent-development.mdc` to follow the new structure.)*
+
+## Core Principle
+
+When developing or modifying agents (e.g., `simple_agent`), always **extend** rather than **modify** base functionality from `AutomagikAgent`. This ensures maintainability across all agents by keeping shared functionality intact.
+
+## Class Hierarchy
+
+```
+AutomagikAgent (abstract base class)
+  │
+  ├── SimpleAgent
+  ├── SpecializedAgent
+  └── [Other agent implementations]
+```
+
+## Rules for Agent Development
+
+### 1. Override Methods, Don't Modify Base Class
+
+**CORRECT ✅**: Override methods in your specific agent class
+```python
+# In simple_agent/agent.py
+class SimpleAgent(AutomagikAgent):
+    async def run(self, input_text: str, **kwargs) -> AgentResponse:
+        # Your customized implementation here
+        return await super().run(input_text, **kwargs)
+```
+
+**INCORRECT ❌**: Directly modifying methods in AutomagikAgent
+```python
+# Don't do this - modifying src/agents/models/automagik_agent.py
+class AutomagikAgent(ABC, Generic[T]):
+    async def run(self, input_text: str, **kwargs) -> AgentResponse:
+        # Adding specific functionality here affects ALL agents
+```
+
+### 2. Extending Base Functionality
+
+If you need new shared functionality, add it through clean extensions:
+
+1. First, determine if the functionality belongs to all agents or just yours
+2. If it's agent-specific, implement it in your agent class
+3. If it should be shared, add methods to the base class that allow overriding
+
+### 3. When Base Changes Are Truly Needed
+
+If a base class change is truly required:
+
+1. Document the reason thoroughly in the PR
+2. Ensure backward compatibility
+3. Update all affected agent implementations
+4. Add unit tests for the base class and all implementations
+
+## Examples
+
+### Example: Adding New Message Handling
+
+**Good implementation** (extending in your agent):
+```python
+class MyAgent(AutomagikAgent):
+    async def process_message(self, user_message, **kwargs):
+        # Pre-process the message in a way specific to this agent
+        parsed_message = self._my_custom_parser(user_message)
+        
+        # Then call the parent method
+        return await super().process_message(parsed_message, **kwargs)
+        
+    def _my_custom_parser(self, message):
+        # Agent-specific parsing logic
+        return processed_message
+```
+
+### Example: Tool Registration
+
+**Good implementation** (using existing hooks):
+```python
+class MyAgent(AutomagikAgent):
+    def __init__(self, config, system_prompt):
+        super().__init__(config, system_prompt)
+        
+        # Register agent-specific tools
+        self.register_tool(my_custom_tool)
+        self.register_tool(another_custom_tool)
+```
+
+## Benefits
+
+- **Maintainability**: Changes to one agent don't affect others
+- **Extensibility**: Easy to add new agent types with custom behavior
+- **Testing**: Clearer boundaries make testing more straightforward
+- **Collaboration**: Multiple developers can work on different agents
+
+## When in Doubt
+
+If unsure whether a change should be in the base class or in a specific agent implementation:
+
+1. Does every current and future agent need this behavior exactly as implemented?
+2. Is this truly generic functionality with no agent-specific assumptions?
+3. Can the functionality be made generic with hook points for customization?
+
+Only if all three answers are "yes" should you consider modifying the base class.
