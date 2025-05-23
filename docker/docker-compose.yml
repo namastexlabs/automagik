@@ -3,7 +3,7 @@ services:
   automagik-agents:
     build: 
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
       args:
         BUILDKIT_INLINE_CACHE: 1
       cache_from:
