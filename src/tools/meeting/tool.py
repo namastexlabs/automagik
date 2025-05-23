@@ -72,7 +72,7 @@ async def join_meeting_with_url(meeting_url: str, service: MeetingService = Meet
             service=service,
             meeting_url=meeting_url,
             transcription_model="whisper",
-            bot_name="Testonho Sofia", 
+            bot_name="Sofia - Namastex", 
             webhook_url=f"{settings.MEETING_BOT_URL}/webhooks/skribby",
             lang="pt"
         )
