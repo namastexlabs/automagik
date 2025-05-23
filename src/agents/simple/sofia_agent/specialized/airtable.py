@@ -104,7 +104,7 @@ Always echo a concise natural-language plan before every tool call and reflect a
 # --------------------- Agent initialisation -----------------------
 
 airtable_assistant = Agent(
-    "test",  # default model; orchestrator will override
+    "openai:gpt-4o", 
     tools=[*airtable_tools, send_message],
     system_prompt=SYSTEM_PROMPT,
     deps_type=Dict[str, Any],

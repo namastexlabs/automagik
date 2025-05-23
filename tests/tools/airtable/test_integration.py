@@ -6,7 +6,7 @@ fail.  Set the following variables in your environment or .env file to
 run the tests:
 
     AIRTABLE_TOKEN            – Personal access token
-    AIRTABLE_DEFAULT_BASE_ID  – Base ID (e.g. appXXXXXXXXXXXXXX)
+    AIRTABLE_TEST_BASE_ID     – Test base ID (e.g. appXXXXXXXXXXXXXX) - separate from production
     AIRTABLE_TEST_TABLE       – Table name or ID to query (should contain at least one record)
 """
 
@@ -15,7 +15,7 @@ import logging
 import pytest
 
 from pydantic_ai import RunContext
-
+from src.config import settings
 from src.tools.airtable.tool import list_records
 
 # ---------------------------------------------------------------------------
@@ -25,13 +25,9 @@ from src.tools.airtable.tool import list_records
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-AIRTABLE_TOKEN = os.getenv("AIRTABLE_TOKEN")
-AIRTABLE_BASE = os.getenv("AIRTABLE_DEFAULT_BASE_ID")
-AIRTABLE_TABLE = os.getenv("AIRTABLE_TEST_TABLE") or os.getenv("AIRTABLE_TABLE_ID")
-
 skip_airtable_tests = pytest.mark.skipif(
-    not (AIRTABLE_TOKEN and AIRTABLE_BASE and AIRTABLE_TABLE),
-    reason="Airtable integration variables not configured"
+    not (settings.AIRTABLE_TOKEN and settings.AIRTABLE_TEST_BASE_ID and settings.AIRTABLE_TEST_TABLE),
+    reason="Airtable integration variables not configured (AIRTABLE_TOKEN, AIRTABLE_TEST_BASE_ID, AIRTABLE_TEST_TABLE)"
 )
 
 ctx: RunContext[dict] = {}  # Dummy context for tool signature
@@ -44,8 +40,8 @@ ctx: RunContext[dict] = {}  # Dummy context for tool signature
 @pytest.mark.asyncio
 async def test_list_records_basic():
     """Verify that list_records returns data from Airtable."""
-    logger.info("Running Airtable list_records integration test against table %s", AIRTABLE_TABLE)
-    result = await list_records(ctx, table=AIRTABLE_TABLE, base_id=AIRTABLE_BASE, page_size=1)
+    logger.info("Running Airtable list_records integration test against table %s", settings.AIRTABLE_TEST_TABLE)
+    result = await list_records(ctx, table=settings.AIRTABLE_TEST_TABLE, base_id=settings.AIRTABLE_TEST_BASE_ID, page_size=1)
 
     assert isinstance(result, dict)
     assert result.get("success") is True, f"API call failed: {result}"
