@@ -1,11 +1,19 @@
 ---
-description: 
-globs: 
+description: Repository layout, setup and first steps for Automagik Agents project onboarding
+globs: ["src/**/*.py", "scripts/**/*", "*.py", "*.toml", "*.md", "docker/**/*"]
 alwaysApply: false
 ---
 # 01 · Project On-Boarding & Repository Layout
 
 Welcome to **Automagik Agents**—a layer on top of Pydantic AI that lets us ship production-grade AI agents in record time.  This document gives engineers (human _or_ AI) everything needed to pull the repo, run the stack and understand its anatomy.
+
+> **Special note for AI coding assistants**
+>
+> 1. Load this `01_project` guide **first**; it provides absolute paths and helper commands you will reference while coding.
+> 2. When you generate a shell command, **prefix it with `agent`** (our helper wrapper) whenever possible instead of calling `systemctl`, `docker`, etc. directly.
+> 3. Prefer `uv pip …` for Python dependencies; never use bare `pip install` unless explicitly told.
+> 4. When you describe a file path in a commit, always use the tree structure in *Section 6* as canonical.
+> 5. Before committing code, double-check that your changes don't break any of the quick diagnostics in *Section 10*.
 
 ---
 ## 1. Technical Prerequisites
@@ -114,7 +122,6 @@ AM_ENV=development                           # ✅ Working
 | **Run tests** | `pytest -q` |
 | **Chat with agent** | `automagik-agents agent chat start --agent simple` |
 | **CLI utilities** | `automagik-agents --help` |
-| **Rule enforcement** | `python scripts/rules_enforcer.py` |
 
 **Service Management (if installed with `--install-service`):**
 ```bash
@@ -169,19 +176,27 @@ The installer automatically validates your setup:
 │   ├── agents/           # Agent implementations & templates
 │   │   ├── simple/ …
 │   │   └── models/       # Shared ABCs (AutomagikAgent, etc.)
-│   ├── tools/            # Self-contained tool packages (see 03_tools rules)
 │   ├── api/              # FastAPI app, routers & models
-│   ├── cli/              # Typer CLI entry-points
-│   ├── db/               # DB migrations & helpers
+│   ├── auth.py           # Authentication helpers and middleware [NEW]
+│   ├── cli/              # Typer CLI entry-points (directory for complex commands)
+│   ├── cli.py            # Top-level Typer app definition [NEW]
 │   ├── config.py         # Pydantic Settings (single source of truth)
-│   └── main.py           # `python -m src.main` boots everything
-├── scripts/              # One-off utilities & CI rule-enforcer
+│   ├── constants.py      # Project-wide constants [NEW]
+│   ├── db/               # DB migrations & helpers
+│   ├── main.py           # `python -m src.main` boots everything (or `python -m src`)
+│   ├── memory/           # Top-level memory components (if distinct from tools/memory) [NEW - Clarify Purpose]
+│   ├── tools/            # Self-contained tool packages (see 03_tools rules)
+│   │   └── memory/       # Pluggable memory providers (Postgres, Supabase, etc.) for tools
+│   ├── utils/            # General utility functions and classes [NEW]
+│   ├── version.py        # Application version information [NEW]
+│   ├── __init__.py       # Makes 'src' a package [NEW]
+│   └── __main__.py       # Entry point for `python -m src` [NEW]
+├── scripts/              # One-off utilities
 │   ├── install/          # Comprehensive modular installer system ⭐
 │   │   ├── setup.sh      # Main installer orchestrator
 │   │   ├── lib/          # Shared installation utilities
 │   │   ├── installers/   # Component-specific installation logic
 │   │   └── templates/    # Helper scripts and configs
-│   └── rules_enforcer.py # Automated rule violation checker
 ├── tests/                # Unit / integration tests (pytest)
 ├── docker/               # Compose files for Postgres, Neo4j, etc.
 ├── .cursor/rules/        # Engineering rulebook (start at 00_index.mdc)
@@ -196,6 +211,7 @@ The installer automatically validates your setup:
 1. **Agents** – subclasses of `AutomagikAgent` that encapsulate persona, memory and tool registration.
 2. **Tools** – asynchronous functions wrapped via `pydantic_ai.tools.Tool`.  Each lives in `src/tools/<name>/`.
 3. **Memory System** – pluggable providers (Postgres, Supabase, etc.) located under `src/tools/memory/`.
+   *Note: A top-level `src/memory/` directory also exists. Its distinct purpose and relationship to `src/tools/memory/` should be clarified or deprecated if redundant.* [NEW CLARIFICATION]
 4. **API** – REST interface (`src/api`) exposing agent invocation, memory CRUD, session history.
 5. **CLI** – developer ergonomics (`src/cli`) mirroring API capabilities for local testing.
 6. **Persistence** – SQL (Postgres) for messages, optional Neo4j for knowledge graph episodes.
@@ -206,10 +222,6 @@ The installer automatically validates your setup:
 • Tests live under `tests/` (see 06_testing rules for pyramid strategy).   
 • Coverage must stay ≥ 90 %. CI will fail otherwise.   
 • `pre-commit install` hooks lint, format, enforce rules and run a quick test subset.
-• Rule enforcer (`scripts/rules_enforcer.py`) automatically checks for violations like:
-  - Direct `os.getenv()` usage (must use `src.config.settings`)
-  - Tool functions missing `ctx` parameter
-  - Missing documentation in rules index
 
 ---
 ## 9. Installation Modes Comparison
@@ -248,9 +260,6 @@ The installer automatically validates your setup:
 # Check service status
 agent status
 
-# Validate configuration  
-python scripts/rules_enforcer.py
-
 # Test API endpoint
 curl http://localhost:8881/health
 
@@ -270,7 +279,7 @@ agent logs
 ---
 ## 12. Further Reading
 
-• **Installation Details**: [`scripts/install/IMPROVED_INSTALLATION.md`](mdc:../../scripts/install/IMPROVED_INSTALLATION.md)  
+• **Installation Script**: [`scripts/install/setup.sh`](mdc:../../scripts/install/setup.sh)  
 • **Agent Development**: [`02_agents/README.mdc`](mdc:../02_agents/README.mdc)  
 • **Tool Building**: [`03_tools/README.mdc`](mdc:../03_tools/README.mdc)  
 • **Configuration**: [`04_config/README.mdc`](mdc:../04_config/README.mdc)
