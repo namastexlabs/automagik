@@ -163,6 +163,8 @@ class Settings(BaseSettings):
     # Airtable (Optional)
     AIRTABLE_TOKEN: Optional[str] = Field(None, description="Airtable personal access token (PAT)")
     AIRTABLE_DEFAULT_BASE_ID: Optional[str] = Field(None, description="Default Airtable base ID for tools if not provided explicitly")
+    AIRTABLE_TEST_BASE_ID: Optional[str] = Field(None, description="Airtable base ID specifically for integration testing (separate from production)")
+    AIRTABLE_TEST_TABLE: Optional[str] = Field(None, description="Airtable table ID/name for integration testing")
 
     # Uvicorn request handling limits
     UVICORN_LIMIT_CONCURRENCY: int = Field(
