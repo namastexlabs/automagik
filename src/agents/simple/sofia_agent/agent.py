@@ -262,48 +262,11 @@ class SofiaAgent(AutomagikAgent):
                 mime_type = image_item_payload.get("mime_type", "")
 
                 if isinstance(data_content, str) and mime_type.startswith("image/"):
-                    # ------------------------------------------------------------------
-                    # Remote image (HTTP/S)  →  download & wrap as BinaryContent
-                    # ------------------------------------------------------------------
-                    # Attempt to download the image (also works for presigned MinIO/S3 URLs)
                     if data_content.lower().startswith("http"):
-                        try:
-                            from src.utils.image_utils import download_image
-
-                            img_path, detected_mime = download_image(data_content)
-                            # Prefer explicit payload mime over detected one
-                            mime_for_bc = mime_type or detected_mime
-
-                            with open(img_path, "rb") as _fh:
-                                img_bytes = _fh.read()
-
-                            # Some models (e.g., Google Gemini) reject raw binary inputs. Maintain a
-                            # small blacklist of substrings to detect unsupported models.
-                            _UNSUPPORTED_BINARY_MODELS = [
-                                "google-gla:gemini-2.5-pro-preview-05-06",          # All Gemini variants
-                                # "gpt-4o-mini",     # hypothetical example
-                            ]
-
-                            current_model_name = str(getattr(self._agent_instance, "model", "")).lower()
-                            binary_not_supported = any(k in current_model_name for k in _UNSUPPORTED_BINARY_MODELS)
-
-                            if binary_not_supported or BinaryContent is None:
-                                logger.debug(
-                                    f"Model '{current_model_name}' does not support binary images – sending ImageUrl."
-                                )
-                                successfully_converted_at_least_one = True
-                                return ImageUrl(url=data_content)
-
-                            logger.debug(
-                                f"Downloaded image URL and converted to BinaryContent (size={len(img_bytes)} bytes)"
-                            )
-                            successfully_converted_at_least_one = True
-                            return BinaryContent(data=img_bytes, media_type=mime_for_bc)
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to convert image URL to BinaryContent – falling back to ImageUrl: {e}"
-                            )
-                        # Fallback: send as ImageUrl (requires remote fetch by model)
+                        # ------------------------------------------------------------------
+                        # Remote image (HTTP/S)  →  wrap as ImageUrl
+                        # ------------------------------------------------------------------
+                        # Attempt to download the image (also works for presigned MinIO/S3 URLs)
                         if ImageUrl is not None:
                             logger.debug(
                                 f"Converting image URL to ImageUrl object: {data_content[:100]}…"
