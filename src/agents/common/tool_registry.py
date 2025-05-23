@@ -160,7 +160,7 @@ class ToolRegistry:
                 Returns:
                     Confirmation message
                 """
-                return await store_memory_tool(key, content, ctx=context)
+                return await store_memory_tool(context, key, content)
             
             # Create and register wrapper for get_memory_tool that includes the context
             async def get_memory_wrapper(key: str) -> Any:
@@ -288,7 +288,7 @@ class ToolRegistry:
                 Returns:
                     Confirmation message
                 """
-                return await store_memory_tool(key, content, ctx=new_context)
+                return await store_memory_tool(new_context, key, content)
                 
             # Create wrapper for get_memory_tool  
             async def get_memory_wrapper(key: str) -> Any:
