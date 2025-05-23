@@ -1,0 +1,74 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Code Style & Pull-Request Etiquette
+
+Well-defined conventions keep diffs small and reviews quick.
+
+## 1. Formatting & Linting
+
+| Tool  | Command | Purpose |
+|-------|---------|---------|
+| **Black** | `black .` | Opinionated auto-formatter (120-col, py311) |
+| **Ruff**  | `ruff .`  | Fast linter (extends flake8 + isort rules) |
+| **Mypy**  | `mypy src/` | Static typing |
+
+* Linters are run via **pre-commit** and in CI.  Passing locally is mandatory before pushing.
+* Configure editor integration (VS Code, PyCharm) to *format on save* with Black.
+
+## 2. Typing Discipline
+
+• All new public functions/classes must include type hints.  
+• Use `typing.Annotated` and `pydantic.TypeAdapter` for complex JSON structures.
+
+## 3. Docstrings
+
+Adopt the **Google** style docstring convention.  Each public function needs a summary line, args/returns and an example when non-obvious.
+
+## 4. Branch Naming
+
+```
+feature/<short-desc>
+bugfix/<ticket-id>
+chore/<what>
+```
+
+Use kebab-case (no spaces, uppercase or trailing slashes).
+
+## 5. Conventional Commits
+
+```
+feat(tools): add google_drive_search_files tool
+fix(agent): handle empty user messages
+chore(deps): bump uv to 0.1.7
+```
+
+Squash commits before merge; the PR title becomes the release note entry.
+
+## 6. Pull-Request Checklist
+
+- [ ] Linked to Issue / Ticket
+- [ ] Unit & Integration tests added/updated
+- [ ] `make lint` and `make test` pass locally
+- [ ] Docs updated (`.cursor/rules/` or `README.md`)
+- [ ] At least one reviewer from *maintainers* group
+
+CI enforces the first three items.
+
+## 7. Review Etiquette
+
+* Reviewers aim for a **24-hour turnaround**.  
+* Empathy first – question the code, not the author.  
+* Use **"nit:"** for non-blocking nits and **"suggestion:"** for optional improvements.
+
+## 8. Resolving Discussions
+
+When applying suggested changes, *reply* with "resolved in <commit>" or use GitHub's resolve button.
+
+## 9. Merging Strategy
+
+* Default is **Squash & Merge**.  
+* **Rebase & Merge** allowed when preserving individual commits is valuable (e.g. large refactor).  
+* Never **Merge Commit**.

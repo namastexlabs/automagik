@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Automagik Tool Development Rules
+===============================
+
+*(This file has been moved from `develing_tools.mdc` to follow the new structure.)*
+
+Follow **all** of the guidelines below when adding or updating anything inside the `src/tools/` package.  The goal is to keep every tool self-contained, type-safe and easily discoverable by the agent runtime.
+
+1. Directory Structure
+----------------------
+Each tool lives in its **own sub-package**:
+
+```
+src/tools/<tool_name>/
+    __init__.py      # re-export `<tool_name>_tools`
+    schema.py        # pydantic input / output models
+    provider.py      # (optional) low-level API integration
+    tool.py          # async business logic functions
+    interface.py     # wraps functions in pydantic_ai.tools.Tool objects
+```
+
+• **Never** place multiple logical tools in the same folder.            
+• Keep HTTP / SDK code in `provider.py`; business logic in `tool.py`.
+
+2. Async Functions & RunContext
+-------------------------------
+• Every callable exposed to the agent **MUST** be declared
+
+```python
+async def my_tool(ctx: RunContext[Dict], <parameters>) -> Dict[str, Any]:
+```
+
+• Always accept `ctx` as the first argument (even if unused).            
+• **Do not** raise exceptions – catch and return a response model with
+  `success=False` and an `error` field.
+
+3. Schema Definitions
+---------------------
+• Define a dedicated Pydantic model for **every** input and output type
+  inside `schema.py`.
+• Response models **must** contain a top-level boolean `success` field.
+• Convert models to primitives via `.dict()` **before** returning from
+  the tool entry point.
+
+4. Description Helpers
+----------------------
+For every exported function add a small helper that returns its
+human-readable description:
+
+```python
+def get_search_files_description() -> str:
+    return "Search for files in Google Drive by query."
+```
+
+5. Tool Registration (interface.py)
+-----------------------------------
+• Wrap each function with `pydantic_ai.tools.Tool`, e.g.
+
+```python
+search_files_tool = Tool(
+    name="google_drive_search_files",
+    description=get_search_files_description(),
+    function=search_files,
+)
+```
+
+• Collect all tool objects in a list called `<tool_name>_tools` and
+  export it from `__init__.py`.
+
+6. Global Registration
+----------------------
+After creating the tool package **add the list variable** to
+`src/tools/__init__.py.__all__` so the agent loader can pick it up.
+
+7. Configuration & Secrets
+--------------------------
+**NEVER** read environment variables directly.  Import settings from the
+central config module instead:
+
+```python
+from src.config import settings
+api_key = settings.GOOGLE_API_KEY
+```
+
+8. Logging
+----------
+• Import `logging` and log **at least** at INFO level for every external
+  call and at ERROR level inside exception handlers.
+
+9. Naming Conventions
+---------------------
+• Use `snake_case` for all function and variable names.            
+• Prefix tool objects with the package name (e.g. `gmail_send_email_tool`).
+
+10. Extensibility Principle
+---------------------------
+If you need shared behaviour, **extend** via helpers or base classes in
+your own package.  **Do not** modify third-party libraries or existing
+packages unless absolutely necessary and approved by maintainers.
+
+11. Tests
+---------
+• Add unit tests for every new tool covering success and failure paths.
+
+12. When in Doubt
+-----------------
+Ask yourself:
+1. Can this logic live entirely inside a tool package?  
+2. Does it respect the config & async rules?  
+3. Is it discoverable via `__all__`?
+
+Only merge when the answer to all three is **yes**.

@@ -1,13 +1,11 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
-# Moved Document
-
-This document has moved to `04_config/README.mdc`.
-
 # Configuration Management Rules
+
+*(This file has been moved from `config-rules.mdc` to follow the new structure.)*
 
 ## Core Rule
 

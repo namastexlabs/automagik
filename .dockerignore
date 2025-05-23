@@ -1,0 +1,67 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache
+
+# Documentation
+docs
+*.md
+!README.md
+
+# IDE
+.vscode
+.cursor
+.idea
+*.swp
+*.swo
+
+# Tests
+tests
+pytest.ini
+
+# Build artifacts
+build
+dist
+*.egg-info
+
+# Environment files
+.env*
+!.env-example
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Scripts
+scripts
+
+# Examples
+examples
+
+# Tasks
+tasks
+
+# Misc
+*.log
+.DS_Store
+.aidigestignore 
