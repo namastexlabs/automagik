@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description: Code style, naming and pull-request checklist
+globs: ["**/*.py", "**/*.md", "**/*.yml", "**/*.yaml", ".pre-commit-config.yaml", ".gitignore", "**/*.toml", "**/*.json"]
 alwaysApply: false
 ---
 # Code Style & Pull-Request Etiquette
@@ -26,6 +26,7 @@ Well-defined conventions keep diffs small and reviews quick.
 ## 3. Docstrings
 
 Adopt the **Google** style docstring convention.  Each public function needs a summary line, args/returns and an example when non-obvious.
+*Strive for comprehensive Google-style docstrings in all new and refactored code. Automated checks for docstring coverage and format should be considered for future integration.*
 
 ## 4. Branch Naming
 
@@ -72,3 +73,46 @@ When applying suggested changes, *reply* with "resolved in <commit>" or use GitH
 * Default is **Squash & Merge**.  
 * **Rebase & Merge** allowed when preserving individual commits is valuable (e.g. large refactor).  
 * Never **Merge Commit**.
+
+## 10. Commit Message Cheatsheet
+
+| Type | Scope | Description |
+|------|-------|-------------|
+| `feat` | `tools` | add google_drive_search_files tool |
+| `fix`  | `agent` | handle empty user messages |
+| `docs` | `rules` | expand 03_tools guide |
+| `chore`| `deps`  | bump uv to 0.1.7 |
+
+Use imperative mood and keep body wrapped at 72 chars.
+
+## 11. Pull-Request Description Template
+
+```
+### What & Why
+
+- _Brief explanation_
+
+### Changes
+
+- [x] New file `src/tools/foo/...`
+- [x] Updated `pyproject.toml`
+
+### Checklist
+
+- [ ] Added/updated docs
+- [ ] Added tests
+- [ ] CI green
+
+### Screenshots / Logs
+
+<img src="..." width="400" />
+```
+
+Paste this into the PR body; CI will fail if unchecked boxes remain.
+
+## 12. AI Agent Guidance
+
+• Auto-generate commit messages that follow **Conventional Commits**.
+• In PR body, reference the rule section you implemented (e.g. "Closes #rules/03_tools §15").
+• When a change touches multiple areas, prefer separate commits before the squash to aid review.
+*If a rule is being knowingly deviated from due to ongoing refactoring or a specific, justified reason, clearly state this in the PR description or commit message. Explain the deviation, link to any relevant issue or discussion about rule alignment, and indicate if it's a temporary measure.*

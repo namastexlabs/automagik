@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description: Testing strategy and CI pipeline rules
+globs: ["tests/**/*.py", "**/*test*.py", "**/*_test.py", "test_*.py", "**/test_*.py", ".github/**/*.yml", ".github/**/*.yaml", "pytest.ini", "conftest.py"]
 alwaysApply: false
 ---
+
 # Testing & Continuous Integration Guidelines
 
 These rules standardise how we write tests, measure coverage and keep the main branch green.  They apply to *all* Python code under `src/`, `tests/` and any ad-hoc scripts.
@@ -83,3 +84,35 @@ The script lives at `scripts/rules_enforcer.py` and guarantees:
 It exits with non-zero status on the first violation.
 
 > **Tip:** run it locally via `python scripts/rules_enforcer.py` before committing.
+
+## 7. Mocking External Services
+
+Use `pytest-httpx` or `responses` to stub HTTP calls.  Never hit real APIs in CI.
+
+```python
+@pytest.fixture
+def gmail_stub(httpx_mock):
+    httpx_mock.add_response(method="POST", url="https://gmail.googleapis.com/...", json={"id": "123"})
+```
+
+For SDKs that aren't HTTP-based (e.g. discord.py), use `unittest.mock.patch` to replace network methods.
+
+## 8. Snapshot Testing Prompts
+
+• Store prompt snapshots under `tests/snapshots/`.
+• Update snapshots via `pytest --snapshot-update` and commit the diff **only** if you intentionally changed the prompt template.
+
+## 9. Concurrency & Async Rules
+
+• Always mark async tests with `@pytest.mark.asyncio`.
+• Avoid `pytest-asyncio` default event loop reuse–set `asyncio_mode=strict` in `pytest.ini` to catch leaked tasks.
+
+## 10. Performance Guardrails
+
+Any single test must finish in **< 2 s** on a developer laptop.  Use `pytest.mark.slow` for longer integration tests; CI will run them in a separate stage.
+
+## 11. AI Agent Guidance
+
+• When creating a new tool, add stubbed responses first; don't write tests that fetch live data.
+• If you change public function signatures, update corresponding tests **and** snapshots.
+• Maintain coverage annotations; flagged lines with `# pragma: no cover` must be justified in the PR description.
