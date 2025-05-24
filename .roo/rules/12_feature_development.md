@@ -1,0 +1,506 @@
+---
+description: "Comprehensive feature development patterns and implementation guidelines for automagik-agents"
+globs:
+  - "**/src/**/*.py"
+  - "**/src/agents/**"
+  - "**/src/tools/**"
+  - "**/src/api/**"
+alwaysApply: false
+priority: 12
+---
+
+# Feature Development Guide
+
+## Feature Placement Decision Process
+
+- **Identify Feature Type** (See project structure in `00_agent_mission.md`):
+  - **Agent Features**: Extensions to agent behavior belong in `src/agents/simple/[agent_name]/`. Follow patterns in `02_agent_development.md`.
+  - **Tool Integration**: External service connections belong in `src/tools/[service_name]/`. Follow tool development patterns.
+  - **API Features**: New endpoints belong in `src/api/routes/`. Follow guidelines in `08_api_development.md`.
+  - **Memory Features**: Conversation/context handling belongs in `src/memory/`. Follow guidelines in `06_memory_system.md`.
+  - **Cross-Cutting**: Features spanning multiple areas need coordinated implementation
+
+- **Framework Integration** (See `00_agent_mission.md`):
+  - All new features should integrate with AutomagikAgent base class
+  - Use existing memory templating system with `{{variables}}`
+  - Follow FastAPI patterns for API endpoints
+  - Integrate with PostgreSQL database for persistence
+
+## Implementation Pattern
+
+The standard pattern for adding features follows this workflow:
+
+1. **Task Master Setup** (MANDATORY - see `01_task_system.md`):
+   ```bash
+   mcp_taskmaster-ai_initialize_project --projectRoot "/home/namastex/workspace/am-agents-labs"
+   mcp_taskmaster-ai_add_task --prompt "Feature description" --projectRoot "/home/namastex/workspace/am-agents-labs"
+   mcp_taskmaster-ai_expand_task --id "1" --projectRoot "/home/namastex/workspace/am-agents-labs"
+   ```
+
+2. **Core Logic**: Implement business logic in appropriate module following automagik-agents patterns.
+
+3. **Agent Integration**: 
+   - Extend `AutomagikAgent` base class
+   - Implement `process_message()` method
+   - Use memory templating with `{{variables}}`
+   - Register tools and capabilities
+
+4. **API Integration**: Add FastAPI endpoints following established patterns
+
+5. **Memory Integration**: Use PostgreSQL persistence and memory templates
+
+6. **Testing**: Write comprehensive tests following `11_quality_testing.md`
+
+7. **Documentation**: Update relevant rule files and API documentation
+
+## Critical Checklist for New Features
+
+- **AutomagikAgent Integration**:
+  - ✅ **DO**: Extend `AutomagikAgent` base class for all agent features
+  - ✅ **DO**: Use `async def process_message()` pattern consistently
+  - ✅ **DO**: Integrate with memory system using `{{template_variables}}`
+  - ✅ **DO**: Register tools through agent configuration
+  - ❌ **DON'T**: Modify base `AutomagikAgent` class directly
+  - ❌ **DON'T**: Create agents that bypass the framework
+
+  **Example**: Agent feature implementation:
+  ```python
+  # ✅ DO: Extend AutomagikAgent properly
+  from src.agents.models.automagik_agent import AutomagikAgent
+  
+  class MyFeatureAgent(AutomagikAgent):
+      def __init__(self):
+          super().__init__(
+              agent_name="my_feature_agent",
+              system_prompt=SYSTEM_PROMPT,
+              tools=MyFeatureTools().get_tools()
+          )
+      
+      async def process_message(self, message: str, session_name: str = "default") -> str:
+          # Custom feature logic here
+          return await self.run_agent(message, session_name)
+  ```
+
+- **Tool Development Standards**:
+  - ✅ **DO**: Follow Pydantic AI tool patterns
+  - ✅ **DO**: Use async functions throughout
+  - ✅ **DO**: Return structured responses with error handling
+  - ✅ **DO**: Register tools in `src/tools/__init__.py`
+  - ❌ **DON'T**: Use synchronous operations in async contexts
+  - ❌ **DON'T**: Return raw strings - use structured objects
+
+  **Example**: Tool implementation:
+  ```python
+  # ✅ DO: Use Pydantic AI tool patterns
+  from pydantic import BaseModel
+  from pydantic_ai import Agent
+  
+  class ToolInput(BaseModel):
+      query: str
+      options: dict = {}
+  
+  def my_feature_tool(input: ToolInput) -> dict:
+      """Tool description for AI understanding."""
+      try:
+          # Tool implementation
+          return {"success": True, "data": result}
+      except Exception as e:
+          return {"success": False, "error": str(e)}
+  ```
+
+- **API Development Standards**:
+  - ✅ **DO**: Use FastAPI router patterns
+  - ✅ **DO**: Follow authentication middleware (X-API-Key)
+  - ✅ **DO**: Use Pydantic models for request/response
+  - ✅ **DO**: Handle errors gracefully with HTTP status codes
+  - ❌ **DON'T**: Bypass authentication for `/api/v1/` endpoints
+  - ❌ **DON'T**: Use raw dictionaries instead of Pydantic models
+
+  **Example**: API endpoint implementation:
+  ```python
+  # ✅ DO: Follow FastAPI patterns
+  from fastapi import APIRouter, HTTPException, Depends
+  from src.api.models import FeatureRequest, FeatureResponse
+  from src.auth import verify_api_key
+  
+  router = APIRouter(prefix="/feature", tags=["Feature"])
+  
+  @router.post("/action", response_model=FeatureResponse)
+  async def feature_action(
+      request: FeatureRequest,
+      api_key: str = Depends(verify_api_key)
+  ):
+      try:
+          result = await process_feature_request(request)
+          return FeatureResponse(success=True, data=result)
+      except Exception as e:
+          raise HTTPException(status_code=500, detail=str(e))
+  ```
+
+- **Memory System Integration**:
+  - ✅ **DO**: Use `{{template_variables}}` in system prompts
+  - ✅ **DO**: Store relevant context in memory variables
+  - ✅ **DO**: Use session-based memory isolation
+  - ✅ **DO**: Add memory via API endpoints or agent methods
+  - ❌ **DON'T**: Store sensitive information in memory variables
+  - ❌ **DON'T**: Create memory variables without proper session context
+
+  **Example**: Memory integration:
+  ```python
+  # ✅ DO: Use memory templates in prompts
+  SYSTEM_PROMPT = """You are a specialized agent.
+  
+  User: {{user_name}}
+  Recent context: {{recent_context}}
+  Feature context: {{feature_context}}
+  
+  Available tools: {tools}
+  """
+  
+  # ✅ DO: Add custom memory in agent
+  async def process_message(self, message: str, session_name: str = "default") -> str:
+      # Add feature-specific context
+      await self.memory_manager.add_memory(
+          agent_id=self.agent_id,
+          name="feature_context",
+          content=f"Processing: {self.extract_feature_intent(message)}",
+          session_name=session_name
+      )
+      
+      return await self.run_agent(message, session_name)
+  ```
+
+- **Database Integration**:
+  - ✅ **DO**: Use established PostgreSQL connection patterns
+  - ✅ **DO**: Follow database schema conventions
+  - ✅ **DO**: Use parameterized queries for security
+  - ✅ **DO**: Handle database errors gracefully
+  - ❌ **DON'T**: Create direct database connections outside established patterns
+  - ❌ **DON'T**: Use string formatting for SQL queries
+
+  **Example**: Database integration:
+  ```python
+  # ✅ DO: Use connection pool patterns
+  from src.db.connection import get_connection_pool
+  
+  async def store_feature_data(data: dict):
+      pool = get_connection_pool()
+      async with pool.acquire() as conn:
+          await conn.execute(
+              "INSERT INTO feature_data (id, content) VALUES ($1, $2)",
+              data['id'], data['content']
+          )
+  ```
+
+## Agent Development Workflow
+
+### Creating New Agent Features
+
+1. **Generate Agent Structure**:
+   ```bash
+   # Use automagik-agents CLI if available
+   automagik-agents create-agent -n feature_agent -t simple_agent
+   ```
+
+2. **Implement Agent Class**:
+   ```python
+   # src/agents/simple/feature_agent/agent.py
+   from src.agents.models.automagik_agent import AutomagikAgent
+   from .prompts import SYSTEM_PROMPT
+   from .tools import FeatureAgentTools
+   
+   class FeatureAgent(AutomagikAgent):
+       def __init__(self):
+           super().__init__(
+               agent_name="feature_agent",
+               system_prompt=SYSTEM_PROMPT,
+               tools=FeatureAgentTools().get_tools(),
+               config=FeatureAgentConfig()
+           )
+       
+       async def process_message(self, message: str, session_name: str = "default") -> str:
+           # Feature-specific processing
+           await self.handle_feature_logic(message, session_name)
+           return await self.run_agent(message, session_name)
+   ```
+
+3. **Define System Prompts**:
+   ```python
+   # src/agents/simple/feature_agent/prompts.py
+   SYSTEM_PROMPT = """You are a specialized feature agent.
+   
+   Key capabilities:
+   - Feature-specific functionality
+   - Integration with external services
+   - Memory-aware conversations
+   
+   Memory context:
+   - {{user_name}}: Current user
+   - {{recent_context}}: Conversation history
+   - {{feature_preferences}}: User feature preferences
+   
+   Available tools: {tools}
+   """
+   ```
+
+4. **Register Agent**:
+   ```python
+   # src/agents/simple/feature_agent/__init__.py
+   from .agent import FeatureAgent
+   
+   __all__ = ["FeatureAgent"]
+   ```
+
+### Tool Development Workflow
+
+1. **Create Tool Structure**:
+   ```
+   src/tools/feature_service/
+   ├── __init__.py
+   ├── schema.py          # Pydantic models
+   ├── provider.py        # External API integration
+   ├── tools.py           # Business logic
+   └── interface.py       # Pydantic AI tool interface
+   ```
+
+2. **Define Schemas**:
+   ```python
+   # src/tools/feature_service/schema.py
+   from pydantic import BaseModel
+   
+   class FeatureInput(BaseModel):
+       query: str
+       options: dict = {}
+   
+   class FeatureOutput(BaseModel):
+       success: bool
+       data: dict = {}
+       error_message: str = ""
+   ```
+
+3. **Implement Provider** (if external API needed):
+   ```python
+   # src/tools/feature_service/provider.py
+   from src.config import settings
+   import httpx
+   
+   async def call_external_api(data: dict):
+       async with httpx.AsyncClient() as client:
+           response = await client.post(
+               settings.EXTERNAL_API_URL,
+               headers={"Authorization": f"Bearer {settings.API_KEY}"},
+               json=data
+           )
+           return response.json()
+   ```
+
+4. **Implement Business Logic**:
+   ```python
+   # src/tools/feature_service/tools.py
+   import logging
+   from .schema import FeatureInput, FeatureOutput
+   from .provider import call_external_api
+   
+   logger = logging.getLogger(__name__)
+   
+   async def feature_tool(input_data: str) -> dict:
+       """Process feature request with external service."""
+       try:
+           validated_input = FeatureInput(query=input_data)
+           result = await call_external_api(validated_input.dict())
+           
+           return FeatureOutput(success=True, data=result).dict()
+       except Exception as e:
+           logger.error(f"Feature tool failed: {str(e)}")
+           return FeatureOutput(success=False, error_message=str(e)).dict()
+   ```
+
+5. **Create Tool Interface**:
+   ```python
+   # src/tools/feature_service/interface.py
+   from pydantic_ai.tools import Tool
+   from .tools import feature_tool
+   
+   feature_service_tool = Tool(
+       name="feature_service_tool",
+       description="Process feature requests using external service",
+       function=feature_tool,
+   )
+   
+   feature_service_tools = [feature_service_tool]
+   ```
+
+6. **Register Globally**:
+   ```python
+   # src/tools/__init__.py
+   from .feature_service import feature_service_tools
+   
+   __all__ = [
+       # ... existing tools
+       "feature_service_tools",
+   ]
+   ```
+
+## API Development Workflow
+
+### Adding New Endpoints
+
+1. **Define Models**:
+   ```python
+   # src/api/models.py
+   class FeatureRequest(BaseModel):
+       action: str = Field(..., description="Feature action to perform")
+       parameters: dict = Field(default={}, description="Action parameters")
+       session_name: str = Field(default="default", description="Session context")
+   
+   class FeatureResponse(BaseModel):
+       success: bool = Field(..., description="Operation success")
+       data: dict = Field(default={}, description="Response data")
+       message: str = Field(..., description="Human-readable message")
+   ```
+
+2. **Create Route Handler**:
+   ```python
+   # src/api/routes/feature_routes.py
+   from fastapi import APIRouter, HTTPException, Depends
+   from src.api.models import FeatureRequest, FeatureResponse
+   from src.auth import verify_api_key
+   
+   router = APIRouter(prefix="/feature", tags=["Feature"])
+   
+   @router.post("/process", response_model=FeatureResponse)
+   async def process_feature(
+       request: FeatureRequest,
+       api_key: str = Depends(verify_api_key)
+   ):
+       try:
+           result = await handle_feature_request(request)
+           return FeatureResponse(
+               success=True,
+               data=result,
+               message="Feature processed successfully"
+           )
+       except Exception as e:
+           raise HTTPException(status_code=500, detail=str(e))
+   ```
+
+3. **Register Routes**:
+   ```python
+   # src/api/routes/__init__.py
+   from .feature_routes import router as feature_router
+   
+   main_router.include_router(feature_router)
+   ```
+
+## Testing Strategy
+
+### Feature Testing Requirements
+
+Every new feature **must** include:
+
+1. **Unit Tests**: Test individual components
+   ```python
+   # tests/test_features/test_feature_agent.py
+   import pytest
+   from src.agents.simple.feature_agent.agent import FeatureAgent
+   
+   @pytest.mark.asyncio
+   async def test_feature_agent_response():
+       agent = FeatureAgent()
+       response = await agent.process_message("test input", "test_session")
+       
+       assert response is not None
+       assert isinstance(response, str)
+   ```
+
+2. **Integration Tests**: Test feature with framework
+   ```python
+   @pytest.mark.asyncio
+   async def test_feature_api_integration(client):
+       response = client.post(
+           "/api/v1/feature/process",
+           json={"action": "test", "parameters": {}},
+           headers={"X-API-Key": "test_key"}
+       )
+       
+       assert response.status_code == 200
+       data = response.json()
+       assert data["success"] is True
+   ```
+
+3. **Memory Integration Tests**: Test memory persistence
+   ```python
+   @pytest.mark.asyncio
+   async def test_feature_memory_integration():
+       agent = FeatureAgent()
+       session = "memory_test"
+       
+       # Process message that should store memory
+       await agent.process_message("store preference: detailed", session)
+       
+       # Verify memory was stored
+       memory = await agent.memory_manager.get_memory(
+           agent.agent_id, "feature_preferences", session
+       )
+       assert "detailed" in memory
+   ```
+
+## Quality Gates
+
+Before feature completion:
+
+- [ ] **Task Master tracking**: All development tracked in Task Master
+- [ ] **Framework integration**: Follows AutomagikAgent patterns
+- [ ] **Memory integration**: Uses template variables appropriately
+- [ ] **API documentation**: OpenAPI docs updated automatically
+- [ ] **Error handling**: Graceful failure modes implemented
+- [ ] **Tests written**: Unit, integration, and memory tests
+- [ ] **Security review**: No sensitive data exposure
+- [ ] **Performance check**: No blocking operations in async code
+- [ ] **Documentation**: Updated relevant rule files
+
+## Performance & Security
+
+### Async Best Practices
+```python
+# ✅ GOOD: Proper async patterns
+async def feature_operation():
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            client.get(url1),
+            client.get(url2),
+            client.get(url3)
+        ]
+        responses = await asyncio.gather(*tasks)
+    return responses
+
+# ❌ BAD: Blocking in async context
+async def feature_operation_bad():
+    responses = []
+    for url in urls:
+        response = requests.get(url)  # Blocking!
+        responses.append(response)
+    return responses
+```
+
+### Security Considerations
+```python
+# ✅ GOOD: Input validation
+class SecureFeatureRequest(BaseModel):
+    action: str = Field(..., regex=r"^[a-zA-Z0-9_-]+$")
+    parameters: dict = Field(default={})
+    
+    @validator('parameters')
+    def validate_parameters(cls, v):
+        # Validate parameter content
+        return v
+
+# ❌ BAD: No validation
+def process_request(raw_data):
+    # Direct usage without validation
+    return eval(raw_data)  # Never do this!
+```
+
+---
+
+**Remember**: Every feature should enhance the automagik-agents framework while following established patterns. Focus on extending capabilities rather than reinventing infrastructure. Use Task Master for systematic development and leverage the memory system for intelligent, context-aware features.

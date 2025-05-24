@@ -1,9 +1,7 @@
 ---
-description: "Continuous learning and pattern recognition protocols for rule system evolution"
-globs:
-  - "**/*"
+description: Guidelines for continuously improving Cursor rules based on emerging code patterns and best practices.
+globs: **/*
 alwaysApply: true
-priority: 4
 ---
 
 # Self-Improvement Rules
@@ -28,7 +26,7 @@ priority: 4
   - Monitor test patterns and coverage to identify testing anti-patterns
   - Use `search_memory("implementation patterns")` to find recurring approaches
   - Analyze memory entries for optimization opportunities
-  - Cross-reference Task Master subtask details for learned lessons and failure patterns
+  - Cross-reference Task Master subtask details for learned lesilure patterns
   - Review AutomagikAgent extension patterns for consistency
   - Check memory template variable usage patterns
   - Analyze database integration patterns for consistency
@@ -55,7 +53,7 @@ priority: 4
       def __init__(self):
           super().__init__(
               agent_name="my_agent",
-              system_prompt=SYSTEM_PROMPT,
+             STEM_PROMPT,
               tools=MyAgentTools().get_tools()
           )
       
@@ -128,4 +126,4 @@ priority: 4
   - Update references to external docs
   - Maintain links between related rules
   - Document breaking changes
-Follow [cursor_rules.mdc](mdc:.cursor/rules/cursor_rules.mdc) for proper rule formatting and structure.
+Follow @cursor_rules.mdc for proper rule formatting and structure.
