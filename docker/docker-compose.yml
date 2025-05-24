@@ -5,8 +5,6 @@ services:
       dockerfile: docker/Dockerfile
       args:
         BUILDKIT_INLINE_CACHE: 1
-      cache_from:
-        - automagik-agents:latest
     image: automagik-agents:latest
     container_name: automagik_agents
     env_file:
