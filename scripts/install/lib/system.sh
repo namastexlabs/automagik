@@ -281,7 +281,42 @@ install_docker() {
                     
                     # Add user to docker group
                     sudo usermod -aG docker "$USER"
-                    log "WARN" "You may need to log out and back in for Docker group permissions"
+                    
+                    # Verify user was added to docker group
+                    if groups "$USER" | grep -q docker; then
+                        log "SUCCESS" "User $USER added to docker group"
+                    else
+                        log "ERROR" "Failed to add user $USER to docker group"
+                        return 1
+                    fi
+                    
+                    # Handle WSL-specific configuration
+                    if [ "$IS_WSL" = true ]; then
+                        log "INFO" "WSL detected - applying WSL-specific Docker configuration"
+                        
+                        # Ensure Docker daemon is configured properly for WSL
+                        sudo mkdir -p /etc/docker
+                        echo '{
+  "hosts": ["unix:///var/run/docker.sock", "tcp://127.0.0.1:2375"],
+  "iptables": false
+}' | sudo tee /etc/docker/daemon.json > /dev/null
+                        
+                        # Start Docker service
+                        sudo service docker start || log "WARN" "Docker service start failed - may need manual start"
+                    fi
+                    
+                    # Activate docker group membership immediately
+                    log "INFO" "Activating docker group membership..."
+                    if command -v newgrp &>/dev/null; then
+                        # Note: newgrp creates a new shell, so we need to handle this differently
+                        log "WARN" "Docker group activated. You may need to run 'newgrp docker' manually or restart your shell"
+                        log "INFO" "Alternatively, run: sudo chmod 666 /var/run/docker.sock (temporary fix)"
+                        
+                        # For immediate effect in current session (temporary)
+                        sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+                    else
+                        log "WARN" "newgrp command not available. Please log out and back in for Docker permissions"
+                    fi
                     ;;
                 fedora|rhel|centos)
                     sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
@@ -289,12 +324,38 @@ install_docker() {
                     sudo systemctl start docker
                     sudo systemctl enable docker
                     sudo usermod -aG docker "$USER"
+                    
+                    # Verify user was added to docker group
+                    if groups "$USER" | grep -q docker; then
+                        log "SUCCESS" "User $USER added to docker group"
+                    else
+                        log "ERROR" "Failed to add user $USER to docker group"
+                        return 1
+                    fi
+                    
+                    # Activate docker group membership for current session
+                    log "INFO" "Activating docker group membership..."
+                    sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+                    log "WARN" "Docker group activated temporarily. Run 'newgrp docker' or restart shell for permanent access"
                     ;;
                 arch|manjaro)
                     install_package "docker"
                     sudo systemctl start docker
                     sudo systemctl enable docker
                     sudo usermod -aG docker "$USER"
+                    
+                    # Verify user was added to docker group
+                    if groups "$USER" | grep -q docker; then
+                        log "SUCCESS" "User $USER added to docker group"
+                    else
+                        log "ERROR" "Failed to add user $USER to docker group"
+                        return 1
+                    fi
+                    
+                    # Activate docker group membership for current session
+                    log "INFO" "Activating docker group membership..."
+                    sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+                    log "WARN" "Docker group activated temporarily. Run 'newgrp docker' or restart shell for permanent access"
                     ;;
             esac
             ;;
