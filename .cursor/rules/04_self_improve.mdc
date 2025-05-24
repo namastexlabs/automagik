@@ -1,0 +1,131 @@
+---
+description: "Continuous learning and pattern recognition protocols for rule system evolution"
+globs:
+  - "**/*"
+alwaysApply: true
+priority: 4
+---
+
+# Self-Improvement Rules
+
+- **Rule Improvement Triggers:**
+  - New code patterns not covered by existing rules
+  - Repeated similar implementations across files (3+ files using same pattern)
+  - Common error patterns that could be prevented with rules
+  - New libraries or tools being used consistently
+  - Emerging best practices in the codebase
+  - Memory analysis revealing repeated queries
+  - Patterns discovered through `search_memory("repeated issues")`
+  - Task Master subtask patterns showing recurring challenges
+  - API endpoint patterns that follow similar structures
+  - Agent development patterns that repeat across implementations
+
+- **Analysis Process:**
+  - Compare new code with existing rules and identify gaps
+  - Identify patterns that should be standardized with ✅ DO / ❌ DON'T examples
+  - Look for references to external documentation that should be codified
+  - Check for consistent error handling patterns across agents/tools/APIs
+  - Monitor test patterns and coverage to identify testing anti-patterns
+  - Use `search_memory("implementation patterns")` to find recurring approaches
+  - Analyze memory entries for optimization opportunities
+  - Cross-reference Task Master subtask details for learned lessons and failure patterns
+  - Review AutomagikAgent extension patterns for consistency
+  - Check memory template variable usage patterns
+  - Analyze database integration patterns for consistency
+
+- **Rule Updates:**
+  - **Add New Rules When:**
+    - A new technology/pattern is used in 3+ files
+    - Common bugs could be prevented by a rule
+    - Code reviews repeatedly mention the same feedback
+    - New security or performance patterns emerge
+
+  - **Modify Existing Rules When:**
+    - Better examples exist in the codebase
+    - Additional edge cases are discovered
+    - Related rules have been updated
+    - Implementation details have changed
+
+- **Example Pattern Recognition:**
+  
+  **Agent Pattern Recognition:**
+  ```python
+  # If you see repeated patterns like:
+  class MyAgent(AutomagikAgent):
+      def __init__(self):
+          super().__init__(
+              agent_name="my_agent",
+              system_prompt=SYSTEM_PROMPT,
+              tools=MyAgentTools().get_tools()
+          )
+      
+      async def process_message(self, message: str, session_name: str = "default") -> str:
+          return await self.run_agent(message, session_name)
+  
+  # Consider adding to agent development rules:
+  # - Standard agent initialization patterns
+  # - Memory template variable conventions
+  # - Tool registration patterns
+  ```
+  
+  **API Pattern Recognition:**
+  ```python
+  # If you see repeated patterns like:
+  @router.post("/action", response_model=ActionResponse)
+  async def perform_action(
+      request: ActionRequest,
+      api_key: str = Depends(verify_api_key)
+  ):
+      try:
+          result = await process_action(request)
+          return ActionResponse(success=True, data=result)
+      except Exception as e:
+          raise HTTPException(status_code=500, detail=str(e))
+  
+  # Consider adding to API development rules:
+  # - Standard endpoint patterns
+  # - Error handling conventions
+  # - Response model structures
+  ```
+  
+  **Memory Template Recognition:**
+  ```python
+  # If you see repeated patterns like:
+  SYSTEM_PROMPT = """You are an agent.
+  
+  User: {{user_name}}
+  Context: {{recent_context}}
+  Preferences: {{user_preferences}}
+  """
+  
+  # Consider adding to memory system rules:
+  # - Standard template variable naming
+  # - Common memory context patterns
+  # - Session isolation conventions
+  ```
+
+- **Rule Quality Checks:**
+  - Rules should be actionable and specific
+  - Examples should come from actual code
+  - References should be up to date
+  - Patterns should be consistently enforced
+
+- **Continuous Improvement:**
+  - Monitor code review comments
+  - Track common development questions
+  - Update rules after major refactors
+  - Add links to relevant documentation
+  - Cross-reference related rules
+
+- **Rule Deprecation:**
+  - Mark outdated patterns as deprecated
+  - Remove rules that no longer apply
+  - Update references to deprecated rules
+  - Document migration paths for old patterns
+
+- **Documentation Updates:**
+  - Keep examples synchronized with code
+  - Update references to external docs
+  - Maintain links between related rules
+  - Document breaking changes
+Follow [cursor_rules.mdc](mdc:.cursor/rules/cursor_rules.mdc) for proper rule formatting and structure.

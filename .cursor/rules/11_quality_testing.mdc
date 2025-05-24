@@ -1,0 +1,21 @@
+---
+description: "Testing strategies, quality assurance, and CI/CD practices"
+globs:
+  - "**/tests/**"
+  - "**/*test*.py"
+  - "**/pytest.ini"
+  - "**/tox.ini"
+  - "**/.github/workflows/**"
+  - "**/conftest.py"
+alwaysApply: false
+priority: 11
+---
+
+# Quality & Testing
+
+*Coming Soon - This section will cover:*
+- Testing strategies and best practices
+- Unit, integration, and e2e testing
+- Test coverage requirements
+- CI/CD pipeline configuration
+- Quality gates and metrics
