@@ -1,7 +1,7 @@
 ---
-description: Rule improvement triggers, pattern recognition, and quality checklist for automagik-agents development
-globs: .cursor/rules/*.md
-alwaysApply: false
+description: 
+globs: 
+alwaysApply: true
 ---
 
 # Self-Improvement Rules
