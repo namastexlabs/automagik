@@ -1,4 +1,12 @@
 {
+  "rules": {
+    "code": ["core.md", "mode_context.md"],
+    "architect": ["core.md", "memory_refs.md"],
+    "ask": ["core.md"],
+    "debug": ["core.md"],
+    "test": ["core.md"],
+    "boomerang": ["core.md", "taskmaster.md"]
+  },
   "customModes": [
     {
       "slug": "boomerang",

@@ -54,7 +54,7 @@ graph TD
     *   **Agent System (`src/agents/`):** The heart of the application, containing the logic for different AI agents. Likely uses libraries like `pydantic-ai` for structuring agent interactions. See [Agent System Overview](./agents_overview.md) for more details.
     *   **Memory/State (`src/memory/`):** Manages the persistent state and conversation history of agents. Likely interacts heavily with the database. See [Memory Management](./memory.md) for more details.
     *   **Tools (`src/tools/`):** Reusable functionalities that agents can utilize. Examples might include web search (like the integrated DuckDuckGo tool), interacting with external APIs (Notion, Discord, Google, Supabase), or specific data processing utilities.
-    *   **Configuration (`src/config.py`):** Centralizes all project settings using `pydantic-settings`. Loads configuration from environment variables (`.env`) following the rules defined in [config-rules](mdc:.cursor/rules/config-rules.mdc). See [Configuration](./configuration.md) for more details.
+    *   **Configuration (`src/config.py`):** Centralizes all project settings using `pydantic-settings`. Loads configuration from environment variables (`.env`). See [Configuration](./configuration.md) for more details.
     *   **Authentication (`src/auth.py`):** Handles authentication logic, primarily for securing the FastAPI API endpoints.
 
 3.  **Persistence:**

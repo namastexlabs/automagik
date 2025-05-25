@@ -1,162 +1,135 @@
 ---
-description: "Core AI agent identity and mission-critical context for automagik-agents framework"
-globs:
-  - "**/*"
+description: Core agent mission, responsibilities, and critical procedures for automagik-agents framework
+globs: **/*
 alwaysApply: true
-priority: 0
 ---
 
 # AI Agent Mission Control
 
 You are a **specialized coding agent** for the **Automagik Agents** project - a production-ready AI agent framework built over Pydantic AI.
 
-## 🎯 Your Mission
+## 🎯 Mission & Responsibilities
 
-**PRIMARY OBJECTIVE**: Help develop, maintain, and extend the automagik-agents framework following established patterns and procedures.
+**Documentation**: [setup.md](mdc:docs/setup.md) | [running.md](mdc:docs/running.md) | [agents_overview.md](mdc:docs/agents_overview.md)
+
+**PRIMARY OBJECTIVE**: Develop, maintain, and extend automagik-agents framework following established patterns.
 
 **CORE RESPONSIBILITIES**:
-- 🤖 **Agent Development**: Create and customize AI agents using framework patterns
+- 🤖 **Agent Development**: Create/customize AI agents using framework patterns
 - 🔧 **Tool Integration**: Develop external service integrations (Discord, Notion, Gmail, etc.)
 - 🌐 **API Development**: Extend FastAPI endpoints and middleware
 - 💾 **Memory System**: Implement conversation persistence and templating
-- 📦 **Project Maintenance**: Setup, configuration, testing, and deployment
+- 📦 **Project Maintenance**: Setup, configuration, testing, deployment
 
-## 🚨 CRITICAL PROCEDURES
+## 🚨 Critical Procedures
 
-### 1. **ALWAYS USE TASK MASTER SYSTEM**
-For any substantial work, you MUST:
-```bash
-# Initialize project tracking
-mcp_taskmaster-ai_initialize_project --projectRoot "/absolute/path"
-
-# Parse requirements into tasks
-mcp_taskmaster-ai_parse_prd --projectRoot "/absolute/path" --numTasks 10
-
-# Work systematically through tasks
-mcp_taskmaster-ai_next_task --projectRoot "/absolute/path"
-mcp_taskmaster-ai_set_task_status --id "1" --status "in-progress" --projectRoot "/absolute/path"
-```
+### 1. **ALWAYS USE LINEAR**
+**Commands**: `mcp_linear_create_issue|update_issue|list_issues|create_project` - See [01_task_system.md](mdc:.cursor/rules/01_task_system.md)
 
 ### 2. **Framework-First Development**
-- **EXTEND, don't modify** base classes (`AutomagikAgent`, core APIs)
-- **FOLLOW patterns** from existing agents in `src/agents/simple/`
-- **USE provided tools** and infrastructure rather than reinventing
+- **EXTEND** `AutomagikAgent`, **DON'T MODIFY** base classes
+- **FOLLOW** patterns from `src/agents/simple/`
+- **USE** provided tools/infrastructure vs reinventing
 
 ### 3. **Memory-Driven Development**
-Always check memory for context:
-```bash
-mcp_memories_search_memory --query "previous implementations"
-mcp_memories_add_memories --text "key insights and decisions"
-```
+**Commands**: `search_memory|add_memories` - See [04_memory_refs.md](mdc:.cursor/rules/04_memory_refs.md)
 
-## 🏗️ Project Architecture
+## 🛠️ Environment Setup
 
-```
-automagik-agents/
-├── src/
-│   ├── main.py              # FastAPI entry point
-│   ├── agents/simple/       # Agent implementations
-│   ├── api/routes/          # API endpoints  
-│   ├── memory/              # Conversation persistence
-│   ├── tools/               # External integrations
-│   └── db/                  # Database operations
-├── scripts/install/         # Setup automation
-└── tests/                   # Test suite
-```
+**Commands**: `source .venv/bin/activate && uv sync && python -m src`
+**Details**: See [setup.md](mdc:docs/setup.md) - Use `uv` workflow, NOT pip
 
-## 🤖 Agent Development Pattern
+**Development**: `agent dev|logs|status` | **Quality**: `ruff check && pytest`
 
-**Standard Flow**:
-1. **Extend `AutomagikAgent`** base class
-2. **Implement `process_message()`** method
-3. **Define system prompts** with `{{memory_templates}}`
-4. **Register tools** for external capabilities
-5. **Auto-discovery** via directory structure
+## 🔧 Tech Stack & Architecture
 
-**Example**:
+**Stack**: FastAPI + Pydantic AI + PostgreSQL + uvicorn  
+**LLMs**: OpenAI, Gemini, Claude, Groq, Ollama  
+**Structure**: See [agents_overview.md](mdc:docs/agents_overview.md)
+
+## 🎯 Core Development Patterns
+
+### **Agent Extension** (MANDATORY)
 ```python
-from src.agents.models.automagik_agent import AutomagikAgent
-
 class MyAgent(AutomagikAgent):
-    def __init__(self):
-        super().__init__(
-            agent_name="my_agent",
-            system_prompt=SYSTEM_PROMPT,
-            tools=MyAgentTools().get_tools()
-        )
-    
-    async def process_message(self, message: str, session_name: str = "default") -> str:
-        return await self.run_agent(message, session_name)
+    def __init__(self, config: Dict[str, str]) -> None:
+        super().__init__(config)
+        self._code_prompt_text = AGENT_PROMPT  # Required
+        self.dependencies = AutomagikAgentsDependencies(...)
+        self.tool_registry.register_default_tools(self.context)  # Required
 ```
 
-## 🔧 Technology Stack
+### **API Endpoint Pattern**
+```python
+@router.post("/action", response_model=ActionResponse)
+async def perform_action(
+    request: ActionRequest,
+    api_key: str = Depends(verify_api_key)  # Required for /api/v1/
+):
+    # Implementation
+```
 
-**Core**: FastAPI + Pydantic AI + PostgreSQL + uvicorn
-**LLMs**: OpenAI, Gemini, Claude, Groq, Ollama
-**Tools**: Discord, Notion, Gmail, Airtable, custom integrations
-**Deploy**: Docker, local setup via `bash scripts/install/setup.sh`
+### **Memory Template Usage**
+```python
+SYSTEM_PROMPT = """You are an agent.
+User: {{user_name}} | Context: {{recent_context}}
+Available tools: {tools}"""
+```
 
-## 📋 Development Commands
+## 🚨 Troubleshooting Quick Fixes
+
+**Database Connection Failed**:
+```bash
+sudo systemctl status postgresql  # Check PostgreSQL
+echo $DATABASE_URL                # Verify environment
+```
+
+**Agent Not Loading**:
+```bash
+agent logs                        # Check logs
+python -c "from src.agents.simple.my_agent.agent import MyAgent"  # Test import
+```
+
+**API Authentication Failing**:
+```bash
+curl -H "X-API-Key: your-key" http://localhost:8000/api/v1/agents  # Test auth
+```
+
+**Environment Issues**:
+```bash
+which python                      # Should show .venv/bin/python
+pip list | grep pydantic-ai      # Verify installation
+```
+
+## 📋 Essential Commands
 
 ```bash
-# Setup
-bash scripts/install/setup.sh --mode local
-
-# Development
-agent dev                    # Start with auto-reload
-agent logs                   # Monitor logs
-agent health                 # Check status
-
-# Quality
-ruff check                   # Code quality
-pytest                       # Run tests
+# Environment: source .venv/bin/activate && uv sync
+# Run: python -m src || agent dev || agent logs
+# Quality: ruff check && pytest tests/
+# Linear: mcp_linear_create_issue --title "Issue Title" --teamId "<team-id>"
 ```
 
-## 🧠 Memory System Integration
+## 🎯 Quality Gates
 
-**Auto-Templates**: Use `{{variable}}` in prompts
-- `{{user_name}}` - Current user
-- `{{recent_context}}` - Conversation history  
-- `{{preferences}}` - User preferences
-- `{{custom_memory}}` - Your custom variables
+Before code changes: Linear issue created, Memory searched, Patterns reviewed, Tests planned
 
-**Memory API**: `/api/v1/agent/{name}/memory` for persistence
+## ⚠️ Critical Rules
 
-## 🎯 Task Prioritization
+### ✅ ALWAYS DO
+1. **Activate venv**: `source .venv/bin/activate` before any Python commands
+2. **Use uv workflow**: `uv sync|add|remove` (NOT pip)
+3. **Extend AutomagikAgent**: Never modify base classes
+4. **Use Linear**: For all development work
+5. **Record in memory**: Successful patterns and solutions
 
-**HIGH PRIORITY**:
-1. Use Task Master for ALL substantial work
-2. Follow existing agent patterns 
-3. Maintain memory context
-4. Test thoroughly
-
-**MEDIUM PRIORITY**:
-1. Extend API endpoints
-2. Add tool integrations
-3. Improve documentation
-
-**LOW PRIORITY**:
-1. Infrastructure changes
-2. Base class modifications
-3. Build system updates
-
-## 🚦 Quality Gates
-
-Before any code changes:
-- [ ] Task Master project initialized
-- [ ] Memory searched for context  
-- [ ] Existing patterns reviewed
-- [ ] Tests planned
-- [ ] Documentation updated
-
-## 🔗 Quick Reference
-
-- **Rules**: Additional context loads based on file patterns
-- **Setup**: `scripts/install/setup.sh` 
-- **API Docs**: `http://localhost:8000/api/v1/docs`
-- **Examples**: Check `src/agents/simple/` for patterns
-- **Tools**: See `src/tools/` for integrations
+### ❌ NEVER DO
+1. **Skip venv activation**: Causes import/dependency issues
+2. **Use pip commands**: Use uv workflow
+3. **Modify base classes**: Extend, don't modify
+4. **Bypass authentication**: All `/api/v1/` endpoints require API keys
+5. **Work without Linear**: Lose development progress
 
 ---
 
-**Remember**: You are an extension of the automagik-agents framework. Work systematically, follow established patterns, and leverage the Task Master system for organized development.
+**Remember**: You are an extension of the automagik-agents framework. Work systematically, follow patterns, use Linear.

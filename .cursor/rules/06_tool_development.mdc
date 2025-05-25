@@ -1,0 +1,278 @@
+---
+description: Tool development patterns, PydanticAI integration, and async patterns for automagik-agents
+globs: src/tools/**/*,tests/**/*tool*
+alwaysApply: false
+---
+
+# Tool Development Guide
+
+## 🔧 Tool Architecture Overview
+
+**Documentation**: [architecture.md](mdc:docs/architecture.md) | [configuration.md](mdc:docs/configuration.md) | [agents_overview.md](mdc:docs/agents_overview.md)
+
+### **MANDATORY Tool Structure**
+```
+src/tools/service_name/
+├── __init__.py          # Export tools list
+├── schema.py            # Pydantic input/output models
+├── provider.py          # External API integration (optional)
+├── tool.py              # Business logic
+└── interface.py         # PydanticAI tool interface
+```
+
+## 🚀 Tool Creation Checklist
+
+### **Step-by-Step Process**
+1. **Create Directory**: `mkdir -p src/tools/<service_name>`
+2. **Create Schema** (`schema.py`): Define `ToolInput`/`ToolOutput` Pydantic models with `success: bool` and `error_message: str`
+3. **Implement Provider** (`provider.py`) - if external API needed: Handle API communication with `httpx.AsyncClient`
+4. **Implement Business Logic** (`tool.py`): Main async function with `RunContext`, call provider, handle errors
+5. **Create Interface** (`interface.py`): Create `Tool` object with name, description, function, export tools list
+6. **Package Export** (`__init__.py`): Export tools list from interface
+7. **Global Registration** (`src/tools/__init__.py`): Add to global `__all__` list
+8. **Write Tests**: Unit tests with mocked providers, integration tests with agent context
+
+## 🎯 Core Development Rules
+
+### **1. Async Functions & RunContext** (REQUIRED)
+```python
+from pydantic_ai import RunContext
+
+async def my_tool(ctx: RunContext[Dict], input_data: str) -> Dict[str, Any]:
+    """Tool description for AI understanding."""
+    try:
+        result = await some_operation(input_data)
+        return MyToolOutput(success=True, data=result).dict()
+    except Exception as e:
+        return MyToolOutput(success=False, error_message=str(e)).dict()
+```
+
+### **2. Schema Definitions** (REQUIRED)
+```python
+# schema.py
+from pydantic import BaseModel
+
+class MyToolInput(BaseModel):
+    query: str
+    limit: int = 10
+
+class MyToolOutput(BaseModel):
+    success: bool
+    data: list = []
+    error_message: str = ""
+```
+
+### **3. Tool Registration** (REQUIRED)
+```python
+# interface.py
+from pydantic_ai.tools import Tool
+from .tool import my_tool
+
+my_tool_object = Tool(
+    name="service_my_tool",
+    description="Description of what the tool does",
+    function=my_tool,
+)
+
+service_tools = [my_tool_object]
+```
+
+```python
+# __init__.py (package level)
+from .interface import service_tools
+__all__ = ["service_tools"]
+```
+
+```python
+# src/tools/__init__.py (global registration)
+from .my_service import service_tools
+__all__ = ["service_tools"]  # Add to existing list
+```
+
+## 🔄 Agent Integration
+
+### **Agent-Specific Tools**
+```python
+class MyAgent(AutomagikAgent):
+    def __init__(self, config: Dict[str, str]) -> None:
+        super().__init__(config)
+        
+        # Register default tools (REQUIRED)
+        self.tool_registry.register_default_tools(self.context)
+        
+        # Register agent-specific tools
+        from src.tools.my_service import service_tools
+        for tool in service_tools:
+            self.tool_registry.register_tool(tool)
+```
+
+## 🧪 Testing Strategies
+
+### **Unit Testing** (with mocking)
+```python
+import pytest
+from unittest.mock import AsyncMock, patch
+
+@pytest.mark.asyncio
+async def test_tool_with_mocked_api():
+    with patch('src.tools.my_tool.provider.external_api_call') as mock_call:
+        mock_call.return_value = {"status": "success"}
+        
+        result = await my_tool({}, "test input")
+        
+        assert result["success"] is True
+        mock_call.assert_called_once()
+```
+
+### **Integration Testing** (within agent context)
+```python
+@pytest.mark.asyncio
+async def test_tool_integration_with_agent():
+    """Test tool integration within agent context."""
+    agent = MyAgent({})
+    
+    # Test tool is available
+    tools = agent.tool_registry.get_all_tools()
+    tool_names = [tool.name for tool in tools]
+    assert "my_tool" in tool_names
+    
+    # Test tool execution through agent
+    response = await agent.run("Use my_tool to process data")
+    assert response.success is True
+```
+
+## 🎯 Development Patterns
+
+### **Configuration Access**
+```python
+from src.config import settings
+
+api_key = settings.GOOGLE_API_KEY  # ✅ CORRECT
+# NOT: os.environ.get("GOOGLE_API_KEY")  # ❌ WRONG
+```
+
+### **HTTP Client Usage**
+```python
+import httpx
+from src.config import settings
+
+async def api_call(data):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            settings.API_ENDPOINT,
+            headers={"Authorization": f"Bearer {settings.API_KEY}"},
+            json=data,
+            timeout=30.0
+        )
+        response.raise_for_status()
+        return response.json()
+```
+
+### **Logging**
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+async def my_tool(ctx, data):
+    logger.info(f"Tool called with: {data}")
+    try:
+        logger.info("Tool completed successfully")
+    except Exception as e:
+        logger.error(f"Tool failed: {str(e)}")
+```
+
+## 🔐 Security Best Practices
+
+### **Input Validation**
+```python
+from pydantic import BaseModel, validator
+
+class SecureToolInput(BaseModel):
+    query: str
+    
+    @validator('query')
+    def validate_query(cls, v):
+        if len(v) > 1000:
+            raise ValueError('Query too long')
+        
+        # Check for malicious patterns
+        forbidden = ['<script', '<?php', 'SELECT * FROM']
+        if any(pattern in v.lower() for pattern in forbidden):
+            raise ValueError('Invalid query content')
+        
+        return v
+```
+
+### **API Key Management**
+```python
+async def secure_api_call(data):
+    """Secure API call with proper key management."""
+    api_key = settings.EXTERNAL_API_KEY
+    if not api_key:
+        raise ValueError("API key not configured")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            settings.API_ENDPOINT,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": "AutomagikAgents/1.0"
+            },
+            json=data,
+            timeout=30.0
+        )
+        return response.json()
+```
+
+## 💾 Memory Integration
+
+### **Record Tool Patterns**
+```bash
+# Before implementing new tool
+mcp_memories_search_memory --query "tool development patterns"
+
+# After successful implementation
+mcp_memories_add_memories --text "Tool pattern: service_name structure with RunContext async function, Pydantic I/O models, error handling via return not raise"
+```
+
+## ⚡ Performance Optimization
+
+### **Async Best Practices**
+```python
+# ✅ GOOD: Concurrent async calls
+async def fetch_multiple():
+    async with httpx.AsyncClient() as client:
+        tasks = [client.get(url1), client.get(url2), client.get(url3)]
+        responses = await asyncio.gather(*tasks)
+    return responses
+
+# ❌ BAD: Sequential async calls
+async def fetch_multiple_bad():
+    async with httpx.AsyncClient() as client:
+        result1 = await client.get(url1)  # Waits sequentially
+        result2 = await client.get(url2)
+        result3 = await client.get(url3)
+    return [result1, result2, result3]
+```
+
+## ⚠️ Critical Rules
+
+### ✅ ALWAYS DO
+1. **Use RunContext**: `async def tool(ctx: RunContext[Dict], ...)`
+2. **Return Pydantic dicts**: `return ToolOutput(...).dict()`
+3. **Handle errors gracefully**: Return error models, never raise
+4. **Register properly**: interface.py → __init__.py → global
+5. **Validate inputs**: Use Pydantic validators
+6. **Record patterns**: Use memory system for learning
+
+### ❌ NEVER DO
+1. **Raise exceptions**: Return error models instead
+2. **Skip registration**: Tools won't be available to agents
+3. **Hardcode API keys**: Use settings configuration
+4. **Block async**: Use proper async/await patterns
+5. **Skip testing**: Tools need unit + integration tests
+6. **Ignore security**: Always validate inputs
+
+---
+
+**Remember**: Tools are the hands of your agents. Follow these patterns religiously to ensure reliable, secure, and maintainable integrations with external services.
