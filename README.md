@@ -56,7 +56,7 @@ nano .env
 ```bash
 agent start         # If you have agent commands
 # OR
-python -m src       # Manual start
+automagik agents start  # Start server
 ```
 
 3. **Test it:**
@@ -81,8 +81,8 @@ agent dev        # Start in development mode (manual)
 agent help       # Show all available commands
 
 # Manual commands (if agent commands not available)
-python -m src                   # Manual server start
-python -m src --reload         # Development mode
+automagik agents start          # Start server
+automagik agents dev            # Development mode with auto-reload
 ```
 
 ### API Examples
@@ -109,7 +109,7 @@ curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
 ## 🛠️ Create Custom Agents
 
 ```bash
-automagik-agents create-agent -n my_agent -t simple_agent
+automagik agents create -n my_agent -t simple_agent
 # Customize: src/agents/simple/my_agent/
 ```
 

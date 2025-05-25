@@ -65,7 +65,7 @@ Repository = "https://github.com/namastexlabs/automagik-agents"
 Issues = "https://github.com/namastexlabs/automagik-agents/issues"
 
 [project.scripts]
-automagik-agents = "src.cli:app"
+automagik = "src.cli:app"
 
 [tool.setuptools]
 packages = ["src"]
