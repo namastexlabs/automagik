@@ -417,3 +417,31 @@ def link_session_to_agent(session_id: uuid.UUID, agent_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error linking session {session_id} to agent {agent_id}: {str(e)}")
         return False
+
+
+def update_agent_active_prompt_id(agent_id: int, prompt_id: int) -> bool:
+    """Update the active_default_prompt_id for an agent.
+    
+    Args:
+        agent_id: The agent ID
+        prompt_id: The prompt ID to set as active default
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        execute_query(
+            """
+            UPDATE agents SET
+                active_default_prompt_id = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            """,
+            (prompt_id, agent_id),
+            fetch=False
+        )
+        logger.info(f"Updated agent {agent_id} with active_default_prompt_id {prompt_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating agent {agent_id} active prompt: {str(e)}")
+        return False

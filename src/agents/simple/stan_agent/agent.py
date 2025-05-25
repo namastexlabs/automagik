@@ -231,19 +231,13 @@ class StanAgent(AutomagikAgent):
                 if default_prompt_id or not_registered_prompt_id:
                     prompt_id_to_use = default_prompt_id or not_registered_prompt_id
                     
-                    # Update the agent record
-                    from src.db.connection import execute_query
-                    execute_query(
-                        """
-                        UPDATE agents SET 
-                            active_default_prompt_id = %s,
-                            updated_at = NOW()
-                        WHERE id = %s
-                        """,
-                        (prompt_id_to_use, self.db_id),
-                        fetch=False
-                    )
-                    logger.info(f"Explicitly updated agent {self.db_id} with active_default_prompt_id {prompt_id_to_use}")
+                    # Update the agent record using repository method
+                    from src.db.repository.agent import update_agent_active_prompt_id
+                    success = update_agent_active_prompt_id(self.db_id, prompt_id_to_use)
+                    if success:
+                        logger.info(f"Successfully updated agent {self.db_id} with active_default_prompt_id {prompt_id_to_use}")
+                    else:
+                        logger.error(f"Failed to update agent {self.db_id} with active_default_prompt_id {prompt_id_to_use}")
             except Exception as e:
                 logger.error(f"Error setting up default prompt: {str(e)}")
                 logger.error(traceback.format_exc())
