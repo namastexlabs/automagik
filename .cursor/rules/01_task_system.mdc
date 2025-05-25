@@ -1,226 +1,309 @@
 ---
-description: "Task Master system integration - mandatory for all substantial development work"
-globs:
-  - "**/tasks/**"
-  - "**/tasks.json"
-  - "**/*.task.md"
-  - "**/scripts/**"
+description: Linear workflow integration, issue management, and project organization for automagik-agents
+globs: **/*
 alwaysApply: true
-priority: 1
 ---
 
-# Task Master System Integration
+# Linear Project Management Integration
 
-**MANDATORY**: Use Task Master for ALL substantial development work in automagik-agents. This system ensures organized, trackable, and systematic development.
+**MANDATORY**: Use Linear for ALL development work. Linear provides comprehensive project management with issues, projects, cycles, and Git integration.
 
-## 🚨 CRITICAL WORKFLOW
+## 🚀 Core Linear Workflow
 
-### Before Starting ANY Development
-
-1. **Initialize Project**:
+### **Issue-Driven Development**
 ```bash
-mcp_taskmaster-ai_initialize_project --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Create issues for all development work
+mcp_linear_create_issue --title "Create Discord Agent" --teamId "<team-id>" --priority 2
+
+# Update issue status as you progress
+mcp_linear_update_issue --id "<issue-id>" --stateId "<in-progress-state-id>"
+
+# Add progress comments
+mcp_linear_create_comment --issueId "<issue-id>" --body "Implementation progress update"
 ```
 
-2. **Parse Requirements** (if you have a PRD or feature description):
+### **Git Integration Workflow**
 ```bash
-mcp_taskmaster-ai_parse_prd --projectRoot "/home/namastex/workspace/am-agents-labs" --numTasks 10
+# Get auto-generated branch name from Linear
+mcp_linear_get_issue_git_branch_name --id "<issue-id>"
+
+# Create branch using Linear's naming convention
+git checkout -b feature/nam-123-create-discord-agent
+
+# Linear automatically links PRs when using proper branch names
+git push origin feature/nam-123-create-discord-agent
 ```
 
-3. **Get Next Task**:
+## 🗂️ Linear Hierarchy & Organization
+
+### **Projects** (Large Initiatives)
 ```bash
-mcp_taskmaster-ai_next_task --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Create projects for major features/releases
+mcp_linear_create_project --name "AI Agent Framework v2.0" --teamId "<team-id>"
+
+# Get project details and progress
+mcp_linear_get_project --query "AI Agent Framework"
+
+# List all projects
+mcp_linear_list_projects --teamId "<team-id>"
 ```
 
-### During Development
-
-4. **Mark Task In Progress**:
+### **Issues** (Individual Tasks)
 ```bash
-mcp_taskmaster-ai_set_task_status --id "1" --status "in-progress" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Create detailed issues with full context
+mcp_linear_create_issue \
+  --title "Implement memory persistence for agents" \
+  --description "Add PostgreSQL integration for conversation history" \
+  --teamId "<team-id>" \
+  --priority 2 \
+  --projectId "<project-id>" \
+  --labelIds '["bug", "feature"]'
+
+# Query issues by various criteria
+mcp_linear_list_issues --assigneeId "<user-id>" --limit 20
+mcp_linear_list_my_issues --limit 10
+
+# Get detailed issue information
+mcp_linear_get_issue --id "<issue-id>"
 ```
 
-5. **Add Subtasks** (for complex tasks):
+### **Cycles** (Sprint Management)
+- **1-8 week focused work periods**
+- **Automatic rollover** of incomplete issues
+- **Progress tracking** with cycle graphs
+- **Team momentum** through focused iterations
+
+## 🔄 Workflow States & Transitions
+
+### **Standard Issue Lifecycle**
+```
+Triage → Todo → In Progress → In Review → Done
+   ↓        ↓         ↓           ↓         ↓
+Backlog  Canceled  Duplicate   Canceled   Done
+```
+
+### **State Management**
 ```bash
-mcp_taskmaster-ai_expand_task --id "1" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Check available states for team
+mcp_linear_list_issue_statuses --teamId "<team-id>"
+
+# Update issue state
+mcp_linear_update_issue --id "<issue-id>" --stateId "<state-id>"
+
+# Get specific state information
+mcp_linear_get_issue_status --query "In Progress" --teamId "<team-id>"
 ```
 
-6. **Update Progress**:
+## 🏷️ Labels & Categorization
+
+### **Standard Labels**
 ```bash
-mcp_taskmaster-ai_update_subtask --id "1.1" --prompt "Implemented core logic, tested successfully" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# List available labels
+mcp_linear_list_issue_labels --teamId "<team-id>"
+
+# Common label categories:
+# - Type: Bug, Feature, Improvement
+# - Component: Agent, API, Tool, Memory
+# - Priority: Critical, High, Medium, Low
+# - Area: Frontend, Backend, DevOps, Documentation
 ```
 
-### After Completion
-
-7. **Mark Complete**:
+### **Issue Organization**
 ```bash
-mcp_taskmaster-ai_set_task_status --id "1" --status "done" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Create issues with labels for better organization
+mcp_linear_create_issue \
+  --title "Fix memory leak in agent processing" \
+  --labelIds '["bug", "agent", "critical"]' \
+  --priority 1
 ```
 
-## 📋 Task Creation Patterns
+## 🔧 Development Workflow Patterns
 
-### Agent Development Tasks
+### **Agent Development Workflow**
+1. **Project Setup**: Create project for agent initiative
+2. **Issue Creation**: Break down into specific implementation tasks
+3. **Branch Creation**: Use Linear's auto-generated branch names
+4. **Implementation**: Update issue status and add progress comments
+5. **Code Review**: Move to "In Review" state
+6. **Completion**: Merge PR and Linear auto-completes issue
+
+### **Feature Development Pattern**
 ```bash
-# Create agent development task
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --prompt "Create new WhatsApp agent with Evolution API integration"
+# 1. Create feature project
+mcp_linear_create_project --name "Memory System Enhancement" --teamId "<team-id>"
 
-# Expand into subtasks
-mcp_taskmaster-ai_expand_task --id "2" --num "5" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# 2. Create implementation issues
+mcp_linear_create_issue --title "Add PostgreSQL memory persistence" --projectId "<project-id>"
+mcp_linear_create_issue --title "Implement memory cleanup jobs" --projectId "<project-id>"
+
+# 3. Work in cycles
+# Add issues to current cycle, track progress, roll incomplete work forward
+
+# 4. Use Git integration
+# Get branch name: feature/nam-456-add-postgresql-memory-persistence
+# Linear tracks PR status and auto-updates issue states
 ```
 
-### API Development Tasks
+### **Bug Triage & Resolution**
 ```bash
-# Create API task
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --prompt "Add new endpoint for agent memory management"
+# 1. Create bug with full context
+mcp_linear_create_issue \
+  --title "Agent fails to load with custom tools" \
+  --description "Error occurs when registering custom tools in MyAgent class" \
+  --labelIds '["bug"]' \
+  --priority 1
 
-# Add dependencies
-mcp_taskmaster-ai_add_dependency --id "3" --dependsOn "1" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# 2. Assign and prioritize
+mcp_linear_update_issue --id "<issue-id>" --assigneeId "<dev-id>" --priority 1
+
+# 3. Track resolution
+# Move through states: Triage → In Progress → In Review → Done
 ```
 
-### Tool Integration Tasks
+## 📊 Project Tracking & Analytics
+
+### **Progress Monitoring**
 ```bash
-# Create tool task
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --prompt "Integrate Notion API for agent data storage"
+# View project progress
+mcp_linear_get_project --query "Automagik Agents"
 
-# Use research mode for complex integrations
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --prompt "Research and implement Discord slash commands" --research true
+# Check team workload
+mcp_linear_list_issues --assigneeId "<user-id>" --limit 50
+
+# Monitor cycle progress
+# Linear provides built-in cycle graphs and completion tracking
 ```
 
-## 🎯 Task Prioritization
+### **Reporting & Insights**
+- **Project Progress**: Visual timeline and completion tracking
+- **Cycle Velocity**: Issue completion rates over time
+- **Team Load**: Assignment distribution and capacity
+- **Label Analytics**: Issue categorization and trends
 
-### HIGH PRIORITY - Use Task Master For:
-- **New agent development**
-- **API endpoint creation**
-- **Tool integrations**
-- **Major feature additions**
-- **Bug fixes affecting multiple components**
-- **Documentation updates**
+## 👥 Team Collaboration
 
-### MEDIUM PRIORITY - Optional Task Master:
-- **Code formatting/cleanup**
-- **Simple configuration changes**
-- **Minor bug fixes**
-
-### LOW PRIORITY - No Task Master Needed:
-- **Single line fixes**
-- **Comment updates**
-- **Import reorganization**
-
-## 📊 Task Management Commands
-
-### Project Overview
+### **User & Team Management**
 ```bash
-# Get all tasks
-mcp_taskmaster-ai_get_tasks --projectRoot "/home/namastex/workspace/am-agents-labs"
+# List team members
+mcp_linear_list_users --random_string "dummy"
 
-# Get specific task details
-mcp_taskmaster-ai_get_task --id "1" --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Get user details
+mcp_linear_get_user --query "felipe@namastex.ai"
 
-# Generate task files
-mcp_taskmaster-ai_generate --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Assign issues
+mcp_linear_update_issue --id "<issue-id>" --assigneeId "<user-id>"
 ```
 
-### Task Analysis
+### **Communication & Updates**
 ```bash
-# Analyze project complexity
-mcp_taskmaster-ai_analyze_project_complexity --projectRoot "/home/namastex/workspace/am-agents-labs"
+# Add detailed progress comments
+mcp_linear_create_comment --issueId "<issue-id>" --body "
+## Implementation Progress
+- ✅ PostgreSQL integration complete
+- ✅ Memory cleanup job scheduled
+- 🔄 Testing memory persistence patterns
+- ⏳ Next: Integration tests
+"
 
-# Expand all pending tasks
-mcp_taskmaster-ai_expand_all --projectRoot "/home/namastex/workspace/am-agents-labs"
+# List issue comments for context
+mcp_linear_list_comments --issueId "<issue-id>"
 ```
 
-### Dependency Management
+## 🔗 Integration & Automation
+
+### **Git Workflow Integration**
+- **Auto Branch Naming**: `feature/nam-123-implement-memory-system`
+- **PR Linking**: Automatic issue linking via branch names
+- **Status Updates**: PR creation → "In Progress", PR merge → "Done"
+- **Comment Sync**: PR comments can sync with Linear
+
+### **Development Tool Integration**
+- **Slack Integration**: Issue updates in dedicated channels
+- **VS Code**: Linear extension for issue management
+- **GitHub/GitLab**: Automatic PR workflow integration
+
+## 📋 Linear Best Practices
+
+### **Issue Creation Guidelines**
 ```bash
-# Validate dependencies
-mcp_taskmaster-ai_validate_dependencies --projectRoot "/home/namastex/workspace/am-agents-labs"
+# ✅ GOOD: Descriptive, actionable issues
+mcp_linear_create_issue \
+  --title "Implement rate limiting for agent API endpoints" \
+  --description "Add Redis-based rate limiting to prevent API abuse:
+  - 100 requests/minute per API key
+  - Different limits for different endpoint types
+  - Graceful error responses with retry headers" \
+  --priority 2 \
+  --labelIds '["feature", "api"]'
 
-# Fix dependency issues
-mcp_taskmaster-ai_fix_dependencies --projectRoot "/home/namastex/workspace/am-agents-labs"
+# ❌ BAD: Vague, non-actionable
+mcp_linear_create_issue --title "Fix stuff" --description "Something is broken"
 ```
 
-## 🔄 Integration with Automagik Agents
+### **Project Organization Strategy**
+- **Large Projects**: Major features, releases, initiatives
+- **Component Projects**: Agent system, API layer, memory system
+- **Time-Boxed Projects**: Sprint-based feature development
+- **Maintenance Projects**: Bug fixes, technical debt, documentation
 
-### Agent Development Workflow
-1. **Task**: "Create Discord agent with slash command support"
-2. **Subtasks**: 
-   - Setup Discord bot configuration
-   - Implement AutomagikAgent subclass
-   - Add slash command handlers
-   - Integrate with memory system
-   - Write tests and documentation
+### **Workflow State Management**
+- **Triage**: New issues requiring evaluation
+- **Todo**: Ready for development, properly scoped
+- **In Progress**: Actively being worked on
+- **In Review**: Code review, testing, validation
+- **Done**: Completed and deployed
 
-### Tool Development Workflow
-1. **Task**: "Add Gmail integration for agent email capabilities"
-2. **Subtasks**:
-   - Research Gmail API patterns
-   - Create tool schema definitions
-   - Implement async business logic
-   - Add error handling and validation
-   - Register tool globally
+## 🎯 Quality Control Integration
 
-### API Development Workflow
-1. **Task**: "Extend agent API with bulk operations"
-2. **Subtasks**:
-   - Design bulk operation schemas
-   - Implement route handlers
-   - Add authentication middleware
-   - Update API documentation
-   - Write integration tests
-
-## 📁 Task File Organization
-
-Task Master creates this structure:
-```
-tasks/
-├── tasks.json              # Main task database
-├── 01-agent-development.md  # Individual task files
-├── 02-api-endpoints.md
-└── complexity-report.json   # Analysis results
-```
-
-## 🧠 Memory Integration
-
-Always add insights to memory:
-```bash
-# Add project insights
-mcp_memories_add_memories --text "Successfully implemented WhatsApp agent using Evolution API - key patterns: async message handling, webhook integration, session management"
-
-# Search for related work
-mcp_memories_search_memory --query "Discord agent implementation"
-```
-
-## 🚦 Quality Control
-
-### Before Task Completion
-- [ ] All subtasks marked as done
+### **Before Issue Completion**
+- [ ] All acceptance criteria met
 - [ ] Code follows automagik-agents patterns
 - [ ] Tests written and passing
 - [ ] Documentation updated
 - [ ] Memory updated with insights
+- [ ] Linear issue status reflects actual progress
 
-### Task Review Criteria
-- **Follows AutomagikAgent patterns**
-- **Integrates with memory system**
-- **Uses proper async/await**
-- **Includes error handling**
-- **Has comprehensive tests**
+### **Issue Review Criteria**
+- **Clear acceptance criteria** defined
+- **Proper labels and prioritization** applied
+- **Assignee and timeline** established
+- **Project association** for larger initiatives
+- **Git branch integration** working correctly
 
-## 🎲 Quick Task Templates
+## 💾 Memory Integration with Linear
 
-### New Agent Template
+### **Development Pattern Recording**
 ```bash
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --title "Create [ServiceName] Agent" --description "Implement agent for [service] integration with [specific features]" --details "1. Extend AutomagikAgent\n2. Configure service tools\n3. Add memory templates\n4. Implement message processing\n5. Write tests"
+# Before starting work
+mcp_memories_search_memory --query "agent development patterns linear"
+
+# During development - use Linear comments for progress tracking
+mcp_linear_create_comment --issueId "<issue-id>" --body "
+Discovery: AutomagikAgent extension requires specific tool registration sequence.
+Pattern: super().__init__() → set _code_prompt_text → register_default_tools()
+"
+
+# After completion - record insights
+mcp_memories_add_memories --text "Linear workflow: Created NAM-123 for Discord agent implementation. Used auto-branch naming feature, PR auto-linked, status transitioned automatically. Effective for tracking development progress."
 ```
 
-### Tool Integration Template
-```bash
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --title "Add [ServiceName] Tool Integration" --description "Create tool package for [service] API" --details "1. Create tool schema\n2. Implement async provider\n3. Add business logic\n4. Register globally\n5. Write tests"
-```
+## 🚦 Priority & Urgency Guidelines
 
-### API Endpoint Template
+### **Priority Levels**
+- **🔴 Urgent (1)**: Production issues, security vulnerabilities, blocking bugs
+- **🟠 High (2)**: Important features, significant improvements, major bugs
+- **🟡 Medium (3)**: Standard features, minor improvements, non-critical bugs
+- **🟢 Low (4)**: Nice-to-have features, documentation, technical debt
+
+### **Due Date Management**
 ```bash
-mcp_taskmaster-ai_add_task --projectRoot "/home/namastex/workspace/am-agents-labs" --title "Add [FeatureName] API Endpoint" --description "Implement REST endpoint for [feature]" --details "1. Define Pydantic models\n2. Create route handlers\n3. Add authentication\n4. Update documentation\n5. Write tests"
+# Set due dates for time-sensitive work
+mcp_linear_update_issue --id "<issue-id>" --dueDate "2025-12-31"
+
+# Use cycles for sprint-based delivery
+# Issues automatically roll to next cycle if incomplete
 ```
 
 ---
 
-**Remember**: Task Master is not optional for substantial work. It ensures systematic development, tracks progress, and maintains quality standards for the automagik-agents framework.
+**Remember**: Linear replaces Task Master with a comprehensive issue tracking system. Use projects for organization, cycles for momentum, and Git integration for seamless development workflow.

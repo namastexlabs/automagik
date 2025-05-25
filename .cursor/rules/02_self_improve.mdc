@@ -1,0 +1,190 @@
+---
+description: Rule improvement triggers, pattern recognition, and quality checklist for automagik-agents development
+globs: .cursor/rules/*.md
+alwaysApply: false
+---
+
+# Self-Improvement Rules
+
+## 🎯 Rule Evolution Philosophy
+
+**Related**: [cursor_rules.md](mdc:.cursor/rules/cursor_rules.md) - Rule formatting guidelines
+
+Rules evolve based on real development experience, captured patterns, and memory insights creating feedback loops for improved efficiency.
+
+## 🚨 Rule Improvement Triggers
+
+### **Pattern Recognition Signals**
+- **New code patterns** not covered (3+ files using same pattern)
+- **Repeated implementations** across components
+- **Common error patterns** preventable with rules
+- **New libraries/tools** used consistently
+- **Memory analysis** revealing repeated queries/solutions
+- **Linear issue patterns** showing recurring challenges
+
+### **Memory-Driven Insights**
+```bash
+mcp_memories_search_memory --query "repeated issues|implementation patterns|setup problems|successful approaches|optimization patterns|error solutions"
+```
+
+### **Linear Analysis**
+- **Subtask failure patterns**: Common implementation sticking points
+- **Successful sequences**: Consistently working patterns
+- **Dependency issues**: Recurring management problems
+
+## 🔍 Enhanced Pattern Recognition
+
+### **AutomagikAgent Patterns**
+```python
+# Repeated pattern:
+class MyAgent(AutomagikAgent):
+    def __init__(self, config: Dict[str, str]) -> None:
+        super().__init__(config)
+        self._code_prompt_text = AGENT_PROMPT  # Pattern
+        self.dependencies = AutomagikAgentsDependencies(...)
+        self.tool_registry.register_default_tools(self.context)
+```
+
+### **API Endpoint Patterns**
+```python
+# Repeated pattern:
+@router.post("/action", response_model=ActionResponse)
+async def perform_action(request: ActionRequest, api_key: str = Depends(verify_api_key)):
+    try:
+        result = await process_action(request)
+        return ActionResponse(success=True, data=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+### **Memory Template Patterns**
+```python
+# Repeated pattern:
+SYSTEM_PROMPT = """You are an agent.
+User: {{user_name}} | Context: {{recent_context}}
+Preferences: {{user_preferences}}"""
+```
+
+## 📊 Analysis Process
+
+### **1. Pattern Detection**
+- **Compare new code** with existing rules, identify gaps
+- **Standardize patterns** with ✅ DO / ❌ DON'T examples
+- **Check consistency**: error handling, testing, memory integration
+- **Cross-reference Linear** issue comments for lessons learned
+
+### **2. Memory Integration Analysis**
+```bash
+# Analyze for optimization opportunities
+mcp_memories_search_memory --query "optimization patterns|error solutions|working patterns|implementation time reduced"
+```
+
+### **3. Code Pattern Analysis**
+- **Agent Patterns**: AutomagikAgent extension approaches
+- **Tool Patterns**: Tool implementation structures
+- **API Patterns**: FastAPI endpoint designs
+- **Memory Patterns**: Template variable usage
+- **Testing Patterns**: Test structure and coverage
+
+## 🎯 Quality Checklist
+
+### **Rule Content Standards**
+- [ ] **Rules are actionable** with clear implementation steps
+- [ ] **Examples from actual code** in automagik-agents project
+- [ ] **References up to date** and accessible
+- [ ] **Patterns consistently enforced** across codebase
+- [ ] **Cross-references** to related rules included
+- [ ] **Memory searches** confirm recurring patterns
+- [ ] **Both positive/negative examples** (✅ DO / ❌ DON'T)
+
+### **Rule Update Criteria**
+**Add New Rules When:**
+- Technology/pattern used in 3+ files
+- Common bugs preventable by rule
+- Code reviews mention same feedback repeatedly
+- Memory reveals repeated questions
+
+**Modify Existing Rules When:**
+- Better examples exist in codebase
+- Edge cases discovered
+- Implementation details changed
+- Memory analysis reveals better approaches
+
+## 🔄 Continuous Improvement Process
+
+### **Weekly Rule Review**
+1. **Search memory**: `mcp_memories_search_memory --query "new patterns discovered this week"`
+2. **Analyze Linear**: `mcp_linear_list_issues --limit 50`
+3. **Review code changes** for new patterns
+4. **Update rules** based on findings
+5. **Record changes** in memory
+
+### **Monthly Pattern Analysis**
+1. **Comprehensive memory search** for accumulated patterns
+2. **Cross-reference** with existing rules for gaps
+3. **Identify deprecated patterns** for removal
+4. **Update priorities** based on usage frequency
+
+## 🧠 Memory Integration
+
+### **Record Rule Changes**
+```bash
+# After updating rules
+mcp_memories_add_memories --text "Updated agent rules: new AutomagikAgent extension pattern with tool registration sequence and memory templates"
+
+# Record discoveries
+mcp_memories_add_memories --text "New API authentication pattern in 4+ endpoints. Added to API rules as standard practice"
+```
+
+### **Search for Rule Gaps**
+```bash
+mcp_memories_search_memory --query "missing documentation|repeated questions|implementation confusion"
+```
+
+### **Track Effectiveness**
+```bash
+mcp_memories_search_memory --query "rule helped implementation|rule prevented error|pattern now clear"
+```
+
+## 📊 Success Metrics
+
+### **Health Indicators**
+- **Reduced repeated questions** in memory searches
+- **Faster implementation times** for common patterns
+- **Fewer errors** in Linear issue implementations
+- **More consistent code** across project
+
+### **Quantitative Metrics**
+- **Pattern consistency rate**: % following established patterns
+- **Rule coverage**: Recurring patterns documented
+- **Memory query reduction**: Decreased repeated queries
+- **Task completion speed**: Faster subtask completion
+
+## 🔄 Implementation Workflow
+
+### **Discovering New Patterns**
+1. **Document** in memory immediately
+2. **Check 3+ instances** exist in codebase
+3. **Search existing rules** for gaps
+4. **Create/update rules** with real examples
+5. **Cross-reference** related rules
+6. **Record change** in memory
+
+### **Updating Existing Rules**
+1. **Search memory** for better examples
+2. **Review codebase** for pattern evolution
+3. **Update examples** with current code
+4. **Verify cross-references** still valid
+5. **Document changes** in memory
+
+## 📝 Rule Lifecycle Management
+
+### **Rule Deprecation Process**
+- **Mark outdated patterns** with migration paths
+- **Remove inapplicable rules**
+- **Update references** in other rules
+- **Document breaking changes**
+
+---
+
+**Remember**: Rules are living documents evolving with codebase. Use memory searches and Linear analysis for improvement opportunities. Base updates on real development patterns.

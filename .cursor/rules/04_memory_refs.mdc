@@ -1,0 +1,238 @@
+---
+description: Memory API commands, template variables, and query patterns for automagik-agents
+globs: src/memory/**/*,src/agents/**/*,tests/**/*memory*,tests/**/*agent*
+alwaysApply: false
+---
+
+# Memory References
+
+## 🧠 Memory Architecture Overview
+
+**Documentation**: [memory.md](mdc:docs/memory.md) | [database.md](mdc:docs/database.md) | [agents_overview.md](mdc:docs/agents_overview.md)
+
+### **Core Components**
+- **Message History**: Automatic PostgreSQL conversation storage
+- **Memory Variables**: Named context persisting across conversations  
+- **Dynamic Templating**: `{{variable}}` injection into prompts
+- **Session Management**: Multi-user conversation isolation
+- **Auto-injection**: Automatic memory retrieval and prompt enhancement
+
+**Memory Flow**: Storage → Retrieval → Templating → Enhancement → Persistence
+
+## 🔧 Memory API Commands
+
+### **Search Memory**
+```bash
+mcp_memories_search_memory --query "search terms"
+```
+
+**Strategic Query Patterns**:
+- **Agent patterns**: `"agent patterns|setup PATTERN|tool registration|error handling|implementation patterns"`
+- **Bug solutions**: `"bug fix COMPONENT|error handling patterns"`
+- **API patterns**: `"API endpoint patterns"`
+
+### **Store Knowledge**
+```bash
+mcp_memories_add_memories --text "knowledge or insight to remember"
+```
+
+**Strategic Storage Content**:
+- **Successful implementation patterns** with context
+- **Error solutions and workarounds** with cause/fix
+- **Configuration discoveries** and optimal settings
+- **User preferences and decisions** 
+- **Project-specific conventions** and patterns
+
+### **List/Manage Memories**
+```bash
+mcp_memories_list_memories --random_string "dummy"
+mcp_memories_delete_all_memories --random_string "dummy"
+```
+
+## 🏷️ Template Variables System
+
+### **Built-in Variables** (Automatic)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{user_name}}` | Current user identification | "John Smith" |
+| `{{user_preferences}}` | User preferences and settings | "Prefers detailed explanations" |
+| `{{recent_context}}` | Recent conversation history | "User asked about Python..." |
+| `{{current_task}}` | Active Linear issue context | "Working on NAM-123: Discord agent" |
+| `{{session_context}}` | Current session state | "Working on project X" |
+| `{{custom_memory}}` | Project-specific memory variables | Custom content |
+
+### **Template Usage Pattern**
+```python
+# src/agents/simple/my_agent/prompts.py
+SYSTEM_PROMPT = """You are helping {{user_name}}.
+
+Recent: {{recent_context}}
+Preferences: {{user_preferences}}
+Task: {{current_task}}
+
+Available tools: {tools}"""
+```
+
+## 💾 MemoryManager Operations
+
+### **Core Memory Operations**
+```python
+# Add or update memory variable
+await self.memory_manager.add_memory(
+    agent_id=self.agent_id,
+    name="user_preference",
+    content="Likes detailed technical explanations",
+    session_name=session_name
+)
+
+# Retrieve specific memory
+memory = await self.memory_manager.get_memory(
+    agent_id=self.agent_id,
+    name="user_preference",
+    session_name=session_name
+)
+
+# Get all memories for session
+all_memories = await self.memory_manager.get_all_memories(
+    agent_id=self.agent_id,
+    session_name=session_name
+)
+```
+
+### **Advanced Memory Usage**
+```python
+class AdvancedMemoryAgent(AutomagikAgent):
+    async def handle_user_preference(self, preference: str, session_name: str):
+        """Store user preference for future reference."""
+        await self.memory_manager.add_memory(
+            agent_id=self.agent_id,
+            name="preferences",
+            content=preference,
+            session_name=session_name
+        )
+    
+    async def track_conversation_goal(self, goal: str, session_name: str):
+        """Track what user is trying to accomplish."""
+        await self.memory_manager.add_memory(
+            agent_id=self.agent_id,
+            name="conversation_goal",
+            content=goal,
+            session_name=session_name
+        )
+```
+
+## 🌐 Memory API Integration
+
+### **Auto-Generated Memory Endpoints**
+```python
+# Available for each agent:
+POST   /api/v1/agent/{agent_name}/memory       # Add memory
+GET    /api/v1/agent/{agent_name}/memory       # Get all memories
+GET    /api/v1/agent/{agent_name}/memory/{name} # Get specific memory
+DELETE /api/v1/agent/{agent_name}/memory/{name} # Delete memory
+```
+
+### **Memory API Usage Examples**
+```bash
+# Add memory
+curl -X POST http://localhost:8000/api/v1/agent/my_agent/memory \
+  -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "user_preference", "content": "Prefers technical details", "session_name": "user123"}'
+
+# Get all memories for session
+curl -X GET "http://localhost:8000/api/v1/agent/my_agent/memory?session_name=user123" \
+  -H "X-API-Key: your-key"
+```
+
+## 🧪 Memory Testing Patterns
+
+### **Memory Persistence Testing**
+```python
+@pytest.mark.asyncio
+async def test_memory_persistence():
+    agent = TestAgent()
+    session = "test_session"
+    
+    # Add memory
+    await agent.memory_manager.add_memory(
+        agent_id=agent.agent_id,
+        name="test_preference",
+        content="Likes concise answers",
+        session_name=session
+    )
+    
+    # Verify memory persists
+    memory = await agent.memory_manager.get_memory(
+        agent_id=agent.agent_id,
+        name="test_preference",
+        session_name=session
+    )
+    
+    assert memory == "Likes concise answers"
+```
+
+### **Template Injection Testing**
+```python
+@pytest.mark.asyncio
+async def test_template_injection():
+    agent = TestAgent()
+    session = "template_test"
+    
+    # Add custom memory
+    await agent.memory_manager.add_memory(
+        agent_id=agent.agent_id,
+        name="user_name",
+        content="Alice",
+        session_name=session
+    )
+    
+    # Process message - should include user_name in prompt
+    response = await agent.process_message("Hello", session)
+    assert response is not None
+```
+
+## 📋 Memory Best Practices
+
+### **Design Principles**
+1. **Specific Names**: Use descriptive memory variable names
+2. **Structured Content**: Store structured data as JSON when appropriate
+3. **Session Isolation**: Always use session_name for user separation
+4. **Memory Cleanup**: Implement cleanup for old/unused memories
+5. **Template Efficiency**: Don't over-populate prompts with irrelevant context
+
+### **Security Considerations**
+```python
+def validate_memory_content(self, content: str) -> bool:
+    """Validate memory content for security."""
+    sensitive_patterns = ['password', 'api_key', 'secret']
+    return not any(pattern in content.lower() for pattern in sensitive_patterns)
+
+def sanitize_content(self, content: str) -> str:
+    """Sanitize content before storage."""
+    return content.strip()[:1000]  # Limit length and remove dangerous content
+```
+
+## 🎯 Strategic Memory Usage
+
+### **Query Strategies**
+- **Use specific terms** for better search results
+- **Include context keywords** (component, pattern, error)
+- **Search before implementing** similar features
+- **Regular memory queries** during development
+
+### **Storage Guidelines**
+- **Add memory after successful implementations**
+- **Include context and reasoning** in stored text
+- **Store both what worked and what didn't**
+- **Update memory with project insights**
+
+### **Template Variable Guidelines**
+- **Use built-in variables** for standard context
+- **Create custom variables** for project-specific needs
+- **Structure templates** for readability
+- **Test template injection** in development
+
+---
+
+**Remember**: Memory is persistent context. Search before coding, store after learning. Use session isolation, template variables for dynamic prompts, and MemoryManager for programmatic control.
