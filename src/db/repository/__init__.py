@@ -78,20 +78,20 @@ from src.db.repository.prompt import (
     delete_prompt
 )
 
-# MCP repository functions
-from src.db.repository.mcp import (
-    get_mcp_server,
-    get_mcp_server_by_name,
-    list_mcp_servers,
-    create_mcp_server,
-    update_mcp_server,
-    update_mcp_server_status,
-    update_mcp_server_discovery,
-    increment_connection_attempts,
-    delete_mcp_server,
-    assign_agent_to_server,
-    remove_agent_from_server,
-    get_agent_servers,
-    get_server_agents,
-    get_agent_server_assignments
-)
+# MCP repository functions - TEMPORARILY DISABLED (missing module)
+# from src.db.repository.mcp import (
+#     get_mcp_server,
+#     get_mcp_server_by_name,
+#     list_mcp_servers,
+#     create_mcp_server,
+#     update_mcp_server,
+#     update_mcp_server_status,
+#     update_mcp_server_discovery,
+#     increment_connection_attempts,
+#     delete_mcp_server,
+#     assign_agent_to_server,
+#     remove_agent_from_server,
+#     get_agent_servers,
+#     get_server_agents,
+#     get_agent_server_assignments
+# )
