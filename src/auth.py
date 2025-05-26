@@ -10,11 +10,12 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Skip auth for health check, root, and documentation endpoints
         no_auth_paths = [
-            "/health", 
+            "/health",
             "/",
             "/api/v1/docs",
             "/api/v1/redoc",
-            "/api/v1/openapi.json"
+            "/api/v1/openapi.json",
+            "/api/v1/mcp/health"
         ]
         
         # Check if this path should bypass authentication
