@@ -1,0 +1,78 @@
+{
+  "family_id": 96,
+  "family_name": "CABOS",
+  "specs_schema": {
+    "comprimento": {
+      "type": "number",
+      "description": "Comprimento do cabo em metros",
+      "minimum": 0.1
+    },
+    "tipo_conector": {
+      "type": "string",
+      "description": "Tipo de conector nas extremidades do cabo",
+      "enum": [
+        "USB-A",
+        "USB-C",
+        "HDMI",
+        "VGA",
+        "RJ45",
+        "DisplayPort",
+        "Jack 3.5mm"
+      ]
+    },
+    "revestimento": {
+      "type": "string",
+      "description": "Material de revestimento do cabo",
+      "enum": [
+        "PVC",
+        "Nylon",
+        "TPE"
+      ]
+    },
+    "suporte_audio": {
+      "type": "boolean",
+      "description": "Indica se o cabo suporta transmissão de áudio"
+    },
+    "suporte_video": {
+      "type": "boolean",
+      "description": "Indica se o cabo suporta transmissão de vídeo"
+    },
+    "taxa_transmissao_dados": {
+      "type": "number",
+      "description": "Taxa máxima de transmissão de dados em Gbps",
+      "minimum": 0.01
+    },
+    "cor": {
+      "type": "string",
+      "description": "Cor do cabo",
+      "enum": [
+        "preto",
+        "branco",
+        "cinza",
+        "vermelho",
+        "azul",
+        "verde"
+      ]
+    },
+    "blindagem": {
+      "type": "string",
+      "description": "Tipo de blindagem do cabo",
+      "enum": [
+        "nenhuma",
+        "folha",
+        "trançada",
+        "dupla"
+      ]
+    },
+    "garantia": {
+      "type": "integer",
+      "description": "Tempo de garantia do produto em meses",
+      "minimum": 0
+    },
+    "peso": {
+      "type": "number",
+      "description": "Peso do cabo em gramas",
+      "minimum": 1
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "family_id": 109,
+  "family_name": "ADAPTADOR USB WIFI",
+  "specs_schema": {
+    "padrao_wifi": {
+      "type": "string",
+      "description": "Padrão Wi-Fi suportado",
+      "enum": [
+        "802.11b",
+        "802.11g",
+        "802.11n",
+        "802.11ac",
+        "802.11ax"
+      ]
+    },
+    "bandas": {
+      "type": "array",
+      "description": "Bandas de frequência suportadas",
+      "items": {
+        "type": "string",
+        "enum": [
+          "2.4GHz",
+          "5GHz"
+        ]
+      }
+    },
+    "velocidade_maxima": {
+      "type": "number",
+      "description": "Velocidade máxima de transmissão em Mbps",
+      "minimum": 1
+    },
+    "numero_antenas": {
+      "type": "integer",
+      "description": "Número de antenas presentes no dispositivo",
+      "minimum": 1
+    },
+    "tipo_antena": {
+      "type": "string",
+      "description": "Tipo de antena utilizada",
+      "enum": [
+        "interna",
+        "externa"
+      ]
+    },
+    "usb_version": {
+      "type": "string",
+      "description": "Versão da interface USB",
+      "enum": [
+        "USB 2.0",
+        "USB 3.0",
+        "USB 3.1"
+      ]
+    },
+    "seguranca": {
+      "type": "array",
+      "description": "Protocolos de segurança suportados",
+      "items": {
+        "type": "string",
+        "enum": [
+          "WEP",
+          "WPA",
+          "WPA2",
+          "WPA3"
+        ]
+      }
+    },
+    "so_compativel": {
+      "type": "array",
+      "description": "Sistemas operacionais compatíveis",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Windows 10",
+          "Windows 8",
+          "Windows 7",
+          "Linux",
+          "macOS"
+        ]
+      }
+    },
+    "dimensoes": {
+      "type": "object",
+      "description": "Dimensões do dispositivo em centímetros",
+      "properties": {
+        "altura": {
+          "type": "number",
+          "description": "Altura do dispositivo"
+        },
+        "largura": {
+          "type": "number",
+          "description": "Largura do dispositivo"
+        },
+        "comprimento": {
+          "type": "number",
+          "description": "Comprimento do dispositivo"
+        }
+      },
+      "required": [
+        "altura",
+        "largura",
+        "comprimento"
+      ]
+    },
+    "consumo_energetico": {
+      "type": "number",
+      "description": "Consumo energético em Watts",
+      "minimum": 0
+    },
+    "suporte_hotspot": {
+      "type": "boolean",
+      "description": "Indica se o dispositivo suporta função de hotspot ou tethering"
+    },
+    "garantia_meses": {
+      "type": "integer",
+      "description": "Período de garantia em meses",
+      "minimum": 0
+    }
+  }
+}
