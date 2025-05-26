@@ -17,16 +17,24 @@ The most up-to-date and detailed documentation for the API is **automatically ge
 
 API requests are authenticated using an API key.
 
-*   **Mechanism:** The client must include the API key in the `Authorization` header of each request, typically prefixed with `Bearer `.
+*   **Mechanism:** The client must include the API key in the `Authorization` header of each request, typically prefixed with `Bearer `, or in the `X-API-Key` header for MCP endpoints.
 *   **Configuration:** The required API key is set via the `AM_API_KEY` environment variable in your `.env` file.
 *   **Implementation:** Authentication logic is likely handled by middleware defined in `src/api/middleware.py` and potentially parts of `src/auth.py`.
 
-**Example `curl` Request with Authentication:**
+**Example `curl` Request with Authorization Header:**
 
 ```bash
 curl -X GET "http://localhost:8881/api/v1/some_endpoint" \
      -H "accept: application/json" \
      -H "Authorization: Bearer your_secret_internal_api_key"
+```
+
+**Example `curl` Request with X-API-Key Header (MCP endpoints):**
+
+```bash
+curl -X GET "http://localhost:8881/api/v1/mcp/servers" \
+     -H "accept: application/json" \
+     -H "X-API-Key: your_secret_internal_api_key"
 ```
 
 Replace `your_secret_internal_api_key` with the value set for `AM_API_KEY` in your `.env` file.
@@ -43,6 +51,8 @@ The API endpoints are logically grouped based on the resources they manage. You 
     *   Endpoints for managing user information (if applicable). Likely available under `/api/v1/users/`.
 *   **Memory Routes (`src/api/memory_routes.py`):**
     *   Endpoints specifically for interacting with agent memory (conversation history or structured memory). Paths might vary, potentially under sessions or agents.
+*   **MCP Routes (`src/api/routes/mcp_routes.py`):** ✨ **NEW**
+    *   Endpoints for Model Context Protocol (MCP) server and tool management. Available under `/api/v1/mcp/`. See [MCP Integration Documentation](./mcp_integration.md) for detailed information about MCP functionality, testing results, and troubleshooting.
 
 Refer to the Swagger UI (`/docs`) for the exact paths, methods, request/response details, and parameters for all endpoints within these groups.
 

@@ -1,9 +1,8 @@
 ---
-description: 
+description: Rule improvement triggers, pattern recognition, and quality checklist for automagik-agents development
 globs: 
 alwaysApply: true
 ---
-
 # Self-Improvement Rules
 
 ## 🎯 Rule Evolution Philosophy
@@ -161,6 +160,14 @@ mcp_memories_search_memory --query "rule helped implementation|rule prevented er
 - **Task completion speed**: Faster subtask completion
 
 ## 🔄 Implementation Workflow
+
+### **Task Completion Workflow**
+**Before completing any major work:**
+1. **Check Linear status**: `mcp_linear_list_issues --limit 20`
+2. **Close completed tasks**: Update status to "Done" for finished work
+3. **Cancel redundant tasks**: Mark as "Canceled" with explanation comment
+4. **Verify epic completion**: Ensure parent tasks reflect completion
+5. **Record cleanup** in memory for future reference
 
 ### **Discovering New Patterns**
 1. **Document** in memory immediately

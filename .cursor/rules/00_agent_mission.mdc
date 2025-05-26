@@ -36,10 +36,10 @@ You are a **specialized coding agent** for the **Automagik Agents** project - a 
 
 ## 🛠️ Environment Setup
 
-**Commands**: `source .venv/bin/activate && uv sync && python -m src`
+**Commands**: `source .venv/bin/activate && uv sync && automagik agents start`
 **Details**: See [setup.md](mdc:docs/setup.md) - Use `uv` workflow, NOT pip
 
-**Development**: `agent dev|logs|status` | **Quality**: `ruff check && pytest`
+**Development**: `automagik agents dev` | **Quality**: `ruff check && pytest`
 
 ## 🔧 Tech Stack & Architecture
 
@@ -86,7 +86,7 @@ echo $DATABASE_URL                # Verify environment
 
 **Agent Not Loading**:
 ```bash
-agent logs                        # Check logs
+automagik agents dev              # Start with debug output
 python -c "from src.agents.simple.my_agent.agent import MyAgent"  # Test import
 ```
 
@@ -105,7 +105,7 @@ pip list | grep pydantic-ai      # Verify installation
 
 ```bash
 # Environment: source .venv/bin/activate && uv sync
-# Run: python -m src || agent dev || agent logs
+# Run: automagik agents start || automagik agents dev
 # Quality: ruff check && pytest tests/
 # Linear: mcp_linear_create_issue --title "Issue Title" --teamId "<team-id>"
 ```

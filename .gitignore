@@ -201,3 +201,14 @@ node_modules/
 tasks.json
 tasks/ 
 .taskmasterconfig
+
+# Development script organization
+# Track the dev directory structure but manage temp files
+dev/temp/*
+!dev/temp/README.md
+# Allow versioning of development tools and sandbox experiments
+# but ignore common temporary files
+dev/**/*.tmp
+dev/**/*.temp
+dev/**/*.bak
+dev/**/.DS_Store
