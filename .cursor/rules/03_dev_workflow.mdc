@@ -152,9 +152,41 @@ from .my_service import service_tools
 __all__.append("service_tools")
 ```
 
-## 🧪 Testing Requirements
+## 🧪 Testing Requirements & Organization
 
-**Feature Testing Mandate**:
+### **Test Directory Structure** (MANDATORY)
+```
+tests/
+├── unit/              # Isolated component testing
+│   └── test_mcp_core.py
+├── integration/       # Multi-component testing
+│   └── test_mcp_integration.py
+├── api/              # API endpoint testing
+│   └── test_mcp_routes.py
+├── db/               # Database layer testing
+│   └── test_mcp_repository.py
+├── tools/            # Tool-specific testing
+├── agents/           # Agent-specific testing
+├── utils/            # Utility function testing
+└── perf/             # Performance testing
+```
+
+### **File Placement Rules** ✅ **DO** / ❌ **DON'T**
+
+✅ **DO**:
+- Place unit tests in `tests/unit/test_[module_name].py`
+- Place integration tests in `tests/integration/test_[feature_name].py`
+- Place API tests in `tests/api/test_[route_name].py`
+- Use descriptive test file names matching component being tested
+- **NEVER create test files at project root**
+
+❌ **DON'T**:
+- Create test files in project root directory (causes repo mess)
+- Mix different test types in same file
+- Use generic names like `test.py` or `temp_test.py`
+- Skip test organization when debugging
+
+### **Feature Testing Mandate**:
 - **Unit Tests**: Test individual components in isolation
 - **Integration Tests**: Test feature with framework components
 - **Memory Tests**: Test memory persistence and retrieval

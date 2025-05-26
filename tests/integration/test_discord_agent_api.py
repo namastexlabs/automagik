@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # Ensure the API host and key are set as environment variables
-API_HOST = os.getenv("AM_AGENTS_API_HOST", "192.168.112.129:8881")  # Use the same default as stan_agent test
+from src.config import load_settings
+settings = load_settings()
+# Use AM_HOST setting, but if it's 0.0.0.0 (bind all interfaces), use localhost for client connection
+host = "localhost" if settings.AM_HOST == "0.0.0.0" else settings.AM_HOST
+API_HOST = f"{host}:{settings.AM_PORT}"  # Use proper settings with host and port
 API_KEY = os.getenv("AM_API_KEY")
 AGENT_ENDPOINT = f"http://{API_HOST}/api/v1/agent/discord/run"  # Using 'discord' as the agent name
 TEST_USER_IDENTIFIER = "discord-test-user@example.com"  # Use email for get/create
