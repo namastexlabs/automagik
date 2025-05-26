@@ -1,0 +1,484 @@
+[
+  {
+    "family_id": 65,
+    "family_name": "ACESSÓRIOS GABINETE",
+    "specs_schema": {
+      "compatibilidade_placa_mae": {
+        "type": "string",
+        "description": "Tipos de placas-mãe com os quais o acessório é compatível",
+        "enum": [
+          "ATX",
+          "Micro-ATX",
+          "Mini-ITX"
+        ]
+      },
+      "material": {
+        "type": "string",
+        "description": "Material do acessório do gabinete",
+        "enum": [
+          "Aço",
+          "Alumínio",
+          "Plástico"
+        ]
+      },
+      "peso": {
+        "type": "number",
+        "description": "Peso do acessório em gramas",
+        "format": "grams"
+      },
+      "cor": {
+        "type": "string",
+        "description": "Cor do acessório"
+      },
+      "dimensoes": {
+        "type": "object",
+        "description": "Dimensões do acessório",
+        "properties": {
+          "altura": {
+            "type": "number",
+            "description": "Altura em milímetros",
+            "format": "mm"
+          },
+          "largura": {
+            "type": "number",
+            "description": "Largura em milímetros",
+            "format": "mm"
+          },
+          "profundidade": {
+            "type": "number",
+            "description": "Profundidade em milímetros",
+            "format": "mm"
+          }
+        }
+      },
+      "slots_de_expansao": {
+        "type": "integer",
+        "description": "Número de slots de expansão",
+        "minimum": 0
+      },
+      "suporte_refrigeracao_liquida": {
+        "type": "boolean",
+        "description": "Indica se o acessório oferece suporte para refrigeração líquida"
+      },
+      "ventiladores_inclusos": {
+        "type": "integer",
+        "description": "Número de ventiladores inclusos",
+        "minimum": 0
+      },
+      "conectores_usb": {
+        "type": "integer",
+        "description": "Quantidade de conectores USB disponíveis",
+        "minimum": 0
+      },
+      "filtros_de_poeira": {
+        "type": "boolean",
+        "description": "Indica se o acessório possui filtros de poeira integrados"
+      }
+    }
+  },
+  {
+    "family_id": 113,
+    "family_name": "ACESSÓRIOS OFFICE",
+    "specs_schema": {
+      "tipo_acessorio": {
+        "type": "string",
+        "description": "Tipo de acessório de escritório, como teclado, mouse, fone de ouvido, etc.",
+        "enum": [
+          "teclado",
+          "mouse",
+          "fone de ouvido",
+          "hub USB",
+          "suporte para laptop"
+        ]
+      },
+      "marca": {
+        "type": "string",
+        "description": "Marca do acessório",
+        "examples": [
+          "Logitech",
+          "Microsoft",
+          "HP",
+          "Dell",
+          "Razer"
+        ]
+      },
+      "modelo": {
+        "type": "string",
+        "description": "Modelo específico do acessório"
+      },
+      "conectividade": {
+        "type": "string",
+        "description": "Tipo de conectividade do acessório",
+        "enum": [
+          "com fio",
+          "sem fio",
+          "Bluetooth"
+        ]
+      },
+      "interface_conexao": {
+        "type": "string",
+        "description": "Interface de conexão do acessório, como USB-A, USB-C, etc.",
+        "enum": [
+          "USB-A",
+          "USB-C",
+          "Bluetooth",
+          "2.4GHz Wireless"
+        ]
+      },
+      "compatibilidade_sistema": {
+        "type": "array",
+        "description": "Lista de sistemas operacionais compatíveis",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Windows",
+            "macOS",
+            "Linux",
+            "Chrome OS"
+          ]
+        }
+      },
+      "peso": {
+        "type": "number",
+        "description": "Peso do acessório em gramas",
+        "unit": "g",
+        "minimum": 10
+      },
+      "dimensoes": {
+        "type": "object",
+        "description": "Dimensões do acessório em milímetros",
+        "properties": {
+          "largura": {
+            "type": "number",
+            "description": "Largura do acessório",
+            "unit": "mm",
+            "minimum": 10
+          },
+          "altura": {
+            "type": "number",
+            "description": "Altura do acessório",
+            "unit": "mm",
+            "minimum": 10
+          },
+          "profundidade": {
+            "type": "number",
+            "description": "Profundidade do acessório",
+            "unit": "mm",
+            "minimum": 10
+          }
+        }
+      },
+      "cor": {
+        "type": "string",
+        "description": "Cor do acessório",
+        "examples": [
+          "preto",
+          "branco",
+          "prata",
+          "azul",
+          "vermelho"
+        ]
+      },
+      "preco": {
+        "type": "number",
+        "description": "Preço recomendado de venda ao público em Reais",
+        "unit": "BRL",
+        "minimum": 0
+      },
+      "garantia": {
+        "type": "integer",
+        "description": "Período de garantia do acessório em meses",
+        "minimum": 0
+      }
+    }
+  },
+  {
+    "family_id": 109,
+    "family_name": "ADAPTADOR USB WIFI",
+    "specs_schema": {
+      "padrão_wifi": {
+        "type": "string",
+        "description": "Padrão Wi-Fi suportado (e.g., 802.11ac, 802.11n)",
+        "enum": [
+          "802.11a",
+          "802.11b",
+          "802.11g",
+          "802.11n",
+          "802.11ac",
+          "802.11ax"
+        ]
+      },
+      "frequência": {
+        "type": "array",
+        "description": "Frequências de operação suportadas (e.g., 2,4 GHz, 5 GHz)",
+        "items": {
+          "type": "string",
+          "enum": [
+            "2,4 GHz",
+            "5 GHz"
+          ]
+        }
+      },
+      "velocidade_maxima": {
+        "type": "integer",
+        "description": "Velocidade máxima de conexão em Mbps",
+        "minimum": 150
+      },
+      "interface_usb": {
+        "type": "string",
+        "description": "Tipo de interface USB (e.g., USB 2.0, USB 3.0)",
+        "enum": [
+          "USB 2.0",
+          "USB 3.0",
+          "USB 3.1"
+        ]
+      },
+      "compatibilidade_sistema_operacional": {
+        "type": "array",
+        "description": "Sistemas operacionais compatíveis",
+        "items": {
+          "type": "string"
+        }
+      },
+      "seguranca": {
+        "type": "array",
+        "description": "Protocolos de segurança suportados",
+        "items": {
+          "type": "string",
+          "enum": [
+            "WEP",
+            "WPA",
+            "WPA2",
+            "WPA3"
+          ]
+        }
+      },
+      "antena": {
+        "type": "object",
+        "description": "Informações sobre a antena do adaptador",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "description": "Tipo de antena (e.g., interna, externa)",
+            "enum": [
+              "interna",
+              "externa"
+            ]
+          },
+          "ganho": {
+            "type": "number",
+            "description": "Ganho da antena em dBi",
+            "minimum": 0.0
+          }
+        }
+      },
+      "suporte_mimo": {
+        "type": "boolean",
+        "description": "Indica se o adaptador suporta tecnologia MIMO"
+      },
+      "encriptação": {
+        "type": "boolean",
+        "description": "Indica se o adaptador suporta encriptação de dados"
+      }
+    }
+  },
+  {
+    "family_id": 104,
+    "family_name": "AUTO CARE",
+    "specs_schema": {
+      "volume": {
+        "type": "number",
+        "description": "Volume do produto em litros ou mililitros",
+        "format": "float"
+      },
+      "tipo_produto": {
+        "type": "string",
+        "description": "Tipo de produto de cuidado automotivo",
+        "enum": [
+          "Cera",
+          "Shampoo",
+          "Condicionador",
+          "Limpeza de Vidros",
+          "Limpador de Pneus"
+        ]
+      },
+      "compatibilidade": {
+        "type": "array",
+        "description": "Compatibilidade do produto com diferentes superfícies",
+        "items": {
+          "type": "string"
+        },
+        "enum": [
+          "Pintura",
+          "Plástico",
+          "Borracha",
+          "Vidro",
+          "Couro"
+        ]
+      },
+      "biodegradavel": {
+        "type": "boolean",
+        "description": "Indica se o produto é biodegradável"
+      },
+      "tempo_acao": {
+        "type": "integer",
+        "description": "Tempo necessário para o produto agir em minutos"
+      },
+      "aroma": {
+        "type": "string",
+        "description": "Fragrância do produto",
+        "enum": [
+          "Lavanda",
+          "Cítrico",
+          "Amadeirado",
+          "Sem Aroma"
+        ]
+      },
+      "modo_aplicacao": {
+        "type": "string",
+        "description": "Modo de aplicação do produto"
+      }
+    }
+  },
+  {
+    "family_id": 84,
+    "family_name": "BOARD GAMES",
+    "specs_schema": {
+      "jogadores_suportados": {
+        "type": "integer",
+        "description": "Número de jogadores que o jogo suporta"
+      },
+      "idade_minima": {
+        "type": "integer",
+        "description": "Idade mínima recomendada para jogar"
+      },
+      "tempo_estimado": {
+        "type": "string",
+        "description": "Tempo estimado de duração de uma partida",
+        "format": "hh:mm"
+      },
+      "nivel_dificuldade": {
+        "type": "string",
+        "description": "Nível de dificuldade do jogo",
+        "enum": [
+          "fácil",
+          "médio",
+          "difícil"
+        ]
+      },
+      "componentes_inclusos": {
+        "type": "array",
+        "description": "Lista de componentes incluídos no jogo",
+        "items": {
+          "type": "string"
+        }
+      },
+      "peso": {
+        "type": "number",
+        "description": "Peso do jogo em quilogramas",
+        "format": "float"
+      },
+      "editor": {
+        "type": "string",
+        "description": "Nome do editor ou fabricante do jogo"
+      },
+      "categorias": {
+        "type": "array",
+        "description": "Categorias ou gêneros do jogo",
+        "items": {
+          "type": "string"
+        }
+      },
+      "ano_lancamento": {
+        "type": "integer",
+        "description": "Ano de lançamento do jogo",
+        "format": "year"
+      },
+      "idiomas_disponiveis": {
+        "type": "array",
+        "description": "Idiomas disponíveis no jogo",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "family_id": 96,
+    "family_name": "CABOS",
+    "specs_schema": {
+      "comprimento": {
+        "type": "number",
+        "description": "Comprimento do cabo em metros",
+        "minimum": 0.1
+      },
+      "tipo_conector": {
+        "type": "string",
+        "description": "Tipo de conector nas extremidades do cabo",
+        "enum": [
+          "USB-A",
+          "USB-C",
+          "HDMI",
+          "VGA",
+          "RJ45",
+          "DisplayPort",
+          "Jack 3.5mm"
+        ]
+      },
+      "revestimento": {
+        "type": "string",
+        "description": "Material de revestimento do cabo",
+        "enum": [
+          "PVC",
+          "Nylon",
+          "TPE"
+        ]
+      },
+      "suporte_audio": {
+        "type": "boolean",
+        "description": "Indica se o cabo suporta transmissão de áudio"
+      },
+      "suporte_video": {
+        "type": "boolean",
+        "description": "Indica se o cabo suporta transmissão de vídeo"
+      },
+      "taxa_transmissao_dados": {
+        "type": "number",
+        "description": "Taxa máxima de transmissão de dados em Gbps",
+        "minimum": 0.01
+      },
+      "cor": {
+        "type": "string",
+        "description": "Cor do cabo",
+        "enum": [
+          "preto",
+          "branco",
+          "cinza",
+          "vermelho",
+          "azul",
+          "verde"
+        ]
+      },
+      "blindagem": {
+        "type": "string",
+        "description": "Tipo de blindagem do cabo",
+        "enum": [
+          "nenhuma",
+          "folha",
+          "trançada",
+          "dupla"
+        ]
+      },
+      "garantia": {
+        "type": "integer",
+        "description": "Tempo de garantia do produto em meses",
+        "minimum": 0
+      },
+      "peso": {
+        "type": "number",
+        "description": "Peso do cabo em gramas",
+        "minimum": 1
+      }
+    }
+  }
+]

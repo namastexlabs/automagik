@@ -1,0 +1,108 @@
+{
+  "family_id": 113,
+  "family_name": "ACESSÓRIOS OFFICE",
+  "specs_schema": {
+    "produto_tipo": {
+      "type": "string",
+      "description": "Tipo do produto, por exemplo, teclado, mouse, headset, webcam ou outro",
+      "enum": [
+        "teclado",
+        "mouse",
+        "headset",
+        "webcam",
+        "outro"
+      ]
+    },
+    "modelo": {
+      "type": "string",
+      "description": "Modelo ou versão do produto"
+    },
+    "marca": {
+      "type": "string",
+      "description": "Marca do produto"
+    },
+    "cor": {
+      "type": "string",
+      "description": "Cor predominante do produto",
+      "enum": [
+        "preto",
+        "branco",
+        "cinza",
+        "vermelho",
+        "azul",
+        "verde",
+        "amarelo",
+        "outro"
+      ]
+    },
+    "conectividade": {
+      "type": "string",
+      "description": "Tipo de conectividade, por exemplo: com fio ou sem fio",
+      "enum": [
+        "com_fio",
+        "sem_fio"
+      ]
+    },
+    "interface_conexao": {
+      "type": "string",
+      "description": "Interface de conexão utilizada, como USB, Bluetooth, RF, etc.",
+      "enum": [
+        "usb",
+        "bluetooth",
+        "rf",
+        "outro"
+      ]
+    },
+    "compatibilidade": {
+      "type": "array",
+      "description": "Lista de sistemas operacionais ou dispositivos compatíveis",
+      "items": {
+        "type": "string"
+      }
+    },
+    "garantia_meses": {
+      "type": "integer",
+      "description": "Período de garantia do produto em meses",
+      "minimum": 0
+    },
+    "peso": {
+      "type": "number",
+      "description": "Peso do produto em quilogramas"
+    },
+    "dimensoes": {
+      "type": "object",
+      "description": "Dimensões do produto em centímetros",
+      "properties": {
+        "comprimento": {
+          "type": "number",
+          "description": "Comprimento do produto em centímetros"
+        },
+        "largura": {
+          "type": "number",
+          "description": "Largura do produto em centímetros"
+        },
+        "altura": {
+          "type": "number",
+          "description": "Altura do produto em centímetros"
+        }
+      },
+      "required": [
+        "comprimento",
+        "largura",
+        "altura"
+      ]
+    },
+    "material": {
+      "type": "string",
+      "description": "Material predominante do produto, por exemplo, plástico, metal, etc."
+    },
+    "consumo_energetico": {
+      "type": "number",
+      "description": "Consumo energético do produto em Watts (se aplicável)"
+    },
+    "bateria_incorporada": {
+      "type": "boolean",
+      "description": "Indica se o produto possui bateria incorporada (true para sim, false para não)"
+    }
+  }
+}

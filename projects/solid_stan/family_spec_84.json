@@ -1,0 +1,63 @@
+{
+  "family_id": 84,
+  "family_name": "BOARD GAMES",
+  "specs_schema": {
+    "jogadores_suportados": {
+      "type": "integer",
+      "description": "Número de jogadores que o jogo suporta"
+    },
+    "idade_minima": {
+      "type": "integer",
+      "description": "Idade mínima recomendada para jogar"
+    },
+    "tempo_estimado": {
+      "type": "string",
+      "description": "Tempo estimado de duração de uma partida",
+      "format": "hh:mm"
+    },
+    "nivel_dificuldade": {
+      "type": "string",
+      "description": "Nível de dificuldade do jogo",
+      "enum": [
+        "fácil",
+        "médio",
+        "difícil"
+      ]
+    },
+    "componentes_inclusos": {
+      "type": "array",
+      "description": "Lista de componentes incluídos no jogo",
+      "items": {
+        "type": "string"
+      }
+    },
+    "peso": {
+      "type": "number",
+      "description": "Peso do jogo em quilogramas",
+      "format": "float"
+    },
+    "editor": {
+      "type": "string",
+      "description": "Nome do editor ou fabricante do jogo"
+    },
+    "categorias": {
+      "type": "array",
+      "description": "Categorias ou gêneros do jogo",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ano_lancamento": {
+      "type": "integer",
+      "description": "Ano de lançamento do jogo",
+      "format": "year"
+    },
+    "idiomas_disponiveis": {
+      "type": "array",
+      "description": "Idiomas disponíveis no jogo",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
