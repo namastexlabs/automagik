@@ -144,14 +144,17 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Initialize database if needed
+        # The database needs to be available first
         try:
-            logger.info("🚀 Ensuring database is initialized...")
+            logger.info("🏗️ Initializing database for application startup...")
+            # Use the existing database initialization pattern
             db_init(force=False)  # Call db_init from src.cli.db, explicitly setting force=False
-            logger.info("✅ Database initialization check complete.")
+            logger.info("✅ Database initialization completed")
         except Exception as e:
-            logger.error(f"❌ Failed during database initialization check: {str(e)}")
+            logger.error(f"❌ Database initialization failed: {str(e)}")
+            # Continue startup even if database init fails for development
             logger.error(f"Detailed error: {traceback.format_exc()}")
-            
+        
         # Initialize Graphiti indices and constraints if Neo4j is configured
         if settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
             try:
@@ -175,9 +178,19 @@ def create_app() -> FastAPI:
             except Exception as e:
                 logger.error(f"❌ Failed to initialize Graphiti indices and constraints: {str(e)}")
                 logger.error(f"Detailed error: {traceback.format_exc()}")
-            
-        # Initialize all agents at startup - now this is async so we can await it
+        
+        # Initialize agents after core services are ready
         await initialize_all_agents()
+        
+        # Initialize MCP client manager after database and agents are ready
+        try:
+            logger.info("🚀 Initializing MCP client manager...")
+            from src.mcp.client import get_mcp_client_manager
+            mcp_manager = await get_mcp_client_manager()
+            logger.info("✅ MCP client manager initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Error initializing MCP client manager: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Start Graphiti queue
         try:

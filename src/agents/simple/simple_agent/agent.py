@@ -10,6 +10,7 @@ import asyncio
 
 from pydantic_ai import Agent
 from src.config import settings
+from src.mcp.client import get_mcp_client_manager
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
@@ -77,12 +78,44 @@ class SimpleAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
+        # MCP Servers - Will be loaded from MCP client manager
+        self._mcp_servers = []
+        self._mcp_client_manager = None
+        
         logger.info("SimpleAgent initialized successfully")
     
+    async def _load_mcp_servers(self) -> None:
+        """Load MCP servers assigned to this agent from the MCP client manager."""
+        try:
+            # Get MCP client manager instance
+            if not self._mcp_client_manager:
+                self._mcp_client_manager = await get_mcp_client_manager()
+            
+            # Get servers assigned to this agent (using agent name)
+            agent_name = self.name if hasattr(self, 'name') else 'simple_agent'
+            servers = self._mcp_client_manager.get_servers_for_agent(agent_name)
+            
+            # Convert to PydanticAI format
+            self._mcp_servers = []
+            for server_manager in servers:
+                if server_manager.is_running:
+                    # Use the internal server instance from the manager
+                    if hasattr(server_manager, '_server') and server_manager._server:
+                        self._mcp_servers.append(server_manager._server)
+            
+            logger.info(f"Loaded {len(self._mcp_servers)} MCP servers for agent {agent_name}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load MCP servers: {str(e)}. Continuing without MCP servers.")
+            self._mcp_servers = []
+
     async def _initialize_pydantic_agent(self) -> None:
         """Initialize the underlying PydanticAI agent."""
         if self._agent_instance is not None:
             return
+            
+        # Load MCP servers first
+        await self._load_mcp_servers()
             
         # Get model configuration
         model_name = self.dependencies.model_name
@@ -93,15 +126,16 @@ class SimpleAgent(AutomagikAgent):
         logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
                     
         try:
-            # Create agent instance - system_prompt will be passed in message history
+            # Create agent instance with MCP servers - system_prompt will be passed in message history
             self._agent_instance = Agent(
                 model=model_name,
                 tools=tools,
                 model_settings=model_settings,
-                deps_type=AutomagikAgentsDependencies
+                deps_type=AutomagikAgentsDependencies,
+                mcp_servers=self._mcp_servers  # Loaded from MCP client manager
             )
             
-            logger.info(f"Initialized agent with model: {model_name} and {len(tools)} tools")
+            logger.info(f"Initialized agent with model: {model_name}, {len(tools)} tools, and {len(self._mcp_servers)} MCP servers")
         except Exception as e:
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
@@ -129,7 +163,7 @@ class SimpleAgent(AutomagikAgent):
         # Ensure memory variables are initialized
         if self.db_id:
             await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
-                
+        
         # Initialize the agent
         await self._initialize_pydantic_agent()
         
@@ -163,27 +197,30 @@ class SimpleAgent(AutomagikAgent):
                 self.dependencies.set_context(self.context)
         
             # Run the agent with concurrency limit and retry logic
+            # Use the official PydanticAI MCP context manager
             from src.agents.models.automagik_agent import get_llm_semaphore
             semaphore = get_llm_semaphore()
             retries = settings.LLM_RETRY_ATTEMPTS
             last_exc: Optional[Exception] = None
+            
             async with semaphore:
-                for attempt in range(1, retries + 1):
-                    try:
-                        result = await self._agent_instance.run(
-                            user_input,
-                            message_history=pydantic_message_history,
-                            usage_limits=getattr(self.dependencies, "usage_limits", None),
-                            deps=self.dependencies
-                        )
-                        break  # success
-                    except Exception as e:
-                        last_exc = e
-                        logger.warning(f"LLM call attempt {attempt}/{retries} failed: {e}")
-                        if attempt < retries:
-                            await asyncio.sleep(2 ** (attempt - 1))
-                        else:
-                            raise
+                async with self._agent_instance.run_mcp_servers():  # Official PydanticAI MCP context manager
+                    for attempt in range(1, retries + 1):
+                        try:
+                            result = await self._agent_instance.run(
+                                user_input,
+                                message_history=pydantic_message_history,
+                                usage_limits=getattr(self.dependencies, "usage_limits", None),
+                                deps=self.dependencies
+                            )
+                            break  # success
+                        except Exception as e:
+                            last_exc = e
+                            logger.warning(f"LLM call attempt {attempt}/{retries} failed: {e}")
+                            if attempt < retries:
+                                await asyncio.sleep(2 ** (attempt - 1))
+                            else:
+                                raise
             
             # Extract tool calls and outputs
             all_messages = extract_all_messages(result)
@@ -214,7 +251,7 @@ class SimpleAgent(AutomagikAgent):
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
             )
 
-    # ------------------------------------------------------------------
+    # -----------------------@-------------------------------------------
     # Backwards-compatibility shim
     # ------------------------------------------------------------------
     async def _initialize_agent(self) -> None:  # noqa: D401

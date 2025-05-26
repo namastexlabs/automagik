@@ -1,0 +1,370 @@
+"""MCP server wrapper and manager for automagik-agents framework."""
+
+import asyncio
+import logging
+import time
+from datetime import datetime
+from typing import Dict, List, Optional, Any, Callable
+from contextlib import asynccontextmanager
+
+from pydantic_ai.tools import Tool as PydanticTool
+from pydantic_ai import Agent
+
+try:
+    from pydantic_ai.mcp import MCPServer, MCPServerStdio, MCPServerHTTP
+except ImportError:
+    # Fallback for older versions or if MCP is not available
+    MCPServer = None
+    MCPServerStdio = None  
+    MCPServerHTTP = None
+
+from .models import (
+    MCPServerConfig, 
+    MCPServerStatus, 
+    MCPServerState, 
+    MCPServerType,
+    MCPToolInfo,
+    MCPResourceInfo
+)
+from .exceptions import MCPError, MCPServerError, MCPConnectionError, MCPToolError
+
+logger = logging.getLogger(__name__)
+
+
+class MCPServerManager:
+    """Manages a single MCP server instance and its lifecycle."""
+    
+    def __init__(self, config: MCPServerConfig):
+        """Initialize MCP server manager.
+        
+        Args:
+            config: MCP server configuration
+        """
+        if not MCPServer:
+            raise MCPError("MCP support not available - pydantic_ai.mcp not found")
+            
+        self.config = config
+        self.state = MCPServerState(
+            name=config.name,
+            status=MCPServerStatus.STOPPED
+        )
+        self._server: Optional[MCPServer] = None
+        self._server_class = None
+        self._server_args = None
+        self._server_context = None
+        self._tools: Dict[str, MCPToolInfo] = {}
+        self._resources: Dict[str, MCPResourceInfo] = {}
+        self._connection_lock = asyncio.Lock()
+        
+    @property
+    def name(self) -> str:
+        """Get server name."""
+        return self.config.name
+        
+    @property
+    def status(self) -> MCPServerStatus:
+        """Get current server status."""
+        return self.state.status
+        
+    @property
+    def is_running(self) -> bool:
+        """Check if server is running."""
+        return self.state.status == MCPServerStatus.RUNNING
+        
+    @property
+    def tools(self) -> List[MCPToolInfo]:
+        """Get list of available tools."""
+        return list(self._tools.values())
+        
+    @property
+    def resources(self) -> List[MCPResourceInfo]:
+        """Get list of available resources."""
+        return list(self._resources.values())
+        
+    async def start(self) -> None:
+        """Start the MCP server."""
+        async with self._connection_lock:
+            if self.is_running:
+                logger.info(f"MCP server {self.name} is already running")
+                return
+                
+            try:
+                self.state.status = MCPServerStatus.STARTING
+                self.state.connection_attempts += 1
+                logger.info(f"Starting MCP server: {self.name}")
+                
+                # Create server instance based on type
+                if self.config.server_type == MCPServerType.STDIO:
+                    if not self.config.command:
+                        raise MCPServerError("Command required for stdio server", self.name)
+                    
+                    # Split command into command and args
+                    if len(self.config.command) == 0:
+                        raise MCPServerError("Command cannot be empty", self.name)
+                    
+                    command = self.config.command[0]
+                    args = self.config.command[1:] if len(self.config.command) > 1 else []
+                    
+                    # Create server instance
+                    self._server_class = MCPServerStdio
+                    self._server_args = {
+                        'command': command,
+                        'args': args,
+                        'env': self.config.env or {}
+                    }
+                    
+                    # Start using async context manager
+                    self._server = self._server_class(**self._server_args)
+                    self._server_context = await self._server.__aenter__()
+                    
+                elif self.config.server_type == MCPServerType.HTTP:
+                    if not self.config.http_url:
+                        raise MCPServerError("HTTP URL required for HTTP server", self.name)
+                    
+                    # Create server instance
+                    self._server_class = MCPServerHTTP
+                    self._server_args = {'url': self.config.http_url}
+                    
+                    # Start using async context manager
+                    self._server = self._server_class(**self._server_args)
+                    self._server_context = await self._server.__aenter__()
+                    
+                else:
+                    raise MCPServerError(f"Unknown server type: {self.config.server_type}", self.name)
+                
+                # Discover tools and resources
+                await self._discover_capabilities()
+                
+                self.state.status = MCPServerStatus.RUNNING
+                self.state.started_at = datetime.now()
+                self.state.last_error = None
+                self.state.error_count = 0
+                
+                logger.info(f"MCP server {self.name} started successfully")
+                logger.info(f"Discovered {len(self._tools)} tools and {len(self._resources)} resources")
+                
+            except Exception as e:
+                self.state.status = MCPServerStatus.ERROR
+                self.state.last_error = str(e)
+                self.state.error_count += 1
+                
+                logger.error(f"Failed to start MCP server {self.name}: {str(e)}")
+                
+                # Cleanup on failure
+                if self._server:
+                    try:
+                        await self._server.__aexit__(None, None, None)
+                    except Exception as cleanup_error:
+                        logger.error(f"Error during cleanup: {cleanup_error}")
+                    finally:
+                        self._server = None
+                        self._server_context = None
+                
+                raise MCPServerError(f"Failed to start server: {str(e)}", self.name)
+    
+    async def stop(self) -> None:
+        """Stop the MCP server."""
+        async with self._connection_lock:
+            if not self.is_running and self._server is None:
+                logger.info(f"MCP server {self.name} is already stopped")
+                return
+                
+            try:
+                self.state.status = MCPServerStatus.STOPPING
+                logger.info(f"Stopping MCP server: {self.name}")
+                
+                if self._server:
+                    # Properly exit the async context manager
+                    await self._server.__aexit__(None, None, None)
+                    self._server = None
+                    self._server_context = None
+                
+                self._tools.clear()
+                self._resources.clear()
+                
+                self.state.status = MCPServerStatus.STOPPED
+                self.state.started_at = None
+                
+                logger.info(f"MCP server {self.name} stopped successfully")
+                
+            except Exception as e:
+                self.state.status = MCPServerStatus.ERROR
+                self.state.last_error = str(e)
+                self.state.error_count += 1
+                
+                logger.error(f"Error stopping MCP server {self.name}: {str(e)}")
+                raise MCPServerError(f"Failed to stop server: {str(e)}", self.name)
+    
+    async def restart(self) -> None:
+        """Restart the MCP server."""
+        logger.info(f"Restarting MCP server: {self.name}")
+        await self.stop()
+        await self.start()
+    
+    async def ping(self) -> bool:
+        """Ping the server to check if it's responsive."""
+        if not self.is_running or not self._server:
+            return False
+        
+        try:
+            # For stdio servers, we can check if the process is still alive
+            if hasattr(self._server, 'process') and self._server.process:
+                if self._server.process.returncode is not None:
+                    return False
+            
+            # Update last ping time
+            self.state.last_ping = datetime.now()
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Ping failed for MCP server {self.name}: {str(e)}")
+            return False
+    
+    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+        """Call a tool on the MCP server.
+        
+        Args:
+            tool_name: Name of the tool to call
+            arguments: Arguments to pass to the tool
+            
+        Returns:
+            Tool execution result
+            
+        Raises:
+            MCPToolError: If tool call fails
+        """
+        if not self.is_running or not self._server:
+            raise MCPToolError(f"Server {self.name} is not running", tool_name, self.name)
+        
+        if tool_name not in self._tools:
+            raise MCPToolError(f"Tool {tool_name} not found", tool_name, self.name)
+        
+        try:
+            start_time = time.time()
+            
+            # Call the tool through the MCP server
+            result = await self._server.call_tool(tool_name, arguments)
+            
+            execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            
+            logger.debug(f"Tool {tool_name} executed in {execution_time:.2f}ms")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Tool call failed: {tool_name} on {self.name}: {str(e)}")
+            raise MCPToolError(f"Tool execution failed: {str(e)}", tool_name, self.name)
+    
+    async def access_resource(self, uri: str) -> Any:
+        """Access a resource on the MCP server.
+        
+        Args:
+            uri: URI of the resource to access
+            
+        Returns:
+            Resource content
+            
+        Raises:
+            MCPToolError: If resource access fails
+        """
+        if not self.is_running or not self._server:
+            raise MCPToolError(f"Server {self.name} is not running", server_name=self.name)
+        
+        if uri not in self._resources:
+            raise MCPToolError(f"Resource {uri} not found", server_name=self.name)
+        
+        try:
+            # Access the resource through the MCP server
+            result = await self._server.read_resource(uri)
+            
+            logger.debug(f"Resource {uri} accessed successfully")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Resource access failed: {uri} on {self.name}: {str(e)}")
+            raise MCPToolError(f"Resource access failed: {str(e)}", server_name=self.name)
+    
+    async def _discover_capabilities(self) -> None:
+        """Discover tools and resources available on the server."""
+        if not self._server:
+            return
+        
+        try:
+            # Discover tools
+            tools = await self._server.list_tools()
+            self._tools.clear()
+            
+            for tool in tools:
+                tool_info = MCPToolInfo(
+                    name=tool.name,
+                    description=getattr(tool, 'description', None),
+                    server_name=self.name,
+                    input_schema=getattr(tool, 'input_schema', None),
+                    output_schema=getattr(tool, 'output_schema', None)
+                )
+                self._tools[tool.name] = tool_info
+            
+            self.state.tools_discovered = list(self._tools.keys())
+            
+            # Discover resources
+            try:
+                resources = await self._server.list_resources()
+                self._resources.clear()
+                
+                for resource in resources:
+                    resource_info = MCPResourceInfo(
+                        uri=resource.uri,
+                        name=getattr(resource, 'name', None),
+                        description=getattr(resource, 'description', None),
+                        server_name=self.name,
+                        mime_type=getattr(resource, 'mime_type', None)
+                    )
+                    self._resources[resource.uri] = resource_info
+                
+                self.state.resources_discovered = list(self._resources.keys())
+                
+            except Exception as e:
+                logger.warning(f"Failed to discover resources for {self.name}: {str(e)}")
+                # Resources are optional, so we don't fail the whole discovery
+            
+            logger.info(f"Discovered capabilities for {self.name}: {len(self._tools)} tools, {len(self._resources)} resources")
+            
+        except Exception as e:
+            logger.error(f"Failed to discover capabilities for {self.name}: {str(e)}")
+            raise MCPServerError(f"Capability discovery failed: {str(e)}", self.name)
+    
+    def get_pydantic_tools(self) -> List[PydanticTool]:
+        """Get tools as PydanticAI tools for integration with agents.
+        
+        Returns:
+            List of PydanticAI tools
+        """
+        tools = []
+        
+        for tool_name, tool_info in self._tools.items():
+            # Create a wrapper function for the MCP tool
+            async def mcp_tool_wrapper(*args, **kwargs):
+                """Wrapper for MCP tool call."""
+                return await self.call_tool(tool_name, kwargs)
+            
+            # Create PydanticAI tool
+            pydantic_tool = PydanticTool(
+                name=f"{self.name}_{tool_name}",
+                description=tool_info.description or f"Tool {tool_name} from MCP server {self.name}",
+                function=mcp_tool_wrapper
+            )
+            
+            tools.append(pydantic_tool)
+        
+        return tools
+    
+    @asynccontextmanager
+    async def ensure_running(self):
+        """Context manager to ensure server is running."""
+        if not self.is_running:
+            await self.start()
+        
+        try:
+            yield self
+        finally:
+            # Optionally implement auto-stop logic here
+            pass
