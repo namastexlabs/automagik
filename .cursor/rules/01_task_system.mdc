@@ -38,6 +38,10 @@ CANCELED="15aaa37e-a012-43a8-92d2-b6ff3399137e"
 
 ### **Standard Issue Creation**
 ```bash
+# First search memory for existing patterns
+mcp_agent-memory_search_memory_nodes --query "Linear issue patterns" --entity "Procedure"
+
+# Then create issue
 mcp_linear_create_issue \
   --title "🔸 [Task Name]" \
   --teamId "2c6b21de-9db7-44ac-9666-9079ff5b9b84" \
@@ -85,9 +89,10 @@ mcp_linear_update_issue --id "[id]" --stateId "1551da4c-03c1-4169-9690-8688f95f9
 
 ### **✅ DO**
 1. **Use known IDs** - avoid list/get calls
-2. **Search memory first** - check patterns
+2. **Search memory first** - check patterns using Graphiti
 3. **One label per group** - avoid conflicts
 4. **Visual naming** - use emojis
+5. **Store new patterns** - record successful workflows
 
 ### **❌ DON'T**
 1. **Call list APIs** for known values
@@ -108,6 +113,15 @@ mcp_linear_update_issue --id "[id]" --stateId "1551da4c-03c1-4169-9690-8688f95f9
 --labelIds '["8b4eb347-3278-4844-9a9a-bbe724fb5684", "[COMPONENT-ID]"]' --priority 1
 ```
 
+### **Memory Integration**
+```bash
+# Store successful Linear workflows
+mcp_agent-memory_add_memory \
+  --name "Linear Workflow Pattern" \
+  --episode_body "Successful issue creation pattern with known IDs" \
+  --source "text"
+```
+
 ---
 
-**Remember**: Use known values, avoid redundant API calls, leverage memory patterns.
+**Remember**: Use known values, avoid redundant API calls, leverage memory patterns to track successful workflows.

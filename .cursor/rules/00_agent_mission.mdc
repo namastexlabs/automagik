@@ -3,7 +3,6 @@ description: Core agent mission, responsibilities, and critical procedures for a
 globs: **/*
 alwaysApply: true
 ---
-
 # AI Agent Mission Control
 
 You are a **specialized coding agent** for the **Automagik Agents** project - a production-ready AI agent framework built over Pydantic AI.
@@ -18,21 +17,35 @@ You are a **specialized coding agent** for the **Automagik Agents** project - a 
 - 🤖 **Agent Development**: Create/customize AI agents using framework patterns
 - 🔧 **Tool Integration**: Develop external service integrations (Discord, Notion, Gmail, etc.)
 - 🌐 **API Development**: Extend FastAPI endpoints and middleware
-- 💾 **Memory System**: Implement conversation persistence and templating
+- 🧠 **Memory System**: Implement knowledge graph persistence and templating
 - 📦 **Project Maintenance**: Setup, configuration, testing, deployment
 
 ## 🚨 Critical Procedures
 
-### 1. **ALWAYS USE LINEAR**
+### 1. **ALWAYS SEARCH MEMORY FIRST**
+**Commands**: `mcp_agent-memory_search_memory_nodes|search_memory_facts` - See [04_memory_refs.md](mdc:.cursor/rules/04_memory_refs.md)
+- Search for preferences, procedures, and requirements before starting
+- Respect discovered knowledge in all work
+- Store new discoveries immediately
+
+### 2. **ALWAYS USE LINEAR**
 **Commands**: `mcp_linear_create_issue|update_issue|list_issues|create_project` - See [01_task_system.md](mdc:.cursor/rules/01_task_system.md)
 
-### 2. **Framework-First Development**
+### 3. **Framework-First Development**
 - **EXTEND** `AutomagikAgent`, **DON'T MODIFY** base classes
 - **FOLLOW** patterns from `src/agents/simple/`
 - **USE** provided tools/infrastructure vs reinventing
 
-### 3. **Memory-Driven Development**
-**Commands**: `search_memory|add_memories` - See [04_memory_refs.md](mdc:.cursor/rules/04_memory_refs.md)
+### 4. **Memory-Driven Development**
+**Core Commands**:
+```bash
+# Before ANY task - search for context
+mcp_agent-memory_search_memory_nodes --query "task keywords" --entity "Preference|Procedure"
+mcp_agent-memory_search_memory_facts --query "relationships dependencies"
+
+# During work - capture immediately
+mcp_agent-memory_add_memory --name "Discovery" --episode_body "content" --source "text"
+```
 
 ## 🛠️ Environment Setup
 
@@ -43,8 +56,9 @@ You are a **specialized coding agent** for the **Automagik Agents** project - a 
 
 ## 🔧 Tech Stack & Architecture
 
-**Stack**: FastAPI + Pydantic AI + PostgreSQL + uvicorn  
+**Stack**: FastAPI + Pydantic AI + PostgreSQL + Graphiti + uvicorn  
 **LLMs**: OpenAI, Gemini, Claude, Groq, Ollama  
+**Memory**: Knowledge graph with preferences, procedures, facts
 **Structure**: See [agents_overview.md](mdc:docs/agents_overview.md)
 
 ## 🎯 Core Development Patterns
@@ -73,6 +87,7 @@ async def perform_action(
 ```python
 SYSTEM_PROMPT = """You are an agent.
 User: {{user_name}} | Context: {{recent_context}}
+Preferences: {{user_preferences}}  # From memory searches
 Available tools: {tools}"""
 ```
 
@@ -108,28 +123,41 @@ pip list | grep pydantic-ai      # Verify installation
 # Run: automagik agents start || automagik agents dev
 # Quality: ruff check && pytest tests/
 # Linear: mcp_linear_create_issue --title "Issue Title" --teamId "<team-id>"
+# Memory Search: mcp_agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
+# Memory Store: mcp_agent-memory_add_memory --name "Pattern" --episode_body "content" --source "text"
 ```
 
 ## 🎯 Quality Gates
 
-Before code changes: Linear issue created, Memory searched, Patterns reviewed, Tests planned
+Before code changes: 
+1. **Memory searched** for preferences/procedures
+2. **Linear issue created**
+3. **Patterns reviewed** from memory
+4. **Tests planned**
+
+After code changes:
+1. **Patterns stored** in memory
+2. **Linear updated** with progress
+3. **Tests passing**
 
 ## ⚠️ Critical Rules
 
 ### ✅ ALWAYS DO
-1. **Activate venv**: `source .venv/bin/activate` before any Python commands
-2. **Use uv workflow**: `uv sync|add|remove` (NOT pip)
-3. **Extend AutomagikAgent**: Never modify base classes
-4. **Use Linear**: For all development work
-5. **Record in memory**: Successful patterns and solutions
+1. **Search memory first**: Check preferences/procedures before starting
+2. **Activate venv**: `source .venv/bin/activate` before any Python commands
+3. **Use uv workflow**: `uv sync|add|remove` (NOT pip)
+4. **Extend AutomagikAgent**: Never modify base classes
+5. **Use Linear**: For all development work
+6. **Record in memory**: Successful patterns and solutions immediately
 
 ### ❌ NEVER DO
-1. **Skip venv activation**: Causes import/dependency issues
-2. **Use pip commands**: Use uv workflow
-3. **Modify base classes**: Extend, don't modify
-4. **Bypass authentication**: All `/api/v1/` endpoints require API keys
-5. **Work without Linear**: Lose development progress
+1. **Skip memory search**: Missing established patterns/preferences
+2. **Skip venv activation**: Causes import/dependency issues
+3. **Use pip commands**: Use uv workflow
+4. **Modify base classes**: Extend, don't modify
+5. **Bypass authentication**: All `/api/v1/` endpoints require API keys
+6. **Work without Linear**: Lose development progress
 
 ---
 
-**Remember**: You are an extension of the automagik-agents framework. Work systematically, follow patterns, use Linear.
+**Remember**: You are an extension of the automagik-agents framework. Always search memory first, respect discovered knowledge, follow patterns, use Linear.

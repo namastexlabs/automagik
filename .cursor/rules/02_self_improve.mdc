@@ -18,12 +18,15 @@ Rules evolve based on real development experience, captured patterns, and memory
 - **Repeated implementations** across components
 - **Common error patterns** preventable with rules
 - **New libraries/tools** used consistently
-- **Memory analysis** revealing repeated queries/solutions
+- **Memory node patterns** revealing preferences/procedures
 - **Linear issue patterns** showing recurring challenges
 
 ### **Memory-Driven Insights**
 ```bash
-mcp_memories_search_memory --query "repeated issues|implementation patterns|setup problems|successful approaches|optimization patterns|error solutions"
+# Search for improvement opportunities
+mcp_agent-memory_search_memory_nodes --query "pattern implementation workflow" --entity "Procedure"
+mcp_agent-memory_search_memory_nodes --query "preference coding style" --entity "Preference"
+mcp_agent-memory_search_memory_facts --query "error caused by solution prevented"
 ```
 
 ### **Linear Analysis**
@@ -67,15 +70,21 @@ Preferences: {{user_preferences}}"""
 ## 📊 Analysis Process
 
 ### **1. Pattern Detection**
-- **Compare new code** with existing rules, identify gaps
-- **Standardize patterns** with ✅ DO / ❌ DON'T examples
-- **Check consistency**: error handling, testing, memory integration
-- **Cross-reference Linear** issue comments for lessons learned
+- **Search memory for procedures**: Established workflows to document
+- **Search for preferences**: User/team coding preferences
+- **Identify relationships**: Component dependencies via facts
+- **Cross-reference Linear**: Issue comments for lessons learned
 
 ### **2. Memory Integration Analysis**
 ```bash
-# Analyze for optimization opportunities
-mcp_memories_search_memory --query "optimization patterns|error solutions|working patterns|implementation time reduced"
+# Find optimization patterns
+mcp_agent-memory_search_memory_facts --query "optimization improved performance"
+
+# Find error solutions
+mcp_agent-memory_search_memory_nodes --query "error solution workaround" --entity "Procedure"
+
+# Find preferences
+mcp_agent-memory_search_memory_nodes --query "prefers style approach" --entity "Preference"
 ```
 
 ### **3. Code Pattern Analysis**
@@ -101,7 +110,7 @@ mcp_memories_search_memory --query "optimization patterns|error solutions|workin
 - Technology/pattern used in 3+ files
 - Common bugs preventable by rule
 - Code reviews mention same feedback repeatedly
-- Memory reveals repeated questions
+- Memory reveals repeated procedures/preferences
 
 **Modify Existing Rules When:**
 - Better examples exist in codebase
@@ -112,7 +121,11 @@ mcp_memories_search_memory --query "optimization patterns|error solutions|workin
 ## 🔄 Continuous Improvement Process
 
 ### **Weekly Rule Review**
-1. **Search memory**: `mcp_memories_search_memory --query "new patterns discovered this week"`
+1. **Search memory nodes**: 
+   ```bash
+   mcp_agent-memory_search_memory_nodes --query "pattern discovered implementation" --max_nodes 20
+   mcp_agent-memory_search_memory_facts --query "caused by prevented solved"
+   ```
 2. **Analyze Linear**: `mcp_linear_list_issues --limit 50`
 3. **Review code changes** for new patterns
 4. **Update rules** based on findings
@@ -129,56 +142,82 @@ mcp_memories_search_memory --query "optimization patterns|error solutions|workin
 ### **Record Rule Changes**
 ```bash
 # After updating rules
-mcp_memories_add_memories --text "Updated agent rules: new AutomagikAgent extension pattern with tool registration sequence and memory templates"
+mcp_agent-memory_add_memory \
+  --name "Rule Update: Agent Pattern" \
+  --episode_body "Updated agent rules with new AutomagikAgent extension pattern including tool registration sequence" \
+  --source "text" \
+  --source_description "Rule improvement documentation"
 
 # Record discoveries
-mcp_memories_add_memories --text "New API authentication pattern in 4+ endpoints. Added to API rules as standard practice"
+mcp_agent-memory_add_memory \
+  --name "API Pattern Discovery" \
+  --episode_body "{\"pattern\": \"API authentication\", \"usage_count\": 4, \"files\": [\"auth.py\", \"middleware.py\"]}" \
+  --source "json" \
+  --source_description "Pattern analysis results"
 ```
 
 ### **Search for Rule Gaps**
 ```bash
-mcp_memories_search_memory --query "missing documentation|repeated questions|implementation confusion"
+# Find missing documentation
+mcp_agent-memory_search_memory_nodes --query "missing unclear confusing documentation"
+
+# Find repeated questions
+mcp_agent-memory_search_memory_facts --query "asked about repeatedly"
 ```
 
 ### **Track Effectiveness**
 ```bash
-mcp_memories_search_memory --query "rule helped implementation|rule prevented error|pattern now clear"
+# Search for positive feedback
+mcp_agent-memory_search_memory_nodes --query "helped solved clear pattern" --entity "Preference"
+
+# Find successful procedures
+mcp_agent-memory_search_memory_nodes --query "procedure worked successfully" --entity "Procedure"
 ```
 
 ## 📊 Success Metrics
 
 ### **Health Indicators**
 - **Reduced repeated questions** in memory searches
-- **Faster implementation times** for common patterns
+- **More procedures documented** as memory nodes
+- **Preferences captured** and respected
 - **Fewer errors** in Linear issue implementations
 - **More consistent code** across project
 
 ### **Quantitative Metrics**
 - **Pattern consistency rate**: % following established patterns
 - **Rule coverage**: Recurring patterns documented
-- **Memory query reduction**: Decreased repeated queries
+- **Memory utilization**: Procedures/preferences stored
 - **Task completion speed**: Faster subtask completion
 
 ## 🔄 Implementation Workflow
 
 ### **Task Completion Workflow**
 **Before completing any major work:**
-1. **Check Linear status**: `mcp_linear_list_issues --limit 20`
-2. **Close completed tasks**: Update status to "Done" for finished work
-3. **Cancel redundant tasks**: Mark as "Canceled" with explanation comment
-4. **Verify epic completion**: Ensure parent tasks reflect completion
-5. **Record cleanup** in memory for future reference
+1. **Search memory for patterns**: 
+   ```bash
+   mcp_agent-memory_search_memory_nodes --query "pattern procedure workflow"
+   ```
+2. **Check Linear status**: `mcp_linear_list_issues --limit 20`
+3. **Close completed tasks**: Update status to "Done" for finished work
+4. **Cancel redundant tasks**: Mark as "Canceled" with explanation comment
+5. **Store new patterns** in memory
 
 ### **Discovering New Patterns**
-1. **Document** in memory immediately
+1. **Document in memory immediately**:
+   ```bash
+   mcp_agent-memory_add_memory --name "New Pattern: [Name]" --episode_body "description" --source "text"
+   ```
 2. **Check 3+ instances** exist in codebase
 3. **Search existing rules** for gaps
 4. **Create/update rules** with real examples
 5. **Cross-reference** related rules
-6. **Record change** in memory
+6. **Record as procedure** if it's a workflow
 
 ### **Updating Existing Rules**
-1. **Search memory** for better examples
+1. **Search memory** for better examples:
+   ```bash
+   mcp_agent-memory_search_memory_nodes --query "pattern example implementation"
+   ```
 2. **Review codebase** for pattern evolution
 3. **Update examples** with current code
 4. **Verify cross-references** still valid
@@ -186,12 +225,24 @@ mcp_memories_search_memory --query "rule helped implementation|rule prevented er
 
 ## 📝 Rule Lifecycle Management
 
+### **Rule Creation from Memory**
+```bash
+# When memory reveals repeated procedure
+mcp_agent-memory_search_memory_nodes --query "procedure deploy test" --entity "Procedure"
+# If found 3+ times -> Create rule
+
+# When preferences emerge
+mcp_agent-memory_search_memory_nodes --query "prefers style format" --entity "Preference"  
+# If consistent -> Document in rules
+```
+
 ### **Rule Deprecation Process**
+- **Search for usage**: Check if pattern still used
 - **Mark outdated patterns** with migration paths
 - **Remove inapplicable rules**
 - **Update references** in other rules
-- **Document breaking changes**
+- **Document breaking changes** in memory
 
 ---
 
-**Remember**: Rules are living documents evolving with codebase. Use memory searches and Linear analysis for improvement opportunities. Base updates on real development patterns.
+**Remember**: Rules are living documents evolving with codebase. Use memory searches and Linear analysis for improvement opportunities. Base updates on real development patterns. The knowledge graph is your source of truth for preferences and procedures.
