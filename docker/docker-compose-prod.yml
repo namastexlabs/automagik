@@ -1,0 +1,76 @@
+services:
+  automagik-agents-prod:
+    build: 
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: automagik-agents:latest
+    container_name: automagik-agents-prod
+    env_file:
+      - ../.env
+    ports:
+      - "${AM_PORT:-18881}:18881"
+    environment:
+      - AM_API_KEY=${AM_API_KEY}
+      - AM_HOST=${AM_HOST}
+      - AM_PORT=${AM_PORT}
+      - AM_ENV=${AM_ENV:-production}
+      - AM_LOG_LEVEL=${AM_LOG_LEVEL:-DEBUG}
+      - AM_TIMEZONE=${AM_TIMEZONE:-UTC}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4.1-mini}
+      - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+    restart: unless-stopped
+    volumes:
+      - ../src:/app/src
+    networks:
+      - automagik_network
+    depends_on:
+      graphiti-prod:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18881/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+
+
+  graphiti-prod:
+    image: zepai/graphiti:latest
+    container_name: automagik_graphiti
+    ports:
+      - "18000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USER=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
+      - GRAPHITI_ENV=${GRAPHITI_ENV:-production}
+
+    restart: unless-stopped
+    networks:
+      - automagik_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthcheck')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  automagik_postgres_data:
+  neo4j_data:
+
+networks:
+  automagik_network:
+    driver: bridge
