@@ -83,7 +83,7 @@ async def configure_mcp_servers(
                         "args": args,
                         "env": server_config.get("env", {})
                     })
-                except SecurityValidationError as e:
+                except (SecurityError, SecurityValidationError) as e:
                     logger.error(f"Security validation failed for server {server_name}: {str(e)}")
                     raise HTTPException(status_code=400, detail=f"Security validation failed: {str(e)}")
                 
@@ -210,38 +210,37 @@ async def create_mcp_server(
             validate_server_name(request.name)
             
             # Validate command configuration if provided
-            if hasattr(request, 'command') and request.command:
-                command = request.command if isinstance(request.command, str) else request.command[0]
-                args = [] if isinstance(request.command, str) else request.command[1:]
-                args.extend(getattr(request, 'args', []))
+            if request.command:
+                command = request.command[0] if request.command else None
+                args = request.command[1:] if len(request.command) > 1 else []
                 
-                validate_mcp_config({
-                    "command": command,
-                    "args": args,
-                    "env": getattr(request, 'env', {})
-                })
-                
-                # Build secure command
-                secure_command, filtered_env = build_secure_command(
-                    base_command=command,
-                    args=args,
-                    env=getattr(request, 'env', {})
-                )
-                
-                # Update request with secure command and filtered env
-                request.command = secure_command
-                if hasattr(request, 'env'):
+                if command:
+                    validate_mcp_config({
+                        "command": command,
+                        "args": args,
+                        "env": request.env or {}
+                    })
+                    
+                    # Build secure command
+                    secure_command, filtered_env = build_secure_command(
+                        base_command=command,
+                        args=args,
+                        env=request.env or {}
+                    )
+                    
+                    # Update request with secure command and filtered env
+                    request.command = secure_command
                     request.env = filtered_env
                     
-        except SecurityValidationError as e:
+        except (SecurityError, SecurityValidationError) as e:
             logger.error(f"Security validation failed for server {request.name}: {str(e)}")
             raise HTTPException(status_code=400, detail=f"Security validation failed: {str(e)}")
-        except (SecurityError, SecurityValidationError) as e:
-            logger.error(f"Command security validation failed for server {request.name}: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Command not allowed: {str(e)}")
         
         # Create server config from request
-        config = MCPServerConfig(**request.model_dump())
+        request_data = request.model_dump() if request else {}
+        if not request_data:
+            raise HTTPException(status_code=400, detail="Invalid request data")
+        config = MCPServerConfig(**request_data)
         
         # Add server
         await client_manager.add_server(config)

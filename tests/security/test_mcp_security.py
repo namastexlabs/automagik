@@ -20,6 +20,7 @@ from src.mcp.security import (
     validate_file_path,
     validate_resource_uri,
     validate_mcp_config,
+    resolve_command_path,
     SecurityError,
     ValidationError,
     ALLOWED_COMMANDS,
@@ -125,6 +126,60 @@ class TestCommandAllowlisting:
         # Test disallowed npx arguments
         with pytest.raises(SecurityError, match="Argument not allowed"):
             validate_command("/usr/bin/npx", ["malicious-package"])
+    
+    @patch('os.path.exists')
+    @patch('os.path.samefile')
+    def test_mcp_specific_patterns(self, mock_samefile, mock_exists):
+        """Test MCP-specific command patterns"""
+        mock_exists.return_value = True
+        mock_samefile.return_value = True
+        
+        # Valid MCP server patterns
+        valid_patterns = [
+            ("/usr/bin/npx", ["@modelcontextprotocol/server-filesystem", "/tmp"]),
+            ("/usr/bin/npx", ["@modelcontextprotocol/server-sqlite"]),
+            ("/usr/bin/python3", ["-m", "mcp_server_custom"]),
+            ("/usr/bin/node", ["server.js"])
+        ]
+        
+        for command, args in valid_patterns:
+            validate_command(command, args)
+        
+        # Invalid patterns should be blocked
+        invalid_patterns = [
+            ("/usr/bin/npx", ["evil-package"]),
+            ("/usr/bin/npx", ["@evil/server-malware"]),
+            ("/usr/bin/python3", ["-c", "malicious_code"]),
+            ("/usr/bin/node", ["../../../malicious.js"])
+        ]
+        
+        for command, args in invalid_patterns:
+            with pytest.raises(SecurityError, match="Argument not allowed"):
+                validate_command(command, args)
+    
+    def test_command_path_resolution(self):
+        """Test command path resolution and validation"""
+        with patch('os.path.exists') as mock_exists:
+            with patch('os.access') as mock_access:
+                # Test successful resolution
+                mock_exists.side_effect = lambda path: path == "/usr/bin/npx"
+                mock_access.return_value = True
+                
+                result = resolve_command_path("npx")
+                assert result == "/usr/bin/npx"
+                
+                # Test command not found
+                mock_exists.return_value = False
+                with pytest.raises(SecurityError, match="not found in allowed directories"):
+                    resolve_command_path("nonexistent")
+    
+    @patch('os.path.samefile')
+    def test_symlink_attack_prevention(self, mock_samefile):
+        """Test prevention of symlink-based attacks"""
+        mock_samefile.return_value = False  # Simulate path mismatch
+        
+        with pytest.raises(SecurityError, match="path mismatch"):
+            validate_command("/tmp/npx", ["@modelcontextprotocol/server-test"])
 
 
 class TestEnvironmentFiltering:
