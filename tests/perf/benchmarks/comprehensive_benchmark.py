@@ -287,6 +287,30 @@ class ComprehensiveBenchmark:
                     "agent_name": "simple",
                     "concurrency": 30,
                     "requests": 300
+                },
+                {
+                    "name": "MCP_Health_Monitoring_Load",
+                    "description": "MCP health endpoint under load",
+                    "mode": "api",
+                    "test_type": "mcp_health",
+                    "concurrency": 50,
+                    "requests": 500
+                },
+                {
+                    "name": "MCP_Server_Management_Stress",
+                    "description": "MCP server management operations stress test",
+                    "mode": "api", 
+                    "test_type": "mcp_management",
+                    "concurrency": 20,
+                    "requests": 200
+                },
+                {
+                    "name": "MCP_Tool_Call_Performance",
+                    "description": "MCP tool calling performance validation",
+                    "mode": "api",
+                    "test_type": "mcp_tools",
+                    "concurrency": 15,
+                    "requests": 150
                 }
             ])
         
