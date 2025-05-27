@@ -7,20 +7,18 @@ import signal
 import asyncio
 import argparse
 import time
-from datetime import datetime
-from typing import Dict, List, Set, Optional, Any
+from typing import Dict, List, Set
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, TaskID
 from rich.panel import Panel
-from rich import print as rprint
 from dotenv import load_dotenv
 
 # Add project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
 sys.path.insert(0, project_root)
 
-from scripts.solid_stan.product_folder_matcher.models import BlackpearlProduct, DriveFolder, MatchResult
+from scripts.solid_stan.product_folder_matcher.models import BlackpearlProduct, DriveFolder
 from scripts.solid_stan.product_folder_matcher.database import (
     connect_sqlite_db, connect_postgres_db, 
     create_results_tables, create_progress_table,
@@ -236,19 +234,19 @@ async def main():
         console.print(f"Connecting to Drive Catalog database: [cyan]{drive_catalog_db_path}[/cyan]")
         drive_catalog_conn = connect_sqlite_db(drive_catalog_db_path) # Connection for reading Drive data
         if not drive_catalog_conn:
-            console.print(f"[red]Failed to connect to Drive Catalog DB. Exiting.[/red]")
+            console.print("[red]Failed to connect to Drive Catalog DB. Exiting.[/red]")
             return
 
         console.print(f"Connecting to Results database: [cyan]{results_db_path}[/cyan]")
         results_conn = connect_sqlite_db(results_db_path) # Connection for writing results/progress
         if not results_conn:
-            console.print(f"[red]Failed to connect to Results DB. Exiting.[/red]")
+            console.print("[red]Failed to connect to Results DB. Exiting.[/red]")
             if drive_catalog_conn: drive_catalog_conn.close()
             return
             
         pg_conn = connect_postgres_db()
         if not pg_conn:
-            console.print(f"[red]Failed to connect to Postgres DB. Exiting.[/red]")
+            console.print("[red]Failed to connect to Postgres DB. Exiting.[/red]")
             if drive_catalog_conn: drive_catalog_conn.close()
             if results_conn: results_conn.close()
             return

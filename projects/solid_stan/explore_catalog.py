@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 import sqlite3
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime
+from typing import Dict, List
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
-from rich.syntax import Syntax
-from rich import print as rprint
 
 # Initialize rich console
 console = Console()

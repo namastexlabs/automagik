@@ -6,7 +6,7 @@ even when users don't provide exact field names, character matches, etc.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, List, Optional
 from src.tools.airtable.tool import list_records
 
 logger = logging.getLogger(__name__)

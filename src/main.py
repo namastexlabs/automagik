@@ -1,8 +1,5 @@
 import logging
 from datetime import datetime
-import json
-import uuid
-import os
 import asyncio
 import traceback
 
@@ -18,8 +15,6 @@ from src.auth import APIKeyMiddleware
 from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
-from src.db import ensure_default_user_exists
-from src.db.connection import generate_uuid
 
 # Configure Neo4j logging to reduce verbosity
 logging.getLogger("neo4j").setLevel(logging.WARNING)
@@ -318,7 +313,6 @@ def create_app() -> FastAPI:
         logger.info("✅ Database message storage initialized successfully")
         
         # Configure MessageHistory to use database by default
-        from src.memory.message_history import MessageHistory
         logger.info("✅ MessageHistory configured to use database storage")
     except Exception as e:
         logger.error(f"❌ Failed to initialize database connection for message storage: {str(e)}")
@@ -449,7 +443,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Log the configuration
-    logger.info(f"Starting server with configuration:")
+    logger.info("Starting server with configuration:")
     logger.info(f"├── Host: {args.host}")
     logger.info(f"├── Port: {args.port}")
     logger.info(f"└── Auto-reload: {'Enabled' if args.reload else 'Disabled'}")

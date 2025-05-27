@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from src.tools.flashed.provider import FlashedProvider
 
 async def get_user_data(ctx: Dict[str, Any]) -> Dict[str, Any]:

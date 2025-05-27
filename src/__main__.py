@@ -9,7 +9,6 @@ import logging
 import argparse
 import uvicorn
 import traceback
-from importlib import import_module
 
 # Import necessary modules for logging configuration
 try:

@@ -3,6 +3,7 @@
 
 import asyncio
 import sys
+import pytest
 from src.mcp.client import MCPClientManager
 from src.mcp.server import MCPServerManager  
 from src.mcp.models import MCPServerConfig, MCPServerStatus, MCPServerType
@@ -11,106 +12,82 @@ from src.mcp.exceptions import MCPError, MCPServerError, MCPConnectionError
 def test_imports():
     """Test that all core imports work correctly."""
     print("✅ All MCP core module imports successful")
-    return True
 
 def test_models():
     """Test MCP model creation and validation."""
-    try:
-        # Test MCPServerConfig creation
-        config = MCPServerConfig(
-            name='test_server',
-            server_type=MCPServerType.STDIO,
-            description='Test server for validation',
-            command=['echo', 'test'],
-            agent_names=['test_agent']
-        )
-        print("✅ MCPServerConfig creation successful")
-        
-        # Test enum values
-        assert MCPServerType.STDIO.value == "stdio"
-        assert MCPServerType.HTTP.value == "http"
-        print("✅ MCPServerType enum validation successful")
-        
-        # Test status enum
-        assert MCPServerStatus.STOPPED.value == "stopped"
-        assert MCPServerStatus.RUNNING.value == "running"
-        print("✅ MCPServerStatus enum validation successful")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Model testing failed: {e}")
-        return False
+    # Test MCPServerConfig creation
+    config = MCPServerConfig(
+        name='test_server',
+        server_type=MCPServerType.STDIO,
+        description='Test server for validation',
+        command=['echo', 'test'],
+        agent_names=['test_agent']
+    )
+    print("✅ MCPServerConfig creation successful")
+    
+    # Test enum values
+    assert MCPServerType.STDIO.value == "stdio"
+    assert MCPServerType.HTTP.value == "http"
+    print("✅ MCPServerType enum validation successful")
+    
+    # Test status enum
+    assert MCPServerStatus.STOPPED.value == "stopped"
+    assert MCPServerStatus.RUNNING.value == "running"
+    print("✅ MCPServerStatus enum validation successful")
 
 def test_exceptions():
     """Test MCP exception creation and inheritance."""
-    try:
-        # Test base exception - MCPError prefixes "MCP Error: "
-        base_error = MCPError("Test base error")
-        assert str(base_error) == "MCP Error: Test base error"
-        assert isinstance(base_error, Exception)
-        print("✅ MCPError creation and string formatting successful")
-        
-        # Test server error with server name
-        server_error = MCPServerError("Test server error", server_name="test_server")
-        assert isinstance(server_error, MCPError)
-        assert "test_server" in str(server_error)
-        print("✅ MCPServerError inheritance and formatting successful")
-        
-        # Test connection error  
-        conn_error = MCPConnectionError("Test connection error")
-        assert isinstance(conn_error, MCPError)
-        assert "MCP Error: Test connection error" == str(conn_error)
-        print("✅ MCPConnectionError inheritance successful")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Exception testing failed: {e}")
-        return False
+    # Test base exception - MCPError prefixes "MCP Error: "
+    base_error = MCPError("Test base error")
+    assert str(base_error) == "MCP Error: Test base error"
+    assert isinstance(base_error, Exception)
+    print("✅ MCPError creation and string formatting successful")
+    
+    # Test server error with server name
+    server_error = MCPServerError("Test server error", server_name="test_server")
+    assert isinstance(server_error, MCPError)
+    assert "test_server" in str(server_error)
+    print("✅ MCPServerError inheritance and formatting successful")
+    
+    # Test connection error  
+    conn_error = MCPConnectionError("Test connection error")
+    assert isinstance(conn_error, MCPError)
+    assert "MCP Error: Test connection error" == str(conn_error)
+    print("✅ MCPConnectionError inheritance successful")
 
+@pytest.mark.asyncio
 async def test_client_manager():
     """Test MCPClientManager basic initialization."""
-    try:
-        manager = MCPClientManager()
-        print("✅ MCPClientManager instantiation successful")
-        
-        # Test basic properties without initialization
-        servers = manager.list_servers()
-        assert isinstance(servers, list)
-        print("✅ MCPClientManager.list_servers() works")
-        
-        # Test health without initialization
-        health = await manager.get_health()
-        assert health.servers_total == 0  # No servers loaded yet
-        print("✅ MCPClientManager.get_health() works")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Client manager testing failed: {e}")
-        return False
+    manager = MCPClientManager()
+    print("✅ MCPClientManager instantiation successful")
+    
+    # Test basic properties without initialization
+    servers = manager.list_servers()
+    assert isinstance(servers, list)
+    print("✅ MCPClientManager.list_servers() works")
+    
+    # Test health without initialization
+    health = await manager.get_health()
+    assert health.servers_total == 0  # No servers loaded yet
+    print("✅ MCPClientManager.get_health() works")
 
 def test_server_manager():
     """Test MCPServerManager basic creation."""
-    try:
-        config = MCPServerConfig(
-            name='test_server',
-            server_type=MCPServerType.STDIO,
-            description='Test server for manager testing',
-            command=['echo', 'test'],
-            agent_names=['test_agent']
-        )
-        
-        manager = MCPServerManager(config)
-        print("✅ MCPServerManager instantiation successful")
-        
-        # Test basic properties
-        assert manager.name == 'test_server'
-        assert manager.status == MCPServerStatus.STOPPED
-        print("✅ MCPServerManager properties accessible")
-        
-        return True
-    except Exception as e:
-        print(f"❌ Server manager testing failed: {e}")
-        return False
+    config = MCPServerConfig(
+        name='test_server',
+        server_type=MCPServerType.STDIO,
+        description='Test server for manager testing',
+        command=['echo', 'test'],
+        agent_names=['test_agent']
+    )
+    
+    manager = MCPServerManager(config)
+    print("✅ MCPServerManager instantiation successful")
+    
+    # Test basic properties
+    assert manager.name == 'test_server'
+    assert manager.status == MCPServerStatus.STOPPED
+    print("✅ MCPServerManager properties accessible")
 
 async def main():
     """Run all MCP core module tests."""

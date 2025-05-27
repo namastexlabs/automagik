@@ -212,3 +212,4 @@ dev/**/*.tmp
 dev/**/*.temp
 dev/**/*.bak
 dev/**/.DS_Store
+dev/

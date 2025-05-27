@@ -57,21 +57,21 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
 1.  **Create Directory Structure:**
     Create a new directory for your agent within `src/agents/simple/` (or another applicable category):
     ```bash
-    mkdir src/agents/simple/my_new_agent
-    mkdir src/agents/simple/my_new_agent/prompts
+    mkdir src/agents/simple/my_new
+    mkdir src/agents/simple/my_new/prompts
     ```
 
 2.  **Create Core Files:**
     Inside the new directory, create the following Python files:
-    *   `src/agents/simple/my_new_agent/__init__.py` (Can potentially import and export the agent class)
-    *   `src/agents/simple/my_new_agent/agent.py` (Will contain the main agent class)
-    *   `src/agents/simple/my_new_agent/prompts/__init__.py` (Empty)
-    *   `src/agents/simple/my_new_agent/prompts/prompt.py` (Will define the agent's system prompt)
+    *   `src/agents/simple/my_new/__init__.py` (Can potentially import and export the agent class)
+    *   `src/agents/simple/my_new/agent.py` (Will contain the main agent class)
+    *   `src/agents/simple/my_new/prompts/__init__.py` (Empty)
+    *   `src/agents/simple/my_new/prompts/prompt.py` (Will define the agent's system prompt)
 
 3.  **Define the Agent Prompt (`prompts/prompt.py`):**
     Define the core instructions for your agent as a Python string. You can use `{{variable_name}}` for dynamic content injection from structured memory.
     ```python
-    # src/agents/simple/my_new_agent/prompts/prompt.py
+    # src/agents/simple/my_new/prompts/prompt.py
     MY_AGENT_PROMPT = """
     You are MyNewAgent. Your goal is to [... specific instructions ...].
     
@@ -95,7 +95,7 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
     *   Implement the `run` method (can often be adapted directly from `SimpleAgent`, ensuring input preparation and response processing match your agent's needs).
 
     ```python
-    # src/agents/simple/my_new_agent/agent.py
+    # src/agents/simple/my_new/agent.py
     import logging
     from typing import Dict, Any, Optional
     

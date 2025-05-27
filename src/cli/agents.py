@@ -226,7 +226,7 @@ def show_process_logs(follow: bool = False):
 @agents_app.command("create")
 def create_agent_command(
     name: str = typer.Option(..., "--name", "-n", help="Name of the new agent to create"),
-    template: str = typer.Option("simple_agent", "--template", "-t", help="Template folder to use as base"),
+    template: str = typer.Option("simple", "--template", "-t", help="Template folder to use as base"),
     category: str = typer.Option("simple", "--category", "-c", help="Category folder to use")
 ):
     """Create a new agent by cloning an existing agent template."""
@@ -486,21 +486,21 @@ def status_server():
                 os.kill(pid, 0)  # Check if process exists
                 typer.echo(f"   Process: ✅ Running (PID: {pid})")
             except ProcessLookupError:
-                typer.echo(f"   Process: ❌ Not running (stale PID file)")
+                typer.echo("   Process: ❌ Not running (stale PID file)")
         else:
-            typer.echo(f"   Process: ❌ No PID file found")
+            typer.echo("   Process: ❌ No PID file found")
         
         # Check port/health
         typer.echo(f"   Port: {port}")
         try:
             response = requests.get(f"http://localhost:{port}/health", timeout=3)
             if response.status_code == 200:
-                typer.echo(f"   Health: ✅ API responding")
+                typer.echo("   Health: ✅ API responding")
                 typer.echo(f"   URL: http://localhost:{port}")
             else:
                 typer.echo(f"   Health: ⚠️  API responded with status {response.status_code}")
         except requests.exceptions.RequestException:
-            typer.echo(f"   Health: ❌ API not responding")
+            typer.echo("   Health: ❌ API not responding")
 
 @agents_app.command("logs")
 def logs_server(

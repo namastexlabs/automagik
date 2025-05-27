@@ -4,13 +4,13 @@ This module provides typed dependencies for all agents in the system,
 following pydantic-ai best practices for dependency injection.
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List, Union, Generic, TypeVar
+from typing import Any, Dict, Optional, List, Union
 import logging
 from datetime import datetime
 
 # Import constants
 from src.constants import (
-    DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_RETRIES
+    DEFAULT_MODEL
 )
 
 # Import httpx for typed HTTP client if available

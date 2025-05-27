@@ -5,18 +5,16 @@ Includes unit tests with mocked responses, integration tests with real API calls
 and agent usage tests.
 """
 
-import asyncio
-import os
 import pytest
-from unittest.mock import Mock, patch
-from typing import Dict, Any
+from unittest.mock import Mock
+from typing import Dict
 
 from pydantic_ai import Agent, RunContext, capture_run_messages
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import ModelResponse, ToolCallPart
 
-from src.tools.airtable.tool import update_records, create_records, list_records
-from src.tools.airtable.interface import airtable_update_records, airtable_create_records, airtable_list_records
+from src.tools.airtable.tool import update_records, create_records
+from src.tools.airtable.interface import airtable_update_records
 from src.config import settings
 
 pytestmark = pytest.mark.anyio

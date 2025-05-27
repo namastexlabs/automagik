@@ -1,6 +1,6 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query, Path, Response
-from src.api.models import UserCreate, UserUpdate, UserInfo, UserListResponse, DeleteSessionResponse
+from fastapi import APIRouter, Query, Path
+from src.api.models import UserCreate, UserUpdate, UserInfo, UserListResponse
 from src.api.controllers.user_controller import get_users, create_user, get_user, update_user_data, delete_user
 
 # Create router for user endpoints

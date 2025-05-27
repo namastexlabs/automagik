@@ -1,6 +1,5 @@
 import logfire
 import psycopg2
-from psycopg2 import sql
 from dotenv import load_dotenv
 import os
 import sys
@@ -11,8 +10,8 @@ import argparse
 import random
 from rich.console import Console
 from rich.progress import Progress
-from pydantic_ai import Agent, RunContext
-from typing import Dict, Any, Optional, List
+from pydantic_ai import Agent
+from typing import Dict, Any
 
 from src.config import settings
 
@@ -26,7 +25,6 @@ def signal_handler(sig, frame):
 # Register signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
-import logfire
 os.environ["LOGFIRE_TOKEN"] = settings.LOGFIRE_TOKEN
 logfire.configure(scrubbing=False, console=False)  # Logfire reads token from environment
 logfire.instrument_pydantic_ai()

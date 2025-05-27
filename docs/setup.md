@@ -229,7 +229,7 @@ curl http://localhost:8881/health
 open http://localhost:8881/docs
 
 # Test agent endpoint
-curl -X POST http://localhost:8881/api/v1/agent/simple_agent/run \
+curl -X POST http://localhost:8881/api/v1/agent/simple/run \
   -H "X-API-Key: your_am_api_key" \
   -H "Content-Type: application/json" \
   -d '{"message_content": "Hello!", "session_name": "test"}'

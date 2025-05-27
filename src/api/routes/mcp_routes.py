@@ -1,8 +1,8 @@
 """API routes for MCP server management."""
 
 import logging
-from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import Dict, Any
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import ValidationError
 
 from src.auth import get_api_key as verify_api_key
@@ -20,7 +20,7 @@ from src.mcp.models import (
     MCPServerState,
     MCPServerType
 )
-from src.mcp.exceptions import MCPError, MCPServerError, MCPConnectionError
+from src.mcp.exceptions import MCPError
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +62,19 @@ async def configure_mcp_servers(
             
             # Handle command and args format
             if "command" in server_config:
-                command.append(server_config["command"])
-                if "args" in server_config:
-                    command.extend(server_config["args"])
+                base_command = server_config["command"]
+                args = server_config.get("args", [])
+                
+                # Fix for npx and other shell commands that need proper environment
+                if base_command in ["npx", "npm", "yarn", "node"] or base_command.endswith("npx"):
+                    # Wrap with bash to ensure proper shell environment
+                    full_command = f"{base_command} {' '.join(args)}"
+                    command = ["/usr/bin/bash", "-c", full_command]
+                    logger.info(f"Wrapped {base_command} command with bash for server {server_name}: {command}")
+                else:
+                    # Use original format for other commands
+                    command.append(base_command)
+                    command.extend(args)
             
             # Create MCPServerConfig
             config = MCPServerConfig(

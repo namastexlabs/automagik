@@ -10,7 +10,6 @@ run the tests:
     AIRTABLE_TEST_TABLE       – Table name or ID to query (should contain at least one record)
 """
 
-import os
 import logging
 import pytest
 

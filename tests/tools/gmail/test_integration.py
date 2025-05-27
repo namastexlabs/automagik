@@ -12,7 +12,6 @@ import logging
 
 from src.tools.gmail import send_email
 from src.tools.gmail.schema import SendEmailInput
-from pydantic_ai import RunContext
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

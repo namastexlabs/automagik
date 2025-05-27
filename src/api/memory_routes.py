@@ -1,5 +1,4 @@
 import logging
-import json
 import math
 import uuid
 from uuid import UUID
@@ -24,8 +23,6 @@ from src.db import (
     User,
     create_user
 )
-from src.config import settings
-from src.memory.message_history import MessageHistory
 
 # Create API router for memory endpoints
 memory_router = APIRouter()

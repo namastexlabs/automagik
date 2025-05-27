@@ -64,7 +64,7 @@ async def test_testmodel():
     duration = time.perf_counter() - start_time
     success_rate = sum(1 for r in results if r['success']) / len(results)
     
-    print(f"\n📊 TestModel Results:")
+    print("\n📊 TestModel Results:")
     print(f"  • Messages processed: {len(results)}")
     print(f"  • Success rate: {success_rate:.0%}")
     print(f"  • Duration: {duration:.3f}s")
@@ -142,7 +142,7 @@ async def test_functionmodel():
     duration = time.perf_counter() - start_time
     success_rate = sum(1 for r in results if r['success']) / len(results)
     
-    print(f"\n📊 FunctionModel Results:")
+    print("\n📊 FunctionModel Results:")
     print(f"  • Messages processed: {len(results)}")
     print(f"  • Success rate: {success_rate:.0%}")
     print(f"  • Duration: {duration:.3f}s")
@@ -177,7 +177,7 @@ async def test_concurrent_mocking():
     success_count = sum(1 for r in results if not isinstance(r, Exception))
     error_count = len(results) - success_count
     
-    print(f"📊 Concurrent Mocking Results:")
+    print("📊 Concurrent Mocking Results:")
     print(f"  • Total requests: {len(messages)}")
     print(f"  • Successful: {success_count}")
     print(f"  • Errors: {error_count}")

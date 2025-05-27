@@ -3,7 +3,7 @@
 import uuid
 import json
 import logging
-from typing import List, Optional, Dict, Any, Union, Tuple
+from typing import List, Optional, Union, Tuple
 
 from src.db.connection import execute_query
 from src.db.models import Session
@@ -147,7 +147,7 @@ def list_sessions(
         # Add pagination if requested
         if page is not None and page_size is not None:
             offset = (page - 1) * page_size
-            query += f" LIMIT %s OFFSET %s"
+            query += " LIMIT %s OFFSET %s"
             params.append(page_size)
             params.append(offset)
         

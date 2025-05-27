@@ -2,11 +2,9 @@
 
 import os
 import time
-import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.openai import OpenAIModel
-from datetime import datetime
 from rich.console import Console
 
 from scripts.solid_stan.product_folder_matcher.models import BlackpearlProduct, DriveFolder, MatchResult

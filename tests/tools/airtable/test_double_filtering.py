@@ -9,11 +9,9 @@ complex filtering scenarios including:
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
-from typing import Dict, Any
+from unittest.mock import Mock, patch
 
 from src.tools.airtable.tool import list_records
-from src.config import settings
 
 
 class TestDoubleFiltering:

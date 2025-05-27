@@ -2,7 +2,7 @@
 
 This module defines the Pydantic models for Omie API tool input and output.
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 class ClientSearchInput(BaseModel):

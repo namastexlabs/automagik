@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Any, Dict, Union
+from typing import Optional, List, Dict, Union
 
 
 class AgentResponse(BaseModel):

@@ -4,8 +4,7 @@
 from src.db.connection import get_connection_pool
 from src.db.repository.mcp import (
     list_mcp_servers, get_mcp_server_by_name, create_mcp_server, 
-    update_mcp_server, delete_mcp_server, get_server_agents,
-    assign_agent_to_server, remove_agent_from_server
+    update_mcp_server, delete_mcp_server
 )
 from src.db.models import MCPServerDB
 
@@ -25,9 +24,7 @@ def test_database_tables():
             
             print(f"✅ MCP Tables exist - mcp_servers: {mcp_servers_exists}, agent_mcp_servers: {agent_mcp_servers_exists}")
             
-            if not (mcp_servers_exists and agent_mcp_servers_exists):
-                print("❌ MCP tables are missing")
-                return False
+            assert mcp_servers_exists and agent_mcp_servers_exists, "MCP tables are missing"
                 
             # Check table structure
             cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'mcp_servers' ORDER BY ordinal_position")
@@ -39,97 +36,70 @@ def test_database_tables():
                               'updated_at', 'last_started', 'last_stopped']
             
             missing_columns = [col for col in expected_columns if col not in columns]
-            if missing_columns:
-                print(f"❌ Missing columns in mcp_servers: {missing_columns}")
-                return False
+            assert not missing_columns, f"Missing columns in mcp_servers: {missing_columns}"
             
             print("✅ MCP table structure verified")
-            return True
             
     finally:
         pool.putconn(conn)
 
 def test_repository_functions():
     """Test MCP repository CRUD operations."""
+    # Test list servers (should work even if empty)
+    servers = list_mcp_servers()
+    print(f"✅ list_mcp_servers() works - found {len(servers)} servers")
+    
+    # Test creating a test server
+    test_server = MCPServerDB(
+        name="test_db_server",
+        server_type="stdio",
+        description="Test server for database verification",
+        command=["echo", "test"],
+        env={},
+        auto_start=False,
+        max_retries=3,
+        timeout_seconds=30,
+        tags=["test"],
+        priority=0
+    )
+    
+    # Try to create server
+    server_id = create_mcp_server(test_server)
+    assert server_id is not None, "create_mcp_server() failed"
+    print(f"✅ create_mcp_server() works - created server with ID {server_id}")
+    
     try:
-        # Test list servers (should work even if empty)
-        servers = list_mcp_servers()
-        print(f"✅ list_mcp_servers() works - found {len(servers)} servers")
+        # Test get by name
+        retrieved_server = get_mcp_server_by_name("test_db_server")
+        assert retrieved_server is not None, "get_mcp_server_by_name() returned None"
+        assert retrieved_server.name == "test_db_server", "get_mcp_server_by_name() returned wrong server"
+        print("✅ get_mcp_server_by_name() works")
         
-        # Test creating a test server
-        test_server = MCPServerDB(
-            name="test_db_server",
-            server_type="stdio",
-            description="Test server for database verification",
-            command=["echo", "test"],
-            env={},
-            auto_start=False,
-            max_retries=3,
-            timeout_seconds=30,
-            tags=["test"],
-            priority=0
-        )
-        
-        # Try to create server
-        server_id = create_mcp_server(test_server)
-        if server_id:
-            print(f"✅ create_mcp_server() works - created server with ID {server_id}")
+        # Test update
+        test_server.id = server_id
+        test_server.description = "Updated test server"
+        update_success = update_mcp_server(test_server)
+        assert update_success, "update_mcp_server() failed"
+        print("✅ update_mcp_server() works")
             
-            # Test get by name
-            retrieved_server = get_mcp_server_by_name("test_db_server")
-            if retrieved_server and retrieved_server.name == "test_db_server":
-                print("✅ get_mcp_server_by_name() works")
-            else:
-                print("❌ get_mcp_server_by_name() failed")
-                return False
-            
-            # Test update
-            test_server.id = server_id
-            test_server.description = "Updated test server"
-            update_success = update_mcp_server(test_server)
-            if update_success:
-                print("✅ update_mcp_server() works")
-            else:
-                print("❌ update_mcp_server() failed")
-                return False
-                
-            # Clean up - delete test server
-            delete_success = delete_mcp_server(server_id)
-            if delete_success:
-                print("✅ delete_mcp_server() works")
-            else:
-                print("❌ delete_mcp_server() failed")
-                return False
-                
-        else:
-            print("❌ create_mcp_server() failed")
-            return False
-            
-        return True
-        
-    except Exception as e:
-        print(f"❌ Repository testing failed: {e}")
-        return False
+    finally:
+        # Clean up - delete test server
+        delete_success = delete_mcp_server(server_id)
+        assert delete_success, "delete_mcp_server() failed"
+        print("✅ delete_mcp_server() works")
 
 def test_existing_functionality():
     """Test that existing functionality still works with MCP integration."""
-    try:
-        # Test that the server can still start (already tested in NAM-14, but verify here)
-        print("✅ Server startup already verified in NAM-14")
-        
-        # Test that existing database functionality works
-        from src.db.repository.agent import list_agents
-        agents = list_agents()
-        print(f"✅ Existing agent repository still works - found {len(agents)} agents")
-        
-        # Test that authentication still works (already verified in NAM-14)
-        print("✅ Authentication already verified in NAM-14")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Existing functionality test failed: {e}")
-        return False
+    # Test that the server can still start (already tested in NAM-14, but verify here)
+    print("✅ Server startup already verified in NAM-14")
+    
+    # Test that existing database functionality works
+    from src.db.repository.agent import list_agents
+    agents = list_agents()
+    print(f"✅ Existing agent repository still works - found {len(agents)} agents")
+    
+    # Test that authentication still works (already verified in NAM-14)
+    print("✅ Authentication already verified in NAM-14")
 
 def main():
     """Run all MCP database tests."""

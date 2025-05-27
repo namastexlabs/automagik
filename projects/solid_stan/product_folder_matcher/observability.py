@@ -3,7 +3,6 @@
 import os
 import logfire
 from rich.console import Console
-from datetime import datetime
 from typing import Dict, Any, Optional
 
 # Initialize console for rich output

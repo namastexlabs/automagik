@@ -16,8 +16,7 @@ from .tool import (
 
 from .contact_tool import (
     send_business_contact,
-    send_personal_contact,
-    get_send_contact_description
+    send_personal_contact
 )
 
 logger = logging.getLogger(__name__)
