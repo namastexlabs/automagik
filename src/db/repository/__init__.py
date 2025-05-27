@@ -95,3 +95,84 @@ from src.db.repository.mcp import (
     get_server_agents,
     get_agent_server_assignments
 )
+
+# Export all imported functions
+__all__ = [
+    # Agent functions
+    "get_agent",
+    "get_agent_by_name",
+    "list_agents",
+    "create_agent",
+    "update_agent",
+    "delete_agent",
+    "increment_agent_run_id",
+    "link_session_to_agent",
+    "register_agent",
+    "update_agent_active_prompt_id",
+    
+    # User functions
+    "get_user",
+    "get_user_by_email",
+    "get_user_by_identifier",
+    "list_users",
+    "create_user",
+    "update_user",
+    "delete_user",
+    "ensure_default_user_exists",
+    
+    # Session functions
+    "get_session",
+    "get_session_by_name",
+    "list_sessions",
+    "create_session",
+    "update_session",
+    "delete_session",
+    "finish_session",
+    "update_session_name_if_empty",
+    
+    # Message functions
+    "get_message",
+    "list_messages",
+    "count_messages",
+    "create_message",
+    "update_message",
+    "delete_message",
+    "delete_session_messages",
+    "list_session_messages",
+    "get_system_prompt",
+    
+    # Memory functions
+    "get_memory",
+    "get_memory_by_name",
+    "list_memories",
+    "create_memory",
+    "update_memory",
+    "delete_memory",
+    
+    # Prompt functions
+    "get_prompt_by_id",
+    "get_active_prompt",
+    "find_code_default_prompt",
+    "get_latest_version_for_status",
+    "create_prompt",
+    "update_prompt",
+    "set_prompt_active",
+    "get_prompts_by_agent_id",
+    "delete_prompt",
+    
+    # MCP functions
+    "get_mcp_server",
+    "get_mcp_server_by_name",
+    "list_mcp_servers",
+    "create_mcp_server",
+    "update_mcp_server",
+    "update_mcp_server_status",
+    "update_mcp_server_discovery",
+    "increment_connection_attempts",
+    "delete_mcp_server",
+    "assign_agent_to_server",
+    "remove_agent_from_server",
+    "get_agent_servers",
+    "get_server_agents",
+    "get_agent_server_assignments",
+]

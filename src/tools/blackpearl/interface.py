@@ -63,7 +63,7 @@ def handle_api_error(func):
                     error_data = e.response.json()
                     logger.warning(f"API returned error status but with content: {error_data}")
                     return error_data
-                except:
+                except Exception:
                     pass
                 
             # Enhanced error logging in development/debug mode

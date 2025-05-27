@@ -15,14 +15,12 @@ from src.auth import APIKeyMiddleware
 from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
+from src.cli.db import db_init
 
 # Configure Neo4j logging to reduce verbosity
 logging.getLogger("neo4j").setLevel(logging.WARNING)
 logging.getLogger("neo4j.io").setLevel(logging.ERROR)
 logging.getLogger("neo4j.bolt").setLevel(logging.ERROR)
-
-# Import db_init
-from src.cli.db import db_init
 
 # Configure logging
 configure_logging()
@@ -181,7 +179,7 @@ def create_app() -> FastAPI:
         try:
             logger.info("🚀 Initializing MCP client manager...")
             from src.mcp.client import get_mcp_client_manager
-            mcp_manager = await get_mcp_client_manager()
+            await get_mcp_client_manager()
             logger.info("✅ MCP client manager initialized successfully")
         except Exception as e:
             logger.error(f"❌ Error initializing MCP client manager: {str(e)}")
