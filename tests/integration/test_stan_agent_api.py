@@ -5,6 +5,7 @@ import httpx
 from dotenv import load_dotenv
 from src.tools.blackpearl.provider import BlackpearlProvider
 import logging
+from unittest.mock import patch, AsyncMock
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,6 +30,11 @@ TEST_USER_IDENTIFIER = "integration-test-user@example.com" # Use email for get/c
 # --- Test Cases ---
 @pytest.mark.integration # Mark as an integration test
 @pytest.mark.asyncio # Add asyncio marker
+@patch.dict(os.environ, {
+    "DISABLE_MEMORY_OPERATIONS": "true",
+    "MOCK_EXTERNAL_APIS": "false",  # Keep real BlackPearl for full integration test
+    "TEST_MODE": "true"
+})
 async def test_stan_agent_run_success(): 
     """Tests user fetch/create, agent run, and cleanup (user, blackpearl)."""
     if not API_KEY:

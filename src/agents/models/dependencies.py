@@ -267,6 +267,11 @@ class AutomagikAgentsDependencies(BaseDependencies):
     duckduckgo_enabled: bool = False
     tavily_api_key: Optional[str] = None
     
+    # Performance configuration
+    test_mode: bool = False  # Skip expensive operations during testing
+    disable_memory_operations: bool = False  # Skip Graphiti memory operations
+    mock_external_apis: bool = False  # Use mocked responses for external APIs
+    
     def get_http_client(self) -> Any:
         """Get or initialize the HTTP client.
         
