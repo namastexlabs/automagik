@@ -3,6 +3,7 @@
 This module provides a SofiaAgent class that uses PydanticAI for LLM integration
 and inherits common functionality from AutomagikAgent.
 """
+import asyncio
 import logging
 import traceback
 from typing import Dict, Any, Optional, List
@@ -401,13 +402,30 @@ class SofiaAgent(AutomagikAgent):
             if hasattr(self.dependencies, 'set_context'):
                 self.dependencies.set_context(self.context)
         
-            # Run the agent
-            result = await self._agent_instance.run(
-                user_input,
-                message_history=pydantic_message_history,
-                usage_limits=getattr(self.dependencies, "usage_limits", None),
-                deps=self.dependencies
-            )
+            # Run the agent with concurrency limit and retry logic
+            # MCP servers are now properly managed by our MCPServerManager
+            from src.agents.models.automagik_agent import get_llm_semaphore
+            semaphore = get_llm_semaphore()
+            retries = settings.LLM_RETRY_ATTEMPTS
+            last_exc: Optional[Exception] = None
+            
+            async with semaphore:
+                for attempt in range(1, retries + 1):
+                    try:
+                        result = await self._agent_instance.run(
+                            user_input,
+                            message_history=pydantic_message_history,
+                            usage_limits=getattr(self.dependencies, "usage_limits", None),
+                            deps=self.dependencies
+                        )
+                        break  # success
+                    except Exception as e:
+                        last_exc = e
+                        logger.warning(f"LLM call attempt {attempt}/{retries} failed: {e}")
+                        if attempt < retries:
+                            await asyncio.sleep(2 ** (attempt - 1))
+                        else:
+                            raise
             
             # Extract tool calls and outputs
             all_messages = extract_all_messages(result)

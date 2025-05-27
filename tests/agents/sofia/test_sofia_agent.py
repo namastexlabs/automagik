@@ -81,15 +81,16 @@ class TestSofiaAgentCapabilities:
         servers = await agent._load_mcp_servers()
         assert isinstance(servers, list)
         
-    def test_agent_needs_reliability_features(self, agent_config):
-        """Test to highlight what Sofia agent is missing (reliability features)."""
+    def test_agent_has_reliability_features(self, agent_config):
+        """Test that Sofia agent now has reliability features."""
         agent = SofiaAgent(agent_config)
-        # This test documents what we need to add
-        # Sofia should not have retry logic in its run method yet
+        # Sofia should now have retry logic and semaphore control
         import inspect
         source = inspect.getsource(agent.run)
-        assert 'semaphore' not in source
-        assert 'LLM_RETRY_ATTEMPTS' not in source
+        assert 'semaphore' in source
+        assert 'LLM_RETRY_ATTEMPTS' in source
+        assert 'get_llm_semaphore' in source
+        assert 'for attempt in range(1, retries + 1)' in source
 
 
 class TestSofiaAgentEvolutionIntegration:
