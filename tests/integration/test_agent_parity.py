@@ -68,11 +68,9 @@ class TestAgentParity:
     
     def test_sofia_has_additional_features(self, simple_agent, sofia_agent):
         """Test that Sofia has additional features not in Simple agent."""
-        # Sofia should have MCP integration
+        # Both agents have MCP integration
         assert hasattr(sofia_agent, '_load_mcp_servers')
-        
-        # Simple should NOT have MCP integration (stays minimal)
-        assert not hasattr(simple_agent, '_load_mcp_servers')
+        assert hasattr(simple_agent, '_load_mcp_servers')
         
         # Sofia should have Airtable sub-agent wrapper
         sofia_tools = sofia_agent.tool_registry.get_registered_tools()
