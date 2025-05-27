@@ -19,7 +19,7 @@ services:
       - AM_LOG_LEVEL=${AM_LOG_LEVEL:-INFO}
       - AM_TIMEZONE=${AM_TIMEZONE:-UTC}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4o-mini}
+      - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4.1-mini}
       - DATABASE_URL=postgresql://postgres:postgres@automagik_agents_db:5432/automagik
       - POSTGRES_HOST=automagik_agents_db
       - POSTGRES_PORT=5432
