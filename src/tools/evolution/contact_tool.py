@@ -5,7 +5,7 @@ This module provides the functionality for sending contact information via Evolu
 import logging
 import json
 import requests
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from pydantic_ai import RunContext
 
 logger = logging.getLogger(__name__)

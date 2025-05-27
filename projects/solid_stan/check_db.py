@@ -25,7 +25,7 @@ def check_database(db_path: str):
         tables = cursor.fetchall()
 
         if not tables:
-            console.print(f"[yellow]No tables found in database.[/yellow]")
+            console.print("[yellow]No tables found in database.[/yellow]")
             conn.close()
             return
 
@@ -88,6 +88,6 @@ if __name__ == "__main__":
                 found_dbs = True
 
     if not found_dbs:
-         console.print(f"[yellow]No database files found at expected locations:[/yellow]")
+         console.print("[yellow]No database files found at expected locations:[/yellow]")
          for path in possible_paths:
              console.print(f"- {path}") 

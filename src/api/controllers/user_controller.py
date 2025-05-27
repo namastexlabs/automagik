@@ -4,7 +4,6 @@ from fastapi import HTTPException
 from src.db import get_user_by_identifier, list_users, update_user, create_user as db_create_user, delete_user as db_delete_user
 from src.api.models import UserCreate, UserUpdate, UserInfo, UserListResponse
 from src.db.models import User
-from typing import Optional, List
 from fastapi.concurrency import run_in_threadpool
 
 # Get our module's logger

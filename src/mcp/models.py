@@ -2,9 +2,8 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-import uuid
 
 
 class MCPServerType(str, Enum):

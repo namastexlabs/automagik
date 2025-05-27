@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Request, Depends, Header
+from fastapi import HTTPException, Request, Header
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from typing import Optional

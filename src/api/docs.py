@@ -1,4 +1,4 @@
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.openapi.utils import get_openapi
 

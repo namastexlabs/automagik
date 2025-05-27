@@ -111,7 +111,7 @@ build_and_start_containers() {
     
     # Start PostgreSQL first
     log "INFO" "Starting PostgreSQL container..."
-    if ! $DOCKER_COMPOSE --env-file "$ROOT_DIR/.env" up -d postgres; then
+    if ! $DOCKER_COMPOSE --env-file "$ROOT_DIR/.env" up -d automagik_agents_db; then
         log "ERROR" "Failed to start PostgreSQL container"
         return 1
     fi
@@ -155,7 +155,7 @@ run_docker_health_check() {
         return 1
     fi
     
-    if ! docker ps | grep -q "automagik_postgres"; then
+    if ! docker ps | grep -q "automagik_agents_db"; then
         log "ERROR" "PostgreSQL container is not running"
         return 1
     fi

@@ -8,20 +8,16 @@ from contextlib import asynccontextmanager
 
 from pydantic_ai.tools import Tool as PydanticTool
 
-from src.config import settings
-from src.db.connection import get_connection_pool
 
 from .models import (
     MCPServerConfig, 
     MCPServerStatus, 
     MCPServerState,
     MCPServerType,
-    MCPToolInfo,
-    MCPResourceInfo,
     MCPHealthResponse
 )
 from .server import MCPServerManager
-from .exceptions import MCPError, MCPServerError, MCPConnectionError
+from .exceptions import MCPError
 
 logger = logging.getLogger(__name__)
 

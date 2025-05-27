@@ -8,9 +8,7 @@ Example:
 """
 import pytest
 import os
-import asyncio
 import logging
-from typing import Dict, Any
 
 from src.tools.blackpearl import (
     get_clientes,

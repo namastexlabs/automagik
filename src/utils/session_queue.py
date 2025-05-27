@@ -7,7 +7,7 @@ are processed in order, with ability to cancel/merge in-progress requests.
 
 import asyncio
 import logging
-from typing import Dict, Optional, Any, Awaitable, Callable, TypeVar, Generic, Set, List
+from typing import Dict, Any, Awaitable, Callable, TypeVar, Set, List
 import uuid
 
 logger = logging.getLogger(__name__)

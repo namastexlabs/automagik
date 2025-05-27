@@ -3,8 +3,7 @@
 This module provides utility functions and decorators for the Blackpearl API.
 """
 import logging
-import re
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional
 from functools import wraps
 from datetime import datetime
 import pytz
@@ -83,7 +82,7 @@ def handle_api_error(func):
                             break
                 
                 # Log detailed error information
-                logger.debug(f"BP - API Error Details:")
+                logger.debug("BP - API Error Details:")
                 logger.debug(f"BP - Function: {cls_name}.{func_name}" if cls_name else f"BP - Function: {func_name}")
                 if endpoint:
                     logger.debug(f"BP - Endpoint: {endpoint}")

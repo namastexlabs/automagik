@@ -19,7 +19,7 @@ logger = logging.getLogger("test_multimodal")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.agents.models.dependencies import AutomagikAgentsDependencies
-from src.agents.simple.simple_agent import create_agent
+from src.agents.simple.simple import create_agent
 
 @pytest.mark.asyncio
 async def test_multimodal_support():
@@ -67,7 +67,7 @@ async def test_multimodal_support():
         deps.model_name = model
         
         logger.info(f"Model {model}:")
-        logger.info(f"  - Testing model configuration")
+        logger.info("  - Testing model configuration")
         
         # Test multimodal configuration
         deps.configure_for_multimodal(modality="image")

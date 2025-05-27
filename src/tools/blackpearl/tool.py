@@ -3,13 +3,11 @@
 This module provides tools for interacting with the Blackpearl API.
 """
 import logging
-import os
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, Union
 from src.config import Environment, settings
 from src.tools.blackpearl.provider import BlackpearlProvider
 from src.tools.blackpearl.schema import (
-    Cliente, Contato, Vendedor, Produto, PedidoDeVenda, ItemDePedido,
-    RegraDeFrete, RegraDeNegocio, ItemDePedidoCreate
+    Cliente, Contato, Vendedor, PedidoDeVenda, RegraDeFrete, RegraDeNegocio, ItemDePedidoCreate
 )
 
 logger = logging.getLogger(__name__)

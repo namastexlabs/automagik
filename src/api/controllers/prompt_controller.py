@@ -1,11 +1,11 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 
 from src.api.models import PromptResponse, PromptListResponse
-from src.db.models import Prompt, PromptCreate, PromptUpdate
+from src.db.models import PromptCreate, PromptUpdate
 from src.db.repository import prompt as prompt_repo
 
 # Configure logger

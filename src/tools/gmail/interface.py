@@ -6,7 +6,6 @@ import logging
 import os
 from typing import List, Dict, Any, Optional
 
-from pydantic_ai import RunContext
 from pydantic_ai.tools import Tool
 
 from .tool import (

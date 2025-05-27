@@ -5,7 +5,7 @@ Example usage (from repo root):
 
     python scripts/benchmarks/agent_run_bench.py \
         --base-url http://localhost:8000 \
-        --agent-name simple_agent \
+        --agent-name simple \
         --concurrency 200 \
         --requests 1000
 
@@ -27,7 +27,7 @@ import httpx
 def parse_args() -> argparse.Namespace:  # noqa: D401
     parser = argparse.ArgumentParser(description="Benchmark /agent/{name}/run throughput")
     parser.add_argument("--base-url", default="http://localhost:8000", help="FastAPI server base URL")
-    parser.add_argument("--agent-name", default="simple_agent", help="Agent name to invoke")
+    parser.add_argument("--agent-name", default="simple", help="Agent name to invoke")
     parser.add_argument("--concurrency", type=int, default=100, help="Number of concurrent in-flight requests")
     parser.add_argument("--requests", type=int, default=500, help="Total number of requests to send")
     parser.add_argument("--timeout", type=float, default=30.0, help="Request timeout in seconds")

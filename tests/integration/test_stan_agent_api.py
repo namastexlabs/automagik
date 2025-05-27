@@ -1,8 +1,6 @@
-import requests
 import pytest
 import os
 import json
-import asyncio
 import httpx
 from dotenv import load_dotenv
 from src.tools.blackpearl.provider import BlackpearlProvider
@@ -22,7 +20,7 @@ settings = load_settings()
 host = "localhost" if settings.AM_HOST == "0.0.0.0" else settings.AM_HOST
 API_HOST = f"{host}:{settings.AM_PORT}"  # Use proper settings with host and port
 API_KEY = os.getenv("AM_API_KEY")
-AGENT_ENDPOINT = f"http://{API_HOST}/api/v1/agent/stan_agent/run"
+AGENT_ENDPOINT = f"http://{API_HOST}/api/v1/agent/stan/run"
 TEST_USER_IDENTIFIER = "integration-test-user@example.com" # Use email for get/create
 
 # --- Fixtures (Optional) ---
@@ -160,7 +158,7 @@ async def test_stan_agent_run_success():
         except httpx.HTTPStatusError as e:
             logger.warning(f"HTTP error fetching user data: {e.response.status_code} - {e.response.text}")
         except httpx.JSONDecodeError:
-            logger.warning(f"Failed to decode user data JSON response.")
+            logger.warning("Failed to decode user data JSON response.")
         except Exception as e:
              logger.warning(f"Unexpected error fetching user data: {e}")
 

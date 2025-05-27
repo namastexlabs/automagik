@@ -1,6 +1,6 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query, Path, Response
-from src.api.models import SessionResponse, SessionListResponse, SessionInfo, MessageModel, DeleteSessionResponse
+from fastapi import APIRouter, HTTPException, Query
+from src.api.models import SessionListResponse
 from src.api.controllers.session_controller import get_sessions, get_session, delete_session
 
 # Create router for session endpoints

@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 import uuid
 import datetime
 import asyncio
-import time
 
 from src.memory.message_history import MessageHistory
 from src.agents.models.dependencies import BaseDependencies
@@ -136,7 +135,6 @@ from src.agents.common.dependencies_helper import (
 from src.db.repository.prompt import (
     get_active_prompt,
     find_code_default_prompt,
-    get_latest_version_for_status,
     create_prompt, 
     set_prompt_active,
     update_prompt as _update_prompt
@@ -164,7 +162,7 @@ class AgentConfig:
             config: A dictionary of configuration options.
         """
         self.config = config or {}
-        self.model = self.config.get("model", "openai:gpt-3.5-turbo")
+        self.model = self.config.get("model", "openai:gpt-4.1-mini-turbo")
         self.temperature = float(self.config.get("temperature", "0.7"))
         self.retries = int(self.config.get("retries", "1"))
         
@@ -283,9 +281,9 @@ class AutomagikAgent(ABC, Generic[T]):
                     logger.debug(f"Using existing agent ID {self.db_id} for {self.name}")
                 else:
                     # Extract agent metadata
-                    agent_type = self.name.replace('_agent', '')
+                    agent_type = self.name
                     description = getattr(self, "description", f"{self.name} agent")
-                    model = getattr(self.config, "model", "openai:gpt-3.5-turbo")
+                    model = getattr(self.config, "model", "openai:gpt-4.1-mini-turbo")
                     
                     # Prepare config for database
                     agent_config = {}
@@ -904,7 +902,7 @@ class AutomagikAgent(ABC, Generic[T]):
 
             # Only print in non-background mode to reduce noise
             if not metadata.get("is_background", False):
-                logger.info(f"🔄 GRAPHITI: Episode data prepared")
+                logger.info("🔄 GRAPHITI: Episode data prepared")
                 
             # Create a namespaced group ID that includes namespace, agent ID, and user ID
             base_group = self.graphiti_agent_id  # Already contains namespace:agent_id
@@ -971,7 +969,7 @@ class AutomagikAgent(ABC, Generic[T]):
             else:
                 return False
                 
-        except Exception as e:
+        except Exception:
             return False 
 
     async def initialize_graphiti(self, max_retries: int = 5, retry_delay: float = 1.0) -> bool:

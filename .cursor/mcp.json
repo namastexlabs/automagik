@@ -1,0 +1,33 @@
+{
+    "mcpServers": {
+      "postgres_automagik_agents": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-postgres",
+          "postgresql://postgres:postgres@postgres:5432/automagik_agents"
+        ]
+      },
+      "deepwiki": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "supergateway",
+          "--sse",
+          "https://mcp.deepwiki.com/sse"
+        ]
+      },
+      "linear": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "https://mcp.linear.app/sse"
+        ]
+      },
+      "agent-memory": {
+        "transport": "sse",
+        "url": "http://192.168.112.149:8000/sse"
+      }
+    }
+  }

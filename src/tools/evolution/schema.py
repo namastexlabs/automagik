@@ -3,7 +3,7 @@
 This module defines the Pydantic models for Evolution tool input and output.
 """
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Any, Dict, List
+from typing import Optional, List
 
 class Message(BaseModel):
     """Model for Evolution message data."""

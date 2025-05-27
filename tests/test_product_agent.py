@@ -6,13 +6,11 @@ Este script testa a capacidade do agente de produtos de lidar com consultas rela
 
 import asyncio
 import logging
-import os
 import pytest
 from dotenv import load_dotenv
 from pydantic_ai import RunContext
-from typing import Dict, Any
 
-from src.agents.simple.stan_agent.specialized.product import product_agent
+from src.agents.simple.stan.specialized.product import product_agent
 
 # Configuração de logging
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +26,7 @@ async def test_product_query():
         deps={"user_id": 1, "_agent_id_numeric": 1},
         messages=[],
         prompt="",
-        model="openai:gpt-4o-mini",
+        model="openai:gpt-4.1-mini",
         usage={}
     )
     

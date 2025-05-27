@@ -73,14 +73,14 @@ def create_callback(
 def create_agent(
     name: str = typer.Option(..., "--name", "-n", help="Name of the new agent to create"),
     category: str = typer.Option("simple", "--category", "-c", help="Category folder to use (e.g., 'simple', 'graph')"),
-    template: str = typer.Option("simple_agent", "--template", "-t", help="Template folder to use as base (e.g., 'simple_agent', 'notion_agent')")
+    template: str = typer.Option("simple", "--template", "-t", help="Template folder to use as base (e.g., 'simple', 'notion')")
 ):
     """
     Create a new agent by cloning an existing agent template.
     
     The agent will be created in the specified category folder (e.g., simple, graph).
     The template should be the name of an existing agent within that category.
-    By default, it uses the simple_agent template in the simple category.
+    By default, it uses the simple template in the simple category.
     """
     # Define the agents directory and category paths
     agents_dir = Path(__file__).resolve().parent.parent.parent.parent / 'src' / 'agents'
@@ -93,7 +93,7 @@ def create_agent(
         raise typer.Exit(code=1)
     
     # Define the destination folder inside the category
-    destination = category_dir / f"{name}_agent"
+    destination = category_dir / name
     
     # Check if destination already exists
     if destination.exists():
@@ -119,15 +119,15 @@ def create_agent(
     # Copy the template folder to the destination folder
     shutil.copytree(template_path, destination)
 
-    # Get the base names without _agent suffix for class naming
-    template_base = template.replace('_agent', '')
+    # Get the base names for class naming (no _agent suffix needed)
+    template_base = template
     name_base = name
     
     # Compute the new agent class name and the template class name
     new_agent_class = ''.join(word.capitalize() for word in name.split('_')) + "Agent"
     template_class = ''.join(word.capitalize() for word in template_base.split('_')) + "Agent"
-    create_func_name = f"create_{name}_agent"
-    template_func_name = f"create_{template_base}_agent"
+    create_func_name = f"create_{name}"
+    template_func_name = f"create_{template_base}"
 
     # Recursively update file contents and filenames in the destination folder
     for root, dirs, files in os.walk(destination, topdown=False):
@@ -158,8 +158,8 @@ def create_agent(
                     f"import src.agents.{category}.{template_base}_agent",
                 ]:
                     replacement = potential_import_path.replace(
-                        template if template in potential_import_path else template_base + "_agent", 
-                        f"{name}_agent"
+                        template if template in potential_import_path else template_base, 
+                        name
                     )
                     new_content = new_content.replace(potential_import_path, replacement)
                 
@@ -181,20 +181,20 @@ def create_agent(
                     f"src.agents.{category}.{name}_agent.agent"
                 )
                 
-                # Handle references to simple_agent specifically (common in many templates)
-                if template != "simple_agent" and template_base != "simple":
+                # Handle references to simple specifically (common in many templates)
+                if template != "simple" and template_base != "simple":
                     new_content = new_content.replace(
-                        "src.agents.simple.simple_agent",
+                        "src.agents.simple.simple",
                         f"src.agents.{category}.{name}_agent"
                     )
                     new_content = new_content.replace(
-                        f"src.agents.{category}.simple_agent",
+                        f"src.agents.{category}.simple",
                         f"src.agents.{category}.{name}_agent"
                     )
                 
-                # Handle direct simple_agent imports in any category
+                # Handle direct simple imports in any category
                 new_content = new_content.replace(
-                    "from src.agents.test_agent.simple_agent",
+                    "from src.agents.test_agent.simple",
                     f"from src.agents.{category}.{name}_agent"
                 )
                 
@@ -269,8 +269,8 @@ def list_templates():
                 typer.echo(f"  {i}. {template}")
     
     typer.echo("\nTo create a new agent using a template, run:")
-    typer.echo("  automagik-agents agent create agent --name my_agent --category simple --template simple_agent")
-    typer.echo("\nWhere 'simple' is the category and 'simple_agent' is the template name.")
+    typer.echo("  automagik agents agent create agent --name my_agent --category simple --template simple")
+    typer.echo("\nWhere 'simple' is the category and 'simple' is the template name.")
 
 @create_app.command()
 def list_categories():

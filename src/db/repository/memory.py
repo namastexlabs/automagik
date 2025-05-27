@@ -3,9 +3,9 @@
 import uuid
 import json
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from src.db.connection import execute_query, safe_uuid
+from src.db.connection import execute_query
 from src.db.models import Memory
 
 # Configure logger

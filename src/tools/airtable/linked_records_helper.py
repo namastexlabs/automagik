@@ -6,7 +6,7 @@ particularly for converting between record IDs and display names.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, List, Optional
 from src.tools.airtable.tool import list_records, get_record
 
 logger = logging.getLogger(__name__)

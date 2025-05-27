@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union, Literal
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 import uuid
 
 class BaseResponseModel(BaseModel):

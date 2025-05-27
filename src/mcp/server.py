@@ -4,11 +4,10 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
 from pydantic_ai.tools import Tool as PydanticTool
-from pydantic_ai import Agent
 
 try:
     from pydantic_ai.mcp import MCPServer, MCPServerStdio, MCPServerHTTP
@@ -26,7 +25,7 @@ from .models import (
     MCPToolInfo,
     MCPResourceInfo
 )
-from .exceptions import MCPError, MCPServerError, MCPConnectionError, MCPToolError
+from .exceptions import MCPError, MCPServerError, MCPToolError
 
 logger = logging.getLogger(__name__)
 
@@ -113,9 +112,9 @@ class MCPServerManager:
                         'env': self.config.env or {}
                     }
                     
-                    # Start using async context manager
+                    # Store server instance without entering context yet
+                    # The context will be managed by the consumer (PydanticAI agent)
                     self._server = self._server_class(**self._server_args)
-                    self._server_context = await self._server.__aenter__()
                     
                 elif self.config.server_type == MCPServerType.HTTP:
                     if not self.config.http_url:
@@ -125,15 +124,17 @@ class MCPServerManager:
                     self._server_class = MCPServerHTTP
                     self._server_args = {'url': self.config.http_url}
                     
-                    # Start using async context manager
+                    # Store server instance without entering context yet
+                    # The context will be managed by the consumer (PydanticAI agent)
                     self._server = self._server_class(**self._server_args)
-                    self._server_context = await self._server.__aenter__()
                     
                 else:
                     raise MCPServerError(f"Unknown server type: {self.config.server_type}", self.name)
                 
-                # Discover tools and resources
-                await self._discover_capabilities()
+                # Test connection by temporarily entering context to discover capabilities
+                async with self._server as temp_server:
+                    # Discover tools and resources
+                    await self._discover_capabilities_with_server(temp_server)
                 
                 self.state.status = MCPServerStatus.RUNNING
                 self.state.started_at = datetime.now()
@@ -151,14 +152,8 @@ class MCPServerManager:
                 logger.error(f"Failed to start MCP server {self.name}: {str(e)}")
                 
                 # Cleanup on failure
-                if self._server:
-                    try:
-                        await self._server.__aexit__(None, None, None)
-                    except Exception as cleanup_error:
-                        logger.error(f"Error during cleanup: {cleanup_error}")
-                    finally:
-                        self._server = None
-                        self._server_context = None
+                self._server = None
+                self._server_context = None
                 
                 raise MCPServerError(f"Failed to start server: {str(e)}", self.name)
     
@@ -173,11 +168,9 @@ class MCPServerManager:
                 self.state.status = MCPServerStatus.STOPPING
                 logger.info(f"Stopping MCP server: {self.name}")
                 
-                if self._server:
-                    # Properly exit the async context manager
-                    await self._server.__aexit__(None, None, None)
-                    self._server = None
-                    self._server_context = None
+                # Clear server instance - context management is handled by consumers
+                self._server = None
+                self._server_context = None
                 
                 self._tools.clear()
                 self._resources.clear()
@@ -242,8 +235,9 @@ class MCPServerManager:
         try:
             start_time = time.time()
             
-            # Call the tool through the MCP server
-            result = await self._server.call_tool(tool_name, arguments)
+            # Call the tool through the MCP server using async context manager
+            async with self._server as server_instance:
+                result = await server_instance.call_tool(tool_name, arguments)
             
             execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
@@ -273,8 +267,9 @@ class MCPServerManager:
             raise MCPToolError(f"Resource {uri} not found", server_name=self.name)
         
         try:
-            # Access the resource through the MCP server
-            result = await self._server.read_resource(uri)
+            # Access the resource through the MCP server using async context manager
+            async with self._server as server_instance:
+                result = await server_instance.read_resource(uri)
             
             logger.debug(f"Resource {uri} accessed successfully")
             return result
@@ -283,14 +278,15 @@ class MCPServerManager:
             logger.error(f"Resource access failed: {uri} on {self.name}: {str(e)}")
             raise MCPToolError(f"Resource access failed: {str(e)}", server_name=self.name)
     
-    async def _discover_capabilities(self) -> None:
-        """Discover tools and resources available on the server."""
-        if not self._server:
-            return
+    async def _discover_capabilities_with_server(self, server_instance) -> None:
+        """Discover tools and resources available on the server using provided server instance.
         
+        Args:
+            server_instance: Active MCP server instance within async context
+        """
         try:
             # Discover tools
-            tools = await self._server.list_tools()
+            tools = await server_instance.list_tools()
             self._tools.clear()
             
             for tool in tools:
@@ -307,7 +303,7 @@ class MCPServerManager:
             
             # Discover resources
             try:
-                resources = await self._server.list_resources()
+                resources = await server_instance.list_resources()
                 self._resources.clear()
                 
                 for resource in resources:
@@ -315,22 +311,30 @@ class MCPServerManager:
                         uri=resource.uri,
                         name=getattr(resource, 'name', None),
                         description=getattr(resource, 'description', None),
-                        server_name=self.name,
-                        mime_type=getattr(resource, 'mime_type', None)
+                        mime_type=getattr(resource, 'mime_type', None),
+                        server_name=self.name
                     )
                     self._resources[resource.uri] = resource_info
                 
                 self.state.resources_discovered = list(self._resources.keys())
                 
             except Exception as e:
-                logger.warning(f"Failed to discover resources for {self.name}: {str(e)}")
-                # Resources are optional, so we don't fail the whole discovery
-            
-            logger.info(f"Discovered capabilities for {self.name}: {len(self._tools)} tools, {len(self._resources)} resources")
+                # Resource discovery is optional
+                logger.debug(f"Resource discovery failed for {self.name}: {str(e)}")
+                self.state.resources_discovered = []
             
         except Exception as e:
             logger.error(f"Failed to discover capabilities for {self.name}: {str(e)}")
             raise MCPServerError(f"Capability discovery failed: {str(e)}", self.name)
+
+    async def _discover_capabilities(self) -> None:
+        """Discover tools and resources available on the server."""
+        if not self._server:
+            return
+        
+        # Use the server within its own async context for capability discovery
+        async with self._server as server_instance:
+            await self._discover_capabilities_with_server(server_instance)
     
     def get_pydantic_tools(self) -> List[PydanticTool]:
         """Get tools as PydanticAI tools for integration with agents.

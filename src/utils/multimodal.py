@@ -6,13 +6,11 @@ such as images, audio, and documents.
 
 import base64
 import logging
-import json
 import re
 import mimetypes
-from typing import Dict, Any, Optional, Tuple, List, Union
+from typing import Dict, Any, Tuple, List, Union
 import requests
 from pathlib import Path
-import io
 
 logger = logging.getLogger(__name__)
 

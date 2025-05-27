@@ -4,7 +4,6 @@ This module defines the Pydantic models for memory tool input and output.
 """
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List, Union
-from uuid import UUID
 from datetime import datetime
 
 # Common models

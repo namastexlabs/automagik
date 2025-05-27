@@ -3,10 +3,10 @@
 import uuid
 import json
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 
 from src.db.connection import execute_query
-from src.db.models import Agent, Session
+from src.db.models import Agent
 from src.version import SERVICE_INFO
 
 # Configure logger
@@ -209,35 +209,14 @@ def delete_agent(agent_id: int) -> bool:
         return False
 
 
-def _normalize_agent_name(name: str) -> str:
-    """Normalize agent name to ensure consistency.
-    
-    This function standardizes agent names by:
-    1. Converting to lowercase
-    2. Ensuring the name always ends with '_agent'
-    3. Removing any duplicate '_agent' suffixes
-    
-    Args:
-        name: The agent name to normalize
-        
-    Returns:
-        Normalized agent name
-    """
-    # Convert to lowercase
-    normalized = name.lower()
-    
-    # Remove any existing _agent suffix
-    base_name = normalized.replace('_agent', '')
-    
-    # Always add _agent suffix
-    return f"{base_name}_agent"
+
 
 
 def register_agent(name: str, agent_type: str, model: str, description: Optional[str] = None, config: Optional[Dict] = None) -> Optional[int]:
     """Register an agent in the database or update an existing one.
     
     Args:
-        name: The agent name
+        name: The agent name (used as-is, no normalization)
         agent_type: The agent type (will be stored in the 'type' column)
         model: The model used by the agent
         description: Optional description
@@ -247,34 +226,15 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
         The agent ID if successful, None otherwise
     """
     try:
-        # Normalize the agent name to ensure consistency
-        normalized_name = _normalize_agent_name(name)
+        # Use the name as-is, no normalization
+        agent_name = name
         
-        # Log the normalization if it changed the name
-        if normalized_name != name:
-            logger.debug(f"Normalized agent name from '{name}' to '{normalized_name}'")
-        
-        # Check for existing agent with the normalized name
-        existing = get_agent_by_name(normalized_name)
-        
-        # Also check for variations of the name that might exist
-        if not existing:
-            # Check if an agent exists with the non-normalized name
-            existing = get_agent_by_name(name)
-            
-            # Check base name without _agent suffix
-            if not existing:
-                base_name = normalized_name.replace('_agent', '')
-                existing = get_agent_by_name(base_name)
+        # Check for existing agent with the exact name
+        existing = get_agent_by_name(agent_name)
         
         if existing:
-            # Update existing agent but normalize its name
+            # Update existing agent
             logger.info(f"Found existing agent with name {existing.name} (ID: {existing.id})")
-            
-            # Update the name if it's not already normalized
-            if existing.name != normalized_name:
-                logger.info(f"Normalizing existing agent name from '{existing.name}' to '{normalized_name}'")
-                existing.name = normalized_name
             
             existing.type = agent_type
             existing.model = model
@@ -285,8 +245,8 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
             # Use update_agent
             return update_agent(existing)
         
-        # Use normalized name for new agent
-        logger.info(f"Creating new agent with normalized name: {normalized_name}")
+        # Create new agent with the provided name
+        logger.info(f"Creating new agent with name: {agent_name}")
         
         # Serialize config to JSON if needed
         config_json = json.dumps(config) if config else None
@@ -303,7 +263,7 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
             ) RETURNING id
             """,
             (
-                normalized_name, 
+                agent_name, 
                 agent_type, 
                 model, 
                 description,
@@ -314,7 +274,7 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
         
         if result:
             agent_id = result[0]["id"]
-            logger.info(f"Registered agent {normalized_name} with ID {agent_id}")
+            logger.info(f"Registered agent {agent_name} with ID {agent_id}")
             return agent_id
         
         return None

@@ -1,12 +1,11 @@
 """Tests for MCP API routes."""
 
 import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.mcp.models import MCPServerType, MCPServerStatus, MCPServerState
+from src.mcp.models import MCPServerStatus, MCPServerState
 from src.mcp.exceptions import MCPError
 
 
@@ -419,12 +418,12 @@ class TestMCPRoutes:
         mock_mcp_client_manager.get_servers_for_agent.return_value = [mock_server]
         
         # Make request
-        response = client.get("/api/v1/mcp/agents/simple_agent/tools", headers=auth_headers)
+        response = client.get("/api/v1/mcp/agents/simple/tools", headers=auth_headers)
         
         # Assert response
         assert response.status_code == 200
         data = response.json()
-        assert data["agent_name"] == "simple_agent"
+        assert data["agent_name"] == "simple"
         assert data["total"] == 1
         assert len(data["tools"]) == 1
         assert len(data["servers"]) == 1

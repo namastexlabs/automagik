@@ -3,7 +3,7 @@
 This module handles memory operations, variable initialization, and substitution.
 """
 import logging
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class MemoryHandler:
                         logger.info(f"Creating missing memory variable: {var_name} for user: {user_id}")
                         
                         # Prepare a proper description based on the variable name
-                        description = f"Auto-created template variable for SimpleAgent"
+                        description = "Auto-created template variable for SimpleAgent"
                         if var_name == "personal_attributes":
                             description = "Personal attributes and preferences for the agent"
                             content = "None stored yet. You can update this by asking the agent to remember personal details."
@@ -166,7 +166,7 @@ class MemoryHandler:
                 logger.info(f"Creating new memory: {name} for user: {user_id}")
                 
                 if not description:
-                    description = f"Memory variable created for agent"
+                    description = "Memory variable created for agent"
                 
                 memory = Memory(
                     name=name,
@@ -296,7 +296,7 @@ class MemoryHandler:
                         
                 except Exception as e:
                     logger.error(f"Error fetching memory variable {var_name}: {str(e)}")
-                    memory_vars[var_name] = f"No data available"
+                    memory_vars[var_name] = "No data available"
                     
             return memory_vars
                 

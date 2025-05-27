@@ -3,26 +3,19 @@ import os
 import json
 import time
 import sqlite3
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Set
+from typing import Dict, Optional, Any
 from datetime import datetime, timedelta
 import re
-from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import signal
-import sys
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
-from rich.panel import Panel
-from rich.live import Live
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.table import Table
-from rich.layout import Layout
 
 # Define constants
 SCOPES = [
@@ -484,7 +477,7 @@ class DriveCatalogBuilder:
                     if hasattr(thread_local, 'progress') and hasattr(thread_local, 'task_id'):
                         self.update_progress_display(
                             thread_local.task_id, 
-                            f"Saved checkpoint"
+                            "Saved checkpoint"
                         )
                 elif self.items_since_checkpoint % 10 == 0:
                     # Regular commit in main thread
@@ -701,13 +694,13 @@ class DriveCatalogBuilder:
         self.setup_database()
         
         if not self.resume_mode:
-            console.print(f"\n[bold green]Starting new catalog build from Drive folder structure...[/bold green]")
+            console.print("\n[bold green]Starting new catalog build from Drive folder structure...[/bold green]")
         else:
-            console.print(f"\n[bold green]Resuming catalog build from checkpoint...[/bold green]")
+            console.print("\n[bold green]Resuming catalog build from checkpoint...[/bold green]")
             
-        console.print(f"[yellow]This will catalog the entire Drive structure into a database for easier querying.[/yellow]")
-        console.print(f"[blue]Press Ctrl+C at any time to stop. You can resume later.[/blue]")
-        console.print(f"[yellow]Using sequential processing for thread safety.[/yellow]")
+        console.print("[yellow]This will catalog the entire Drive structure into a database for easier querying.[/yellow]")
+        console.print("[blue]Press Ctrl+C at any time to stop. You can resume later.[/blue]")
+        console.print("[yellow]Using sequential processing for thread safety.[/yellow]")
         
         # Initialize timing tracking
         self.start_time = time.time()
@@ -734,7 +727,7 @@ class DriveCatalogBuilder:
                 # Final progress update
                 self.update_progress_display(
                     thread_local.task_id,
-                    f"Completed cataloging"
+                    "Completed cataloging"
                 )
                 
         except KeyboardInterrupt:
@@ -808,7 +801,7 @@ class DriveCatalogBuilder:
         self.conn.commit()
         
         console.print(f"\n[bold]Database saved to:[/bold] {self.db_path}")
-        console.print(f"\n[green]You can now query the database to work with the catalog.[/green]")
+        console.print("\n[green]You can now query the database to work with the catalog.[/green]")
 
     def save_checkpoint_manually(self):
         """Force a checkpoint save, for example when interrupted or periodically."""

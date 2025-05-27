@@ -5,22 +5,16 @@ This module tests the common utilities in src/agents/common.
 
 import pytest
 import logging
-import asyncio
-from typing import Dict, Any
 
 from src.agents.common import (
-    extract_tool_calls,
-    extract_tool_outputs,
     format_message_for_db,
     parse_user_message,
     create_context,
     validate_agent_id,
     validate_user_id,
     parse_model_settings,
-    create_model_settings,
     create_usage_limits,
     PromptBuilder,
-    MemoryHandler,
     ToolRegistry
 )
 

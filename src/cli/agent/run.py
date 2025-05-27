@@ -11,7 +11,6 @@ import json
 import typer
 from typing import Dict, List, Optional, Any
 import requests
-from pathlib import Path
 import os
 import logging
 
@@ -499,7 +498,7 @@ def list_available_agents() -> None:
 
         typer.echo("\nTry creating an agent first:")
         typer.echo(
-            "  automagik-agents agent create agent --name my_agent --template simple_agent"
+            "  automagik-agents agent create agent --name my_agent --template simple"
         )
 
         typer.echo("\nOr check if you can access the API directly:")
@@ -521,9 +520,9 @@ def list_available_agents() -> None:
         '  automagik-agents agent run message --agent <agent_name> --message "Your message here"'
     )
     typer.echo("\nFor multimodal content:")
-    typer.echo(f"  automagik-agents agent run message --agent <agent_name> --message \"Describe this image\" --image-url \"https://example.com/image.jpg\"")
-    typer.echo(f"  automagik-agents agent run message --agent <agent_name> --message \"Transcribe this audio\" --audio-url \"https://example.com/audio.mp3\"")
-    typer.echo(f"  automagik-agents agent run message --agent <agent_name> --message \"Summarize this document\" --document-url \"https://example.com/document.pdf\"")
+    typer.echo("  automagik-agents agent run message --agent <agent_name> --message \"Describe this image\" --image-url \"https://example.com/image.jpg\"")
+    typer.echo("  automagik-agents agent run message --agent <agent_name> --message \"Transcribe this audio\" --audio-url \"https://example.com/audio.mp3\"")
+    typer.echo("  automagik-agents agent run message --agent <agent_name> --message \"Summarize this document\" --document-url \"https://example.com/document.pdf\"")
 
 
 @run_app.command()

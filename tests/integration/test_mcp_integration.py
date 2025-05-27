@@ -1,9 +1,8 @@
 """Integration tests for MCP system."""
 
-import asyncio
 import pytest
 import httpx
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 
 from src.config import settings
 
@@ -19,7 +18,7 @@ class TestMCPIntegration:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers."""
-        return {"X-API-Key": "test-api-key"}
+        return {"X-API-Key": "am-xxxxx"}
     
     @pytest.mark.asyncio
     async def test_configure_filesystem_server(self, base_url, auth_headers):
@@ -41,6 +40,10 @@ class TestMCPIntegration:
                 json=config_data,
                 headers=auth_headers
             )
+            
+            # Debug output
+            print(f"Response status: {response.status_code}")
+            print(f"Response content: {response.text}")
             
             assert response.status_code == 200
             data = response.json()
@@ -132,7 +135,7 @@ class TestMCPIntegration:
                     "filesystem": {
                         "command": "npx",
                         "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-                        "agent_names": ["simple_agent"]
+                        "agent_names": ["simple"]
                     }
                 }
             }
@@ -145,13 +148,13 @@ class TestMCPIntegration:
             
             # List MCP tools available to the agent
             response = await client.get(
-                f"{base_url}/api/v1/mcp/agents/simple_agent/tools",
+                f"{base_url}/api/v1/mcp/agents/simple/tools",
                 headers=auth_headers
             )
             
             assert response.status_code == 200
             data = response.json()
-            assert data["agent_name"] == "simple_agent"
+            assert data["agent_name"] == "simple"
             assert "filesystem" in data["servers"]
     
     @pytest.mark.asyncio

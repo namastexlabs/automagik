@@ -2,17 +2,13 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.db.models import PromptCreate, PromptUpdate
+from src.db.models import PromptCreate
 from src.db.repository.prompt import (
     get_prompt_by_id,
     get_active_prompt,
-    find_code_default_prompt,
     get_latest_version_for_status,
     create_prompt,
-    update_prompt,
-    set_prompt_active,
-    get_prompts_by_agent_id,
-    delete_prompt
+    set_prompt_active
 )
 
 # Sample data

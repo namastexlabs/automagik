@@ -2,17 +2,14 @@
 
 import logging
 import uuid
-import json
 import inspect
 from typing import List, Optional, Dict, Any, Union
 from fastapi import HTTPException
-from datetime import datetime
 from fastapi.concurrency import run_in_threadpool
 
 from src.agents.models.agent_factory import AgentFactory
-from src.config import settings
 from src.memory.message_history import MessageHistory
-from src.api.models import AgentInfo, AgentRunRequest, MessageModel, UserCreate
+from src.api.models import AgentInfo, AgentRunRequest, UserCreate
 from src.db import get_agent_by_name, get_user, create_user, User, ensure_default_user_exists
 from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
@@ -33,36 +30,35 @@ async def list_registered_agents() -> List[AgentInfo]:
         # Off-load blocking DB call to threadpool
         registered_agents = await run_in_threadpool(list_db_agents, active_only=True)
         
-        # Group agents by their normalized name to handle duplicates
-        # Normalize name by removing "_agent" suffix where present
-        normalized_agents = {}
+        # Group agents by their name to handle duplicates
+        unique_agents = {}
         
         for agent in registered_agents:
-            # Normalize the name (remove _agent suffix)
-            normalized_name = agent.name.replace('_agent', '')
+            # Use agent name as-is, no normalization
+            agent_name = agent.name
             
             # Skip if we already have this agent with a newer ID (likely more up-to-date)
-            if normalized_name in normalized_agents and normalized_agents[normalized_name].id > agent.id:
-                logger.info(f"Skipping duplicate agent {agent.name} (ID: {agent.id}) in favor of newer entry (ID: {normalized_agents[normalized_name].id})")
+            if agent_name in unique_agents and unique_agents[agent_name].id > agent.id:
+                logger.info(f"Skipping duplicate agent {agent.name} (ID: {agent.id}) in favor of newer entry (ID: {unique_agents[agent_name].id})")
                 continue
                 
-            # Store this agent as the canonical version for this normalized name
-            normalized_agents[normalized_name] = agent
+            # Store this agent as the canonical version for this name
+            unique_agents[agent_name] = agent
             
-        logger.info(f"Normalized {len(registered_agents)} agents to {len(normalized_agents)} unique agents")
+        logger.info(f"Found {len(registered_agents)} agents, {len(unique_agents)} unique agents")
         
         # Convert to list of AgentInfo objects
         agent_infos = []
-        for normalized_name, agent in normalized_agents.items():
+        for agent_name, agent in unique_agents.items():
             # Get agent class to fetch docstring
             factory = AgentFactory()
-            agent_class = factory.get_agent_class(normalized_name)
+            agent_class = factory.get_agent_class(agent_name)
             docstring = inspect.getdoc(agent_class) if agent_class else agent.description or ""
             
             # Create agent info including the ID
             agent_infos.append(AgentInfo(
                 id=agent.id,
-                name=normalized_name,  # Return the normalized name without _agent suffix
+                name=agent_name,  # Return the actual agent name
                 description=docstring
             ))
             
@@ -87,7 +83,6 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
         UUID of the existing or newly created user
     """
     # Import UserCreate here as well to ensure it's available
-    from src.api.models import UserCreate
     
     # If no user ID or data, use the default user
     if not user_id and not user_data:
@@ -187,8 +182,8 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Get or create user
         user_id = await get_or_create_user(request.user_id, request.user)
             
-        # Convert agent_name to include '_agent' suffix if not already present
-        db_agent_name = f"{agent_name}_agent" if not agent_name.endswith('_agent') else agent_name
+        # Use agent name as-is for database lookup
+        db_agent_name = agent_name
         
         # Try to get the agent from the database to get its ID
         agent_db = await run_in_threadpool(get_agent_by_name, db_agent_name)
@@ -206,9 +201,9 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         if agent_name.startswith("nonexistent_") or "_nonexistent_" in agent_name:
             raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
             
-        # Initialize the agent - strip '_agent' suffix for factory
+        # Initialize the agent - use agent name as-is
         factory = AgentFactory()
-        agent_type = agent_name.replace('_agent', '') if agent_name.endswith('_agent') else agent_name
+        agent_type = agent_name
         
         # Use get_agent instead of create_agent to reuse existing instances
         try:
@@ -276,7 +271,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                             })
                             logger.debug(f"Added image to multimodal content: {mime_type}")
                         else:
-                            logger.warning(f"Image content item has no data or media_url")
+                            logger.warning("Image content item has no data or media_url")
                             
                     elif mime_type.startswith("audio/"):
                         if "audio" not in multimodal_content:
@@ -296,7 +291,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                             })
                             logger.debug(f"Added audio to multimodal content: {mime_type}")
                         else:
-                            logger.warning(f"Audio content item has no data or media_url")
+                            logger.warning("Audio content item has no data or media_url")
                             
                     elif mime_type.startswith(("application/", "text/")):
                         if "documents" not in multimodal_content:
@@ -316,7 +311,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                             })
                             logger.debug(f"Added document to multimodal content: {mime_type}")
                         else:
-                            logger.warning(f"Document content item has no data or media_url")
+                            logger.warning("Document content item has no data or media_url")
                     else:
                         logger.warning(f"Unsupported MIME type: {mime_type}")
                         

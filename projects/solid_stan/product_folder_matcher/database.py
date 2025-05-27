@@ -7,7 +7,6 @@ import urllib.parse
 import json
 import time
 from typing import Dict, List, Set, Tuple, Optional, Any
-from datetime import datetime
 from dotenv import load_dotenv
 from rich.console import Console
 
@@ -90,7 +89,7 @@ def connect_postgres_db() -> psycopg2.extensions.connection:
             connect_timeout=10  # 10 seconds connection timeout
         )
         
-        console.print(f"[green]Connected to Blackpearl database successfully![/green]")
+        console.print("[green]Connected to Blackpearl database successfully![/green]")
         log_database_connection("postgres", hostname, database, True)
         
         return conn

@@ -2,11 +2,8 @@
 """Test script for Graphiti queue functionality"""
 
 import asyncio
-import time
-import requests
 import pytest
 from src.utils.graphiti_queue import get_graphiti_queue
-from src.config import settings
 
 @pytest.mark.skip(reason="Graphiti queue tests cause hanging - infrastructure issue tracked separately")
 class TestGraphitiQueue:
