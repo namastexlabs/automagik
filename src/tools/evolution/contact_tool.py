@@ -5,7 +5,7 @@ This module provides the functionality for sending contact information via Evolu
 import logging
 import json
 import requests
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from pydantic_ai import RunContext
 
 logger = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ async def send_business_contact(
         evolution_credentials = _extract_evolution_credentials_from_payload(ctx)
         
         # Get environment configuration as fallback
-        env_config = ctx.get_env_config() or {}
+        ctx.get_env_config() or {}
         
         # Get business contact details
         business_name = "Victor Corrêa Gomes"

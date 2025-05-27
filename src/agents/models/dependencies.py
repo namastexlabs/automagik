@@ -4,13 +4,13 @@ This module provides typed dependencies for all agents in the system,
 following pydantic-ai best practices for dependency injection.
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List, Union, Generic, TypeVar
+from typing import Any, Dict, Optional, List, Union
 import logging
 from datetime import datetime
 
 # Import constants
 from src.constants import (
-    DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_RETRIES
+    DEFAULT_MODEL
 )
 
 # Import httpx for typed HTTP client if available
@@ -266,6 +266,11 @@ class AutomagikAgentsDependencies(BaseDependencies):
     # Search API keys
     duckduckgo_enabled: bool = False
     tavily_api_key: Optional[str] = None
+    
+    # Performance configuration
+    test_mode: bool = False  # Skip expensive operations during testing
+    disable_memory_operations: bool = False  # Skip Graphiti memory operations
+    mock_external_apis: bool = False  # Use mocked responses for external APIs
     
     def get_http_client(self) -> Any:
         """Get or initialize the HTTP client.

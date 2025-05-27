@@ -11,7 +11,7 @@ from typing import Optional
 debug_mode = "--debug" in sys.argv
 if debug_mode:
     os.environ["AM_LOG_LEVEL"] = "DEBUG"
-    print(f"Debug mode enabled. Environment variable AM_LOG_LEVEL set to DEBUG")
+    print("Debug mode enabled. Environment variable AM_LOG_LEVEL set to DEBUG")
 
 # Now import config after setting environment variables
 from src.config import LogLevel, Settings, mask_connection_string

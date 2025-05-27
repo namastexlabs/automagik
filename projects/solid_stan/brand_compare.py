@@ -8,13 +8,9 @@ import urllib.parse
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
-from rich.syntax import Syntax
-from rich.layout import Layout
 from rich.columns import Columns
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Tuple
 
 # Initialize rich console
 console = Console()
@@ -89,8 +85,8 @@ class BrandComparison:
             
             # Get database version
             self.pg_cursor.execute("SELECT version()")
-            version = self.pg_cursor.fetchone()[0]
-            console.print(f"[green]Connected to Blackpearl Database successfully![/green]")
+            self.pg_cursor.fetchone()[0]
+            console.print("[green]Connected to Blackpearl Database successfully![/green]")
             
             return True
             

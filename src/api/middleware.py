@@ -2,8 +2,7 @@ import logging
 import json
 import re
 from typing import Callable, Any, Dict
-from fastapi import Request, Response, HTTPException
-from starlette.status import HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY
+from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,7 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
                                 try:
                                     # Try to validate the JSON
                                     json.loads(fixed_body)
-                                    logger.info(f"Fixed malformed JSON in message_content")
+                                    logger.info("Fixed malformed JSON in message_content")
                                 except json.JSONDecodeError:
                                     # If still broken, do more cleanup
                                     fixed_body = None
@@ -95,7 +94,7 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
             except UnicodeDecodeError:
                 # If body can't be decoded as UTF-8, use original
                 request._body = original_body
-                logger.warning(f"Non-UTF8 request body received")
+                logger.warning("Non-UTF8 request body received")
                 
         # Continue with the request
         return await call_next(request)

@@ -45,7 +45,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import random
 import statistics
 import time
@@ -136,7 +135,7 @@ class PayloadGenerator:
     """Generate realistic payloads for different API endpoints."""
     
     @staticmethod
-    def agent_run_payload(agent_name: str = "simple_agent", session_id: Optional[str] = None) -> Dict[str, Any]:
+    def agent_run_payload(agent_name: str = "simple", session_id: Optional[str] = None) -> Dict[str, Any]:
         """Generate agent run payload."""
         messages = [
             "Hello, how are you today?",
@@ -475,7 +474,7 @@ class APIStressTester:
         return self._generate_report("Agent Run Test")
     
     async def test_session_queue_merging(self, session_count: int, messages_per_session: int,
-                                       concurrency: int, agent_name: str = "simple_agent") -> Dict[str, Any]:
+                                       concurrency: int, agent_name: str = "simple") -> Dict[str, Any]:
         """Test session queue merging behavior under load."""
         logger.info(f"Testing session queue with {session_count} sessions, "
                    f"{messages_per_session} messages each, concurrency {concurrency}")
@@ -520,7 +519,7 @@ class APIStressTester:
         # Define endpoint test scenarios
         scenarios = [
             ("GET", "/api/v1/agent/list", lambda: None, 0.1),  # 10% of requests
-            ("POST", "/api/v1/agent/simple_agent/run", 
+            ("POST", "/api/v1/agent/simple/run", 
              lambda: PayloadGenerator.agent_run_payload(), 0.6),  # 60% of requests
             ("GET", "/api/v1/sessions", lambda: None, 0.1),  # 10% of requests
             ("POST", "/api/v1/users", lambda: PayloadGenerator.user_create_payload(), 0.1),  # 10% of requests
@@ -622,7 +621,7 @@ def parse_args() -> argparse.Namespace:
                        help="API key for authentication (required for API mode)")
     parser.add_argument("--test-type", choices=["agent_run", "session_queue", "full_api"], 
                        default="agent_run", help="Type of API test to run")
-    parser.add_argument("--agent-name", default="simple_agent", 
+    parser.add_argument("--agent-name", default="simple", 
                        help="Agent name for agent tests")
     
     # Mocking options
@@ -691,7 +690,7 @@ async def main():
         
         # Summary
         summary = results['summary']
-        print(f"\n📊 SUMMARY:")
+        print("\n📊 SUMMARY:")
         print(f"  Total Requests: {summary['total_requests']}")
         print(f"  Successful: {summary['successful_requests']}")
         print(f"  Failed: {summary['failed_requests']}")
@@ -701,7 +700,7 @@ async def main():
         
         # Latency stats
         latency = results['latency_stats']
-        print(f"\n⏱️  LATENCY STATISTICS:")
+        print("\n⏱️  LATENCY STATISTICS:")
         print(f"  Mean: {latency['mean_ms']} ms")
         print(f"  Median: {latency['median_ms']} ms")
         print(f"  95th percentile: {latency['p95_ms']} ms")
@@ -711,7 +710,7 @@ async def main():
         # Performance stats
         perf = results['performance']
         if perf:
-            print(f"\n🖥️  PERFORMANCE MONITORING:")
+            print("\n🖥️  PERFORMANCE MONITORING:")
             print(f"  Peak Memory: {perf.get('peak_memory_mb', 0):.1f} MB")
             print(f"  Memory Growth: {perf.get('memory_growth_mb', 0):.1f} MB")
             print(f"  Avg CPU: {perf.get('avg_cpu_percent', 0):.1f}%")

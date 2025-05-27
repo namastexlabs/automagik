@@ -2,11 +2,10 @@
 
 import sqlite3
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from rich.console import Console
 
 from scripts.solid_stan.product_folder_matcher.observability import log_error
-from scripts.solid_stan.product_folder_matcher.models import FolderContent
 
 # Initialize console for rich output
 console = Console()

@@ -1,8 +1,5 @@
 import logging
 from datetime import datetime
-import json
-import uuid
-import os
 import asyncio
 import traceback
 
@@ -18,16 +15,12 @@ from src.auth import APIKeyMiddleware
 from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
-from src.db import ensure_default_user_exists
-from src.db.connection import generate_uuid
+from src.cli.db import db_init
 
 # Configure Neo4j logging to reduce verbosity
 logging.getLogger("neo4j").setLevel(logging.WARNING)
 logging.getLogger("neo4j.io").setLevel(logging.ERROR)
 logging.getLogger("neo4j.bolt").setLevel(logging.ERROR)
-
-# Import db_init
-from src.cli.db import db_init
 
 # Configure logging
 configure_logging()
@@ -144,14 +137,17 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Initialize database if needed
+        # The database needs to be available first
         try:
-            logger.info("🚀 Ensuring database is initialized...")
+            logger.info("🏗️ Initializing database for application startup...")
+            # Use the existing database initialization pattern
             db_init(force=False)  # Call db_init from src.cli.db, explicitly setting force=False
-            logger.info("✅ Database initialization check complete.")
+            logger.info("✅ Database initialization completed")
         except Exception as e:
-            logger.error(f"❌ Failed during database initialization check: {str(e)}")
+            logger.error(f"❌ Database initialization failed: {str(e)}")
+            # Continue startup even if database init fails for development
             logger.error(f"Detailed error: {traceback.format_exc()}")
-            
+        
         # Initialize Graphiti indices and constraints if Neo4j is configured
         if settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
             try:
@@ -175,9 +171,19 @@ def create_app() -> FastAPI:
             except Exception as e:
                 logger.error(f"❌ Failed to initialize Graphiti indices and constraints: {str(e)}")
                 logger.error(f"Detailed error: {traceback.format_exc()}")
-            
-        # Initialize all agents at startup - now this is async so we can await it
+        
+        # Initialize agents after core services are ready
         await initialize_all_agents()
+        
+        # Initialize MCP client manager after database and agents are ready
+        try:
+            logger.info("🚀 Initializing MCP client manager...")
+            from src.mcp.client import get_mcp_client_manager
+            await get_mcp_client_manager()
+            logger.info("✅ MCP client manager initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Error initializing MCP client manager: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Start Graphiti queue
         try:
@@ -305,7 +311,6 @@ def create_app() -> FastAPI:
         logger.info("✅ Database message storage initialized successfully")
         
         # Configure MessageHistory to use database by default
-        from src.memory.message_history import MessageHistory
         logger.info("✅ MessageHistory configured to use database storage")
     except Exception as e:
         logger.error(f"❌ Failed to initialize database connection for message storage: {str(e)}")
@@ -436,7 +441,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Log the configuration
-    logger.info(f"Starting server with configuration:")
+    logger.info("Starting server with configuration:")
     logger.info(f"├── Host: {args.host}")
     logger.info(f"├── Port: {args.port}")
     logger.info(f"└── Auto-reload: {'Enabled' if args.reload else 'Disabled'}")

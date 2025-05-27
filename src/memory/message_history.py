@@ -25,7 +25,6 @@ from pydantic_ai.messages import (
 # Import repository functions
 from src.db.repository.message import (
     create_message,
-    get_message,
     list_messages,
     delete_session_messages,
     get_system_prompt,
@@ -34,8 +33,7 @@ from src.db.repository.message import (
 from src.db.repository.session import (
     get_session,
     create_session,
-    update_session,
-    delete_session
+    update_session
 )
 from src.db.models import Message, Session
 
@@ -420,7 +418,7 @@ class MessageHistory:
                             session_system_prompt = get_system_prompt(uuid.UUID(self.session_id))
                             if session_system_prompt:
                                 system_prompt = session_system_prompt
-                                logger.debug(f"Using system prompt from session metadata")
+                                logger.debug("Using system prompt from session metadata")
                             else:
                                 # If not found, try other sources
                                 if agent_id:
@@ -429,7 +427,7 @@ class MessageHistory:
                                     agent = get_agent(agent_id)
                                     if agent and agent.system_prompt:
                                         system_prompt = agent.system_prompt
-                                        logger.debug(f"Using system prompt from agent configuration")
+                                        logger.debug("Using system prompt from agent configuration")
                         except Exception as e:
                             logger.error(f"Error getting system prompt: {str(e)}")
                     
@@ -439,7 +437,7 @@ class MessageHistory:
                     content_length = len(content) if content else 0
                     
                     # For INFO level, just log basic info
-                    logger.info(f"Adding assistant response to MessageHistory in the database")
+                    logger.info("Adding assistant response to MessageHistory in the database")
                     logger.info(f"System prompt status: {'Present' if system_prompt else 'Not provided'}")
                     
                     # For DEBUG level (verbose logging), add more details

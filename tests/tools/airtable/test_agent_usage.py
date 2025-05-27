@@ -7,9 +7,6 @@ payload. The objective is to validate the agent+tool plumbing rather
 than Airtable behaviour.
 """
 
-import asyncio
-from datetime import timezone
-from typing import Generator
 
 import pytest
 
@@ -19,11 +16,9 @@ from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
-    UserPromptPart,
     ToolCallPart,
     ToolReturnPart,
 )
-from pydantic_ai.usage import Usage
 from src.tools.airtable.interface import airtable_list_records
 
 pytestmark = pytest.mark.anyio

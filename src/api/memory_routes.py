@@ -1,5 +1,4 @@
 import logging
-import json
 import math
 import uuid
 from uuid import UUID
@@ -24,8 +23,6 @@ from src.db import (
     User,
     create_user
 )
-from src.config import settings
-from src.memory.message_history import MessageHistory
 
 # Create API router for memory endpoints
 memory_router = APIRouter()
@@ -168,6 +165,13 @@ async def list_memories(
              description="Create a new memory with the provided details.")
 async def create_memory(memory: MemoryCreate):
     try:
+        # Validate memory creation requirements for agent global memory
+        if not memory.user_id and not memory.agent_id:
+            raise HTTPException(
+                status_code=400, 
+                detail="agent_id is required when user_id is not provided (for agent global memory)"
+            )
+        
         # Convert session_id to UUID if provided
         session_uuid = None
         if memory.session_id:
@@ -224,6 +228,8 @@ async def create_memory(memory: MemoryCreate):
             "created_at": created_memory.created_at,
             "updated_at": created_memory.updated_at
         }
+    except HTTPException:
+        raise  # Re-raise HTTPExceptions as-is (with their original status codes)
     except Exception as e:
         logger.error(f"Error creating memory: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating memory: {str(e)}")
@@ -239,6 +245,13 @@ async def create_memories_batch(memories: List[MemoryCreate]):
         
         for memory in memories:
             try:
+                # Validate memory creation requirements for agent global memory
+                if not memory.user_id and not memory.agent_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="agent_id is required when user_id is not provided (for agent global memory)"
+                    )
+                
                 # Convert session_id to UUID if provided
                 session_uuid = None
                 if memory.session_id:
@@ -313,6 +326,8 @@ async def create_memories_batch(memories: List[MemoryCreate]):
         
         # Return all successfully created memories
         return results
+    except HTTPException:
+        raise  # Re-raise HTTPExceptions as-is (with their original status codes)
     except Exception as e:
         logger.error(f"Error creating memories in batch: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating memories in batch: {str(e)}")
@@ -376,40 +391,56 @@ async def update_memory_endpoint(
         if not existing_memory:
             raise HTTPException(status_code=404, detail=f"Memory {memory_id} not found")
         
-        # Update existing memory with new values
-        if memory_update.name is not None:
-            existing_memory.name = memory_update.name
+        # Determine final values after update - use model_dump to distinguish between None and not provided
+        update_dict = memory_update.model_dump(exclude_unset=True)
+        final_user_id = update_dict.get('user_id', existing_memory.user_id)
+        final_agent_id = update_dict.get('agent_id', existing_memory.agent_id)
+        
+        # Validate the update doesn't create invalid state (both user_id and agent_id as None)
+        if not final_user_id and not final_agent_id:
+            raise HTTPException(
+                status_code=400, 
+                detail="agent_id is required when user_id is not provided (for agent global memory)"
+            )
+        
+        # Update existing memory with new values - only update fields that were explicitly provided
+        if 'name' in update_dict:
+            existing_memory.name = update_dict['name']
             
-        if memory_update.description is not None:
-            existing_memory.description = memory_update.description
+        if 'description' in update_dict:
+            existing_memory.description = update_dict['description']
             
-        if memory_update.content is not None:
-            existing_memory.content = memory_update.content
+        if 'content' in update_dict:
+            existing_memory.content = update_dict['content']
             
-        if memory_update.session_id is not None:
-            try:
-                if isinstance(memory_update.session_id, str):
-                    existing_memory.session_id = uuid.UUID(memory_update.session_id)
-                else:
-                    existing_memory.session_id = memory_update.session_id
-            except ValueError:
-                # If not a valid UUID, store as None
+        if 'session_id' in update_dict:
+            session_value = update_dict['session_id']
+            if session_value is None:
                 existing_memory.session_id = None
+            else:
+                try:
+                    if isinstance(session_value, str):
+                        existing_memory.session_id = uuid.UUID(session_value)
+                    else:
+                        existing_memory.session_id = session_value
+                except ValueError:
+                    # If not a valid UUID, store as None
+                    existing_memory.session_id = None
                 
-        if memory_update.user_id is not None:
-            existing_memory.user_id = memory_update.user_id
+        if 'user_id' in update_dict:
+            existing_memory.user_id = update_dict['user_id']
             
-        if memory_update.agent_id is not None:
-            existing_memory.agent_id = memory_update.agent_id
+        if 'agent_id' in update_dict:
+            existing_memory.agent_id = update_dict['agent_id']
             
-        if memory_update.read_mode is not None:
-            existing_memory.read_mode = memory_update.read_mode
+        if 'read_mode' in update_dict:
+            existing_memory.read_mode = update_dict['read_mode']
             
-        if memory_update.access is not None:
-            existing_memory.access = memory_update.access
+        if 'access' in update_dict:
+            existing_memory.access = update_dict['access']
             
-        if memory_update.metadata is not None:
-            existing_memory.metadata = memory_update.metadata
+        if 'metadata' in update_dict:
+            existing_memory.metadata = update_dict['metadata']
         
         # Update the memory using repository function
         updated_memory_id = repo_update_memory(existing_memory)
@@ -436,7 +467,7 @@ async def update_memory_endpoint(
             updated_at=updated_memory.updated_at
         )
     except HTTPException:
-        raise
+        raise  # Re-raise HTTPExceptions as-is (with their original status codes)
     except Exception as e:
         logger.error(f"Error updating memory: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error updating memory: {str(e)}")

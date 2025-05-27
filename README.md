@@ -88,7 +88,7 @@ automagik agents dev            # Development mode with auto-reload
 ### API Examples
 ```bash
 # Test agent
-curl -X POST http://localhost:${AM_PORT}/api/v1/agent/simple_agent/run \
+curl -X POST http://localhost:${AM_PORT}/api/v1/agent/simple/run \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"message_content": "Hello!", "session_name": "test"}'
@@ -109,7 +109,7 @@ curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
 ## 🛠️ Create Custom Agents
 
 ```bash
-automagik agents create -n my_agent -t simple_agent
+automagik agents create -n my_agent -t simple
 # Customize: src/agents/simple/my_agent/
 ```
 

@@ -4,14 +4,11 @@ import asyncio
 import time
 import pytest
 from unittest.mock import Mock, patch
-from typing import List, Dict, Any
 
-from pydantic_ai import RunContext
 from src.tools.airtable.tool import (
     list_records, 
     create_records, 
     update_records, 
-    delete_records,
     MAX_RECORDS_PER_BATCH
 )
 

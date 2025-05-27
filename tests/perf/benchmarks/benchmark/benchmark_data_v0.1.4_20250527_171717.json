@@ -1,0 +1,159 @@
+{
+  "timestamp": "2025-05-27T17:17:17.240386",
+  "project_version": "0.1.4",
+  "base_url": "http://localhost:8484",
+  "total_tests": 6,
+  "successful_tests": 6,
+  "results": [
+    {
+      "name": "Mock_Infrastructure_Baseline",
+      "description": "Infrastructure baseline with mock agents",
+      "status": "success",
+      "duration": 1.4086668491363525,
+      "config": {
+        "name": "Mock_Infrastructure_Baseline",
+        "description": "Infrastructure baseline with mock agents",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 20,
+        "requests": 100
+      },
+      "metrics": {
+        "total_requests": 100,
+        "successful_requests": 100,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 340.92,
+        "mean_latency_ms": 0.91,
+        "p95_latency_ms": 1.08,
+        "max_latency_ms": 1.9
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 100\n  Successful: 100\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 0.29 seconds\n  Throughput: 340.92 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.91 ms\n  Median: 0.85 ms\n  95th percentile: 1.08 ms\n  Max: 1.90 ms\n  Min: 0.82 ms\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Medium_Load",
+      "description": "Medium infrastructure load test",
+      "status": "success",
+      "duration": 1.5039093494415283,
+      "config": {
+        "name": "Mock_Medium_Load",
+        "description": "Medium infrastructure load test",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 50,
+        "requests": 500
+      },
+      "metrics": {
+        "total_requests": 500,
+        "successful_requests": 500,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 876.71,
+        "mean_latency_ms": 0.68,
+        "p95_latency_ms": 0.81,
+        "max_latency_ms": 1.47
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 500\n  Successful: 500\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 0.57 seconds\n  Throughput: 876.71 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.68 ms\n  Median: 0.66 ms\n  95th percentile: 0.81 ms\n  Max: 1.47 ms\n  Min: 0.62 ms\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_High_Concurrency",
+      "description": "High concurrency infrastructure test",
+      "status": "success",
+      "duration": 2.227201461791992,
+      "config": {
+        "name": "Mock_High_Concurrency",
+        "description": "High concurrency infrastructure test",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 100,
+        "requests": 1000
+      },
+      "metrics": {
+        "total_requests": 1000,
+        "successful_requests": 1000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 967.87,
+        "mean_latency_ms": 0.77,
+        "p95_latency_ms": 1.54,
+        "max_latency_ms": 2.02
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 1000\n  Successful: 1000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 1.03 seconds\n  Throughput: 967.87 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.77 ms\n  Median: 0.67 ms\n  95th percentile: 1.54 ms\n  Max: 2.02 ms\n  Min: 0.63 ms\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Extreme_Load",
+      "description": "Extreme load infrastructure test",
+      "status": "success",
+      "duration": 2.611356019973755,
+      "config": {
+        "name": "Mock_Extreme_Load",
+        "description": "Extreme load infrastructure test",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 200,
+        "requests": 2000
+      },
+      "metrics": {
+        "total_requests": 2000,
+        "successful_requests": 2000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 1282.09,
+        "mean_latency_ms": 0.65,
+        "p95_latency_ms": 0.71,
+        "max_latency_ms": 1.61
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 2000\n  Successful: 2000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 1.56 seconds\n  Throughput: 1282.09 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.65 ms\n  Median: 0.64 ms\n  95th percentile: 0.71 ms\n  Max: 1.61 ms\n  Min: 0.60 ms\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Stress_Test",
+      "description": "Maximum stress test for infrastructure",
+      "status": "success",
+      "duration": 4.865197420120239,
+      "config": {
+        "name": "Mock_Stress_Test",
+        "description": "Maximum stress test for infrastructure",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 500,
+        "requests": 5000
+      },
+      "metrics": {
+        "total_requests": 5000,
+        "successful_requests": 5000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 1318.41,
+        "mean_latency_ms": 0.67,
+        "p95_latency_ms": 0.91,
+        "max_latency_ms": 26.79
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 5000\n  Successful: 5000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 3.79 seconds\n  Throughput: 1318.41 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.67 ms\n  Median: 0.63 ms\n  95th percentile: 0.91 ms\n  Max: 26.79 ms\n  Min: 0.61 ms\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Function_Model_Realistic",
+      "description": "Realistic responses with function model",
+      "status": "success",
+      "duration": 3.4178547859191895,
+      "config": {
+        "name": "Mock_Function_Model_Realistic",
+        "description": "Realistic responses with function model",
+        "mode": "mock",
+        "mock_type": "function",
+        "concurrency": 100,
+        "requests": 1000
+      },
+      "metrics": {
+        "total_requests": 1000,
+        "successful_requests": 1000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 452.73,
+        "mean_latency_ms": 140.52,
+        "p95_latency_ms": 206.67,
+        "max_latency_ms": 258.24
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (function)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 1000\n  Successful: 1000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 2.21 seconds\n  Throughput: 452.73 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 140.52 ms\n  Median: 144.31 ms\n  95th percentile: 206.67 ms\n  Max: 258.24 ms\n  Min: 33.98 ms\n\n================================================================================\n"
+    }
+  ]
+}

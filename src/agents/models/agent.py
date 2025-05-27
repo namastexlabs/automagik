@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List, Any, Dict
+from pydantic import BaseModel
+from typing import Optional, List, Dict
 import logging
 
 from src.memory.message_history import MessageHistory

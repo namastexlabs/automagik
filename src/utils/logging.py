@@ -1,6 +1,5 @@
 import os
 import logging
-from typing import Dict, Optional
 from src.config import settings, LogLevel
 
 class PrettyFormatter(logging.Formatter):

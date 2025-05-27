@@ -45,7 +45,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import random
 import statistics
 import time
@@ -136,7 +135,7 @@ class PayloadGenerator:
     """Generate realistic payloads for different API endpoints."""
     
     @staticmethod
-    def agent_run_payload(agent_name: str = "simple_agent", session_id: Optional[str] = None) -> Dict[str, Any]:
+    def agent_run_payload(agent_name: str = "simple", session_id: Optional[str] = None) -> Dict[str, Any]:
         """Generate agent run payload."""
         messages = [
             "Hello, how are you today?",
@@ -186,20 +185,57 @@ class PayloadGenerator:
     @staticmethod
     def memory_create_payload(user_id: Optional[str] = None) -> Dict[str, Any]:
         """Generate memory creation payload."""
+        if not user_id:
+            user_id = str(uuid.uuid4())
+        
+        memories = [
+            "I prefer coffee over tea",
+            "My favorite programming language is Python",
+            "I work in software development",
+            "I enjoy reading science fiction books",
+            "I live in San Francisco",
+            "I have a pet dog named Max",
+            "I'm learning machine learning",
+            "I prefer working remotely"
+        ]
+        
         return {
-            "name": f"stress_test_memory_{uuid.uuid4().hex[:8]}",
-            "description": "Memory created during stress testing",
-            "content": f"This is test content for stress testing: {random.random()}",
-            "user_id": user_id or str(uuid.uuid4()),
-            "agent_id": random.randint(1, 5),
-            "read_mode": random.choice(["auto", "manual"]),
-            "access": random.choice(["private", "shared"]),
+            "user_id": user_id,
+            "content": random.choice(memories),
             "metadata": {
-                "test": True,
-                "stress_test_id": str(uuid.uuid4()),
-                "timestamp": datetime.now().isoformat()
+                "source": "stress_test",
+                "timestamp": time.time()
             }
         }
+    
+    @staticmethod
+    def mcp_tool_call_payload() -> Dict[str, Any]:
+        """Generate MCP tool call payload."""
+        # Sample tool calls for testing
+        tool_calls = [
+            {
+                "server_name": "calculator",
+                "tool_name": "add",
+                "arguments": {"a": random.randint(1, 100), "b": random.randint(1, 100)}
+            },
+            {
+                "server_name": "calculator", 
+                "tool_name": "multiply",
+                "arguments": {"a": random.randint(1, 20), "b": random.randint(1, 20)}
+            },
+            {
+                "server_name": "filesystem",
+                "tool_name": "read_file",
+                "arguments": {"path": "/tmp/test.txt"}
+            },
+            {
+                "server_name": "weather",
+                "tool_name": "get_weather",
+                "arguments": {"location": random.choice(["New York", "London", "Tokyo", "Sydney"])}
+            }
+        ]
+        
+        return random.choice(tool_calls)
 
 
 class MockedAgentTester:
@@ -475,7 +511,7 @@ class APIStressTester:
         return self._generate_report("Agent Run Test")
     
     async def test_session_queue_merging(self, session_count: int, messages_per_session: int,
-                                       concurrency: int, agent_name: str = "simple_agent") -> Dict[str, Any]:
+                                       concurrency: int, agent_name: str = "simple") -> Dict[str, Any]:
         """Test session queue merging behavior under load."""
         logger.info(f"Testing session queue with {session_count} sessions, "
                    f"{messages_per_session} messages each, concurrency {concurrency}")
@@ -520,7 +556,7 @@ class APIStressTester:
         # Define endpoint test scenarios
         scenarios = [
             ("GET", "/api/v1/agent/list", lambda: None, 0.1),  # 10% of requests
-            ("POST", "/api/v1/agent/simple_agent/run", 
+            ("POST", "/api/v1/agent/simple/run", 
              lambda: PayloadGenerator.agent_run_payload(), 0.6),  # 60% of requests
             ("GET", "/api/v1/sessions", lambda: None, 0.1),  # 10% of requests
             ("POST", "/api/v1/users", lambda: PayloadGenerator.user_create_payload(), 0.1),  # 10% of requests
@@ -557,6 +593,97 @@ class APIStressTester:
             
         self.results['end_time'] = time.time()
         return self._generate_report("Full API Stress Test")
+    
+    async def test_mcp_health(self, concurrency: int, requests: int) -> Dict[str, Any]:
+        """Test MCP health endpoint under load."""
+        logger.info(f"Testing MCP health endpoint with {requests} requests, concurrency {concurrency}")
+        
+        endpoint = "/api/v1/mcp/health"
+        semaphore = asyncio.Semaphore(concurrency)
+        
+        self.performance_monitor.start()
+        self.results['start_time'] = time.time()
+        
+        async with httpx.AsyncClient(headers=self._get_headers(), timeout=self.timeout) as client:
+            tasks = [
+                asyncio.create_task(
+                    self._worker(semaphore, client, "GET", endpoint, None, i)
+                )
+                for i in range(requests)
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+        self.results['end_time'] = time.time()
+        return self._generate_report("MCP Health Monitoring Test")
+    
+    async def test_mcp_management(self, concurrency: int, requests: int) -> Dict[str, Any]:
+        """Test MCP server management operations under load."""
+        logger.info(f"Testing MCP management operations with {requests} requests, concurrency {concurrency}")
+        
+        # Define MCP management scenarios
+        scenarios = [
+            ("GET", "/api/v1/mcp/servers", lambda: None, 0.4),  # 40% list servers
+            ("GET", "/api/v1/mcp/health", lambda: None, 0.3),   # 30% health checks
+            ("GET", "/api/v1/mcp/servers/calculator/tools", lambda: None, 0.2),  # 20% list tools
+            ("GET", "/api/v1/mcp/servers/calculator/resources", lambda: None, 0.1),  # 10% list resources
+        ]
+        
+        semaphore = asyncio.Semaphore(concurrency)
+        
+        self.performance_monitor.start()
+        self.results['start_time'] = time.time()
+        
+        async with httpx.AsyncClient(headers=self._get_headers(), timeout=self.timeout) as client:
+            tasks = []
+            
+            for i in range(requests):
+                # Choose scenario based on weights
+                rand = random.random()
+                cumulative = 0
+                chosen_scenario = scenarios[0]  # default
+                
+                for scenario in scenarios:
+                    cumulative += scenario[3]
+                    if rand <= cumulative:
+                        chosen_scenario = scenario
+                        break
+                
+                method, endpoint, payload_gen, _ = chosen_scenario
+                task = asyncio.create_task(
+                    self._worker(semaphore, client, method, endpoint, payload_gen, i)
+                )
+                tasks.append(task)
+            
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+        self.results['end_time'] = time.time()
+        return self._generate_report("MCP Management Operations Test")
+    
+    async def test_mcp_tools(self, concurrency: int, requests: int) -> Dict[str, Any]:
+        """Test MCP tool calling performance."""
+        logger.info(f"Testing MCP tool calls with {requests} requests, concurrency {concurrency}")
+        
+        endpoint = "/api/v1/mcp/tools/call"
+        semaphore = asyncio.Semaphore(concurrency)
+        
+        self.performance_monitor.start()
+        self.results['start_time'] = time.time()
+        
+        async with httpx.AsyncClient(headers=self._get_headers(), timeout=self.timeout) as client:
+            tasks = [
+                asyncio.create_task(
+                    self._worker(
+                        semaphore, client, "POST", endpoint,
+                        lambda: PayloadGenerator.mcp_tool_call_payload(),
+                        i
+                    )
+                )
+                for i in range(requests)
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+        self.results['end_time'] = time.time()
+        return self._generate_report("MCP Tool Call Performance Test")
     
     def _generate_report(self, test_name: str) -> Dict[str, Any]:
         """Generate detailed test report."""
@@ -620,9 +747,9 @@ def parse_args() -> argparse.Namespace:
                        help="FastAPI server base URL (for API mode)")
     parser.add_argument("--api-key", 
                        help="API key for authentication (required for API mode)")
-    parser.add_argument("--test-type", choices=["agent_run", "session_queue", "full_api"], 
+    parser.add_argument("--test-type", choices=["agent_run", "session_queue", "full_api", "mcp_health", "mcp_management", "mcp_tools"], 
                        default="agent_run", help="Type of API test to run")
-    parser.add_argument("--agent-name", default="simple_agent", 
+    parser.add_argument("--agent-name", default="simple", 
                        help="Agent name for agent tests")
     
     # Mocking options
@@ -681,6 +808,12 @@ async def main():
                 )
             elif args.test_type == "full_api":
                 results = await tester.test_full_api(args.concurrency, args.requests)
+            elif args.test_type == "mcp_health":
+                results = await tester.test_mcp_health(args.concurrency, args.requests)
+            elif args.test_type == "mcp_management":
+                results = await tester.test_mcp_management(args.concurrency, args.requests)
+            elif args.test_type == "mcp_tools":
+                results = await tester.test_mcp_tools(args.concurrency, args.requests)
             else:
                 raise ValueError(f"Unknown test type: {args.test_type}")
         
@@ -691,7 +824,7 @@ async def main():
         
         # Summary
         summary = results['summary']
-        print(f"\n📊 SUMMARY:")
+        print("\n📊 SUMMARY:")
         print(f"  Total Requests: {summary['total_requests']}")
         print(f"  Successful: {summary['successful_requests']}")
         print(f"  Failed: {summary['failed_requests']}")
@@ -701,7 +834,7 @@ async def main():
         
         # Latency stats
         latency = results['latency_stats']
-        print(f"\n⏱️  LATENCY STATISTICS:")
+        print("\n⏱️  LATENCY STATISTICS:")
         print(f"  Mean: {latency['mean_ms']} ms")
         print(f"  Median: {latency['median_ms']} ms")
         print(f"  95th percentile: {latency['p95_ms']} ms")
@@ -711,7 +844,7 @@ async def main():
         # Performance stats
         perf = results['performance']
         if perf:
-            print(f"\n🖥️  PERFORMANCE MONITORING:")
+            print("\n🖥️  PERFORMANCE MONITORING:")
             print(f"  Peak Memory: {perf.get('peak_memory_mb', 0):.1f} MB")
             print(f"  Memory Growth: {perf.get('memory_growth_mb', 0):.1f} MB")
             print(f"  Avg CPU: {perf.get('avg_cpu_percent', 0):.1f}%")

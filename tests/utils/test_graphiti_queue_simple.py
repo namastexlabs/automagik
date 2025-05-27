@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Simple, fast test for Graphiti queue that doesn't hang"""
 
-import asyncio
 import pytest
-from src.utils.graphiti_queue import get_graphiti_queue, GraphitiQueueManager
-from src.config import settings
 
 @pytest.mark.skip(reason="Graphiti queue tests cause hanging - even simple ones have issues with global state")
 class TestGraphitiQueueSimple:

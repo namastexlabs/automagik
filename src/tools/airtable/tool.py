@@ -10,7 +10,6 @@ pydantic response models defined in `schema.py`.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from typing import Dict, Any, List, Optional

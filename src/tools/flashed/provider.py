@@ -3,8 +3,7 @@
 This module provides the API client implementation for interacting with the Flashed API.
 """
 import logging
-import os
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any
 import aiohttp
 # from src.tools.blackpearl.interface import validate_api_response, handle_api_error, format_api_request, filter_none_params
 from src.tools.flashed.interface import format_api_request, filter_none_params

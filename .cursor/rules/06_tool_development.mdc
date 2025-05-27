@@ -3,7 +3,6 @@ description: Tool development patterns, PydanticAI integration, and async patter
 globs: src/tools/**/*,tests/**/*tool*
 alwaysApply: false
 ---
-
 # Tool Development Guide
 
 ## 🔧 Tool Architecture Overview
@@ -23,14 +22,18 @@ src/tools/service_name/
 ## 🚀 Tool Creation Checklist
 
 ### **Step-by-Step Process**
-1. **Create Directory**: `mkdir -p src/tools/<service_name>`
-2. **Create Schema** (`schema.py`): Define `ToolInput`/`ToolOutput` Pydantic models with `success: bool` and `error_message: str`
-3. **Implement Provider** (`provider.py`) - if external API needed: Handle API communication with `httpx.AsyncClient`
-4. **Implement Business Logic** (`tool.py`): Main async function with `RunContext`, call provider, handle errors
-5. **Create Interface** (`interface.py`): Create `Tool` object with name, description, function, export tools list
-6. **Package Export** (`__init__.py`): Export tools list from interface
-7. **Global Registration** (`src/tools/__init__.py`): Add to global `__all__` list
-8. **Write Tests**: Unit tests with mocked providers, integration tests with agent context
+1. **Search Memory**: Check for existing tool patterns
+   ```bash
+   mcp_agent-memory_search_memory_nodes --query "tool development patterns" --entity "Procedure"
+   ```
+2. **Create Directory**: `mkdir -p src/tools/<service_name>`
+3. **Create Schema** (`schema.py`): Define `ToolInput`/`ToolOutput` Pydantic models with `success: bool` and `error_message: str`
+4. **Implement Provider** (`provider.py`) - if external API needed: Handle API communication with `httpx.AsyncClient`
+5. **Implement Business Logic** (`tool.py`): Main async function with `RunContext`, call provider, handle errors
+6. **Create Interface** (`interface.py`): Create `Tool` object with name, description, function, export tools list
+7. **Package Export** (`__init__.py`): Export tools list from interface
+8. **Global Registration** (`src/tools/__init__.py`): Add to global `__all__` list
+9. **Write Tests**: Unit tests with mocked providers, integration tests with agent context
 
 ## 🎯 Core Development Rules
 
@@ -229,10 +232,21 @@ async def secure_api_call(data):
 ### **Record Tool Patterns**
 ```bash
 # Before implementing new tool
-mcp_memories_search_memory --query "tool development patterns"
+mcp_agent-memory_search_memory_nodes --query "tool development patterns" --entity "Procedure"
+mcp_agent-memory_search_memory_facts --query "tool integration dependencies"
 
 # After successful implementation
-mcp_memories_add_memories --text "Tool pattern: service_name structure with RunContext async function, Pydantic I/O models, error handling via return not raise"
+mcp_agent-memory_add_memory \
+  --name "Tool Pattern: [Service Name]" \
+  --episode_body "Tool structure with RunContext async function, Pydantic I/O models, error handling via return not raise" \
+  --source "text" \
+  --source_description "Successful tool implementation pattern"
+
+# Store integration procedure
+mcp_agent-memory_add_memory \
+  --name "Tool Integration Procedure" \
+  --episode_body "1. Create directory structure\n2. Define schemas\n3. Implement async function\n4. Create interface\n5. Register globally\n6. Test with agent" \
+  --source "text"
 ```
 
 ## ⚡ Performance Optimization
@@ -258,21 +272,23 @@ async def fetch_multiple_bad():
 ## ⚠️ Critical Rules
 
 ### ✅ ALWAYS DO
-1. **Use RunContext**: `async def tool(ctx: RunContext[Dict], ...)`
-2. **Return Pydantic dicts**: `return ToolOutput(...).dict()`
-3. **Handle errors gracefully**: Return error models, never raise
-4. **Register properly**: interface.py → __init__.py → global
-5. **Validate inputs**: Use Pydantic validators
-6. **Record patterns**: Use memory system for learning
+1. **Search memory first**: Check for existing tool patterns
+2. **Use RunContext**: `async def tool(ctx: RunContext[Dict], ...)`
+3. **Return Pydantic dicts**: `return ToolOutput(...).dict()`
+4. **Handle errors gracefully**: Return error models, never raise
+5. **Register properly**: interface.py → __init__.py → global
+6. **Validate inputs**: Use Pydantic validators
+7. **Record patterns**: Use memory system for learning
 
 ### ❌ NEVER DO
-1. **Raise exceptions**: Return error models instead
-2. **Skip registration**: Tools won't be available to agents
-3. **Hardcode API keys**: Use settings configuration
-4. **Block async**: Use proper async/await patterns
-5. **Skip testing**: Tools need unit + integration tests
-6. **Ignore security**: Always validate inputs
+1. **Skip memory search**: Missing established patterns
+2. **Raise exceptions**: Return error models instead
+3. **Skip registration**: Tools won't be available to agents
+4. **Hardcode API keys**: Use settings configuration
+5. **Block async**: Use proper async/await patterns
+6. **Skip testing**: Tools need unit + integration tests
+7. **Ignore security**: Always validate inputs
 
 ---
 
-**Remember**: Tools are the hands of your agents. Follow these patterns religiously to ensure reliable, secure, and maintainable integrations with external services.
+**Remember**: Tools are the hands of your agents. Search memory for patterns first, follow established procedures, and record successful implementations for future use.

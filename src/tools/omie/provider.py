@@ -5,7 +5,7 @@ This module provides the API client implementation for interacting with the Omie
 import json
 import logging
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import requests
 
 from .schema import ClientSearchInput, ClientSearchResult, ClientSimplifiedResult

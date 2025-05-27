@@ -51,7 +51,7 @@ The CLI provides commands for specific tasks or interactions.
     Common command patterns might include:
     ```bash
     # Example: Run a specific agent task
-    # python -m src.cli run-agent simple_agent --input "Some text"
+    # python -m src.cli run-agent simple --input "Some text"
     
     # Example: Manage configurations
     # python -m src.cli config show

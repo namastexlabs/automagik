@@ -1,12 +1,11 @@
-import requests
 import pytest
 import os
 import json
-import asyncio
 import httpx
 from dotenv import load_dotenv
 from src.tools.blackpearl.provider import BlackpearlProvider
 import logging
+from unittest.mock import patch
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,9 +15,13 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # Ensure the API host and key are set as environment variables
-API_HOST = os.getenv("AM_AGENTS_API_HOST", "192.168.112.129:8881") # Default if not set
+from src.config import load_settings
+settings = load_settings()
+# Use AM_HOST setting, but if it's 0.0.0.0 (bind all interfaces), use localhost for client connection
+host = "localhost" if settings.AM_HOST == "0.0.0.0" else settings.AM_HOST
+API_HOST = f"{host}:{settings.AM_PORT}"  # Use proper settings with host and port
 API_KEY = os.getenv("AM_API_KEY")
-AGENT_ENDPOINT = f"http://{API_HOST}/api/v1/agent/stan_agent/run"
+AGENT_ENDPOINT = f"http://{API_HOST}/api/v1/agent/stan/run"
 TEST_USER_IDENTIFIER = "integration-test-user@example.com" # Use email for get/create
 
 # --- Fixtures (Optional) ---
@@ -27,6 +30,11 @@ TEST_USER_IDENTIFIER = "integration-test-user@example.com" # Use email for get/c
 # --- Test Cases ---
 @pytest.mark.integration # Mark as an integration test
 @pytest.mark.asyncio # Add asyncio marker
+@patch.dict(os.environ, {
+    "DISABLE_MEMORY_OPERATIONS": "true",
+    "MOCK_EXTERNAL_APIS": "false",  # Keep real BlackPearl for full integration test
+    "TEST_MODE": "true"
+})
 async def test_stan_agent_run_success(): 
     """Tests user fetch/create, agent run, and cleanup (user, blackpearl)."""
     if not API_KEY:
@@ -156,7 +164,7 @@ async def test_stan_agent_run_success():
         except httpx.HTTPStatusError as e:
             logger.warning(f"HTTP error fetching user data: {e.response.status_code} - {e.response.text}")
         except httpx.JSONDecodeError:
-            logger.warning(f"Failed to decode user data JSON response.")
+            logger.warning("Failed to decode user data JSON response.")
         except Exception as e:
              logger.warning(f"Unexpected error fetching user data: {e}")
 

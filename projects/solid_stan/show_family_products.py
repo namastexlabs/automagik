@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import psycopg2
-from psycopg2 import sql
 from dotenv import load_dotenv
 import os
 from rich.console import Console
@@ -149,7 +148,7 @@ def main():
             # Get database version
             cursor.execute("SELECT version()")
             version = cursor.fetchone()[0]
-            console.print(f"\n[green]Connected to Blackpearl Database successfully![/green]")
+            console.print("\n[green]Connected to Blackpearl Database successfully![/green]")
             console.print(f"[blue]Database Version:[/blue] {version}")
             console.print(f"[blue]Database Host:[/blue] {hostname}")
             console.print(f"[blue]Database Name:[/blue] {database}")

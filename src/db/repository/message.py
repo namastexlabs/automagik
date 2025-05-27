@@ -5,11 +5,9 @@ import json
 import logging
 from typing import List, Optional, Dict, Any, Tuple, Union
 from datetime import datetime
-from pydantic import BaseModel
 
 from src.db.connection import execute_query
 from src.db.models import Message
-from src.db.repository.session import get_session
 
 # Configure logger
 logger = logging.getLogger(__name__)

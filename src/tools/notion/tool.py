@@ -9,7 +9,6 @@ from notion_client import Client
 
 from src.config import settings
 from .schema import (
-    NotionResponse,
     DatabaseSearchResponse, 
     DatabaseQueryResponse,
     PagePropertyResponse,

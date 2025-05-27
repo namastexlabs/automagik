@@ -3,14 +3,10 @@
 This module provides the core functionality for Discord tools.
 """
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any
 from pydantic_ai import RunContext
 
 from src.tools.discord.provider import DiscordProvider
-from src.tools.discord.schema import (
-    DiscordChannel, DiscordGuild, DiscordMessage, DiscordResponse,
-    ListGuildsResponse, GuildInfoResponse, FetchMessagesResponse, SendMessageResponse
-)
 
 logger = logging.getLogger(__name__)
 

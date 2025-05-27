@@ -25,7 +25,7 @@ init(autoreset=True)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.tools.blackpearl import (
-    get_contatos, get_cliente, delete_cliente, delete_contato, get_clientes
+    get_contatos, delete_cliente, delete_contato, get_clientes
 )
 from src.db.repository.message import delete_session_messages
 from src.db.repository.session import list_sessions, delete_session

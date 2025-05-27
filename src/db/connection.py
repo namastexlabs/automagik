@@ -6,7 +6,7 @@ import time
 import urllib.parse
 import uuid
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple
 from pathlib import Path
 
 from datetime import datetime
@@ -15,7 +15,7 @@ import traceback
 import psycopg2
 import psycopg2.extensions
 from psycopg2.extras import RealDictCursor, execute_values
-from psycopg2.pool import ThreadedConnectionPool, SimpleConnectionPool
+from psycopg2.pool import ThreadedConnectionPool
 from fastapi.concurrency import run_in_threadpool  # NEW IMPORT FOR ASYNC WRAPPERS
 
 from src.config import settings
