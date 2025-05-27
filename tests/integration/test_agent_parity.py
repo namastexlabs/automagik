@@ -139,7 +139,7 @@ class TestAgentParity:
         # This is verified through their base class AutomagikAgent
         
         # Both should return AgentResponse objects
-        from src.agents.models.agent_response import AgentResponse
+        from src.agents.models.response import AgentResponse
         
         # Verify both agents use the same response format
         assert hasattr(simple_agent, 'run')
@@ -151,10 +151,12 @@ class TestAgentParity:
         sofia_sig = inspect.signature(sofia_agent.run)
         
         # Core parameters should be the same
-        assert 'user_input' in simple_sig.parameters
-        assert 'user_input' in sofia_sig.parameters
-        assert 'session_id' in simple_sig.parameters
-        assert 'session_id' in sofia_sig.parameters
+        assert 'input_text' in simple_sig.parameters
+        assert 'input_text' in sofia_sig.parameters
+        assert 'multimodal_content' in simple_sig.parameters
+        assert 'multimodal_content' in sofia_sig.parameters
+        assert 'message_history_obj' in simple_sig.parameters
+        assert 'message_history_obj' in sofia_sig.parameters
     
     def test_tool_registry_consistency(self, simple_agent, sofia_agent):
         """Test that tool registries work consistently."""

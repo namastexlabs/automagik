@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, List
 from pydantic_ai import Agent
 from src.config import settings
 from src.mcp.client import refresh_mcp_client_manager
-from src.agents.models.automagik_agent import AutomagikAgent
+from src.agents.models.automagik_agent import AutomagikAgent, get_llm_semaphore
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
@@ -99,6 +99,37 @@ class SofiaAgent(AutomagikAgent):
         
         logger.info("SofiaAgent initialized successfully")
     
+    def _convert_image_payload_to_pydantic(self, image_item_payload: Dict[str, Any]) -> Any:
+        """Convert image payload to PydanticAI format.
+        
+        Args:
+            image_item_payload: Image payload dict with 'data' and 'mime_type' keys
+            
+        Returns:
+            ImageUrl object for PydanticAI or original payload if conversion fails
+        """
+        try:
+            from pydantic_ai import ImageUrl, BinaryContent
+        except ImportError:
+            ImageUrl = None
+            BinaryContent = None
+
+        if not ImageUrl:  # PydanticAI types not available
+            return image_item_payload
+
+        # image_item_payload is expected to be like {'data': 'url_or_base64', 'mime_type': 'image/jpeg'}
+        data_content = image_item_payload.get("data")
+        mime_type = image_item_payload.get("mime_type", "")
+
+        if isinstance(data_content, str) and mime_type.startswith("image/"):
+            if data_content.lower().startswith("http"):
+                # Remote image (HTTP/S) → wrap as ImageUrl
+                logger.debug(f"Converting image URL to ImageUrl object: {data_content[:100]}…")
+                return ImageUrl(url=data_content)
+        
+        logger.debug(f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}…")
+        return image_item_payload  # Return original if not a convertible image URL
+
     async def _load_mcp_servers(self) -> List:
         """Load RUNNING MCP servers assigned to this agent from the MCP client manager.
         
@@ -113,8 +144,8 @@ class SofiaAgent(AutomagikAgent):
             # Force refresh to ensure we get the latest server configurations
             mcp_client_manager = await refresh_mcp_client_manager()
             
-            # Get servers assigned to this agent (using agent name)
-            agent_name = self.name if hasattr(self, 'name') else 'sofia'
+            # Get servers assigned to this agent (use 'sofia' name for MCP server assignment)
+            agent_name = 'sofia'  # Fixed: Use 'sofia' instead of sofiaagent for MCP servers
             servers = mcp_client_manager.get_servers_for_agent(agent_name)
             
             # Get RUNNING server instances from our MCP server manager
@@ -181,9 +212,8 @@ class SofiaAgent(AutomagikAgent):
                 logger.info(f"MCP servers changed ({current_mcp_count} -> {new_mcp_count}), recreating agent")
                 self._agent_instance = None
             
-        # Get model configuration
-        model_name = "google-gla:gemini-2.5-pro-preview-05-06"
-        # model_name = get_model_name(self.dependencies.model_settings)
+        # Get model configuration - use default model preference
+        model_name = self.dependencies.model_name  # Fixed: Use dependencies model instead of hardcoded Gemini
         model_settings = create_model_settings(self.dependencies.model_settings)
         
         # Convert tools to PydanticAI format
@@ -336,40 +366,15 @@ class SofiaAgent(AutomagikAgent):
             pydantic_ai_input_list: list[Any] = [input_text] # Start with the text prompt
             successfully_converted_at_least_one = False
 
-            def _convert_image_payload_to_pydantic(image_item_payload: Dict[str, Any]) -> Any:
-                nonlocal successfully_converted_at_least_one
-                if not ImageUrl: # PydanticAI types not available
-                    return image_item_payload
-
-                # image_item_payload is expected to be like {'data': 'url_or_base64', 'mime_type': 'image/jpeg'}
-                data_content = image_item_payload.get("data")
-                mime_type = image_item_payload.get("mime_type", "")
-
-                if isinstance(data_content, str) and mime_type.startswith("image/"):
-                    if data_content.lower().startswith("http"):
-                        # ------------------------------------------------------------------
-                        # Remote image (HTTP/S)  →  wrap as ImageUrl
-                        # ------------------------------------------------------------------
-                        # Attempt to download the image (also works for presigned MinIO/S3 URLs)
-                        if ImageUrl is not None:
-                            logger.debug(
-                                f"Converting image URL to ImageUrl object: {data_content[:100]}…"
-                            )
-                            successfully_converted_at_least_one = True
-                            return ImageUrl(url=data_content)
-                
-                logger.debug(
-                    f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}…"
-                )
-                return image_item_payload # Return original if not a convertible image URL or recognized format
-
             # Process the 'images' list from the multimodal_content dictionary
             if isinstance(multimodal_content, dict) and "images" in multimodal_content:
                 image_list = multimodal_content.get("images", [])
                 if isinstance(image_list, list):
                     for item_payload in image_list:
                         if isinstance(item_payload, dict): # Ensure item in list is a dict
-                            converted_obj = _convert_image_payload_to_pydantic(item_payload)
+                            converted_obj = self._convert_image_payload_to_pydantic(item_payload)
+                            if converted_obj != item_payload:  # Successfully converted
+                                successfully_converted_at_least_one = True
                             pydantic_ai_input_list.append(converted_obj)
                         else:
                             pydantic_ai_input_list.append(item_payload) # Append as-is if not a dict
@@ -404,8 +409,7 @@ class SofiaAgent(AutomagikAgent):
         
             # Run the agent with concurrency limit and retry logic
             # MCP servers are now properly managed by our MCPServerManager
-            from src.agents.models.automagik_agent import get_llm_semaphore
-            semaphore = get_llm_semaphore()
+            semaphore = get_llm_semaphore()  # Fixed: Use imported function
             retries = settings.LLM_RETRY_ATTEMPTS
             last_exc: Optional[Exception] = None
             
@@ -439,7 +443,7 @@ class SofiaAgent(AutomagikAgent):
             
             # Create response
             return AgentResponse(
-                text=result.output,
+                text=result.data,  # Fixed: Use result.data consistently like Simple agent
                 success=True,
                 tool_calls=tool_calls,
                 tool_outputs=tool_outputs,
@@ -623,7 +627,7 @@ class SofiaAgent(AutomagikAgent):
             return await run_airtable_assistant(ctx, input_text)
 
         # Tool metadata for the LLM
-        airtable_agent_wrapper.__name__ = "airtable_assistant"
+        airtable_agent_wrapper.__name__ = "airtable_agent"
         airtable_agent_wrapper.__doc__ = (
             "High-level Airtable Assistant capable of multi-step workflows across "
             "the Tasks, projetos, and Team Members tables. Use this to create or "
