@@ -522,15 +522,15 @@ print_local_next_steps() {
     echo -e "${YELLOW}🚀 Quick Start Commands:${NC}"
     
     if [ "$INSTALL_AS_SERVICE" = true ]; then
-        echo -e "${GREEN}Start service:${NC} agent start  ${BLUE}(or: sudo systemctl start automagik-agents)${NC}"
-        echo -e "${GREEN}View logs:${NC}    agent logs   ${BLUE}(or: sudo journalctl -u automagik-agents -f)${NC}"
-        echo -e "${GREEN}Check status:${NC} agent status ${BLUE}(or: sudo systemctl status automagik-agents)${NC}"
-        echo -e "${GREEN}Stop service:${NC} agent stop   ${BLUE}(or: sudo systemctl stop automagik-agents)${NC}"
+        echo -e "${GREEN}Start service:${NC} automagik agents start  ${BLUE}(or: sudo systemctl start automagik-agents)${NC}"
+        echo -e "${GREEN}View logs:${NC}    automagik agents logs   ${BLUE}(or: sudo journalctl -u automagik-agents -f)${NC}"
+        echo -e "${GREEN}Check status:${NC} automagik agents status ${BLUE}(or: sudo systemctl status automagik-agents)${NC}"
+        echo -e "${GREEN}Stop service:${NC} automagik agents stop   ${BLUE}(or: sudo systemctl stop automagik-agents)${NC}"
     else
         echo -e "${GREEN}Activate environment:${NC} $(get_activation_command)"
-        echo -e "${GREEN}Start server:${NC}         python -m src"
-        echo -e "${GREEN}Development mode:${NC}     python -m src --reload"
-        echo -e "${GREEN}Interactive dev:${NC}      agent dev"
+        echo -e "${GREEN}Start server:${NC}         automagik agents start"
+        echo -e "${GREEN}Development mode:${NC}     automagik agents dev"
+        echo -e "${GREEN}Check status:${NC}         automagik agents status"
     fi
     
     echo
@@ -549,12 +549,10 @@ print_local_next_steps() {
     fi
     
     echo
-    echo -e "${PURPLE}💡 Helpful Commands:${NC}"
-    echo "• agent help       - Show all management commands"
-    echo "• automagik status - Check all component status"
-    if [ "$INSTALL_AS_SERVICE" != true ]; then
-        echo "• automagik-agents --help - CLI utilities"
-    fi
+    echo -e "${PURPLE}💡 CLI Commands:${NC}"
+    echo "• automagik agents --help  - Show all agent commands"
+    echo "• automagik install-alias  - Install 'agent' alias for convenience"
+    echo "• automagik --help         - Show all CLI commands"
     
     echo
     echo -e "${BLUE}📝 Configuration:${NC}"
@@ -643,30 +641,6 @@ install_agents_local() {
     # Show next steps
     print_local_next_steps
     
-    # Install shell helper functions
-    if [ "$INSTALL_HELPERS" != "false" ]; then
-        if [ "$NON_INTERACTIVE" != "true" ]; then
-            echo
-            if confirm_action "Would you like to install convenient shell helper commands (agent start/stop/logs)?" "y"; then
-                install_shell_helpers true
-                echo
-                echo -e "${CYAN}🎯 Helper functions installed! Use these commands:${NC}"
-                echo "• agent start/stop/restart - Service management"
-                echo "• agent logs/status/health - Monitoring"  
-                echo "• agent help - Show all commands"
-                echo
-                echo -e "${YELLOW}💡 Reload your shell or run: source ~/.automagik/shell-helpers.sh${NC}"
-            fi
-        else
-            # Install by default in non-interactive mode unless explicitly disabled
-            install_shell_helpers true
-            echo
-            echo -e "${CYAN}🎯 Helper functions installed for convenient management${NC}"
-        fi
-    else
-        log "INFO" "Skipping helper functions installation (--no-helpers specified)"
-    fi
-    
     # Show critical API key warning
     show_api_key_warning
     
@@ -689,7 +663,6 @@ install_agents_local() {
     fi
     echo -e "  ⚙️  Configuration: ${GREEN}✅ $([ -f "$ROOT_DIR/.env.bkp" ] && echo "New from template" || echo "Existing preserved")${NC}"
     echo -e "  🔧 System Service: $([ "$INSTALL_AS_SERVICE" = "true" ] && echo -e "${GREEN}✅ Installed${NC}" || echo -e "${YELLOW}❌ Manual start${NC}")"
-    echo -e "  🎯 Helper Commands: ${GREEN}✅ Available${NC}"
     echo
     return 0
 }
@@ -708,6 +681,17 @@ install_agents() {
             if [ -f "$docker_installer" ]; then
                 source "$docker_installer"
                 install_agents_docker
+            else
+                log "ERROR" "Docker installer not found at $docker_installer"
+                exit 1
+            fi
+            ;;
+        "docker-prod")
+            # Source Docker installer and run production mode
+            local docker_installer="$INSTALLER_DIR/docker.sh"
+            if [ -f "$docker_installer" ]; then
+                source "$docker_installer"
+                install_agents_docker_prod
             else
                 log "ERROR" "Docker installer not found at $docker_installer"
                 exit 1
