@@ -14,7 +14,6 @@ Options:
     --verbose    Show detailed information about cleanup process
 """
 
-import os
 import sys
 import argparse
 import logging
@@ -162,14 +161,14 @@ def main():
         cleanup_empty_directories(temp_dir, args.dry_run)
     
     # Summary
-    print(f"\n📊 Cleanup Summary:")
+    print("\n📊 Cleanup Summary:")
     print(f"   Files processed: {len(old_files)}")
     print(f"   Successfully {'would be ' if args.dry_run else ''}deleted: {successful}")
     if failed > 0:
         print(f"   Failed: {failed}")
     
     if args.dry_run:
-        print(f"\n💡 Run without --dry-run to actually delete files")
+        print("\n💡 Run without --dry-run to actually delete files")
     
     return 1 if failed > 0 else 0
 

@@ -4,13 +4,12 @@ This module provides the API client implementation for interacting with Discord.
 """
 import logging
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import discord
 import asyncio
 from functools import wraps
 
 from src.tools.discord.schema import (
-    DiscordChannel, DiscordGuild, DiscordMessage, DiscordResponse,
     ListGuildsResponse, GuildInfoResponse, FetchMessagesResponse, SendMessageResponse
 )
 

@@ -10,7 +10,7 @@ Simple benchmark focused on the agent run endpoint.
 ```bash
 python scripts/benchmarks/agent_run_bench.py \
     --base-url http://localhost:8000 \
-    --agent-name simple_agent \
+    --agent-name simple \
     --concurrency 200 \
     --requests 1000
 ```
@@ -28,7 +28,7 @@ python scripts/benchmarks/api_stress_test.py \
     --base-url http://localhost:8000 \
     --api-key your-api-key \
     --test-type agent_run \
-    --agent-name simple_agent \
+    --agent-name simple \
     --concurrency 100 \
     --requests 500
 ```
@@ -127,7 +127,7 @@ STRESS TEST RESULTS: Session Queue Merging Test
 - `--messages-per-session`: Messages per session (default: 20)
 
 ### Agent Specific
-- `--agent-name`: Agent to test (default: simple_agent)
+- `--agent-name`: Agent to test (default: simple)
 
 ## Interpreting Results
 

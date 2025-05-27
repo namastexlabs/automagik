@@ -3,10 +3,10 @@
 This module provides the core functionality for Google Drive tools.
 """
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from pydantic_ai import RunContext
 
-from .schema import GoogleDriveFile, SearchFilesResponse, GetFileContentResponse
+from .schema import SearchFilesResponse, GetFileContentResponse
 
 logger = logging.getLogger(__name__)
 

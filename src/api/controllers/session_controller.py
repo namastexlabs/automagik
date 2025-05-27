@@ -4,9 +4,9 @@ from fastapi import HTTPException
 from src.db import list_sessions, get_session as db_get_session, get_session_by_name
 from src.db.connection import safe_uuid
 from src.memory.message_history import MessageHistory
-from src.api.models import SessionResponse, SessionListResponse, SessionInfo, MessageModel, DeleteSessionResponse
+from src.api.models import SessionListResponse, SessionInfo
 from src.db.repository.session import get_system_prompt
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any
 import uuid
 from fastapi.concurrency import run_in_threadpool
 

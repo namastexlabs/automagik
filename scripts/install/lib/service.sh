@@ -71,7 +71,7 @@ Requires=network.target
 Type=simple
 User=$user
 WorkingDirectory=$work_dir
-Environment=PATH=$venv_path/bin
+Environment=PATH=$venv_path/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=$venv_path/bin/python -m src
 Restart=always
 RestartSec=5

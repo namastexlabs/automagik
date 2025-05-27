@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, Body
+from fastapi import APIRouter, HTTPException, Path, Query, status, Body
 
 from src.api.models import (
     PromptResponse, 

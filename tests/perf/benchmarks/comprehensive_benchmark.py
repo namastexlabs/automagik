@@ -55,7 +55,7 @@ class ComprehensiveBenchmark:
         """Run a single benchmark test configuration."""
         
         cmd = [
-            "python", "scripts/benchmarks/api_stress_test.py",
+            "python", "tests/perf/benchmarks/api_stress_test.py",
             "--base-url", self.base_url,
         ]
         
@@ -240,7 +240,7 @@ class ComprehensiveBenchmark:
                     "description": "SimpleAgent baseline with 100 OpenAI requests",
                     "mode": "api",
                     "test_type": "agent_run",
-                    "agent_name": "simple_agent",
+                    "agent_name": "simple",
                     "concurrency": 10,
                     "requests": 100
                 },
@@ -249,7 +249,7 @@ class ComprehensiveBenchmark:
                     "description": "SimpleAgent medium load with 200 OpenAI requests",
                     "mode": "api",
                     "test_type": "agent_run",
-                    "agent_name": "simple_agent",
+                    "agent_name": "simple",
                     "concurrency": 15,
                     "requests": 200
                 },
@@ -258,7 +258,7 @@ class ComprehensiveBenchmark:
                     "description": "SimpleAgent high concurrency test",
                     "mode": "api",
                     "test_type": "agent_run",
-                    "agent_name": "simple_agent",
+                    "agent_name": "simple",
                     "concurrency": 25,
                     "requests": 150
                 },
@@ -284,9 +284,33 @@ class ComprehensiveBenchmark:
                     "description": "Validate Graphiti queue under real load",
                     "mode": "api",
                     "test_type": "agent_run",
-                    "agent_name": "simple_agent",
+                    "agent_name": "simple",
                     "concurrency": 30,
                     "requests": 300
+                },
+                {
+                    "name": "MCP_Health_Monitoring_Load",
+                    "description": "MCP health endpoint under load",
+                    "mode": "api",
+                    "test_type": "mcp_health",
+                    "concurrency": 50,
+                    "requests": 500
+                },
+                {
+                    "name": "MCP_Server_Management_Stress",
+                    "description": "MCP server management operations stress test",
+                    "mode": "api", 
+                    "test_type": "mcp_management",
+                    "concurrency": 20,
+                    "requests": 200
+                },
+                {
+                    "name": "MCP_Tool_Call_Performance",
+                    "description": "MCP tool calling performance validation",
+                    "mode": "api",
+                    "test_type": "mcp_tools",
+                    "concurrency": 15,
+                    "requests": 150
                 }
             ])
         
@@ -344,14 +368,14 @@ class ComprehensiveBenchmark:
         successful_tests = len([r for r in self.results if r["status"] == "success"])
         failed_tests = total_tests - successful_tests
         
-        print(f"\n📋 SUMMARY:")
+        print("\n📋 SUMMARY:")
         print(f"   Total Tests: {total_tests}")
         print(f"   Successful: {successful_tests}")
         print(f"   Failed: {failed_tests}")
         print(f"   Success Rate: {successful_tests/total_tests*100:.1f}%")
         
         # Performance metrics table
-        print(f"\n📈 PERFORMANCE METRICS:")
+        print("\n📈 PERFORMANCE METRICS:")
         print(f"{'Test Name':<25} {'Status':<10} {'RPS':<10} {'Latency':<12} {'CPU%':<8} {'RAM(MB)':<10} {'Error%':<10}")
         print("-" * 95)
         
@@ -379,7 +403,7 @@ class ComprehensiveBenchmark:
         successful_results = [r for r in self.results if r["status"] == "success"]
         
         if successful_results:
-            print(f"\n🏆 BEST PERFORMERS:")
+            print("\n🏆 BEST PERFORMERS:")
             
             # Highest throughput
             best_rps = max(successful_results, 
@@ -411,7 +435,7 @@ class ComprehensiveBenchmark:
         """Save comprehensive benchmark results as markdown report."""
         
         # Create benchmark directory if it doesn't exist
-        benchmark_dir = Path("scripts/benchmarks/benchmark")
+        benchmark_dir = Path("tests/perf/benchmarks/benchmark")
         benchmark_dir.mkdir(exist_ok=True)
         
         # Generate filename with date and version
@@ -475,7 +499,7 @@ class ComprehensiveBenchmark:
         successful_results = [r for r in self.results if r["status"] == "success"]
         
         if successful_results:
-            markdown_content += f"""
+            markdown_content += """
 ## 🏆 Best Performers
 
 """

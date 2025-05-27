@@ -6,7 +6,7 @@ even when users don't provide exact field names, character matches, etc.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, List, Optional
 from src.tools.airtable.tool import list_records
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ async def loose_milestone_search(
         )
         
         if all_milestones["success"]:
-            search_lower = search_term.lower()
+            search_term.lower()
             
             for record in all_milestones["records"]:
                 milestone_fields = record.get("fields", {})

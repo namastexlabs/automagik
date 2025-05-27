@@ -19,16 +19,16 @@ services:
       - AM_LOG_LEVEL=${AM_LOG_LEVEL:-INFO}
       - AM_TIMEZONE=${AM_TIMEZONE:-UTC}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4o-mini}
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/automagik
-      - POSTGRES_HOST=postgres
+      - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4.1-mini}
+      - DATABASE_URL=postgresql://postgres:postgres@automagik_agents_db:5432/automagik
+      - POSTGRES_HOST=automagik_agents_db
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-automagik}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
     depends_on:
-      postgres:
+      automagik_agents_db:
         condition: service_healthy
     restart: unless-stopped
     volumes:
@@ -42,9 +42,9 @@ services:
       retries: 3
       start_period: 40s
 
-  postgres:
+  automagik_agents_db:
     image: postgres:15
-    container_name: automagik_postgres
+    container_name: automagik_agents_db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-automagik}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}

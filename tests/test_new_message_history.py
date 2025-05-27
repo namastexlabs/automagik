@@ -6,13 +6,10 @@ is compatible with PydanticAI, and integrates directly with the repository patte
 
 import unittest
 import uuid
-import asyncio
-from typing import List
 import logging
 
 from src.memory.message_history import MessageHistory
 from pydantic_ai.messages import (
-    ModelMessage, 
     ModelRequest, 
     ModelResponse,
     SystemPromptPart, 

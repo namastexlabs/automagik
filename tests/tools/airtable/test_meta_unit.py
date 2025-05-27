@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from pydantic_ai import RunContext
 
 from src.tools.airtable.interface import airtable_list_bases, airtable_list_tables
 from src.tools.airtable.tool import list_bases, list_tables

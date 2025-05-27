@@ -124,7 +124,7 @@ AM_ENV=development
 AM_LOG_LEVEL=DEBUG # Use DEBUG for more verbose logs during development
 AM_VERBOSE_LOGGING=True
 # AM_TIMEZONE=America/Sao_Paulo # Example: Set a specific timezone
-# AM_AGENTS_NAMES=simple_agent # Example: Pre-load 'simple_agent'
+# AM_AGENTS_NAMES=simple # Example: Pre-load 'simple'
 
 # --- Database Pool (Defaults are usually fine) ---
 # POSTGRES_POOL_MIN=1

@@ -61,7 +61,7 @@ detect_existing_setup() {
         log "SUCCESS" "Found existing Docker setup"
         
         # Check if containers are running
-        if docker ps | grep -q "automagik_postgres\|automagik_agents"; then
+        if docker ps | grep -q "automagik_agents_db\|automagik_agents"; then
             existing_database=true
             log "SUCCESS" "Found running Docker containers"
         fi
@@ -92,13 +92,13 @@ setup_database() {
         cd "$ROOT_DIR/docker"
         
         # Check if PostgreSQL is already running
-        if docker ps | grep -q "automagik_postgres"; then
+        if docker ps | grep -q "automagik_agents_db"; then
             log "SUCCESS" "PostgreSQL container already running"
         else
             if docker compose version &> /dev/null; then
-                docker compose --env-file "$ROOT_DIR/.env" up -d postgres
+                docker compose --env-file "$ROOT_DIR/.env" up -d automagik_agents_db
             else
-                docker-compose --env-file "$ROOT_DIR/.env" up -d postgres
+                docker-compose --env-file "$ROOT_DIR/.env" up -d automagik_agents_db
             fi
             
             log "INFO" "Waiting for PostgreSQL to be ready..."

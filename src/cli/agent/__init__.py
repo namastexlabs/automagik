@@ -32,7 +32,7 @@ def agent_callback(
     
     Common commands:
       - To create a new agent:
-        automagik-agents agent create agent --name my_agent --template simple_agent
+        automagik-agents agent create agent --name my_agent --template simple
         
       - To list available templates:
         automagik-agents agent create list

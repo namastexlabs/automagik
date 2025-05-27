@@ -9,7 +9,7 @@ from pydantic_ai import RunContext
 import pytz
 
 from src.config import settings
-from .schema import DatetimeInput, DatetimeOutput
+from .schema import DatetimeOutput
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ async def get_current_date(ctx: RunContext[Dict], format: Optional[str] = None) 
         else:
             # Use ISO format by default
             result = now.date().isoformat()
-            logger.info(f"Formatted date with default ISO format")
+            logger.info("Formatted date with default ISO format")
         
         # Create and return standardized output
         output = DatetimeOutput.create(result)
@@ -99,7 +99,7 @@ async def get_current_time(ctx: RunContext[Dict], format: Optional[str] = None) 
         else:
             # Use 24-hour format by default
             result = now.strftime("%H:%M")
-            logger.info(f"Formatted time with default 24-hour format")
+            logger.info("Formatted time with default 24-hour format")
         
         # Create and return standardized output
         output = DatetimeOutput.create(result)

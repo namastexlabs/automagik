@@ -12,6 +12,7 @@ Welcome to the documentation for the Automagik Agents project.
 *   [Database](./database.md)
 *   [Memory Management](./memory.md)
 *   [API Documentation](./api.md)
+*   [MCP Integration](./mcp_integration.md) ✨ **NEW**
 *   [Task Management](./task_management.md)
 
 (Further details and structure to be added) 

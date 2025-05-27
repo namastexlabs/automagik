@@ -5,13 +5,12 @@ including model settings, usage limits, and HTTP clients.
 """
 
 import logging
-import asyncio
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 from pydantic_ai.usage import UsageLimits
 from pydantic_ai.settings import ModelSettings
 
 from src.constants import (
-    DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_RETRIES
+    DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS
 )
 
 logger = logging.getLogger(__name__)

@@ -3,9 +3,9 @@
 import uuid
 import json
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from src.db.connection import execute_query, safe_uuid
+from src.db.connection import execute_query
 from src.db.models import Memory
 
 # Configure logger
@@ -39,14 +39,16 @@ def get_memory(memory_id: uuid.UUID) -> Optional[Memory]:
 
 def get_memory_by_name(name: str, agent_id: Optional[int] = None, 
                       user_id: Optional[uuid.UUID] = None, 
-                      session_id: Optional[uuid.UUID] = None) -> Optional[Memory]:
+                      session_id: Optional[uuid.UUID] = None,
+                      exact_user_match: bool = True) -> Optional[Memory]:
     """Get a memory by name with optional filters for agent, user, and session.
     
     Args:
         name: The memory name
         agent_id: Optional agent ID filter
-        user_id: Optional user ID filter (UUID)
+        user_id: Optional user ID filter (UUID). If None and exact_user_match=True, will look for user_id IS NULL
         session_id: Optional session ID filter
+        exact_user_match: If True, user_id=None will match records with user_id IS NULL. If False, user_id filter is ignored when None.
         
     Returns:
         Memory object if found, None otherwise
@@ -64,9 +66,21 @@ def get_memory_by_name(name: str, agent_id: Optional[int] = None,
         if agent_id is not None:
             query += " AND agent_id = %s"
             params.append(agent_id)
-        if user_id is not None:
-            query += " AND user_id = %s"
-            params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
+        
+        # Handle user_id filtering properly for agent global memory
+        if exact_user_match:
+            if user_id is not None:
+                query += " AND user_id = %s"
+                params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
+            else:
+                # For agent global memory, explicitly look for NULL user_id
+                query += " AND user_id IS NULL"
+        else:
+            # Legacy behavior: only filter if user_id is provided
+            if user_id is not None:
+                query += " AND user_id = %s"
+                params.append(str(user_id) if isinstance(user_id, uuid.UUID) else user_id)
+        
         if session_id is not None:
             query += " AND session_id = %s"
             params.append(str(session_id))
@@ -147,27 +161,19 @@ def create_memory(memory: Memory) -> Optional[uuid.UUID]:
         
         # Check if a memory with this name already exists for the same context
         if memory.name:
-            query = "SELECT id FROM memories WHERE name = %s"
-            params = [memory.name]
+            # Use the updated get_memory_by_name function with exact user matching
+            existing_memory = get_memory_by_name(
+                name=memory.name,
+                agent_id=memory.agent_id,
+                user_id=memory.user_id,
+                session_id=memory.session_id,
+                exact_user_match=True
+            )
             
-            # Add optional filters
-            if memory.agent_id is not None:
-                query += " AND agent_id = %s"
-                params.append(memory.agent_id)
-            if memory.user_id is not None:
-                query += " AND user_id = %s"
-                params.append(str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id)
-            if memory.session_id is not None:
-                query += " AND session_id = %s"
-                params.append(str(memory.session_id))
-                
-            logger.debug(f"Checking for existing memory with query: {query} and params: {params}")
-            result = execute_query(query, params)
-            
-            if result:
-                logger.info(f"Found existing memory with ID {result[0]['id']}, updating instead")
+            if existing_memory:
+                logger.info(f"Found existing memory with ID {existing_memory.id}, updating instead")
                 # Update existing memory
-                memory.id = result[0]["id"]
+                memory.id = existing_memory.id
                 return update_memory(memory)
         
         # Generate a UUID for the memory if not provided
@@ -245,25 +251,17 @@ def update_memory(memory: Memory) -> Optional[uuid.UUID]:
     """
     try:
         if not memory.id:
-            # Try to find by name and context
-            query = "SELECT id FROM memories WHERE name = %s"
-            params = [memory.name]
+            # Try to find by name and context using the updated function
+            existing_memory = get_memory_by_name(
+                name=memory.name,
+                agent_id=memory.agent_id,
+                user_id=memory.user_id,
+                session_id=memory.session_id,
+                exact_user_match=True
+            )
             
-            # Add optional filters
-            if memory.agent_id is not None:
-                query += " AND agent_id = %s"
-                params.append(memory.agent_id)
-            if memory.user_id is not None:
-                query += " AND user_id = %s"
-                params.append(str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id)
-            if memory.session_id is not None:
-                query += " AND session_id = %s"
-                params.append(str(memory.session_id))
-                
-            result = execute_query(query, params)
-            
-            if result:
-                memory.id = result[0]["id"]
+            if existing_memory:
+                memory.id = existing_memory.id
             else:
                 return create_memory(memory)
         

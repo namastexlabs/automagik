@@ -4,20 +4,13 @@ Command for interactive chat with an agent.
 This command provides an interactive chat interface to converse with an agent.
 It maintains a conversation history and supports chat commands.
 """
-import sys
-import asyncio
 import json
 import typer
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 import requests
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.text import Text
-from rich import print as rich_print
 import uuid
 import os
-from pathlib import Path
-import re
 
 from src.config import settings
 
@@ -127,7 +120,7 @@ def list_available_agents() -> None:
         console.print("3. You might not have added any agents yet.")
         
         console.print("\n[green]Try creating an agent first:[/]")
-        console.print("  automagik-agents agent create agent --name my_agent --template simple_agent")
+        console.print("  automagik-agents agent create agent --name my_agent --template simple")
         
         console.print("\n[green]Or check if you can access the API directly:[/]")
         console.print(f"  curl http://{settings.AM_HOST}:{settings.AM_PORT}/api/v1/agent/list -H 'x-api-key: {settings.AM_API_KEY}'")
@@ -142,7 +135,7 @@ def list_available_agents() -> None:
         console.print(f"{i}. [bold cyan]{name}[/] - {description} [dim](Model: {model})[/]")
     
     console.print("\nUse the agent name to start a chat session:", style="green")
-    console.print(f"  automagik-agents agent chat start --agent <agent_name>", style="bright_black")
+    console.print("  automagik-agents agent chat start --agent <agent_name>", style="bright_black")
 
 async def get_user_by_id(user_id: Optional[str] = None) -> Dict[str, Any]:
     """Get user data from the API by ID."""
@@ -169,15 +162,15 @@ async def get_user_by_id(user_id: Optional[str] = None) -> Dict[str, Any]:
         else:
             if settings.AM_LOG_LEVEL == "DEBUG":
                 console.print(f"Error getting user by ID {user_id}: HTTP {response.status_code}", style="red")
-                console.print(f"Using fallback user data", style="yellow")
+                console.print("Using fallback user data", style="yellow")
             # Return fallback data with UUID-like user_id if needed
-            return {"id": user_id, "email": f"user@example.com", "name": f"User"}
+            return {"id": user_id, "email": "user@example.com", "name": "User"}
     except Exception as e:
         if settings.AM_LOG_LEVEL == "DEBUG":
             console.print(f"Error getting user from API: {str(e)}", style="red")
-            console.print(f"Using fallback user data", style="yellow")
+            console.print("Using fallback user data", style="yellow")
         # Return fallback data with UUID-like user_id if needed
-        return {"id": user_id, "email": f"user@example.com", "name": f"User"}
+        return {"id": user_id, "email": "user@example.com", "name": "User"}
 
 async def run_agent(agent_name: str, input_message: str, session_name: str = None, user_id: Optional[str] = None) -> dict:
     """Run the agent with the given message using the API."""
@@ -251,7 +244,7 @@ async def run_agent(agent_name: str, input_message: str, session_name: str = Non
                     # Detect session agent mismatch errors
                     elif "already associated with a different agent" in error_data.get("detail", ""):
                         if debug_mode:
-                            console.print(f"Session agent mismatch error. Will retry with agent ID from the existing session.", style="yellow")
+                            console.print("Session agent mismatch error. Will retry with agent ID from the existing session.", style="yellow")
                         # For CLI usage, we want to recover and use the session anyway
                         # Retry without specifying an agent_id to let the server use the existing one
                         retry_payload = payload.copy()
@@ -266,7 +259,7 @@ async def run_agent(agent_name: str, input_message: str, session_name: str = Non
                         if retry_response.status_code == 200:
                             retry_result = retry_response.json()
                             if debug_mode:
-                                console.print(f"Retry successful!", style="green")
+                                console.print("Retry successful!", style="green")
                             return retry_result
                         else:
                             error_msg = f"API Error on retry: {retry_response.status_code}"
@@ -387,9 +380,8 @@ async def chat_loop(agent_name: str, session_name: str = None, user_id: Optional
     current_session_id = None
     
     # Get user info if user_id is provided
-    user = None
     if user_id is not None:
-        user = await get_user_by_id(user_id)
+        await get_user_by_id(user_id)
     
     # First check if the agent exists
     agents = get_available_agents()

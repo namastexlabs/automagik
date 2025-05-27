@@ -3,7 +3,6 @@
 
 import sqlite3
 import os
-import sys
 import argparse
 import shutil
 from rich.console import Console
@@ -39,10 +38,10 @@ def copy_database(source_path: str, dest_path: str, force: bool = False):
         # Method 1: Simple file copy
         console.print(f"[cyan]Copying database from {source_path} to {dest_path}...[/cyan]")
         shutil.copy2(source_path, dest_path)
-        console.print(f"[green]Database copied successfully![/green]")
+        console.print("[green]Database copied successfully![/green]")
         
         # Verify the copy
-        console.print(f"[cyan]Verifying database...[/cyan]")
+        console.print("[cyan]Verifying database...[/cyan]")
         source_conn = sqlite3.connect(source_path)
         source_cursor = source_conn.cursor()
         
@@ -59,7 +58,7 @@ def copy_database(source_path: str, dest_path: str, force: bool = False):
         
         # Check if tables match
         if set(source_tables) != set(dest_tables):
-            console.print(f"[red]Warning: Tables in destination do not match source.[/red]")
+            console.print("[red]Warning: Tables in destination do not match source.[/red]")
             console.print(f"[yellow]Source tables: {source_tables}[/yellow]")
             console.print(f"[yellow]Destination tables: {dest_tables}[/yellow]")
             return False
@@ -85,7 +84,7 @@ def copy_database(source_path: str, dest_path: str, force: bool = False):
         source_conn.close()
         dest_conn.close()
         
-        console.print(f"[green]Database verification complete![/green]")
+        console.print("[green]Database verification complete![/green]")
         return True
         
     except Exception as e:

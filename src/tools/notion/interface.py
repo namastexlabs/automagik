@@ -2,7 +2,7 @@
 
 This module defines the interface for Notion tools.
 """
-from typing import Dict, List
+from typing import List
 
 from pydantic_ai import Tool
 
@@ -13,8 +13,6 @@ from .tool import (
     get_update_database_description,
     get_get_database_description,
     get_query_database_description,
-    get_create_database_item_description,
-    get_update_database_item_description,
     get_get_page_description,
     get_create_page_description,
     get_update_page_description,

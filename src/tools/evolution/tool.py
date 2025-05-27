@@ -3,13 +3,12 @@
 This module provides the core functionality for Evolution tools.
 """
 import logging
-import os
 import aiohttp
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from pydantic_ai import RunContext
 
 from src.config import settings
-from .schema import Message, SendMessageResponse, GetChatHistoryResponse
+from .schema import SendMessageResponse, GetChatHistoryResponse
 
 logger = logging.getLogger(__name__)
 

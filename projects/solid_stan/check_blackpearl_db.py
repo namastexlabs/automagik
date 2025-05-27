@@ -1,5 +1,4 @@
 import psycopg2
-from psycopg2 import sql
 from dotenv import load_dotenv
 import os
 from rich.console import Console
@@ -9,7 +8,6 @@ import socket
 import requests
 import signal
 import sys
-import time
 
 console = Console()
 
@@ -94,7 +92,7 @@ def main():
             console.print(f"[green]Local IP:[/green] {local_ip}")
             console.print(f"[green]Public IP:[/green] {public_ip}")
             console.print("[bold blue]=========================[/bold blue]\n")
-        except Exception as e:
+        except Exception:
             console.print("[yellow]Could not get IP information, continuing...[/yellow]")
         
         # Get database URI from environment
@@ -135,7 +133,7 @@ def main():
             # Get database version
             cursor.execute("SELECT version()")
             version = cursor.fetchone()[0]
-            console.print(f"\n[green]Connected to Blackpearl Database successfully![/green]")
+            console.print("\n[green]Connected to Blackpearl Database successfully![/green]")
             console.print(f"[blue]Database Version:[/blue] {version}")
             console.print(f"[blue]Database Host:[/blue] {hostname}")
             console.print(f"[blue]Database Name:[/blue] {database}")

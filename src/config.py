@@ -1,7 +1,7 @@
 import os
 from enum import Enum
-from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Dict, Any
+from pydantic import Field, ConfigDict
 from pydantic_settings import BaseSettings
 import urllib.parse
 from pathlib import Path
@@ -11,7 +11,8 @@ try:
     from dotenv import load_dotenv
 except ImportError:
     print("Warning: python-dotenv is not installed. Environment variables may not be loaded from .env file.")
-    load_dotenv = lambda: None
+    def load_dotenv():
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class Settings(BaseSettings):
     )
     AM_AGENTS_NAMES: Optional[str] = Field(
         default=None,
-        description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple_agent,stan_agent')"
+        description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple,stan')"
     )
 
     # Supabase
@@ -223,7 +224,7 @@ def load_settings() -> Settings:
         env_db_url = os.environ.get('DATABASE_URL')
         if env_db_url and env_db_url != settings.DATABASE_URL:
             if debug_mode:
-                print(f"⚠️ Overriding settings.DATABASE_URL with environment value")
+                print("⚠️ Overriding settings.DATABASE_URL with environment value")
             # This is a bit hacky but necessary to fix mismatches
             settings.DATABASE_URL = env_db_url
             if debug_mode:

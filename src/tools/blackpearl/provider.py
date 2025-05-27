@@ -4,12 +4,11 @@ This module provides the API client implementation for interacting with the Blac
 """
 import logging
 import os
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, Union
 import aiohttp
 from src.tools.blackpearl.interface import validate_api_response, handle_api_error, format_api_request, filter_none_params
 from src.tools.blackpearl.schema import (
-    Cliente, Contato, Vendedor, Produto, PedidoDeVenda, ItemDePedido,
-    RegraDeFrete, RegraDeNegocio, ItemDePedidoCreate
+    Cliente, Contato, Vendedor, PedidoDeVenda, RegraDeFrete, RegraDeNegocio, ItemDePedidoCreate
 )
 from src.config import settings
 

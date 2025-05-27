@@ -109,7 +109,7 @@ def test_get_session_by_id(client):
     assert "session_id" in data
     assert data["session_id"] == created_session_id
     assert "exists" in data
-    assert data["exists"] == True
+    assert data["exists"]
     assert "messages" in data
     assert "total_messages" in data
     assert "current_page" in data
@@ -133,7 +133,7 @@ def test_get_session_by_name(client):
     assert data["session_id"] == test_session['name']
     
     assert "exists" in data
-    assert data["exists"] == True
+    assert data["exists"]
 
 def test_get_session_with_pagination(client):
     """Test getting a session with pagination parameters"""

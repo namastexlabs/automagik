@@ -79,7 +79,7 @@ def apply_migrations(cursor, logger=None):
             except Exception as e:
                 migration_error_count += 1
                 logger.error(f"Error applying migration {migration_name}: {str(e)}")
-                logger.warning(f"Continuing with next migration despite error")
+                logger.warning("Continuing with next migration despite error")
                 
                 # Try to mark it as applied so we don't attempt it again
                 try:
@@ -569,9 +569,9 @@ def db_clear(
                         try:
                             cursor.execute(f'TRUNCATE TABLE "{table_name}";')
                             typer.echo(f"    ✓ Table {table_name} cleared successfully")
-                        except Exception as e2:
+                        except Exception:
                             # If regular TRUNCATE fails too, try DELETE as a last resort
-                            typer.echo(f"    ⚠️ TRUNCATE failed, trying DELETE FROM...")
+                            typer.echo("    ⚠️ TRUNCATE failed, trying DELETE FROM...")
                             cursor.execute(f'DELETE FROM "{table_name}";')
                             typer.echo(f"    ✓ Table {table_name} cleared using DELETE (might be slower)")
                     else:

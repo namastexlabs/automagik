@@ -4,7 +4,7 @@ This module provides the core functionality for Gmail API tools.
 """
 import logging
 import os
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from pydantic_ai import RunContext
 
 from .schema import SendEmailInput, SendEmailResult, FetchEmailsInput, FetchEmailsResult
@@ -48,7 +48,7 @@ async def send_email(ctx: RunContext[Dict], input: SendEmailInput) -> Dict[str, 
         result = await provider.send_email(input)
         
         # Return the result as a dictionary
-        return result.dict()
+        return result.model_dump()
     except Exception as e:
         error_msg = f"Error sending email: {str(e)}"
         logger.error(error_msg)
@@ -57,7 +57,7 @@ async def send_email(ctx: RunContext[Dict], input: SendEmailInput) -> Dict[str, 
             success=False,
             error=error_msg
         )
-        return response.dict()
+        return response.model_dump()
 
 async def fetch_emails(ctx: RunContext[Dict], input: FetchEmailsInput) -> Dict[str, Any]:
     """Fetch unread emails from Gmail, optionally filtered by subject.
@@ -82,7 +82,7 @@ async def fetch_emails(ctx: RunContext[Dict], input: FetchEmailsInput) -> Dict[s
         )
         
         # Return the result as a dictionary
-        return result.dict()
+        return result.model_dump()
     except Exception as e:
         error_msg = f"Error fetching emails: {str(e)}"
         logger.error(error_msg)
@@ -92,7 +92,7 @@ async def fetch_emails(ctx: RunContext[Dict], input: FetchEmailsInput) -> Dict[s
             error=error_msg,
             emails=[]
         )
-        return response.dict()
+        return response.model_dump()
 
 async def fetch_all_emails_from_thread_by_email_id(ctx: RunContext[Dict], email_id: str) -> Dict[str, Any]:
     """Fetch all emails from a thread by email ID.
@@ -114,7 +114,7 @@ async def fetch_all_emails_from_thread_by_email_id(ctx: RunContext[Dict], email_
         result = await provider.fetch_thread_by_email_id(email_id)
         
         # Return the result as a dictionary
-        return result.dict()
+        return result.model_dump()
     except Exception as e:
         error_msg = f"Error fetching thread emails: {str(e)}"
         logger.error(error_msg)

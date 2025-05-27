@@ -469,7 +469,7 @@ class GraphitiQueueManager:
                 return False
             
             # Call the custom processor function
-            result = await operation.processor_fn(
+            await operation.processor_fn(
                 operation.user_id,
                 operation.data,
                 operation.metadata

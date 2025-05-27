@@ -2,9 +2,8 @@
 
 This module provides a class to manage memory retrieval and caching.
 """
-from typing import Dict, Any, Optional, List, Callable, Set
+from typing import Dict, Any, Optional, Callable
 import logging
-from functools import lru_cache
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -64,10 +63,10 @@ class MemoryProvider:
     
     def _refresh_cache(self) -> None:
         """Refresh the memory cache from database."""
-        from src.db import list_memories
+        from src.tools.memory.tool import list_memories_in_db
         
         try:
-            memories = list_memories(agent_id=self.agent_id)
+            memories = list_memories_in_db(agent_id=self.agent_id)
             
             # Build a new cache
             new_cache = {}

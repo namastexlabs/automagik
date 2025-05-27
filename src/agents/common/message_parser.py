@@ -5,7 +5,6 @@ tool outputs, and formatting message history.
 """
 
 import logging
-import json
 from typing import Dict, List, Any, Optional, Union, Tuple
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query, Path, Response
-from src.api.models import SessionResponse, SessionListResponse, SessionInfo, MessageModel, DeleteSessionResponse
+from fastapi import APIRouter, HTTPException, Query
+from src.api.models import SessionListResponse
 from src.api.controllers.session_controller import get_sessions, get_session, delete_session
 
 # Create router for session endpoints
@@ -83,7 +83,7 @@ async def delete_session_route(session_id_or_name: str):
     """
     Delete a session by ID or name
     """
-    success = await delete_session(session_id_or_name)
+    await delete_session(session_id_or_name)
     return {
         "status": "success",
         "session_id": session_id_or_name,

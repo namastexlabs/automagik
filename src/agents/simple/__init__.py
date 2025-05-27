@@ -49,9 +49,9 @@ def create_agent(agent_name=None):
     Raises:
         ValueError: If the agent cannot be found or created
     """
-    # If no agent_name specified or it's "simple", default to simple_agent
+    # If no agent_name specified or it's "simple", default to simple
     if agent_name is None or agent_name == "simple":
-        agent_name = "simple_agent"
+        agent_name = "simple"
     
     # Remove _agent suffix if present (for normalization)
     if agent_name.endswith("_agent"):

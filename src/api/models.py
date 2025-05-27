@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union, Literal
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 import uuid
 
 class BaseResponseModel(BaseModel):
@@ -90,7 +90,7 @@ class AgentRunRequest(BaseResponseModel):
     context: dict = {}
     session_id: Optional[str] = None
     session_name: Optional[str] = None  # Optional friendly name for the session
-    user_id: Optional[Union[uuid.UUID, str]] = None  # User ID as UUID or string
+    user_id: Optional[Union[uuid.UUID, str, int]] = None  # User ID as UUID, string, or int
     message_limit: Optional[int] = 10  # Default to last 10 messages
     session_origin: Optional[Literal["web", "whatsapp", "automagik-agent", "telegram", "discord", "slack", "cli", "app", "manychat"]] = "automagik-agent"  # Origin of the session
     agent_id: Optional[Any] = None  # Agent ID to store with messages, can be int or string

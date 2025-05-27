@@ -3,236 +3,309 @@ description: Memory API commands, template variables, and query patterns for aut
 globs: src/memory/**/*,src/agents/**/*,tests/**/*memory*,tests/**/*agent*
 alwaysApply: false
 ---
+# Memory References - Graphiti & Database
 
-# Memory References
-
-## 🧠 Memory Architecture Overview
+## 🧠 Memory Architecture
 
 **Documentation**: [memory.md](mdc:docs/memory.md) | [database.md](mdc:docs/database.md) | [agents_overview.md](mdc:docs/agents_overview.md)
 
 ### **Core Components**
-- **Message History**: Automatic PostgreSQL conversation storage
-- **Memory Variables**: Named context persisting across conversations  
-- **Dynamic Templating**: `{{variable}}` injection into prompts
+- **Knowledge Graph**: Entity-relationship based memory storage (Graphiti)
+- **Database Memory**: Structured key-value storage (PostgreSQL)
+- **Nodes**: Preferences, Procedures, Requirements, and other entities
+- **Facts**: Relationships and factual connections between entities
+- **Episodes**: Structured data inputs (text, json, message)
 - **Session Management**: Multi-user conversation isolation
-- **Auto-injection**: Automatic memory retrieval and prompt enhancement
+- **Template System**: `{{variable}}` injection into prompts
 
-**Memory Flow**: Storage → Retrieval → Templating → Enhancement → Persistence
+**Memory Flow**: Search → Apply → Capture → Store → Enhance
 
-## 🔧 Memory API Commands
+## 🔍 Graphiti Memory Search Commands
 
-### **Search Memory**
+### **Search Nodes** (Entities)
 ```bash
-mcp_memories_search_memory --query "search terms"
+mcp_agent-memory_search_memory_nodes \
+  --query "search terms" \
+  --entity "Preference|Procedure|Requirement" \
+  --max_nodes 10
 ```
+
+**Entity Types**:
+- **Preference**: User preferences and settings
+- **Procedure**: Step-by-step workflows
+- **Requirement**: Project requirements and constraints
 
 **Strategic Query Patterns**:
-- **Agent patterns**: `"agent patterns|setup PATTERN|tool registration|error handling|implementation patterns"`
-- **Bug solutions**: `"bug fix COMPONENT|error handling patterns"`
-- **API patterns**: `"API endpoint patterns"`
+- **Preferences**: `"user preferences formatting|coding style|communication"`
+- **Procedures**: `"procedure deploy|setup workflow|testing steps"`
+- **Requirements**: `"requirement authentication|API constraints|security"`
 
-### **Store Knowledge**
+### **Search Facts** (Relationships)
 ```bash
-mcp_memories_add_memories --text "knowledge or insight to remember"
+mcp_agent-memory_search_memory_facts \
+  --query "relationship terms" \
+  --max_facts 10 \
+  --center_node_uuid "node-uuid"  # Optional: explore around specific node
 ```
 
-**Strategic Storage Content**:
-- **Successful implementation patterns** with context
-- **Error solutions and workarounds** with cause/fix
-- **Configuration discoveries** and optimal settings
-- **User preferences and decisions** 
-- **Project-specific conventions** and patterns
+**Fact Query Examples**:
+- **Dependencies**: `"depends on|requires|needs"`
+- **Connections**: `"related to|connected with|associated"`
+- **Ownership**: `"owned by|belongs to|created by"`
 
-### **List/Manage Memories**
+## 💾 Graphiti Memory Storage Commands
+
+### **Add Episode** (Primary Storage)
 ```bash
-mcp_memories_list_memories --random_string "dummy"
-mcp_memories_delete_all_memories --random_string "dummy"
+# Text content
+mcp_agent-memory_add_memory \
+  --name "Episode Name" \
+  --episode_body "Content to store" \
+  --source "text" \
+  --source_description "Context description"
+
+# JSON structured data
+mcp_agent-memory_add_memory \
+  --name "API Configuration" \
+  --episode_body "{\\\"api\\\": {\\\"endpoint\\\": \\\"https://api.example.com\\\"}}" \
+  --source "json" \
+  --source_description "API settings"
+
+# Message/conversation format
+mcp_agent-memory_add_memory \
+  --name "User Conversation" \
+  --episode_body "user: How should I format code?\nassistant: Use Black formatter" \
+  --source "message" \
+  --source_description "formatting preference discussion"
 ```
 
-## 🏷️ Template Variables System
+### **Episode Best Practices**
+- **Split long content**: Break requirements into logical chunks
+- **Be explicit about updates**: Only add what's new or changed
+- **Use appropriate source type**: text, json, or message
+- **Add descriptive names**: Help future searches
+- **Include context**: source_description for clarity
 
-### **Built-in Variables** (Automatic)
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `{{user_name}}` | Current user identification | "John Smith" |
-| `{{user_preferences}}` | User preferences and settings | "Prefers detailed explanations" |
-| `{{recent_context}}` | Recent conversation history | "User asked about Python..." |
-| `{{current_task}}` | Active Linear issue context | "Working on NAM-123: Discord agent" |
-| `{{session_context}}` | Current session state | "Working on project X" |
-| `{{custom_memory}}` | Project-specific memory variables | Custom content |
+## 🗄️ Database Memory API
 
-### **Template Usage Pattern**
-```python
-# src/agents/simple/my_agent/prompts.py
-SYSTEM_PROMPT = """You are helping {{user_name}}.
+### **Memory Validation Rules** (NMSTX-63)
+**✅ WORKING**: `user_id=provided` + `agent_id=any` → User-specific memory  
+**❌ FAILING**: `user_id=None` + `agent_id=provided` → Should work, currently fails  
+**🔧 WORKAROUND**: Always provide `user_id` until fixed
 
-Recent: {{recent_context}}
-Preferences: {{user_preferences}}
-Task: {{current_task}}
-
-Available tools: {tools}"""
-```
-
-## 💾 MemoryManager Operations
-
-### **Core Memory Operations**
-```python
-# Add or update memory variable
-await self.memory_manager.add_memory(
-    agent_id=self.agent_id,
-    name="user_preference",
-    content="Likes detailed technical explanations",
-    session_name=session_name
-)
-
-# Retrieve specific memory
-memory = await self.memory_manager.get_memory(
-    agent_id=self.agent_id,
-    name="user_preference",
-    session_name=session_name
-)
-
-# Get all memories for session
-all_memories = await self.memory_manager.get_all_memories(
-    agent_id=self.agent_id,
-    session_name=session_name
-)
-```
-
-### **Advanced Memory Usage**
-```python
-class AdvancedMemoryAgent(AutomagikAgent):
-    async def handle_user_preference(self, preference: str, session_name: str):
-        """Store user preference for future reference."""
-        await self.memory_manager.add_memory(
-            agent_id=self.agent_id,
-            name="preferences",
-            content=preference,
-            session_name=session_name
-        )
-    
-    async def track_conversation_goal(self, goal: str, session_name: str):
-        """Track what user is trying to accomplish."""
-        await self.memory_manager.add_memory(
-            agent_id=self.agent_id,
-            name="conversation_goal",
-            content=goal,
-            session_name=session_name
-        )
-```
-
-## 🌐 Memory API Integration
-
-### **Auto-Generated Memory Endpoints**
-```python
-# Available for each agent:
-POST   /api/v1/agent/{agent_name}/memory       # Add memory
-GET    /api/v1/agent/{agent_name}/memory       # Get all memories
-GET    /api/v1/agent/{agent_name}/memory/{name} # Get specific memory
-DELETE /api/v1/agent/{agent_name}/memory/{name} # Delete memory
-```
-
-### **Memory API Usage Examples**
+### **API Endpoints**
 ```bash
-# Add memory
-curl -X POST http://localhost:8000/api/v1/agent/my_agent/memory \
-  -H "X-API-Key: your-key" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "user_preference", "content": "Prefers technical details", "session_name": "user123"}'
+# Create memory (requires user_id currently)
+curl -X POST -H "X-API-Key: am-xxxxx" -H "Content-Type: application/json" \
+  -d '{"name": "test", "content": "content", "user_id": "uuid", "agent_id": 1}' \
+  http://server:port/api/v1/memories
 
-# Get all memories for session
-curl -X GET "http://localhost:8000/api/v1/agent/my_agent/memory?session_name=user123" \
-  -H "X-API-Key: your-key"
+# List memories
+GET /api/v1/memories?user_id=uuid&agent_id=1
+
+# Get/Update/Delete
+GET/PUT/DELETE /api/v1/memories/{memory_id}
+```
+
+## 🏗️ Development Workflow with Memory
+
+### **1. Before Starting ANY Task**
+```bash
+# Search for preferences
+mcp_agent-memory_search_memory_nodes --query "task keywords" --entity "Preference"
+
+# Search for procedures  
+mcp_agent-memory_search_memory_nodes --query "workflow steps" --entity "Procedure"
+
+# Search for related facts
+mcp_agent-memory_search_memory_facts --query "connections dependencies"
+
+# Commit findings
+git commit -m "docs: capture memory search results for task"
+```
+
+### **2. During Development**
+```python
+# When user expresses preference
+mcp_agent-memory_add_memory \
+  --name "Code Style Preference" \
+  --episode_body "User prefers type hints on all functions" \
+  --source "text"
+
+# When discovering procedure
+mcp_agent-memory_add_memory \
+  --name "Deployment Procedure" \
+  --episode_body "1. Run tests\n2. Update version\n3. Build Docker image\n4. Deploy to staging" \
+  --source "text"
+
+# When learning relationships
+mcp_agent-memory_add_memory \
+  --name "Component Dependencies" \
+  --episode_body "{\\\"agent\\\": {\\\"depends_on\\\": [\\\"memory_manager\\\", \\\"tool_registry\\\"]}}" \
+  --source "json"
+
+# Commit incremental progress
+git add -p && git commit -m "feat: implement based on discovered patterns"
+```
+
+### **3. After Task Completion**
+```bash
+# Store successful patterns
+mcp_agent-memory_add_memory \
+  --name "Successful Agent Pattern" \
+  --episode_body "AutomagikAgent extension with custom tool registration worked well for Discord integration" \
+  --source "text"
+
+# Document discovered constraints
+mcp_agent-memory_add_memory \
+  --name "API Rate Limit Discovered" \
+  --episode_body "{\\\"constraint\\\": {\\\"api\\\": \\\"discord\\\", \\\"rate_limit\\\": \\\"50/minute\\\"}}" \
+  --source "json"
+
+# Final commit and tag if milestone
+git commit -m "feat: complete implementation with discovered patterns"
+git tag -a "milestone-name" -m "Description"
 ```
 
 ## 🧪 Memory Testing Patterns
 
-### **Memory Persistence Testing**
+### **Database Memory Testing**
 ```python
 @pytest.mark.asyncio
-async def test_memory_persistence():
-    agent = TestAgent()
-    session = "test_session"
-    
-    # Add memory
-    await agent.memory_manager.add_memory(
-        agent_id=agent.agent_id,
-        name="test_preference",
-        content="Likes concise answers",
-        session_name=session
-    )
-    
-    # Verify memory persists
-    memory = await agent.memory_manager.get_memory(
-        agent_id=agent.agent_id,
-        name="test_preference",
-        session_name=session
-    )
-    
-    assert memory == "Likes concise answers"
+async def test_memory_api_creation():
+    # Test user-specific memory (working)
+    response = await client.post("/api/v1/memories", json={
+        "name": "test_memory",
+        "content": "test content",
+        "user_id": str(test_user_id),  # Required until NMSTX-63
+        "agent_id": 1
+    })
+    assert response.status_code == 200
 ```
 
-### **Template Injection Testing**
+### **Graph Memory Testing**
 ```python
 @pytest.mark.asyncio
-async def test_template_injection():
-    agent = TestAgent()
-    session = "template_test"
-    
-    # Add custom memory
-    await agent.memory_manager.add_memory(
-        agent_id=agent.agent_id,
-        name="user_name",
-        content="Alice",
-        session_name=session
+async def test_memory_graph_storage():
+    # Add preference episode
+    await add_memory(
+        name="Test Preference",
+        episode_body="User prefers detailed error messages",
+        source="text"
     )
     
-    # Process message - should include user_name in prompt
-    response = await agent.process_message("Hello", session)
-    assert response is not None
+    # Search for it
+    nodes = await search_memory_nodes(
+        query="error messages",
+        entity="Preference"
+    )
+    
+    assert len(nodes) > 0
+    assert "detailed error messages" in nodes[0]['summary']
+```
+
+### **Relationship Testing**
+```python
+@pytest.mark.asyncio
+async def test_memory_relationships():
+    # Add related entities
+    await add_memory(
+        name="Component Relationships",
+        episode_body='{"agent": {"requires": ["memory", "tools"]}}',
+        source="json"
+    )
+    
+    # Search facts
+    facts = await search_memory_facts(
+        query="agent requires"
+    )
+    
+    assert any("requires" in fact['fact'] for fact in facts)
 ```
 
 ## 📋 Memory Best Practices
 
-### **Design Principles**
-1. **Specific Names**: Use descriptive memory variable names
-2. **Structured Content**: Store structured data as JSON when appropriate
-3. **Session Isolation**: Always use session_name for user separation
-4. **Memory Cleanup**: Implement cleanup for old/unused memories
-5. **Template Efficiency**: Don't over-populate prompts with irrelevant context
+### **Search Strategy**
+1. **Always search first**: Before any task, search nodes and facts
+2. **Use entity filters**: Target Preference, Procedure, or Requirement
+3. **Combine searches**: Use both node and fact searches for context
+4. **Center explorations**: Use center_node_uuid for related info
+5. **Respect findings**: Align work with discovered knowledge
+6. **Commit discoveries**: Document findings in Git history
 
-### **Security Considerations**
-```python
-def validate_memory_content(self, content: str) -> bool:
-    """Validate memory content for security."""
-    sensitive_patterns = ['password', 'api_key', 'secret']
-    return not any(pattern in content.lower() for pattern in sensitive_patterns)
+### **Storage Guidelines**
+1. **Immediate capture**: Store preferences/procedures as discovered
+2. **Structured data**: Use JSON source for complex relationships
+3. **Clear categorization**: Label with appropriate entity types
+4. **Update explicitly**: Only add new/changed information
+5. **Context included**: Always add source_description
+6. **Version control**: Commit after storing significant patterns
 
-def sanitize_content(self, content: str) -> str:
-    """Sanitize content before storage."""
-    return content.strip()[:1000]  # Limit length and remove dangerous content
+### **API Memory Guidelines**
+1. **Always provide user_id**: Until NMSTX-63 is fixed
+2. **Use agent tools**: For automatic context handling
+3. **Validate agent_id**: Required when user_id is None (future)
+4. **Handle failures gracefully**: 500 errors indicate validation issues
+
+### **Common Patterns**
+
+**Storing User Preferences**:
+```bash
+mcp_agent-memory_add_memory \
+  --name "Communication Style" \
+  --episode_body "User prefers concise technical explanations with code examples" \
+  --source "text" \
+  --source_description "User feedback on explanation style"
+```
+
+**Documenting Procedures**:
+```bash
+mcp_agent-memory_add_memory \
+  --name "Agent Testing Procedure" \
+  --episode_body "1. Unit test agent initialization\n2. Test tool registration\n3. Integration test with API\n4. Test memory persistence" \
+  --source "text" \
+  --source_description "Standard testing workflow"
+```
+
+**Recording Requirements**:
+```bash
+mcp_agent-memory_add_memory \
+  --name "Security Requirements" \
+  --episode_body "{\\\"security\\\": {\\\"auth\\\": \\\"API key required\\\", \\\"rate_limit\\\": \\\"100/hour\\\"}}" \
+  --source "json" \
+  --source_description "API security constraints"
 ```
 
 ## 🎯 Strategic Memory Usage
 
-### **Query Strategies**
-- **Use specific terms** for better search results
-- **Include context keywords** (component, pattern, error)
-- **Search before implementing** similar features
-- **Regular memory queries** during development
+### **Development Cycle Integration**
+1. **Pre-task**: Search nodes for context → Commit findings
+2. **During task**: Capture discoveries immediately → Commit progress
+3. **Post-task**: Store patterns and solutions → Tag milestones
+4. **Review**: Search facts for impact analysis
 
-### **Storage Guidelines**
-- **Add memory after successful implementations**
-- **Include context and reasoning** in stored text
-- **Store both what worked and what didn't**
-- **Update memory with project insights**
+### **Memory-Driven Decisions**
+```python
+# Example: Check preferences before suggesting
+preferences = search_memory_nodes(query="code style", entity="Preference")
+if any("type hints" in p['summary'] for p in preferences):
+    # Generate code with type hints
+```
 
-### **Template Variable Guidelines**
-- **Use built-in variables** for standard context
-- **Create custom variables** for project-specific needs
-- **Structure templates** for readability
-- **Test template injection** in development
+### **Continuous Learning**
+- **Pattern Recognition**: Store repeated implementations
+- **Error Prevention**: Document solutions to problems
+- **Optimization**: Record performance improvements
+- **Team Knowledge**: Share discoveries via memory
+
+## 🚨 Known Issues
+
+### **NMSTX-63: Memory API user_id=None Support**
+**Status**: Open  
+**Impact**: Cannot create agent global memories via API  
+**Workaround**: Always provide user_id  
+**Fix**: In progress - will support agent global memories
 
 ---
 
-**Remember**: Memory is persistent context. Search before coding, store after learning. Use session isolation, template variables for dynamic prompts, and MemoryManager for programmatic control.
+**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships. For database memories, always provide user_id until NMSTX-63 is resolved. **Commit discoveries** to maintain knowledge in Git history.
