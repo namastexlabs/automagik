@@ -518,3 +518,83 @@ def get_agent_server_assignments(agent_id: Optional[int] = None, server_id: Opti
     except Exception as e:
         logger.error(f"Error getting agent-server assignments: {str(e)}")
         return []
+
+
+def get_servers_with_agents_optimized(enabled_only: bool = True, status_filter: Optional[str] = None) -> List[tuple]:
+    """Get MCP servers with their assigned agent names using optimized JOIN query.
+    
+    This function replaces the N+1 query pattern with a single efficient JOIN query.
+    
+    Args:
+        enabled_only: Whether to only include enabled servers
+        status_filter: Optional status to filter by
+        
+    Returns:
+        List of tuples containing (MCPServerDB, List[agent_names])
+    """
+    try:
+        # Build the query conditions
+        conditions = []
+        params = []
+        
+        if enabled_only:
+            conditions.append("s.enabled = TRUE")
+        
+        if status_filter:
+            conditions.append("s.status = %s")
+            params.append(status_filter)
+        
+        where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+        
+        # Optimized JOIN query with JSON aggregation
+        query = f"""
+        SELECT 
+            s.id, s.name, s.server_type, s.description, s.command, s.env, s.http_url,
+            s.auto_start, s.max_retries, s.timeout_seconds, s.tags, s.priority,
+            s.status, s.enabled, s.started_at, s.last_error, s.error_count,
+            s.connection_attempts, s.last_ping, s.tools_discovered, s.resources_discovered,
+            s.created_at, s.updated_at, s.last_started, s.last_stopped,
+            COALESCE(
+                JSON_AGG(a.name ORDER BY a.name) FILTER (WHERE a.id IS NOT NULL), 
+                '[]'::json
+            ) as agent_names
+        FROM mcp_servers s
+        LEFT JOIN agent_mcp_servers ams ON s.id = ams.mcp_server_id
+        LEFT JOIN agents a ON ams.agent_id = a.id
+        {where_clause}
+        GROUP BY s.id, s.name, s.server_type, s.description, s.command, s.env, s.http_url,
+                s.auto_start, s.max_retries, s.timeout_seconds, s.tags, s.priority,
+                s.status, s.enabled, s.started_at, s.last_error, s.error_count,
+                s.connection_attempts, s.last_ping, s.tools_discovered, s.resources_discovered,
+                s.created_at, s.updated_at, s.last_started, s.last_stopped
+        ORDER BY s.priority DESC, s.name ASC
+        """
+        
+        result = execute_query(query, params)
+        
+        # Process results into tuples
+        servers_with_agents = []
+        for row in result:
+            # Extract agent names from JSON array
+            agent_names_json = row.pop('agent_names', [])
+            
+            # Convert to agent names list
+            if agent_names_json and agent_names_json != '[]':
+                if isinstance(agent_names_json, str):
+                    import json
+                    agent_names = json.loads(agent_names_json)
+                else:
+                    agent_names = agent_names_json
+            else:
+                agent_names = []
+            
+            # Create server object
+            server = MCPServerDB.from_db_row(row)
+            servers_with_agents.append((server, agent_names))
+        
+        logger.info(f"Loaded {len(servers_with_agents)} servers with agents using optimized query")
+        return servers_with_agents
+        
+    except Exception as e:
+        logger.error(f"Error getting servers with agents (optimized): {str(e)}")
+        return []
