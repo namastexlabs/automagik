@@ -129,8 +129,12 @@ class TestMemoryValidation:
         
         response = test_app.post("/api/v1/memories", json=memory_data)
         
-        assert response.status_code == 400
-        assert "agent_id is required when user_id is not provided" in response.json()["detail"]
+        assert response.status_code == 422
+        error_detail = response.json()
+        assert "detail" in error_detail
+        # Verify the validation error mentions the validation rule
+        assert any("agent_id is required when user_id is not provided" in str(detail) 
+                  for detail in error_detail["detail"] if isinstance(detail, dict))
 
     def test_update_memory_valid_combination_success(self, test_app, sample_memory):
         """Test successful update maintaining valid user_id/agent_id combination."""
@@ -162,8 +166,12 @@ class TestMemoryValidation:
             
             response = test_app.put(f"/api/v1/memories/{memory_id}", json=update_data)
             
-            assert response.status_code == 400
-            assert "agent_id is required when user_id is not provided" in response.json()["detail"]
+            assert response.status_code == 422  # Pydantic validation error
+            error_detail = response.json()
+            assert "detail" in error_detail
+            # Verify the validation error mentions the validation rule
+            assert any("agent_id is required when user_id is not provided" in str(detail) 
+                      for detail in error_detail["detail"] if isinstance(detail, dict))
 
     def test_batch_create_mixed_valid_invalid_memories(self, test_app):
         """Test batch creation with mix of valid and invalid memories."""
@@ -188,20 +196,16 @@ class TestMemoryValidation:
             }
         ]
         
-        with patch('src.api.memory_routes.ensure_user_exists') as mock_ensure, \
-             patch('src.api.memory_routes.repo_create_memory') as mock_create, \
-             patch('src.api.memory_routes.get_memory') as mock_get:
-            
-            mock_ensure.return_value = uuid.UUID(memories_data[2]["user_id"])
-            mock_create.return_value = uuid.uuid4()
-            mock_get.return_value = MagicMock()
-            
-            response = test_app.post("/api/v1/memories/batch", json=memories_data)
-            
-            assert response.status_code == 200
-            results = response.json()
-            # Should have 2 successful memories (1st and 3rd), 2nd should be skipped
-            assert len(results) == 2
+        # With Pydantic validation at the model level, the entire batch request
+        # should fail when any item is invalid (422 validation error)
+        response = test_app.post("/api/v1/memories/batch", json=memories_data)
+        
+        assert response.status_code == 422
+        error_detail = response.json()
+        assert "detail" in error_detail
+        # Verify the validation error mentions the validation rule
+        assert any("agent_id is required when user_id is not provided" in str(detail) 
+                  for detail in error_detail["detail"] if isinstance(detail, dict))
 
 
 class TestMemoryFiltering:
