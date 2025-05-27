@@ -132,9 +132,22 @@ class MCPServerManager:
                     raise MCPServerError(f"Unknown server type: {self.config.server_type}", self.name)
                 
                 # Test connection by temporarily entering context to discover capabilities
-                async with self._server as temp_server:
-                    # Discover tools and resources
-                    await self._discover_capabilities_with_server(temp_server)
+                # Add timeout to prevent hanging indefinitely
+                try:
+                    async with asyncio.timeout(self.config.timeout_seconds):
+                        async with self._server as temp_server:
+                            # Discover tools and resources
+                            await self._discover_capabilities_with_server(temp_server)
+                except asyncio.TimeoutError:
+                    logger.warning(f"MCP server {self.name} startup timed out after {self.config.timeout_seconds}s")
+                    raise MCPServerError(f"Server startup timed out after {self.config.timeout_seconds} seconds", self.name)
+                except Exception as capability_error:
+                    logger.warning(f"MCP server {self.name} capability discovery failed: {str(capability_error)}")
+                    # Continue without capabilities if server starts but discovery fails
+                    self._tools.clear()
+                    self._resources.clear()
+                    self.state.tools_discovered = []
+                    self.state.resources_discovered = []
                 
                 self.state.status = MCPServerStatus.RUNNING
                 self.state.started_at = datetime.now()
