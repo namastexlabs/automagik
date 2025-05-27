@@ -52,7 +52,11 @@ class ToolRegistry:
         Args:
             tool_func: The tool function to register
         """
-        name = getattr(tool_func, "__name__", str(tool_func))
+        # Handle PydanticAI Tool objects properly
+        if isinstance(tool_func, PydanticTool):
+            name = tool_func.name
+        else:
+            name = getattr(tool_func, "__name__", str(tool_func))
         self._registered_tools[name] = tool_func
     
     def register_tool_with_context(self, tool_func: Callable, context: Dict[str, Any]) -> None:
@@ -65,7 +69,11 @@ class ToolRegistry:
             tool_func: The tool function to register
             context: Context to inject into the tool
         """
-        name = getattr(tool_func, "__name__", str(tool_func))
+        # Handle PydanticAI Tool objects properly
+        if isinstance(tool_func, PydanticTool):
+            name = tool_func.name
+        else:
+            name = getattr(tool_func, "__name__", str(tool_func))
         
         # Special handling for verificar_cnpj which has caused issues
         if name == "verificar_cnpj":
@@ -124,8 +132,11 @@ class ToolRegistry:
             agent: The agent to register as a tool
             context: Context to inject into the agent's tool functions
         """
-        # Get the agent name for logging
-        agent_name = getattr(agent, "__name__", str(agent))
+        # Handle PydanticAI Tool objects properly
+        if isinstance(agent, PydanticTool):
+            agent_name = agent.name
+        else:
+            agent_name = getattr(agent, "__name__", str(agent))
         
         # Register the agent with context
         self.register_tool_with_context(agent, context)

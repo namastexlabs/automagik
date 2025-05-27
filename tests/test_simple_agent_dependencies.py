@@ -88,7 +88,7 @@ class TestAutomagikAgentsDependencies(unittest.TestCase):
         self.deps.model_name = "openai:gpt-4.1-mini"
         self.deps.configure_for_multimodal(True)
         
-        self.deps.model_name = "openai:gpt-4o"
+        self.deps.model_name = "openai:gpt-4.1"
         self.deps.configure_for_multimodal(True)
         
         self.deps.model_name = "anthropic:claude-2"
