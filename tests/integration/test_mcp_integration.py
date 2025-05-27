@@ -2,6 +2,7 @@
 
 import pytest
 import httpx
+import uuid
 from unittest.mock import patch, AsyncMock
 
 from src.config import settings
@@ -20,110 +21,163 @@ class TestMCPIntegration:
         """Authentication headers."""
         return {"X-API-Key": "am-xxxxx"}
     
+    @pytest.fixture
+    def unique_server_name(self):
+        """Generate unique server name for each test."""
+        return f"test_server_{uuid.uuid4().hex[:8]}"
+    
+    @pytest.fixture
+    def cleanup_servers(self):
+        """Cleanup fixture to collect test servers for removal after each test."""
+        created_servers = []
+        return created_servers
+    
     @pytest.mark.asyncio
-    async def test_configure_filesystem_server(self, base_url, auth_headers):
+    async def test_configure_filesystem_server(self, base_url, auth_headers, unique_server_name, cleanup_servers):
         """Test configuring a filesystem MCP server using the expected JSON format."""
         async with httpx.AsyncClient() as client:
-            # Configure filesystem server
-            config_data = {
-                "mcpServers": {
-                    "filesystem": {
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-                        "description": "Filesystem MCP server for testing"
+            try:
+                # Configure filesystem server with unique name
+                config_data = {
+                    "mcpServers": {
+                        unique_server_name: {
+                            "command": "npx",
+                            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                            "description": "Filesystem MCP server for testing"
+                        }
                     }
                 }
-            }
-            
-            response = await client.post(
-                f"{base_url}/api/v1/mcp/configure",
-                json=config_data,
-                headers=auth_headers
-            )
-            
-            # Debug output
-            print(f"Response status: {response.status_code}")
-            print(f"Response content: {response.text}")
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["total"] == 1
-            assert len(data["servers"]) == 1
-            assert data["servers"][0]["name"] == "filesystem"
+                
+                cleanup_servers.append(unique_server_name)
+                
+                response = await client.post(
+                    f"{base_url}/api/v1/mcp/configure",
+                    json=config_data,
+                    headers=auth_headers
+                )
+                
+                # Debug output
+                print(f"Response status: {response.status_code}")
+                print(f"Response content: {response.text}")
+                
+                assert response.status_code == 200
+                data = response.json()
+                assert data["total"] == 1
+                assert len(data["servers"]) == 1
+                assert data["servers"][0]["name"] == unique_server_name
+                
+            finally:
+                # Cleanup - remove the server
+                try:
+                    await client.delete(
+                        f"{base_url}/api/v1/mcp/servers/{unique_server_name}",
+                        headers=auth_headers
+                    )
+                except Exception:
+                    # Ignore cleanup errors
+                    pass
     
     @pytest.mark.asyncio
-    async def test_server_lifecycle_operations(self, base_url, auth_headers):
+    async def test_server_lifecycle_operations(self, base_url, auth_headers, unique_server_name, cleanup_servers):
         """Test MCP server lifecycle operations."""
         async with httpx.AsyncClient() as client:
-            # First configure a server
-            config_data = {
-                "mcpServers": {
-                    "test_server": {
-                        "command": "echo",
-                        "args": ["hello"],
-                        "auto_start": False
+            try:
+                # First configure a server
+                config_data = {
+                    "mcpServers": {
+                        unique_server_name: {
+                            "command": "echo",
+                            "args": ["hello"],
+                            "auto_start": False
+                        }
                     }
                 }
-            }
-            
-            await client.post(
-                f"{base_url}/api/v1/mcp/configure",
-                json=config_data,
-                headers=auth_headers
-            )
-            
-            # Test start server
-            response = await client.post(
-                f"{base_url}/api/v1/mcp/servers/test_server/start",
-                headers=auth_headers
-            )
-            assert response.status_code == 200
-            
-            # Test stop server
-            response = await client.post(
-                f"{base_url}/api/v1/mcp/servers/test_server/stop",
-                headers=auth_headers
-            )
-            assert response.status_code == 200
-            
-            # Test restart server
-            response = await client.post(
-                f"{base_url}/api/v1/mcp/servers/test_server/restart",
-                headers=auth_headers
-            )
-            assert response.status_code == 200
+                
+                cleanup_servers.append(unique_server_name)
+                
+                await client.post(
+                    f"{base_url}/api/v1/mcp/configure",
+                    json=config_data,
+                    headers=auth_headers
+                )
+                
+                # Test start server
+                response = await client.post(
+                    f"{base_url}/api/v1/mcp/servers/{unique_server_name}/start",
+                    headers=auth_headers
+                )
+                assert response.status_code == 200
+                
+                # Test stop server
+                response = await client.post(
+                    f"{base_url}/api/v1/mcp/servers/{unique_server_name}/stop",
+                    headers=auth_headers
+                )
+                assert response.status_code == 200
+                
+                # Test restart server
+                response = await client.post(
+                    f"{base_url}/api/v1/mcp/servers/{unique_server_name}/restart",
+                    headers=auth_headers
+                )
+                assert response.status_code == 200
+                
+            finally:
+                # Cleanup - remove the server
+                try:
+                    await client.delete(
+                        f"{base_url}/api/v1/mcp/servers/{unique_server_name}",
+                        headers=auth_headers
+                    )
+                except Exception:
+                    # Ignore cleanup errors
+                    pass
     
     @pytest.mark.asyncio
-    async def test_server_tool_discovery(self, base_url, auth_headers):
+    async def test_server_tool_discovery(self, base_url, auth_headers, unique_server_name, cleanup_servers):
         """Test tool discovery for MCP servers."""
         async with httpx.AsyncClient() as client:
-            # Configure filesystem server
-            config_data = {
-                "mcpServers": {
-                    "filesystem": {
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+            try:
+                # Configure filesystem server
+                config_data = {
+                    "mcpServers": {
+                        unique_server_name: {
+                            "command": "npx",
+                            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+                        }
                     }
                 }
-            }
-            
-            await client.post(
-                f"{base_url}/api/v1/mcp/configure",
-                json=config_data,
-                headers=auth_headers
-            )
-            
-            # List tools for the server
-            response = await client.get(
-                f"{base_url}/api/v1/mcp/servers/filesystem/tools",
-                headers=auth_headers
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["server_name"] == "filesystem"
-            assert "tools" in data
-            assert "total" in data
+                
+                cleanup_servers.append(unique_server_name)
+                
+                await client.post(
+                    f"{base_url}/api/v1/mcp/configure",
+                    json=config_data,
+                    headers=auth_headers
+                )
+                
+                # List tools for the server
+                response = await client.get(
+                    f"{base_url}/api/v1/mcp/servers/{unique_server_name}/tools",
+                    headers=auth_headers
+                )
+                
+                assert response.status_code == 200
+                data = response.json()
+                assert data["server_name"] == unique_server_name
+                assert "tools" in data
+                assert "total" in data
+                
+            finally:
+                # Cleanup - remove the server
+                try:
+                    await client.delete(
+                        f"{base_url}/api/v1/mcp/servers/{unique_server_name}",
+                        headers=auth_headers
+                    )
+                except Exception:
+                    # Ignore cleanup errors
+                    pass
     
     @pytest.mark.asyncio
     async def test_agent_mcp_tool_integration(self, base_url, auth_headers):
@@ -327,9 +381,10 @@ async def test_mcp_system_end_to_end():
             await manager.initialize()
             
             try:
-                # Add a filesystem server
+                # Add a filesystem server with unique name
+                unique_name = f"test_fs_{uuid.uuid4().hex[:8]}"
                 config = MCPServerConfig(
-                    name="test_filesystem",
+                    name=unique_name,
                     server_type=MCPServerType.STDIO,
                     command=["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
                     description="Test filesystem server",
@@ -341,19 +396,19 @@ async def test_mcp_system_end_to_end():
                 # Verify server was added
                 servers = manager.list_servers()
                 assert len(servers) == 1
-                assert servers[0].name == "test_filesystem"
+                assert servers[0].name == unique_name
                 
                 # Test server operations
-                await manager.start_server("test_filesystem")
-                await manager.stop_server("test_filesystem")
-                await manager.restart_server("test_filesystem")
+                await manager.start_server(unique_name)
+                await manager.stop_server(unique_name)
+                await manager.restart_server(unique_name)
                 
                 # Test tool operations (mocked)
-                result = await manager.call_tool("test_filesystem", "test_tool", {})
+                result = await manager.call_tool(unique_name, "test_tool", {})
                 assert result == {"result": "success"}
                 
                 # Test resource operations (mocked)
-                content = await manager.access_resource("test_filesystem", "test://resource")
+                content = await manager.access_resource(unique_name, "test://resource")
                 assert content == "resource content"
                 
                 # Get health status
@@ -361,7 +416,7 @@ async def test_mcp_system_end_to_end():
                 assert health.servers_total == 1
                 
                 # Clean up
-                await manager.remove_server("test_filesystem")
+                await manager.remove_server(unique_name)
                 assert len(manager.list_servers()) == 0
                 
             finally:
