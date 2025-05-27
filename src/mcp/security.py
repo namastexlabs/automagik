@@ -37,19 +37,34 @@ ALLOWED_COMMANDS = {
     # Node.js MCP servers
     "npx": {
         "path": "/usr/bin/npx",
-        "allowed_args": ["@modelcontextprotocol/server-*"],
-        "description": "MCP server runner"
+        "allowed_args": [
+            "-y", "--yes",  # Auto-confirm package installation
+            "@modelcontextprotocol/server-*", "mcp-server-*", 
+            "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"
+        ],
+        "description": "NPM package runner for MCP servers"
+    },
+    # Python package runner (uvx for MCP servers)
+    "uvx": {
+        "path": "/usr/local/bin/uvx",
+        "fallback_paths": ["/usr/bin/uvx", "/home/*/.local/bin/uvx", "/root/workspace/am-agents-labs/.venv/bin/uvx"],
+        "allowed_args": [
+            "mcp-server-*", "@modelcontextprotocol/server-*",
+            "--python", "--with", "--from",  # UV arguments
+            "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"
+        ],
+        "description": "UV package runner for Python MCP servers"
     },
     # Python MCP servers  
     "python3": {
         "path": "/usr/bin/python3",
-        "allowed_args": ["-m", "mcp_server_*"],
+        "allowed_args": ["-m", "mcp_server_*", "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"],
         "description": "Python MCP servers"
     },
     # Additional allowed binaries (minimal set)
     "node": {
         "path": "/usr/bin/node",
-        "allowed_args": ["*.js", "**/server*.js"],
+        "allowed_args": ["server.js", "**/server*.js", "weather-server.js", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"],
         "description": "Node.js runtime"
     }
 }
@@ -137,8 +152,31 @@ def validate_command(command: str, args: List[str]) -> bool:
     
     allowed_cmd = ALLOWED_COMMANDS[command_name]
     
-    # Verify path matches expected
-    if not os.path.samefile(command, allowed_cmd["path"]):
+    # Verify path matches expected or fallback paths
+    valid_path = False
+    if os.path.exists(allowed_cmd["path"]):
+        try:
+            if os.path.samefile(command, allowed_cmd["path"]):
+                valid_path = True
+        except OSError:
+            pass
+    
+    # Check fallback paths if not found in primary
+    if not valid_path and "fallback_paths" in allowed_cmd:
+        import glob
+        for path_pattern in allowed_cmd["fallback_paths"]:
+            matching_paths = glob.glob(path_pattern)
+            for path in matching_paths:
+                try:
+                    if os.path.exists(path) and os.path.samefile(command, path):
+                        valid_path = True
+                        break
+                except OSError:
+                    continue
+            if valid_path:
+                break
+    
+    if not valid_path:
         raise SecurityError(f"Command path mismatch: {command}")
     
     # Validate arguments against patterns
@@ -165,9 +203,19 @@ def resolve_command_path(command_name: str) -> str:
     """
     # Check allowlist first
     if command_name in ALLOWED_COMMANDS:
-        expected_path = ALLOWED_COMMANDS[command_name]["path"]
+        config = ALLOWED_COMMANDS[command_name]
+        expected_path = config["path"]
         if os.path.exists(expected_path):
             return expected_path
+        
+        # Check fallback paths if available
+        if "fallback_paths" in config:
+            import glob
+            for path_pattern in config["fallback_paths"]:
+                matching_paths = glob.glob(path_pattern)
+                for path in matching_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        return path
     
     # Fallback to which command (with restricted PATH)
     allowed_dirs = ['/usr/bin', '/bin', '/usr/local/bin']

@@ -17,14 +17,6 @@
           "https://mcp.deepwiki.com/sse"
         ]
       },
-      "linear": {
-        "command": "npx",
-        "args": [
-          "-y",
-          "mcp-remote",
-          "https://mcp.linear.app/sse"
-        ]
-      },
       "agent-memory": {
         "transport": "sse",
         "url": "http://192.168.112.149:8000/sse"
