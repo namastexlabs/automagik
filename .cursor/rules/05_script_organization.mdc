@@ -3,7 +3,6 @@ description: Simple development script organization to prevent script folder gra
 globs: **/*
 alwaysApply: true
 ---
-
 # Simple Script Organization
 
 ## 🎯 Mission
@@ -54,7 +53,7 @@ temp_api_check.py
 
 # ✅ DO: Add purpose comment
 """
-Debug script for NAM-123 memory integration issue
+Debug script for NMSTX-123 memory integration issue
 Created: 2025-01-26
 """
 ```
