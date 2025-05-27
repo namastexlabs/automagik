@@ -332,28 +332,17 @@ class MCPClientManager:
         logger.debug("MCP database tables should be created by migrations")
     
     async def _load_server_configurations(self) -> None:
-        """Load MCP server configurations from database."""
+        """Load MCP server configurations from database using optimized JOIN query."""
         from fastapi.concurrency import run_in_threadpool
-        from src.db.repository.mcp import list_mcp_servers, get_server_agents
-        from src.db.repository.agent import get_agent
+        from src.db.repository.mcp import get_servers_with_agents_optimized
         
         try:
-            # Get all MCP servers using repository method (async)
-            servers = await run_in_threadpool(list_mcp_servers, enabled_only=False)
+            # Get all MCP servers with their agent names using optimized single query (async)
+            servers_with_agents = await run_in_threadpool(get_servers_with_agents_optimized, enabled_only=False)
             
-            for server in servers:
+            for server, agent_names in servers_with_agents:
                 try:
-                    # Get agent assignments for this server (async)
-                    agent_ids = await run_in_threadpool(get_server_agents, server.id)
-                    agent_names = []
-                    
-                    # Convert agent IDs to names (async)
-                    for agent_id in agent_ids:
-                        agent = await run_in_threadpool(get_agent, agent_id)
-                        if agent:
-                            agent_names.append(agent.name)
-                    
-                    # Create MCPServerConfig from MCPServerDB
+                    # Create MCPServerConfig from MCPServerDB and agent names
                     config = MCPServerConfig(
                         name=server.name,
                         server_type=MCPServerType(server.server_type),
@@ -379,7 +368,7 @@ class MCPClientManager:
                             self._agent_servers[agent_name] = set()
                         self._agent_servers[agent_name].add(config.name)
                     
-                    logger.debug(f"Loaded MCP server configuration: {config.name}")
+                    logger.debug(f"Loaded MCP server configuration: {config.name} with {len(agent_names)} agents")
                     
                 except Exception as e:
                     logger.error(f"Failed to load MCP server configuration {server.name}: {str(e)}")
