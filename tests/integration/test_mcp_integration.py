@@ -33,17 +33,17 @@ class TestMCPIntegration:
         return created_servers
     
     @pytest.mark.asyncio
-    async def test_configure_filesystem_server(self, base_url, auth_headers, unique_server_name, cleanup_servers):
-        """Test configuring a filesystem MCP server using the expected JSON format."""
+    async def test_configure_calculator_server(self, base_url, auth_headers, unique_server_name, cleanup_servers):
+        """Test configuring a calculator MCP server using the expected JSON format."""
         async with httpx.AsyncClient() as client:
             try:
-                # Configure filesystem server with unique name
+                # Configure calculator server with unique name
                 config_data = {
                     "mcpServers": {
                         unique_server_name: {
-                            "command": "npx",
-                            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-                            "description": "Filesystem MCP server for testing"
+                            "command": "uvx",
+                            "args": ["mcp-server-calculator"],
+                            "description": "Calculator MCP server for testing"
                         }
                     }
                 }
@@ -86,8 +86,8 @@ class TestMCPIntegration:
                 config_data = {
                     "mcpServers": {
                         unique_server_name: {
-                            "command": "npx",
-                            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                            "command": "uvx",
+                            "args": ["mcp-server-calculator"],
                             "auto_start": False
                         }
                     }
@@ -138,12 +138,12 @@ class TestMCPIntegration:
         """Test tool discovery for MCP servers."""
         async with httpx.AsyncClient() as client:
             try:
-                # Configure filesystem server
+                # Configure calculator server
                 config_data = {
                     "mcpServers": {
                         unique_server_name: {
-                            "command": "npx",
-                            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+                            "command": "uvx",
+                            "args": ["mcp-server-calculator"]
                         }
                     }
                 }
@@ -183,12 +183,12 @@ class TestMCPIntegration:
     async def test_agent_mcp_tool_integration(self, base_url, auth_headers):
         """Test agent integration with MCP tools."""
         async with httpx.AsyncClient() as client:
-            # Configure filesystem server assigned to simple_agent
+            # Configure calculator server assigned to simple_agent
             config_data = {
                 "mcpServers": {
-                    "filesystem": {
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                    "calculator": {
+                        "command": "uvx",
+                        "args": ["mcp-server-calculator"],
                         "agent_names": ["simple"]
                     }
                 }
@@ -209,18 +209,18 @@ class TestMCPIntegration:
             assert response.status_code == 200
             data = response.json()
             assert data["agent_name"] == "simple"
-            assert "filesystem" in data["servers"]
+            assert "calculator" in data["servers"]
     
     @pytest.mark.asyncio
     async def test_call_mcp_tool(self, base_url, auth_headers):
         """Test calling an MCP tool."""
         async with httpx.AsyncClient() as client:
-            # Configure filesystem server
+            # Configure calculator server
             config_data = {
                 "mcpServers": {
-                    "filesystem": {
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+                    "calculator": {
+                        "command": "uvx",
+                        "args": ["mcp-server-calculator"]
                     }
                 }
             }
@@ -231,11 +231,11 @@ class TestMCPIntegration:
                 headers=auth_headers
             )
             
-            # Call a filesystem tool
+            # Call a calculator tool
             tool_request = {
-                "server_name": "filesystem",
-                "tool_name": "list_files",
-                "arguments": {"path": "/tmp"}
+                "server_name": "calculator",
+                "tool_name": "add",
+                "arguments": {"a": 5, "b": 3}
             }
             
             response = await client.post(
@@ -248,8 +248,8 @@ class TestMCPIntegration:
             assert response.status_code == 200
             data = response.json()
             assert "success" in data
-            assert data["tool_name"] == "list_files"
-            assert data["server_name"] == "filesystem"
+            assert data["tool_name"] == "add"
+            assert data["server_name"] == "calculator"
     
     @pytest.mark.asyncio
     async def test_mcp_health_check(self, base_url):
@@ -268,18 +268,18 @@ class TestMCPIntegration:
     async def test_bulk_server_configuration(self, base_url, auth_headers):
         """Test configuring multiple servers at once."""
         async with httpx.AsyncClient() as client:
-            # Configure multiple servers (using proper MCP servers)
+            # Configure multiple servers (using calculator servers)
             config_data = {
                 "mcpServers": {
-                    "filesystem": {
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-                        "description": "Filesystem server"
+                    "calculator1": {
+                        "command": "uvx",
+                        "args": ["mcp-server-calculator"],
+                        "description": "Calculator server 1"
                     },
-                    "filesystem2": {
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/var/tmp"],
-                        "description": "Second filesystem server"
+                    "calculator2": {
+                        "command": "uvx",
+                        "args": ["mcp-server-calculator"],
+                        "description": "Calculator server 2"
                     }
                 }
             }
@@ -296,8 +296,8 @@ class TestMCPIntegration:
             assert len(data["servers"]) == 2
             
             server_names = [server["name"] for server in data["servers"]]
-            assert "filesystem" in server_names
-            assert "filesystem2" in server_names
+            assert "calculator1" in server_names
+            assert "calculator2" in server_names
     
     @pytest.mark.asyncio
     async def test_server_crud_operations(self, base_url, auth_headers):
@@ -307,7 +307,7 @@ class TestMCPIntegration:
             server_data = {
                 "name": "test_crud_server",
                 "server_type": "stdio",
-                "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                "command": ["uvx", "mcp-server-calculator"],
                 "description": "Test CRUD server"
             }
             
@@ -386,8 +386,8 @@ async def test_mcp_system_end_to_end():
                 config = MCPServerConfig(
                     name=unique_name,
                     server_type=MCPServerType.STDIO,
-                    command=["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-                    description="Test filesystem server",
+                    command=["uvx", "mcp-server-calculator"],
+                    description="Test calculator server",
                     auto_start=True
                 )
                 
