@@ -32,13 +32,14 @@ CONFIG_LOADED=true
 SERVICE_LOADED=true
 
 # Default values
-INSTALL_COMPONENT="agents"  # Default to agents
-INSTALL_MODE=""            # Interactive by default
+INSTALL_COMPONENT="agents"
+INSTALL_MODE=""
 INSTALL_PYTHON=true
 INSTALL_DOCKER=true
-INSTALL_DEV_TOOLS=true
-INSTALL_HELPERS=true
+INSTALL_DEV=true
 VERBOSE=false
+NON_INTERACTIVE=false
+INSTALL_AS_SERVICE=false
 
 # API key parameters for non-interactive installs
 OPENAI_API_KEY_PARAM=""
@@ -49,15 +50,15 @@ AM_API_KEY_PARAM=""
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --help|-h)
+            -h|--help)
                 show_help
                 exit 0
                 ;;
-            --component|-c)
+            -c|--component)
                 INSTALL_COMPONENT="$2"
                 shift 2
                 ;;
-            --mode|-m)
+            -m|--mode)
                 INSTALL_MODE="$2"
                 shift 2
                 ;;
@@ -82,10 +83,10 @@ parse_arguments() {
                 shift
                 ;;
             --no-dev)
-                INSTALL_DEV_TOOLS=false
+                INSTALL_DEV=false
                 shift
                 ;;
-            --verbose|-v)
+            -v|--verbose)
                 VERBOSE=true
                 shift
                 ;;
@@ -95,10 +96,6 @@ parse_arguments() {
                 ;;
             --install-service)
                 INSTALL_AS_SERVICE=true
-                shift
-                ;;
-            --no-helpers)
-                INSTALL_HELPERS=false
                 shift
                 ;;
             *)
@@ -121,7 +118,7 @@ Options:
     -h, --help              Show this help message
     -c, --component NAME    Component to install (agents, omni, langflow, bundle)
                            Default: agents
-    -m, --mode MODE        Installation mode (local, docker, quick-update)
+    -m, --mode MODE        Installation mode (local, docker, docker-prod, quick-update)
                            Default: interactive menu
     --openai-key KEY       OpenAI API key for non-interactive installs
     --discord-token TOKEN  Discord bot token for non-interactive installs
@@ -132,36 +129,48 @@ Options:
     -v, --verbose          Enable verbose output
     --non-interactive      Skip interactive prompts and use defaults
     --install-service      Install as systemd service (Linux only)
-    --no-helpers           Skip helper functions installation
+
+Installation Modes:
+    local          Local installation with Python virtual environment
+    docker         Docker installation for development/testing (standard ports)
+    docker-prod    Docker production deployment (non-standard ports, external DBs)
+    quick-update   Quick Docker rebuild only
 
 Examples:
     # Interactive installation
     $0
 
-    # Install agents with Docker
+    # Install agents with Docker for development
     $0 --component agents --mode docker
 
-    # Non-interactive local install with API keys
-    $0 --component agents --mode local --non-interactive \\
+    # Install agents with Docker for production
+    $0 --component agents --mode docker-prod
+
+    # Non-interactive production install with API keys
+    $0 --component agents --mode docker-prod --non-interactive \\
        --openai-key sk-your-openai-key \\
        --discord-token your-discord-token
+
+    # Local install with service
+    $0 --component agents --mode local --install-service
 
     # Quick update for agents
     $0 --component agents --mode quick-update
 
-    # Install without Docker
-    $0 --no-docker
+Production Docker Mode (docker-prod):
+    • Uses non-standard ports (18881 for agents, 18000 for graphiti)
+    • Requires external PostgreSQL database (configure DATABASE_URL)
+    • Requires external Neo4j database for Graphiti (configure NEO4J_URI)
+    • Optimized for production deployment
+    • Uses docker-compose-prod.yml configuration
 
-    # Install as service with helper commands
-    $0 --component agents --mode local --install-service
-
-After installation, use these convenient commands:
-    agent start     # Start the automagik-agents service
-    agent stop      # Stop the service
-    agent logs      # View colored logs
-    agent status    # Full service status
-    agent health    # Quick API health check
-    agent help      # Show all available commands
+After installation, use these CLI commands:
+    automagik agents start     # Start the automagik-agents service
+    automagik agents stop      # Stop the service
+    automagik agents logs      # View colored logs
+    automagik agents status    # Full service status
+    automagik agents --help    # Show all available commands
+    automagik install-alias    # Install 'agent' alias for convenience
 
 EOF
 }
@@ -214,17 +223,19 @@ show_mode_menu() {
     echo
     echo -e "${YELLOW}Installation Mode:${NC}"
     echo "1) 🏠 Local Installation (Python virtual environment)"
-    echo "2) 🐳 Docker Installation (Containerized deployment)"
-    echo "3) 🔄 Quick Update (Docker rebuild only)"
-    echo "4) ❌ Cancel"
+    echo "2) 🐳 Docker Installation (Development/Testing)"
+    echo "3) 🏭 Docker Production (Optimized for production)"
+    echo "4) 🔄 Quick Update (Docker rebuild only)"
+    echo "5) ❌ Cancel"
     echo
-    read -p "Choose installation mode (1-4): " mode_choice
+    read -p "Choose installation mode (1-5): " mode_choice
     
     case $mode_choice in
         1) INSTALL_MODE="local" ;;
         2) INSTALL_MODE="docker" ;;
-        3) INSTALL_MODE="quick-update" ;;
-        4)
+        3) INSTALL_MODE="docker-prod" ;;
+        4) INSTALL_MODE="quick-update" ;;
+        5)
             echo "Installation cancelled."
             exit 0
             ;;
@@ -265,7 +276,6 @@ export_installation_options() {
     # Export flags (defaults to false if not set)
     export NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
     export INSTALL_AS_SERVICE="${INSTALL_AS_SERVICE:-false}"
-    export INSTALL_HELPERS="${INSTALL_HELPERS:-true}"
     
     # Export API key parameters for configuration
     export OPENAI_API_KEY_PARAM="$OPENAI_API_KEY_PARAM"
