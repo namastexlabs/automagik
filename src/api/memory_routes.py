@@ -391,8 +391,8 @@ async def update_memory_endpoint(
         if not existing_memory:
             raise HTTPException(status_code=404, detail=f"Memory {memory_id} not found")
         
-        # Determine final values after update - use dict.get to distinguish between None and not provided
-        update_dict = memory_update.dict(exclude_unset=True)
+        # Determine final values after update - use model_dump to distinguish between None and not provided
+        update_dict = memory_update.model_dump(exclude_unset=True)
         final_user_id = update_dict.get('user_id', existing_memory.user_id)
         final_agent_id = update_dict.get('agent_id', existing_memory.agent_id)
         
