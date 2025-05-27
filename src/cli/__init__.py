@@ -43,6 +43,19 @@ def langflow_placeholder():
     typer.echo("🔧 Langflow component coming soon!")
     typer.echo("This will provide visual workflow builder capabilities.")
 
+# Alias management commands
+@app.command("install-alias")
+def install_alias():
+    """Install shell alias for convenient access."""
+    from src.cli.alias import install_shell_alias
+    install_shell_alias()
+
+@app.command("uninstall-alias")
+def uninstall_alias():
+    """Remove shell alias."""
+    from src.cli.alias import uninstall_shell_alias
+    uninstall_shell_alias()
+
 # Define a callback that runs before any command
 def global_callback(ctx: typer.Context, debug: bool = False):
     """Global callback for all commands to process common options."""

@@ -1,0 +1,122 @@
+#!/bin/bash
+#===========================================
+# Automagik CLI Wrapper
+#===========================================
+# Automatically activates venv and calls Python CLI
+
+set -e  # Exit on any error
+
+# Function to find project root
+find_project_root() {
+    local current_dir="$(pwd)"
+    local search_dir="$current_dir"
+    
+    # First try to find based on script location (if it's in project)
+    if [[ "${BASH_SOURCE[0]}" == *"/scripts/automagik" ]]; then
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        local potential_root="$(dirname "$script_dir")"
+        if [[ -f "$potential_root/pyproject.toml" ]] || [[ -f "$potential_root/.env" ]]; then
+            echo "$potential_root"
+            return 0
+        fi
+    fi
+    
+    # Search up the directory tree from current location
+    while [[ "$search_dir" != "/" ]]; do
+        if [[ -f "$search_dir/pyproject.toml" ]] || [[ -f "$search_dir/.env" ]]; then
+            echo "$search_dir"
+            return 0
+        fi
+        search_dir="$(dirname "$search_dir")"
+    done
+    
+    # Fallback: try common locations
+    local common_locations=(
+        "$HOME/workspace/am-agents-labs"
+        "$HOME/projects/am-agents-labs"
+        "$HOME/am-agents-labs"
+    )
+    
+    for location in "${common_locations[@]}"; do
+        if [[ -f "$location/pyproject.toml" ]] || [[ -f "$location/.env" ]]; then
+            echo "$location"
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+# Function to find and activate venv
+activate_venv() {
+    local project_root="$1"
+    
+    # Look for venv directories
+    local venv_paths=(
+        "$project_root/.venv"
+        "$project_root/venv"
+    )
+    
+    for venv_path in "${venv_paths[@]}"; do
+        if [[ -f "$venv_path/bin/activate" ]]; then
+            echo "🔧 Activating virtual environment: $venv_path"
+            source "$venv_path/bin/activate"
+            return 0
+        fi
+    done
+    
+    echo "⚠️  No virtual environment found. Install dependencies with:"
+    echo "   cd $project_root && python -m venv .venv && source .venv/bin/activate && uv sync"
+    return 1
+}
+
+# Main execution
+main() {
+    # Find project root
+    local project_root
+    if ! project_root="$(find_project_root)"; then
+        echo "❌ Could not find automagik-agents project root"
+        echo "💡 Make sure you're in the project directory or it's installed in a standard location"
+        exit 1
+    fi
+    
+    echo "📁 Found project at: $project_root"
+    
+    # Change to project directory
+    cd "$project_root"
+    
+    # Try to activate venv (don't fail if not found)
+    if ! activate_venv "$project_root"; then
+        echo "⚠️  Proceeding without virtual environment activation"
+        echo "💡 You may need to install dependencies manually"
+    fi
+    
+    # Call the Python CLI with all arguments
+    echo "🚀 Executing automagik CLI..."
+    exec python -c "from src.cli import app; app()" "$@"
+}
+
+# Show help if no arguments or help requested
+if [[ $# -eq 0 ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    echo "🤖 Automagik CLI Wrapper"
+    echo
+    echo "This wrapper automatically:"
+    echo "  • Finds the automagik-agents project"
+    echo "  • Activates the virtual environment"
+    echo "  • Calls the Python CLI with your arguments"
+    echo
+    echo "Usage: automagik <command> [args...]"
+    echo
+    echo "Examples:"
+    echo "  automagik agents start          # Start automagik agents"
+    echo "  automagik agents stop           # Stop automagik agents" 
+    echo "  automagik agents status         # Show status"
+    echo "  automagik agents --help         # Show all commands"
+    echo
+    if [[ $# -eq 0 ]]; then
+        exit 0
+    fi
+fi
+
+# Run main function
+main "$@" 
