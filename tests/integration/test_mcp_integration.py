@@ -19,7 +19,7 @@ class TestMCPIntegration:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers."""
-        return {"X-API-Key": "am-xxxxx"}
+        return {"X-API-Key": settings.AM_API_KEY}
     
     @pytest.fixture
     def unique_server_name(self):
