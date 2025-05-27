@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import ValidationError
 
 from src.auth import get_api_key as verify_api_key
-from src.mcp.client import get_mcp_client_manager
+from src.mcp.client import get_mcp_client_manager, refresh_mcp_client_manager
 from src.mcp.models import (
     MCPServerConfig,
     MCPServerCreateRequest,
@@ -244,6 +244,9 @@ async def update_mcp_server(
         # Restart server if it was running to apply changes
         if server.is_running:
             await server.restart()
+        
+        # Refresh client manager to reload configurations
+        await refresh_mcp_client_manager()
         
         return server.state
         

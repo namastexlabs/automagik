@@ -537,6 +537,41 @@ class MCPClientManager:
         async with server.ensure_running():
             yield server
 
+    async def refresh_configurations(self) -> None:
+        """Refresh server configurations from database.
+        
+        This method reloads all server configurations from the database
+        and updates the in-memory state. Useful when configurations
+        have been updated via API calls.
+        """
+        logger.info("Refreshing MCP server configurations from database")
+        
+        try:
+            # Stop all currently running servers
+            stop_tasks = []
+            for server in self._servers.values():
+                if server.is_running:
+                    stop_tasks.append(server.stop())
+            
+            if stop_tasks:
+                await asyncio.gather(*stop_tasks, return_exceptions=True)
+            
+            # Clear current state
+            self._servers.clear()
+            self._agent_servers.clear()
+            
+            # Reload configurations from database
+            await self._load_server_configurations()
+            
+            # Start auto-start servers
+            await self._start_auto_start_servers()
+            
+            logger.info(f"Refreshed MCP configurations: {len(self._servers)} servers loaded")
+            
+        except Exception as e:
+            logger.error(f"Failed to refresh MCP configurations: {str(e)}")
+            raise MCPError(f"Configuration refresh failed: {str(e)}")
+
 
 # Global MCP client manager instance
 mcp_client_manager: Optional[MCPClientManager] = None
@@ -551,6 +586,27 @@ async def get_mcp_client_manager() -> MCPClientManager:
     global mcp_client_manager
     
     if mcp_client_manager is None:
+        mcp_client_manager = MCPClientManager()
+        await mcp_client_manager.initialize()
+    
+    return mcp_client_manager
+
+
+async def refresh_mcp_client_manager() -> MCPClientManager:
+    """Refresh the global MCP client manager instance.
+    
+    This forces a reload of all server configurations from the database.
+    Useful when configurations have been updated via API calls.
+    
+    Returns:
+        Refreshed MCP client manager
+    """
+    global mcp_client_manager
+    
+    if mcp_client_manager is not None:
+        await mcp_client_manager.refresh_configurations()
+    else:
+        # Initialize if not already done
         mcp_client_manager = MCPClientManager()
         await mcp_client_manager.initialize()
     
