@@ -61,7 +61,6 @@ bash scripts/install/setup.sh --component agents --mode local \
 --verbose             # Enable verbose output
 --non-interactive     # Skip interactive prompts and use defaults
 --install-service     # Install as systemd service (Linux only)
---no-helpers          # Skip helper functions installation
 ```
 
 ## Manual Installation (Advanced)
@@ -237,19 +236,26 @@ curl -X POST http://localhost:8881/api/v1/agent/simple/run \
 
 ## Post-Installation Commands
 
-If you used the setup script with `--install-service`, you'll have convenient management commands:
+The automagik CLI provides unified commands for managing your installation:
 
 ```bash
-agent start      # Start the service
-agent stop       # Stop the service
-agent restart    # Restart the service
-agent status     # Show service status
-agent logs       # View logs with colors
-agent health     # Check API health
-agent update     # Quick update deployment
-agent rebuild    # Full rebuild
-agent dev        # Start in development mode
-agent help       # Show all commands
+automagik agents start      # Start the service/container
+automagik agents stop       # Stop the service/container
+automagik agents restart    # Restart the service/container
+automagik agents status     # Show service status
+automagik agents logs       # View logs with colors
+automagik agents dev        # Start in development mode
+automagik agents --help     # Show all commands
+
+# Optional: Install alias for shorter commands
+automagik install-alias     # Install 'agent' alias
+automagik uninstall-alias   # Remove 'agent' alias
+
+# After installing alias, you can use shorter commands:
+agent start      # Same as 'automagik agents start'
+agent stop       # Same as 'automagik agents stop'
+agent status     # Same as 'automagik agents status'
+# ... etc
 ```
 
 ## Docker Installation Details
@@ -348,8 +354,8 @@ uv sync
 
 **3. Database connection errors:**
 ```bash
-# If using setup script, check service status
-agent status  # If agent commands are available
+# Check service status
+automagik agents status
 
 # Manual Docker checks
 cd docker
@@ -386,8 +392,8 @@ POSTGRES_PORT=5433
 ### Getting Help
 
 1. Check the [API documentation](http://localhost:8881/docs) when the server is running
-2. View logs: `agent logs` (if available) or `docker compose logs -f`
-3. Check service status: `agent status` (if available) or `docker compose ps`
+2. View logs: `automagik agents logs` or `docker compose logs -f`
+3. Check service status: `automagik agents status` or `docker compose ps`
 4. Verify environment: `automagik agents db check` (if available)
 
 ### Clean Installation
@@ -395,8 +401,8 @@ POSTGRES_PORT=5433
 If you need to start fresh:
 
 ```bash
-# Stop services using agent commands (if available)
-agent stop
+# Stop services using unified CLI
+automagik agents stop
 
 # Or manually stop Docker services
 cd docker && docker compose down -v  # -v removes volumes

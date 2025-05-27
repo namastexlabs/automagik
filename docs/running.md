@@ -1,15 +1,41 @@
 # Running the Project
 
-This guide explains how to run the Automagik Agents application, both the FastAPI web server and the Typer command-line interface (CLI).
+This guide explains how to run the Automagik Agents application using the unified CLI commands.
 
-**Prerequisite:** Ensure you have completed the steps in the [Setup Guide](./setup.md) and have your virtual environment activated (`source .venv/bin/activate`).
+**Prerequisite:** Ensure you have completed the steps in the [Setup Guide](./setup.md). The installation provides a bash wrapper that automatically handles virtual environment activation.
 
-## Running the FastAPI Web Server
+## Unified CLI Commands
 
-The web server provides an API interface to the application.
+The automagik CLI provides a unified interface for running and managing the application:
 
-1.  **Start the Server:**
-    From the project root directory (`automagik-agents`), run the following command:
+```bash
+# Start the server
+automagik agents start      # Start web server (development/production mode)
+automagik agents dev        # Start with auto-reload (development only)
+
+# Manage the service
+automagik agents stop       # Stop the server
+automagik agents restart    # Restart the server
+automagik agents status     # Show service status
+automagik agents logs       # View logs with colors
+
+# Optional: Install shorter alias
+automagik install-alias     # Install 'agent' alias for convenience
+# After alias installation:
+agent start                 # Same as 'automagik agents start'
+agent dev                   # Same as 'automagik agents dev'
+```
+
+## Manual Server Startup (Development)
+
+If you need to run the server manually with specific options:
+
+1.  **Activate Virtual Environment:**
+    ```bash
+    source .venv/bin/activate
+    ```
+
+2.  **Start the Server:**
     ```bash
     uvicorn src.main:app --host 0.0.0.0 --port 8881 --reload
     ```
@@ -18,55 +44,42 @@ The web server provides an API interface to the application.
     *   `--port 8881`: Specifies the port to run the server on (default is 8881, configurable via `AM_PORT` in `.env` - see [Configuration](./configuration.md)).
     *   `--reload`: Enables auto-reloading. The server will automatically restart when you make changes to the code. **Only use this for development.** For production, remove this flag.
 
-2.  **Accessing the API:**
-    Once the server is running, you can access:
-    *   **API Endpoints:** Directly via tools like `curl` or Postman at `http://localhost:8881/`. Specific endpoint paths depend on the routes defined in `src/api/`.
-    *   **Interactive Documentation (Swagger UI):** Open your web browser and navigate to `http://localhost:8881/docs`. See [API Documentation](./api.md) for more.
-    *   **Alternative Documentation (ReDoc):** Navigate to `http://localhost:8881/redoc`.
-
 3.  **Stopping the Server:**
     Press `Ctrl+C` in the terminal where `uvicorn` is running.
 
-## Running the Typer CLI
+## Accessing the API
 
-The CLI provides commands for specific tasks or interactions.
+Once the server is running, you can access:
+*   **API Endpoints:** Directly via tools like `curl` or Postman at `http://localhost:8881/`. Specific endpoint paths depend on the routes defined in `src/api/`.
+*   **Interactive Documentation (Swagger UI):** Open your web browser and navigate to `http://localhost:8881/docs`. See [API Documentation](./api.md) for more.
+*   **Alternative Documentation (ReDoc):** Navigate to `http://localhost:8881/redoc`.
 
-1.  **Base Command:**
-    The primary way to invoke the CLI is:
-    ```bash
-    python -m src.cli [COMMAND] [OPTIONS]
-    ```
-    Alternatively, if the `[project.scripts]` entry in `pyproject.toml` is set up correctly during installation, you might be able to use:
-    ```bash
-    automagik-agents [COMMAND] [OPTIONS]
-    ```
+## CLI Commands
 
-2.  **Available Commands (Examples - Needs Verification):**
-    *The specific commands available depend on the implementation in `src/cli/`. You can usually find out by running the help command:* 
+The CLI provides additional commands for specific tasks:
+
+1.  **Available Commands:**
     ```bash
-    python -m src.cli --help
-    # or
-    automagik-agents --help
-    ```
-    Common command patterns might include:
-    ```bash
-    # Example: Run a specific agent task
-    # python -m src.cli run-agent simple --input "Some text"
+    automagik agents --help     # Show all available commands
+    automagik --help            # Show all CLI commands
     
-    # Example: Manage configurations
-    # python -m src.cli config show
+    # Database operations (if available)
+    automagik agents db init    # Initialize database schema
+    automagik agents db check   # Check database connectivity
     
-    # Example: Database operations (if implemented)
-    # python -m src.cli db migrate
+    # Agent management (if available)  
+    automagik agents create     # Create new agent
+    automagik agents list       # List available agents
     ```
-    *(Note: These are illustrative examples. Check the `--help` output or `src/cli/` code for actual commands.)*
 
 ## Environment Differences
 
-*   **Development:** Use the `--reload` flag with `uvicorn` for automatic code reloading.
+*   **Development:** 
+    *   Use `automagik agents dev` for automatic code reloading
+    *   Use the `--reload` flag with manual `uvicorn` commands
 *   **Production:**
-    *   Do **not** use the `--reload` flag with `uvicorn`.
-    *   Consider using a process manager like `systemd` or `supervisor` to manage the `uvicorn` process.
-    *   You might run `uvicorn` with multiple workers for better performance (e.g., `uvicorn src.main:app --workers 4 ...`).
+    *   Use `automagik agents start` for production mode
+    *   Do **not** use the `--reload` flag with manual `uvicorn` commands
+    *   Consider using the systemd service installation: `automagik agents start` with service mode
     *   Ensure `AM_ENV` in `.env` is set to `production`. See [Configuration](./configuration.md).
     *   Set `AM_LOG_LEVEL` appropriately (e.g., `INFO` or `WARNING`). See [Configuration](./configuration.md). 

@@ -54,9 +54,9 @@ nano .env
 
 2. **Start the server:**
 ```bash
-agent start         # If you have agent commands
-# OR
 automagik agents start  # Start server
+# Optional: Install alias for shorter commands
+automagik install-alias  # Now you can use 'agent start'
 ```
 
 3. **Test it:**
@@ -68,21 +68,24 @@ curl http://localhost:${AM_PORT}/health
 
 ### Commands
 ```bash
-# Agent Management Commands (available in most installations)
-agent start      # Start service/container
-agent stop       # Stop service/container  
-agent restart    # Restart service/container
-agent status     # Show detailed service/container status
-agent logs       # Show live logs (with colors if available)
-agent health     # Check API health and endpoints
-agent update     # Quick update to deploy code changes
-agent rebuild    # Smart rebuild with optimizations
-agent dev        # Start in development mode (manual)
-agent help       # Show all available commands
+# Unified CLI Commands
+automagik agents start      # Start service/container
+automagik agents stop       # Stop service/container  
+automagik agents restart    # Restart service/container
+automagik agents status     # Show detailed service/container status
+automagik agents logs       # Show live logs (with colors if available)
+automagik agents dev        # Start in development mode with auto-reload
+automagik agents --help     # Show all available commands
 
-# Manual commands (if agent commands not available)
-automagik agents start          # Start server
-automagik agents dev            # Development mode with auto-reload
+# Optional: Install shorter alias
+automagik install-alias     # Install 'agent' alias
+automagik uninstall-alias   # Remove 'agent' alias
+
+# After installing alias, you can use:
+agent start      # Same as 'automagik agents start'
+agent stop       # Same as 'automagik agents stop'
+agent status     # Same as 'automagik agents status'
+# ... etc
 ```
 
 ### API Examples
