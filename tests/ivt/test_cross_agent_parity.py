@@ -38,16 +38,19 @@ class TestCrossAgentParity:
     def sample_evolution_payload(self):
         """Sample WhatsApp Evolution payload for testing."""
         return {
-            "key": {
-                "remoteJid": "5511999999999@s.whatsapp.net",
-                "fromMe": False,
-                "id": "test_message_id"
-            },
-            "message": {
-                "conversation": "Hello, how are you?"
-            },
-            "messageTimestamp": 1640995200,
-            "pushName": "Test User"
+            "event": "messages.upsert",
+            "data": {
+                "key": {
+                    "remoteJid": "5511999999999@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "test_message_id"
+                },
+                "message": {
+                    "conversation": "Hello, how are you?"
+                },
+                "messageTimestamp": 1640995200,
+                "pushName": "Test User"
+            }
         }
     
     @pytest.fixture

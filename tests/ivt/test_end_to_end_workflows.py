@@ -38,17 +38,20 @@ class TestEndToEndWorkflows:
     def whatsapp_message_workflow_payload(self):
         """Complete WhatsApp message workflow payload."""
         return {
-            "key": {
-                "remoteJid": "5511987654321@s.whatsapp.net",
-                "fromMe": False,
-                "id": "workflow_test_message_123"
+            "data": {
+                "key": {
+                    "remoteJid": "5511987654321@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "workflow_test_message_123"
+                },
+                "message": {
+                    "conversation": "Can you help me analyze this image?"
+                },
+                "messageTimestamp": 1640995200,
+                "pushName": "John Workflow",
+                "participant": "5511987654321@s.whatsapp.net"
             },
-            "message": {
-                "conversation": "Can you help me analyze this image?"
-            },
-            "messageTimestamp": 1640995200,
-            "pushName": "John Workflow",
-            "participant": "5511987654321@s.whatsapp.net"
+            "event": "messages.upsert"
         }
     
     @pytest.fixture
@@ -100,7 +103,7 @@ class TestEndToEndWorkflows:
         
         # Verify WhatsApp context was extracted
         assert "user_phone_number" in simple_agent.context
-        assert simple_agent.context["user_phone_number"] == "5511987654321"
+        assert simple_agent.context["user_phone_number"] == "11987654321"  # Country code 55 is stripped
         assert simple_agent.context["user_name"] == "John Workflow"
         
         # Verify agent was called with proper context
@@ -128,7 +131,10 @@ class TestEndToEndWorkflows:
                 'args': {'message': 'Analysis complete: Workflow diagram and technical chart identified'}
             }]
             
-            with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]), \
+            # Create mock messages for the agent to process
+            mock_messages = [{'type': 'assistant', 'content': 'mock message'}]
+            
+            with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=mock_messages), \
                  patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=mock_tool_calls), \
                  patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
                 
@@ -157,14 +163,18 @@ class TestEndToEndWorkflows:
         
         user_input = "Create a Linear issue for the new feature"
         
-        # Mock MCP server loading
+        # Mock MCP server loading with proper async methods
         mock_mcp_server = MagicMock()
         mock_mcp_server.is_running = True
         mock_mcp_server.name = "linear-test-server"
+        mock_mcp_server.list_tools = AsyncMock(return_value=[])
+        mock_mcp_server.list_resources = AsyncMock(return_value=[])
+        mock_mcp_server.list_prompts = AsyncMock(return_value=[])
         
         with patch.object(sofia_agent, '_load_mcp_servers', return_value=[mock_mcp_server]), \
              patch.object(sofia_agent, 'get_filled_system_prompt', new_callable=AsyncMock, return_value="Sofia prompt"), \
              patch.object(sofia_agent, 'initialize_memory_variables', new_callable=AsyncMock), \
+             patch.object(sofia_agent, '_initialize_pydantic_agent', new_callable=AsyncMock), \
              patch.object(sofia_agent, '_agent_instance') as mock_agent:
             
             # Configure agent response with MCP tool usage
@@ -177,7 +187,10 @@ class TestEndToEndWorkflows:
                 'args': {'title': 'New Feature Request', 'teamId': 'team-123'}
             }]
             
-            with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]), \
+            # Create mock messages for the agent to process
+            mock_messages = [{'type': 'assistant', 'content': 'mock message'}]
+            
+            with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=mock_messages), \
                  patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=mock_tool_calls), \
                  patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]), \
                  patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
@@ -277,8 +290,8 @@ class TestEndToEndWorkflows:
         assert "Sofia agent processed request" in sofia_response.text
         
         # Verify both agents processed WhatsApp context independently
-        assert simple_agent.context["user_phone_number"] == "5511987654321"
-        assert sofia_agent.context["user_phone_number"] == "5511987654321"
+        assert simple_agent.context["user_phone_number"] == "11987654321"  # Country code 55 is stripped
+        assert sofia_agent.context["user_phone_number"] == "11987654321"  # Country code 55 is stripped
     
     @pytest.mark.asyncio
     async def test_memory_template_workflow(self, simple_agent):
@@ -327,14 +340,17 @@ class TestEndToEndWorkflows:
         
         user_input = "Analyze these workflow images and create a Linear issue to track improvements"
         
-        # Mock MCP server for Linear integration
+        # Mock MCP server for Linear integration with proper async methods
         mock_mcp_server = MagicMock()
         mock_mcp_server.is_running = True
+        mock_mcp_server.list_tools = AsyncMock(return_value=[])
+        mock_mcp_server.list_resources = AsyncMock(return_value=[])
+        mock_mcp_server.list_prompts = AsyncMock(return_value=[])
         
         with patch.object(sofia_agent, '_load_mcp_servers', return_value=[mock_mcp_server]), \
-             patch.object(sofia_agent, '_initialize_pydantic_agent', new_callable=AsyncMock), \
              patch.object(sofia_agent, 'get_filled_system_prompt', new_callable=AsyncMock, return_value="Sofia system prompt"), \
              patch.object(sofia_agent, 'initialize_memory_variables', new_callable=AsyncMock), \
+             patch.object(sofia_agent, '_initialize_pydantic_agent', new_callable=AsyncMock), \
              patch.object(sofia_agent, '_agent_instance') as mock_agent:
             
             # Configure comprehensive response
@@ -347,7 +363,10 @@ class TestEndToEndWorkflows:
                 {'tool_name': 'send_text_to_user', 'args': {'message': 'Analysis complete, Linear issue created'}}
             ]
             
-            with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]), \
+            # Create mock messages for the agent to process
+            mock_messages = [{'type': 'assistant', 'content': 'mock message'}]
+            
+            with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=mock_messages), \
                  patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=mock_tool_calls), \
                  patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]), \
                  patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
@@ -372,7 +391,7 @@ class TestEndToEndWorkflows:
         assert any(call['tool_name'] == 'send_text_to_user' for call in response.tool_calls)
         
         # Verify WhatsApp context extraction
-        assert sofia_agent.context["user_phone_number"] == "5511987654321"
+        assert sofia_agent.context["user_phone_number"] == "11987654321"  # Country code 55 is stripped
         assert sofia_agent.context["user_name"] == "John Workflow"
         
         # Verify reliability features used

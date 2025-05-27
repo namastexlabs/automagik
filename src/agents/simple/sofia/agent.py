@@ -284,6 +284,13 @@ class SofiaAgent(AutomagikAgent):
                 logger.debug(
                     f"Extracted user info from evolution_payload: number={user_number}, name={user_name}"
                 )
+                
+                # Set user_phone_number and user_name in context for test compatibility
+                if user_number:
+                    self.context["user_phone_number"] = user_number
+                if user_name:
+                    self.context["user_name"] = user_name
+                    
             except Exception as e:
                 logger.error(f"Error extracting user info from evolution_payload: {str(e)}")
 
@@ -338,9 +345,6 @@ class SofiaAgent(AutomagikAgent):
         if self.db_id:
             await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
                 
-        # Initialize the agent
-        await self._initialize_pydantic_agent()
-        
         # Get message history in PydanticAI format
         pydantic_message_history = []
         if message_history_obj:
@@ -391,6 +395,8 @@ class SofiaAgent(AutomagikAgent):
                 logger.debug(f"Using legacy dict format for user_input: {str(user_input)[:200]}")
         
         try:
+            # Initialize the agent
+            await self._initialize_pydantic_agent()
             # Get filled system prompt
             filled_system_prompt = await self.get_filled_system_prompt(
                 user_id=getattr(self.dependencies, 'user_id', None)
