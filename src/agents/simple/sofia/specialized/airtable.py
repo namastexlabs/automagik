@@ -407,7 +407,7 @@ async def get_airtable_assistant(base_id: Optional[str] = None, force_refresh: b
             tools=[*airtable_tools, send_message],
             system_prompt=dynamic_prompt,
             deps_type=Dict[str, Any],
-            result_type=str,
+            output_type=str,
         )
     else:
         logger.info("♻️ Using cached Airtable assistant")
