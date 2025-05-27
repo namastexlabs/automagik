@@ -83,7 +83,7 @@ async def delete_session_route(session_id_or_name: str):
     """
     Delete a session by ID or name
     """
-    success = await delete_session(session_id_or_name)
+    await delete_session(session_id_or_name)
     return {
         "status": "success",
         "session_id": session_id_or_name,

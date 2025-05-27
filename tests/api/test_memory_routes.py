@@ -2,9 +2,8 @@
 
 import pytest
 import uuid
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from src.api.memory_routes import memory_router
 from src.api.memory_models import MemoryCreate, MemoryUpdate

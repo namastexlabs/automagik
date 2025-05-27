@@ -239,10 +239,10 @@ def setup_credentials(credentials_path, token_path):
         
         # Se no Windows, mostrar o comando SET, senão export
         if sys.platform.startswith('win'):
-            print(f"\nDefina a variável de ambiente com:")
+            print("\nDefina a variável de ambiente com:")
             print(f"SET GOOGLE_CREDENTIAL_FILE={credentials_path}")
         else:
-            print(f"\nDefina a variável de ambiente com:")
+            print("\nDefina a variável de ambiente com:")
             print(f"export GOOGLE_CREDENTIAL_FILE={credentials_path}")
             
         print("\nOu adicione ao seu arquivo .env:")

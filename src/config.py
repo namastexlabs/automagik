@@ -11,7 +11,8 @@ try:
     from dotenv import load_dotenv
 except ImportError:
     print("Warning: python-dotenv is not installed. Environment variables may not be loaded from .env file.")
-    load_dotenv = lambda: None
+    def load_dotenv():
+        return None
 
 logger = logging.getLogger(__name__)
 

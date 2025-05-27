@@ -101,7 +101,7 @@ async def test_template_extraction():
     logger.info("Testing template variable extraction")
     
     # Create a minimal SimpleAgent instance for testing
-    agent = SimpleAgent({})
+    SimpleAgent({})
     
     # Test template with variables
     test_template = """

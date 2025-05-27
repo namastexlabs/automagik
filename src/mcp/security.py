@@ -14,8 +14,7 @@ import shlex
 import re
 import os
 import fnmatch
-from typing import List, Dict, Any, Set
-from pathlib import Path
+from typing import List, Dict, Any
 from urllib.parse import urlparse
 import logging
 

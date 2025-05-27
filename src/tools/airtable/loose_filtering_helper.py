@@ -84,7 +84,7 @@ async def loose_milestone_search(
         )
         
         if all_milestones["success"]:
-            search_lower = search_term.lower()
+            search_term.lower()
             
             for record in all_milestones["records"]:
                 milestone_fields = record.get("fields", {})

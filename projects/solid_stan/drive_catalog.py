@@ -629,7 +629,7 @@ class DriveCatalogBuilder:
             if current_count > 50:
                 # Estimate total based on observed folder-to-item ratio
                 if hasattr(self, 'folder_count') and self.folder_count > 0:
-                    folder_ratio = current_count / self.folder_count
+                    current_count / self.folder_count
                     # Adjust the estimated total gradually
                     self.estimated_total = max(self.estimated_total, int(current_count * 1.5))
                 
@@ -832,7 +832,7 @@ def main():
         if catalog_builder and catalog_builder.conn:
             try:
                 with catalog_builder.db_lock:
-                    now = datetime.now().isoformat()
+                    datetime.now().isoformat()
                     catalog_builder.cursor.execute(
                         "INSERT OR REPLACE INTO drive_checkpoint_meta (key, value, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)",
                         ('interrupted', f"signal_{sig}")

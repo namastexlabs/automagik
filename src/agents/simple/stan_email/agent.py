@@ -90,7 +90,7 @@ class StanEmailAgent(AutomagikAgent):
             
         # Get model configuration
         model_name = self.dependencies.model_name
-        model_settings = create_model_settings(self.dependencies.model_settings)
+        create_model_settings(self.dependencies.model_settings)
         
         from pydantic import BaseModel, Field
         
@@ -311,7 +311,6 @@ class StanEmailAgent(AutomagikAgent):
         # Initialize user variables
         current_user_id = None
         current_agent_id = None
-        current_user_info = None
         current_contact = None
         current_client = None
         
@@ -474,7 +473,6 @@ class StanEmailAgent(AutomagikAgent):
                         user = get_user(user_id=user_id) if user_id else None
                         if user:
                             user.email = self._safe_get_attribute(black_pearl_client, 'email')
-                            current_user_info = user
                             
                             # Apply approval status updates regardless of whether we're sending a message
                             client_status_aprovacao = email_agent_result.output.approval_status

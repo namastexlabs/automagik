@@ -247,7 +247,7 @@ async def get_memory_tool(ctx: dict, key: str) -> str:
     try:
         # Create a proper context with required parameters
         model, usage, prompt = _create_mock_context()
-        run_ctx = RunContext({}, model=model, usage=usage, prompt=prompt)
+        RunContext({}, model=model, usage=usage, prompt=prompt)
         
         # Extract user_id from context
         user_id = ctx.get("user_id") if isinstance(ctx, dict) else None

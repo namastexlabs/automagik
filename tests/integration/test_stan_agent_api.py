@@ -5,7 +5,7 @@ import httpx
 from dotenv import load_dotenv
 from src.tools.blackpearl.provider import BlackpearlProvider
 import logging
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 # Load environment variables from .env file
 load_dotenv()

@@ -380,9 +380,8 @@ async def chat_loop(agent_name: str, session_name: str = None, user_id: Optional
     current_session_id = None
     
     # Get user info if user_id is provided
-    user = None
     if user_id is not None:
-        user = await get_user_by_id(user_id)
+        await get_user_by_id(user_id)
     
     # First check if the agent exists
     agents = get_available_agents()

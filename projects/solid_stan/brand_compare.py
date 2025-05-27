@@ -85,7 +85,7 @@ class BrandComparison:
             
             # Get database version
             self.pg_cursor.execute("SELECT version()")
-            version = self.pg_cursor.fetchone()[0]
+            self.pg_cursor.fetchone()[0]
             console.print("[green]Connected to Blackpearl Database successfully![/green]")
             
             return True

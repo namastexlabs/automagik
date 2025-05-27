@@ -247,7 +247,7 @@ async def send_business_contact(
         evolution_credentials = _extract_evolution_credentials_from_payload(ctx)
         
         # Get environment configuration as fallback
-        env_config = ctx.get_env_config() or {}
+        ctx.get_env_config() or {}
         
         # Get business contact details
         business_name = "Victor Corrêa Gomes"
