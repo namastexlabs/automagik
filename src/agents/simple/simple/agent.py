@@ -5,7 +5,7 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import asyncio
 
 from pydantic_ai import Agent
@@ -221,11 +221,73 @@ class SimpleAgent(AutomagikAgent):
             pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
         
         # Prepare user input (handle multimodal content)
-        user_input = input_text
+        user_input = input_text if input_text else "empty message" # Default to text-only or empty message
+
         if multimodal_content:
+            # This call is a placeholder in dependencies, but good to keep for intent
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)
-            user_input = {"text": input_text, "multimodal_content": multimodal_content}
+            
+            # Attempt to import the rich multimodal types from *pydantic_ai*.
+            # We fall back gracefully if running with an older/stripped version
+            # of the library.
+            try:
+                from pydantic_ai import ImageUrl, BinaryContent  # type: ignore
+            except ImportError:
+                ImageUrl = None  # type: ignore
+                BinaryContent = None  # type: ignore
+
+            pydantic_ai_input_list: list[Any] = [input_text] # Start with the text prompt
+            successfully_converted_at_least_one = False
+
+            def _convert_image_payload_to_pydantic(image_item_payload: Dict[str, Any]) -> Any:
+                nonlocal successfully_converted_at_least_one
+                if not ImageUrl: # PydanticAI types not available
+                    return image_item_payload
+
+                # image_item_payload is expected to be like {'data': 'url_or_base64', 'mime_type': 'image/jpeg'}
+                data_content = image_item_payload.get("data")
+                mime_type = image_item_payload.get("mime_type", "")
+
+                if isinstance(data_content, str) and mime_type.startswith("image/"):
+                    if data_content.lower().startswith("http"):
+                        # ------------------------------------------------------------------
+                        # Remote image (HTTP/S)  →  wrap as ImageUrl
+                        # ------------------------------------------------------------------
+                        # Attempt to download the image (also works for presigned MinIO/S3 URLs)
+                        if ImageUrl is not None:
+                            logger.debug(
+                                f"Converting image URL to ImageUrl object: {data_content[:100]}…"
+                            )
+                            successfully_converted_at_least_one = True
+                            return ImageUrl(url=data_content)
+                
+                logger.debug(
+                    f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}…"
+                )
+                return image_item_payload # Return original if not a convertible image URL or recognized format
+
+            # Process the 'images' list from the multimodal_content dictionary
+            if isinstance(multimodal_content, dict) and "images" in multimodal_content:
+                image_list = multimodal_content.get("images", [])
+                if isinstance(image_list, list):
+                    for item_payload in image_list:
+                        if isinstance(item_payload, dict): # Ensure item in list is a dict
+                            converted_obj = _convert_image_payload_to_pydantic(item_payload)
+                            pydantic_ai_input_list.append(converted_obj)
+                        else:
+                            pydantic_ai_input_list.append(item_payload) # Append as-is if not a dict
+            # TODO: Add elif clauses here to handle other direct multimodal_content structures if necessary,
+            # e.g., if multimodal_content could be a list of URLs or a single URL string directly.
+            # For now, focusing on the {'images': [...]} structure from the API controller.
+            
+            if successfully_converted_at_least_one:
+                user_input = pydantic_ai_input_list
+                logger.debug(f"Using PydanticAI list format for user_input: {str(user_input)[:200]}")
+            else:
+                # Fallback if no items were successfully converted to PydanticAI objects
+                user_input = {"text": input_text, "multimodal_content": multimodal_content}
+                logger.debug(f"Using legacy dict format for user_input: {str(user_input)[:200]}")
         
         try:
             # Get filled system prompt
