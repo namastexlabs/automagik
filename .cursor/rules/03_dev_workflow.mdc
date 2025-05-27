@@ -12,9 +12,9 @@ alwaysApply: false
 **Standard Process:**
 1. **Start**: Search memory for context → Check Linear tasks → Understand requirements
 2. **Plan**: Search procedures → Break down complex tasks → Create subtasks
-3. **Implement**: Follow discovered procedures → Code → Test
-4. **Progress**: Store discoveries → Update Linear → Document patterns
-5. **Complete**: Save successful patterns → Update task status → Generate updates
+3. **Implement**: Follow discovered procedures → Code → Test → **Commit progress**
+4. **Progress**: Store discoveries → Update Linear → Document patterns → **Push changes**
+5. **Complete**: Save successful patterns → Update task status → Generate updates → **Tag milestone**
 
 **Memory-First Approach:**
 ```bash
@@ -22,6 +22,19 @@ alwaysApply: false
 mcp_agent-memory_search_memory_nodes --query "task keywords" --entity "Procedure"
 mcp_agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
 mcp_agent-memory_search_memory_facts --query "dependencies relationships"
+```
+
+**Git Integration:**
+```bash
+# Start work with clean state
+git checkout -b NMSTX-XX-feature-name  # Branch from Linear issue ID
+
+# Commit after each meaningful change (not entire features)
+git add -p  # Review changes incrementally
+git commit -m "feat(agent): add tool registration logic"  # Semantic commits
+
+# Push progress regularly
+git push origin NMSTX-XX-feature-name
 ```
 
 ## 🎯 Development Modes
@@ -75,13 +88,23 @@ mcp_agent-memory_search_memory_facts --query "dependencies relationships"
    ```
 2. **Directory**: `mkdir -p src/agents/simple/<agent_name>`
 3. **Structure**: Create `agent.py`, `prompts/prompt.py`, `__init__.py`
+   ```bash
+   git add src/agents/simple/<agent_name>/ && git commit -m "feat(agent): scaffold new agent structure"
+   ```
 4. **Agent Class**: Extend `AutomagikAgent` with proper initialization
 5. **System Prompt**: Define with `{{memory_templates}}`
+   ```bash
+   git commit -m "feat(agent): implement core agent logic and prompts"
+   ```
 6. **Tools**: Register default + custom tools if needed
 7. **Export**: Export from `__init__.py` for auto-discovery
+   ```bash
+   git commit -m "feat(agent): register tools and enable auto-discovery"
+   ```
 8. **Document**: Store pattern if new approach used
    ```bash
    mcp_agent-memory_add_memory --name "Agent Pattern: [Name]" --episode_body "pattern details" --source "text"
+   git commit -m "docs: document new agent pattern"
    ```
 
 ### **Tool Development** (8-Step Process)
@@ -91,11 +114,23 @@ mcp_agent-memory_search_memory_facts --query "dependencies relationships"
    ```
 2. **Directory**: `mkdir -p src/tools/<service_name>`
 3. **Schema**: Define `ToolInput`/`ToolOutput` Pydantic models
+   ```bash
+   git commit -m "feat(tool): define input/output schemas"
+   ```
 4. **Provider**: Handle external API communication (if needed)
 5. **Business Logic**: Async function with `RunContext`
+   ```bash
+   git commit -m "feat(tool): implement core business logic"
+   ```
 6. **Interface**: Create `Tool` object with name, description, function
 7. **Global Registration**: Add to `src/tools/__init__.py`
+   ```bash
+   git commit -m "feat(tool): register tool globally"
+   ```
 8. **Testing**: Unit (mocking) + integration (agent context)
+   ```bash
+   git commit -m "test(tool): add unit and integration tests"
+   ```
 
 ### **API Endpoint** (5-Step Process)
 1. **Search Memory**: Check for API patterns and security requirements
@@ -103,9 +138,18 @@ mcp_agent-memory_search_memory_facts --query "dependencies relationships"
    mcp_agent-memory_search_memory_nodes --query "API endpoint security" --entity "Requirement"
    ```
 2. **Models**: Define Pydantic request/response models
+   ```bash
+   git commit -m "feat(api): define endpoint models"
+   ```
 3. **Route Handler**: Create with `@router.post` and `Depends(verify_api_key)`
 4. **Business Logic**: Implement endpoint functionality
+   ```bash
+   git commit -m "feat(api): implement endpoint logic"
+   ```
 5. **Testing**: Test with `TestClient` and API keys
+   ```bash
+   git commit -m "test(api): add endpoint tests"
+   ```
 
 ## ⚠️ Critical DO/DON'T Rules
 
@@ -252,6 +296,8 @@ async def test_agent_memory_integration():
 - [ ] Tests written and passing (unit + integration + memory)
 - [ ] Documentation updated
 - [ ] New patterns stored in memory
+- [ ] **Git commits are atomic and well-messaged**
+- [ ] **No commits > 200 lines of changes**
 - [ ] Rules updated if new patterns emerged
 
 **Feature Placement Decision**:
@@ -274,11 +320,17 @@ mcp_agent-memory_add_memory \
   --episode_body "1. Call super().__init__\n2. Set _code_prompt_text\n3. Register tools" \
   --source "text"
 
+# Commit the implementation
+git add -p && git commit -m "feat: implement discovered pattern"
+
 # After completion - store successful patterns
 mcp_agent-memory_add_memory \
   --name "Successful Pattern: [Feature]" \
   --episode_body "Key learnings and implementation details" \
   --source "text"
+
+# Tag milestone if applicable
+git tag -a "milestone-agent-v1" -m "Complete agent implementation"
 ```
 
 **Memory-Driven Development**:
@@ -288,6 +340,55 @@ mcp_agent-memory_add_memory \
 4. **Capture immediately**: Store discoveries as you work
 5. **Share knowledge**: Document for team benefit
 
+## 🔀 Git Commit Practices
+
+### **Commit Message Format**
+```bash
+# Semantic commit format
+type(scope): subject
+
+# Types: feat, fix, docs, style, refactor, test, chore
+# Scope: agent, tool, api, memory, auth, db
+
+# Examples:
+git commit -m "feat(agent): add Discord integration"
+git commit -m "fix(memory): handle empty search results"
+git commit -m "docs: update setup instructions"
+git commit -m "test(api): add auth middleware tests"
+```
+
+### **Commit Frequency**
+- **Logical Units**: Each commit = one logical change
+- **Size Limit**: Keep commits < 200 lines changed
+- **Milestone Markers**: Tag significant completions
+- **Progress Tracking**: Commit at least once per subtask
+
+### **Branch Strategy**
+```bash
+# Feature branches from Linear IDs
+git checkout -b NMSTX-XX-feature-description
+
+# Regular rebasing to stay current
+git fetch origin && git rebase origin/main
+
+# Clean history before merging
+git rebase -i origin/main
+```
+
 ---
 
-**Remember**: Always search memory first, respect discovered knowledge, follow established procedures, and capture new patterns. The knowledge graph guides consistent development.
+**Remember**: Always search memory first, respect discovered knowledge, follow established procedures, and capture new patterns. **Commit early and often** - each logical change should be its own commit. Use semantic commit messages tied to Linear issues.
+
+### **Good Naming**
+```python
+# ✅ DO: Descriptive names
+debug_mcp_connection_issue.py
+test_agent_memory_integration.py
+temp_api_check.py
+
+# ✅ DO: Add purpose comment
+"""
+Debug script for NMSTX-123 memory integration issue
+Created: 2025-01-26
+"""
+```

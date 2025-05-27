@@ -5,12 +5,12 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import asyncio
 
 from pydantic_ai import Agent
 from src.config import settings
-from src.mcp.client import get_mcp_client_manager
+from src.mcp.client import get_mcp_client_manager, refresh_mcp_client_manager
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
@@ -78,44 +78,92 @@ class SimpleAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
-        # MCP Servers - Will be loaded from MCP client manager
-        self._mcp_servers = []
-        self._mcp_client_manager = None
+        # MCP Servers - Will be loaded fresh on each run to ensure latest configurations
+        # Don't cache MCP servers or client manager to avoid synchronization issues
         
         logger.info("SimpleAgent initialized successfully")
     
-    async def _load_mcp_servers(self) -> None:
-        """Load MCP servers assigned to this agent from the MCP client manager."""
+    async def _load_mcp_servers(self) -> List:
+        """Load RUNNING MCP servers assigned to this agent from the MCP client manager.
+        
+        PydanticAI expects servers to already be running (is_running=True) when passed
+        to the Agent constructor. This method gets running server instances from our
+        MCP server manager instead of creating fresh ones.
+        
+        Returns:
+            List of running MCP server instances for PydanticAI
+        """
         try:
-            # Get MCP client manager instance
-            if not self._mcp_client_manager:
-                self._mcp_client_manager = await get_mcp_client_manager()
+            # Force refresh to ensure we get the latest server configurations
+            mcp_client_manager = await refresh_mcp_client_manager()
             
             # Get servers assigned to this agent (using agent name)
             agent_name = self.name if hasattr(self, 'name') else 'simple'
-            servers = self._mcp_client_manager.get_servers_for_agent(agent_name)
+            servers = mcp_client_manager.get_servers_for_agent(agent_name)
             
-            # Convert to PydanticAI format
-            self._mcp_servers = []
+            # Get RUNNING server instances from our MCP server manager
+            mcp_servers = []
             for server_manager in servers:
-                if server_manager.is_running:
-                    # Use the internal server instance from the manager
-                    if hasattr(server_manager, '_server') and server_manager._server:
-                        self._mcp_servers.append(server_manager._server)
+                try:
+                    # Check if the server is running in our manager
+                    if server_manager.is_running and server_manager._server:
+                        # Get the server instance from our manager
+                        # Note: The server instance exists but may not be in running state
+                        # We need to start it for PydanticAI
+                        server_instance = server_manager._server
+                        
+                        # Start the server if it's not already running
+                        if not server_instance.is_running:
+                            try:
+                                # Enter the server context to make it running
+                                server_manager._server_context = await server_instance.__aenter__()
+                                logger.debug(f"Started MCP server context for PydanticAI: {server_manager.name}")
+                            except Exception as e:
+                                logger.warning(f"Failed to start server context for {server_manager.name}: {str(e)}")
+                                continue
+                        
+                        if server_instance.is_running:
+                            mcp_servers.append(server_instance)
+                            logger.debug(f"Added running MCP server for PydanticAI: {server_manager.name}")
+                        else:
+                            logger.warning(f"MCP server {server_manager.name} could not be started")
+                    else:
+                        logger.info(f"MCP server {server_manager.name} is not running, skipping for agent")
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to get running MCP server instance for {server_manager.name}: {str(e)}")
+                    continue
             
-            logger.info(f"Loaded {len(self._mcp_servers)} MCP servers for agent {agent_name}")
+            logger.info(f"Loaded {len(mcp_servers)} running MCP server instances for PydanticAI")
+            return mcp_servers
             
         except Exception as e:
             logger.warning(f"Failed to load MCP servers: {str(e)}. Continuing without MCP servers.")
-            self._mcp_servers = []
+            return []
 
     async def _initialize_pydantic_agent(self) -> None:
-        """Initialize the underlying PydanticAI agent."""
+        """Initialize the underlying PydanticAI agent.
+        
+        Always reloads MCP servers to ensure fresh configurations
+        even if the agent instance is cached.
+        """
+        # Always load fresh MCP servers to ensure synchronization with API updates
+        mcp_servers = await self._load_mcp_servers()
+        
+        # If agent exists but MCP servers changed, recreate it
         if self._agent_instance is not None:
-            return
+            # Check if MCP servers have changed by comparing count
+            current_mcp_count = len(getattr(self._agent_instance, 'mcp_servers', []))
+            new_mcp_count = len(mcp_servers)
             
-        # Load MCP servers first
-        await self._load_mcp_servers()
+            if current_mcp_count == new_mcp_count:
+                # Same count, assume no changes needed
+                logger.debug(f"Agent already initialized with {current_mcp_count} MCP servers")
+                return
+            else:
+                # MCP servers changed, need to recreate agent
+                logger.info(f"MCP servers changed ({current_mcp_count} -> {new_mcp_count}), recreating agent")
+                self._agent_instance = None
             
         # Get model configuration
         model_name = self.dependencies.model_name
@@ -126,16 +174,16 @@ class SimpleAgent(AutomagikAgent):
         logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
                     
         try:
-            # Create agent instance with MCP servers - system_prompt will be passed in message history
+            # Create agent instance with fresh MCP servers
             self._agent_instance = Agent(
                 model=model_name,
                 tools=tools,
                 model_settings=model_settings,
                 deps_type=AutomagikAgentsDependencies,
-                mcp_servers=self._mcp_servers  # Loaded from MCP client manager
+                mcp_servers=mcp_servers  # Fresh servers loaded each time
             )
             
-            logger.info(f"Initialized agent with model: {model_name}, {len(tools)} tools, and {len(self._mcp_servers)} MCP servers")
+            logger.info(f"Initialized agent with model: {model_name}, {len(tools)} tools, and {len(mcp_servers)} MCP servers")
         except Exception as e:
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
