@@ -86,8 +86,8 @@ class TestMCPIntegration:
                 config_data = {
                     "mcpServers": {
                         unique_server_name: {
-                            "command": "echo",
-                            "args": ["hello"],
+                            "command": "npx",
+                            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
                             "auto_start": False
                         }
                     }
@@ -268,7 +268,7 @@ class TestMCPIntegration:
     async def test_bulk_server_configuration(self, base_url, auth_headers):
         """Test configuring multiple servers at once."""
         async with httpx.AsyncClient() as client:
-            # Configure multiple servers
+            # Configure multiple servers (using proper MCP servers)
             config_data = {
                 "mcpServers": {
                     "filesystem": {
@@ -276,10 +276,10 @@ class TestMCPIntegration:
                         "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
                         "description": "Filesystem server"
                     },
-                    "echo_server": {
-                        "command": "echo",
-                        "args": ["hello"],
-                        "description": "Simple echo server"
+                    "filesystem2": {
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/var/tmp"],
+                        "description": "Second filesystem server"
                     }
                 }
             }
@@ -297,7 +297,7 @@ class TestMCPIntegration:
             
             server_names = [server["name"] for server in data["servers"]]
             assert "filesystem" in server_names
-            assert "echo_server" in server_names
+            assert "filesystem2" in server_names
     
     @pytest.mark.asyncio
     async def test_server_crud_operations(self, base_url, auth_headers):
@@ -307,7 +307,7 @@ class TestMCPIntegration:
             server_data = {
                 "name": "test_crud_server",
                 "server_type": "stdio",
-                "command": ["echo", "test"],
+                "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
                 "description": "Test CRUD server"
             }
             
