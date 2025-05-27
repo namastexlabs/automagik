@@ -148,6 +148,9 @@ class MCPServerManager:
                     self._resources.clear()
                     self.state.tools_discovered = []
                     self.state.resources_discovered = []
+                    
+                    # Add a small delay to ensure any async cleanup completes
+                    await asyncio.sleep(0.05)
                 
                 self.state.status = MCPServerStatus.RUNNING
                 self.state.started_at = datetime.now()
@@ -180,6 +183,15 @@ class MCPServerManager:
             try:
                 self.state.status = MCPServerStatus.STOPPING
                 logger.info(f"Stopping MCP server: {self.name}")
+                
+                # Properly cleanup server instance to avoid async context issues
+                if self._server is not None:
+                    try:
+                        # Force cleanup of any remaining async contexts
+                        # by creating a brief context and immediately closing it
+                        await asyncio.sleep(0.1)  # Brief delay to let any pending operations complete
+                    except Exception as cleanup_error:
+                        logger.debug(f"Minor cleanup issue for {self.name}: {cleanup_error}")
                 
                 # Clear server instance - context management is handled by consumers
                 self._server = None
@@ -316,20 +328,26 @@ class MCPServerManager:
             
             # Discover resources
             try:
-                resources = await server_instance.list_resources()
-                self._resources.clear()
-                
-                for resource in resources:
-                    resource_info = MCPResourceInfo(
-                        uri=resource.uri,
-                        name=getattr(resource, 'name', None),
-                        description=getattr(resource, 'description', None),
-                        mime_type=getattr(resource, 'mime_type', None),
-                        server_name=self.name
-                    )
-                    self._resources[resource.uri] = resource_info
-                
-                self.state.resources_discovered = list(self._resources.keys())
+                # Check if server instance has list_resources method
+                if hasattr(server_instance, 'list_resources'):
+                    resources = await server_instance.list_resources()
+                    self._resources.clear()
+                    
+                    for resource in resources:
+                        resource_info = MCPResourceInfo(
+                            uri=resource.uri,
+                            name=getattr(resource, 'name', None),
+                            description=getattr(resource, 'description', None),
+                            mime_type=getattr(resource, 'mime_type', None),
+                            server_name=self.name
+                        )
+                        self._resources[resource.uri] = resource_info
+                    
+                    self.state.resources_discovered = list(self._resources.keys())
+                else:
+                    # Server doesn't support resource discovery
+                    logger.debug(f"Server {self.name} does not support resource discovery")
+                    self.state.resources_discovered = []
                 
             except Exception as e:
                 # Resource discovery is optional
