@@ -54,7 +54,7 @@ class TestSimpleAgentFeatures:
     def agent_config(self):
         """Configuration for feature testing."""
         return {
-            "model_name": "openai:gpt-4o-mini",
+            "model_name": "openai:gpt-4.1-mini",
             "model_provider": "openai"
         }
     

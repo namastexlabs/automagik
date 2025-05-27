@@ -114,7 +114,7 @@ def get_available_agents() -> List[Dict[str, Any]]:
 
                     # If model is missing, provide a default
                     if "model" not in agent or not agent["model"]:
-                        agent["model"] = "openai:gpt-4o"  # Updated default model
+                        agent["model"] = "openai:gpt-4.1"  # Updated default model
 
                 return agents
             else:
@@ -511,7 +511,7 @@ def list_available_agents() -> None:
     for i, agent in enumerate(agents, 1):
         name = agent.get("name", "Unknown")
         description = agent.get("description", "No description")
-        model = agent.get("model", "openai:gpt-4o")  # Updated default model
+        model = agent.get("model", "openai:gpt-4.1")  # Updated default model
 
         typer.echo(f"{i}. {name} - {description} (Model: {model})")
 

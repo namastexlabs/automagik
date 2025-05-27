@@ -6,7 +6,7 @@ async def generate_approval_status_message(input_text: str) -> str:
     logger.info("Generating approval status message")
     
     lead_message_sender = Agent(  
-        'openai:gpt-4o',
+        'openai:gpt-4.1',
         result_type=str,
         system_prompt="""
         You are STAN, a sales agent for Solid.
