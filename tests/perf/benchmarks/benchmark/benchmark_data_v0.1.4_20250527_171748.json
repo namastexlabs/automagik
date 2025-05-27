@@ -1,0 +1,164 @@
+{
+  "timestamp": "2025-05-27T17:17:48.699905",
+  "project_version": "0.1.4",
+  "base_url": "http://localhost:8484",
+  "total_tests": 6,
+  "successful_tests": 6,
+  "results": [
+    {
+      "name": "API_SimpleAgent_Baseline",
+      "description": "SimpleAgent baseline with 100 OpenAI requests",
+      "status": "success",
+      "duration": 4.883081436157227,
+      "config": {
+        "name": "API_SimpleAgent_Baseline",
+        "description": "SimpleAgent baseline with 100 OpenAI requests",
+        "mode": "api",
+        "test_type": "agent_run",
+        "agent_name": "simple",
+        "concurrency": 10,
+        "requests": 100
+      },
+      "metrics": {
+        "total_requests": 100,
+        "successful_requests": 1,
+        "failed_requests": 99,
+        "error_rate": "99.00%",
+        "throughput_rps": 25.05,
+        "mean_latency_ms": 208.98,
+        "p95_latency_ms": 446.98,
+        "max_latency_ms": 2099.1
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Agent Run Test\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 100\n  Successful: 1\n  Failed: 99\n  Error Rate: 99.00%\n  Duration: 3.99 seconds\n  Throughput: 25.05 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 208.98 ms\n  Median: 175.58 ms\n  95th percentile: 446.98 ms\n  Max: 2099.10 ms\n  Min: 81.71 ms\n\n\u274c SAMPLE ERRORS (10 shown):\n  1. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  2. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  3. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  4. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  5. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n\n================================================================================\n"
+    },
+    {
+      "name": "API_SimpleAgent_Medium",
+      "description": "SimpleAgent medium load with 200 OpenAI requests",
+      "status": "success",
+      "duration": 5.820724248886108,
+      "config": {
+        "name": "API_SimpleAgent_Medium",
+        "description": "SimpleAgent medium load with 200 OpenAI requests",
+        "mode": "api",
+        "test_type": "agent_run",
+        "agent_name": "simple",
+        "concurrency": 15,
+        "requests": 200
+      },
+      "metrics": {
+        "total_requests": 200,
+        "successful_requests": 1,
+        "failed_requests": 199,
+        "error_rate": "99.50%",
+        "throughput_rps": 41.34,
+        "mean_latency_ms": 189.05,
+        "p95_latency_ms": 461.67,
+        "max_latency_ms": 2543.83
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Agent Run Test\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 200\n  Successful: 1\n  Failed: 199\n  Error Rate: 99.50%\n  Duration: 4.84 seconds\n  Throughput: 41.34 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 189.05 ms\n  Median: 154.80 ms\n  95th percentile: 461.67 ms\n  Max: 2543.83 ms\n  Min: 63.92 ms\n\n\u274c SAMPLE ERRORS (10 shown):\n  1. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  2. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  3. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  4. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  5. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n\n================================================================================\n"
+    },
+    {
+      "name": "API_SimpleAgent_High_Concurrency",
+      "description": "SimpleAgent high concurrency test",
+      "status": "success",
+      "duration": 4.027381658554077,
+      "config": {
+        "name": "API_SimpleAgent_High_Concurrency",
+        "description": "SimpleAgent high concurrency test",
+        "mode": "api",
+        "test_type": "agent_run",
+        "agent_name": "simple",
+        "concurrency": 25,
+        "requests": 150
+      },
+      "metrics": {
+        "total_requests": 150,
+        "successful_requests": 1,
+        "failed_requests": 149,
+        "error_rate": "99.33%",
+        "throughput_rps": 51.15,
+        "mean_latency_ms": 256.5,
+        "p95_latency_ms": 456.52,
+        "max_latency_ms": 1473.94
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Agent Run Test\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 150\n  Successful: 1\n  Failed: 149\n  Error Rate: 99.33%\n  Duration: 2.93 seconds\n  Throughput: 51.15 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 256.50 ms\n  Median: 198.61 ms\n  95th percentile: 456.52 ms\n  Max: 1473.94 ms\n  Min: 98.28 ms\n\n\u274c SAMPLE ERRORS (10 shown):\n  1. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  2. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  3. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  4. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  5. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n\n================================================================================\n"
+    },
+    {
+      "name": "API_Session_Queue_Heavy",
+      "description": "Heavy session queue testing",
+      "status": "success",
+      "duration": 1.920464038848877,
+      "config": {
+        "name": "API_Session_Queue_Heavy",
+        "description": "Heavy session queue testing",
+        "mode": "api",
+        "test_type": "session_queue",
+        "session_count": 10,
+        "messages_per_session": 15,
+        "concurrency": 20
+      },
+      "metrics": {
+        "total_requests": 150,
+        "successful_requests": 0,
+        "failed_requests": 150,
+        "error_rate": "100.00%",
+        "throughput_rps": 173.6,
+        "mean_latency_ms": 90.17,
+        "p95_latency_ms": 144.08,
+        "max_latency_ms": 157.66
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Session Queue Merging Test\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 150\n  Successful: 0\n  Failed: 150\n  Error Rate: 100.00%\n  Duration: 0.86 seconds\n  Throughput: 173.60 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 90.17 ms\n  Median: 81.05 ms\n  95th percentile: 144.08 ms\n  Max: 157.66 ms\n  Min: 51.39 ms\n\n\u274c SAMPLE ERRORS (10 shown):\n  1. HTTP 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"session_origin\"],\"msg\":\"Input should be 'web', 'whatsapp', 'automagik-agent', 'telegram', 'discord', 'slack', 'cli', 'app' or 'manychat'\",\"input\":\"str\n  2. HTTP 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"session_origin\"],\"msg\":\"Input should be 'web', 'whatsapp', 'automagik-agent', 'telegram', 'discord', 'slack', 'cli', 'app' or 'manychat'\",\"input\":\"str\n  3. HTTP 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"session_origin\"],\"msg\":\"Input should be 'web', 'whatsapp', 'automagik-agent', 'telegram', 'discord', 'slack', 'cli', 'app' or 'manychat'\",\"input\":\"str\n  4. HTTP 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"session_origin\"],\"msg\":\"Input should be 'web', 'whatsapp', 'automagik-agent', 'telegram', 'discord', 'slack', 'cli', 'app' or 'manychat'\",\"input\":\"str\n  5. HTTP 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"session_origin\"],\"msg\":\"Input should be 'web', 'whatsapp', 'automagik-agent', 'telegram', 'discord', 'slack', 'cli', 'app' or 'manychat'\",\"input\":\"str\n\n================================================================================\n"
+    },
+    {
+      "name": "API_Full_Stack_Comprehensive",
+      "description": "Comprehensive full API stack test",
+      "status": "success",
+      "duration": 5.536734580993652,
+      "config": {
+        "name": "API_Full_Stack_Comprehensive",
+        "description": "Comprehensive full API stack test",
+        "mode": "api",
+        "test_type": "full_api",
+        "concurrency": 20,
+        "requests": 100
+      },
+      "metrics": {
+        "total_requests": 100,
+        "successful_requests": 30,
+        "failed_requests": 70,
+        "error_rate": "70.00%",
+        "throughput_rps": 22.85,
+        "mean_latency_ms": 415.16,
+        "p95_latency_ms": 742.6,
+        "max_latency_ms": 2398.98
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Full API Stress Test\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 100\n  Successful: 30\n  Failed: 70\n  Error Rate: 70.00%\n  Duration: 4.38 seconds\n  Throughput: 22.85 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 415.16 ms\n  Median: 345.25 ms\n  95th percentile: 742.60 ms\n  Max: 2398.98 ms\n  Min: 118.38 ms\n\n\u274c SAMPLE ERRORS (10 shown):\n  1. HTTP 500: {\"detail\":\"Failed to create memory\"}\n  2. HTTP 500: {\"detail\":\"Failed to create memory\"}\n  3. HTTP 500: {\"detail\":\"Failed to create memory\"}\n  4. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  5. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n\n================================================================================\n"
+    },
+    {
+      "name": "API_GraphitiQueue_Validation",
+      "description": "Validate Graphiti queue under real load",
+      "status": "success",
+      "duration": 5.6198461055755615,
+      "config": {
+        "name": "API_GraphitiQueue_Validation",
+        "description": "Validate Graphiti queue under real load",
+        "mode": "api",
+        "test_type": "agent_run",
+        "agent_name": "simple",
+        "concurrency": 30,
+        "requests": 300
+      },
+      "metrics": {
+        "total_requests": 300,
+        "successful_requests": 1,
+        "failed_requests": 299,
+        "error_rate": "99.67%",
+        "throughput_rps": 67.96,
+        "mean_latency_ms": 280.81,
+        "p95_latency_ms": 423.25,
+        "max_latency_ms": 1818.02
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Agent Run Test\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 300\n  Successful: 1\n  Failed: 299\n  Error Rate: 99.67%\n  Duration: 4.41 seconds\n  Throughput: 67.96 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 280.81 ms\n  Median: 262.95 ms\n  95th percentile: 423.25 ms\n  Max: 1818.02 ms\n  Min: 120.73 ms\n\n\u274c SAMPLE ERRORS (10 shown):\n  1. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  2. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  3. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  4. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n  5. HTTP 500: {\"detail\":\"Internal server error: No response returned.\"}\n\n================================================================================\n"
+    }
+  ]
+}

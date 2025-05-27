@@ -55,7 +55,7 @@ class ComprehensiveBenchmark:
         """Run a single benchmark test configuration."""
         
         cmd = [
-            "python", "scripts/benchmarks/api_stress_test.py",
+            "python", "tests/perf/benchmarks/api_stress_test.py",
             "--base-url", self.base_url,
         ]
         
@@ -411,7 +411,7 @@ class ComprehensiveBenchmark:
         """Save comprehensive benchmark results as markdown report."""
         
         # Create benchmark directory if it doesn't exist
-        benchmark_dir = Path("scripts/benchmarks/benchmark")
+        benchmark_dir = Path("tests/perf/benchmarks/benchmark")
         benchmark_dir.mkdir(exist_ok=True)
         
         # Generate filename with date and version
