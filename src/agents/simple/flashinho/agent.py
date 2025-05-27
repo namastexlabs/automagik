@@ -103,7 +103,7 @@ class FlashinhoAgent(AutomagikAgent):
         try:
             # Create agent instance
             self._agent_instance = Agent(
-                model='openai:gpt-4o',
+                model='openai:gpt-4.1',
                 tools=tools,
                 model_settings=model_settings,
                 deps_type=AutomagikAgentsDependencies

@@ -121,7 +121,7 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
             self._agent_instance: Optional[Agent] = None
             
             self.dependencies = AutomagikAgentsDependencies(
-                model_name=get_model_name(config, default_model="openai:gpt-4o-mini"), # Specify desired model
+                model_name=get_model_name(config, default_model="openai:gpt-4.1-mini"), # Specify desired model
                 model_settings=parse_model_settings(config)
             )
             if self.db_id: self.dependencies.set_agent_id(self.db_id)
@@ -201,15 +201,142 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
 
 *(This guide provides a template based on SimpleAgent. Specific implementations might require adjustments.)*
 
+## Available Agents
+
+The Automagik Agents framework currently includes two main agents with synchronized features:
+
+### Agent Comparison
+
+| Feature | Simple Agent | Sofia Agent | Description |
+|---------|--------------|-------------|-------------|
+| **Base Framework** | ✅ AutomagikAgent | ✅ AutomagikAgent | Both extend the same base class |
+| **Multimodal Processing** | ✅ Full Support | ✅ Full Support | Process images alongside text |
+| **WhatsApp Integration** | ✅ Full Support | ✅ Full Support | Evolution API integration |
+| **Reliability Features** | ✅ Retry Logic | ✅ Retry Logic | Exponential backoff and semaphore control |
+| **Memory Integration** | ✅ Template Variables | ✅ Template Variables | Graphiti knowledge graph |
+| **MCP Server Support** | ❌ Intentionally Excluded | ✅ Full Support | Dynamic tool loading |
+| **Sub-Agent Patterns** | ❌ Minimal Design | ✅ Airtable Integration | Wrapper patterns for specialized agents |
+| **Tool Registry** | ✅ Basic Tools | ✅ Extended Tools | Default + specialized tools |
+| **Design Philosophy** | **Minimal & Focused** | **Full-Featured** | Different use cases |
+
+### Simple Agent
+
+**Location**: `src/agents/simple/simple/`  
+**Philosophy**: Minimal, focused agent for straightforward tasks
+
+**Key Features**:
+- ✅ **Multimodal processing** - Handle images and text
+- ✅ **WhatsApp integration** - Evolution API support
+- ✅ **Reliability features** - Retry logic and concurrency control
+- ✅ **Memory templates** - Dynamic prompt variables
+- ❌ **No MCP servers** - Maintains simplicity
+- ❌ **No sub-agents** - Single-purpose design
+
+**Best For**:
+- Direct user interactions
+- WhatsApp chatbots
+- Image analysis tasks
+- Simple automation workflows
+
+### Sofia Agent
+
+**Location**: `src/agents/simple/sofia/`  
+**Philosophy**: Full-featured agent with advanced capabilities
+
+**Key Features**:
+- ✅ **All Simple agent features** - Complete feature parity
+- ✅ **MCP server integration** - Dynamic tool loading
+- ✅ **Sub-agent patterns** - Airtable agent wrapper
+- ✅ **Extended tool registry** - Specialized integrations
+- ✅ **Advanced workflows** - Complex task orchestration
+
+**Best For**:
+- Complex business workflows
+- Multi-system integrations
+- Project management tasks
+- Advanced automation scenarios
+
+## Synchronized Features
+
+Both agents now share core capabilities through the Agent Feature Synchronization project:
+
+### Multimodal Processing
+
+Both agents support image processing with:
+- HTTP/HTTPS image URLs
+- Multiple images per request
+- PydanticAI ImageUrl conversion
+- Graceful fallback handling
+
+**Documentation**: [Multimodal Processing Guide](./features/multimodal.md)
+
+### WhatsApp Integration
+
+Both agents include Evolution API integration:
+- Send/receive WhatsApp messages
+- Context-aware tool wrappers
+- Group chat support
+- User information persistence
+
+**Documentation**: [WhatsApp Integration Guide](./features/whatsapp.md)
+
+### Reliability Features
+
+Both agents implement robust error handling:
+- Exponential backoff retry logic
+- LLM semaphore concurrency control
+- Configurable retry attempts
+- Comprehensive error logging
+
+### Memory Integration
+
+Both agents support memory templates:
+- Dynamic variable substitution
+- User preference storage
+- Context-aware responses
+- Graphiti knowledge graph integration
+
+## MCP Server Integration (Sofia Only)
+
+Sofia agent includes Model Context Protocol support:
+- Dynamic server loading
+- Tool discovery and registration
+- Server lifecycle management
+- Linear, PostgreSQL, and Memory servers
+
+**Documentation**: [MCP Integration Guide](./features/mcp_integration.md)
+
 ## Capabilities and Limitations
 
-*   **Capabilities:** Agents can leverage LLMs for text generation, understanding, and reasoning. They can interact with external systems and data sources via configured Tools.
-*   **Limitations:** Agent performance depends heavily on the underlying LLM, the quality of prompts, and the effectiveness of the available tools. Handling complex state, long-term memory, and avoiding hallucinations are common challenges.
+### Capabilities
+*   **Multimodal Understanding**: Process images alongside text using vision-capable models
+*   **WhatsApp Integration**: Send/receive messages through Evolution API
+*   **External Tool Access**: Interact with databases, APIs, and external services
+*   **Memory Persistence**: Store and retrieve user information and preferences
+*   **Reliable Execution**: Retry logic and concurrency control for robust operation
+*   **Dynamic Tool Loading**: (Sofia) Load tools from MCP servers dynamically
+
+### Limitations
+*   **Model Dependency**: Performance depends on underlying LLM capabilities
+*   **Tool Quality**: Effectiveness limited by available tool implementations
+*   **Memory Complexity**: Long-term memory and context management challenges
+*   **Hallucination Risk**: Standard LLM limitations apply
+*   **Resource Usage**: Vision models and MCP servers require additional resources
 
 ## Further Reading
 
-*   [Simple Agent Documentation](docs/simple_agent_resources/) (If applicable - verify path)
-*   [Tools Documentation](./tools.md) (To be created - depends on `src/tools/`)
+### Core Documentation
 *   [Memory Management](./memory.md)
 *   [Database Documentation](./database.md)
-*   [API Documentation](./api.md) 
+*   [API Documentation](./api.md)
+*   [MCP Integration](./mcp_integration.md)
+
+### Feature Guides
+*   [Multimodal Processing](./features/multimodal.md)
+*   [WhatsApp Integration](./features/whatsapp.md)
+*   [MCP Server Integration](./features/mcp_integration.md)
+
+### Development
+*   [Agent Development Patterns](./agent_mocking_guide.md)
+*   [Configuration Guide](./configuration.md)
+*   [Running the Project](./running.md) 
