@@ -149,7 +149,7 @@ class StanAgent(AutomagikAgent):
                 continue
                 
             # Dynamically import the prompt
-            module_name = f"src.agents.simple.stan_agent.prompts.{status_key.lower()}"
+            module_name = f"src.agents.simple.stan.prompts.{status_key.lower()}"
             try:
                 module = __import__(module_name, fromlist=["PROMPT"])
                 prompt_text = getattr(module, "PROMPT")
