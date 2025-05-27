@@ -73,9 +73,10 @@ class MCPClientManager:
             except asyncio.CancelledError:
                 pass
         
-        # Stop all servers
+        # Stop all servers (use snapshot for thread safety)
+        servers_snapshot = dict(self._servers)
         stop_tasks = []
-        for server in self._servers.values():
+        for server in servers_snapshot.values():
             if server.is_running:
                 stop_tasks.append(server.stop())
         
@@ -223,7 +224,9 @@ class MCPClientManager:
         Returns:
             List of server states
         """
-        return [server.state for server in self._servers.values()]
+        # Create snapshot to avoid race conditions during iteration
+        servers_snapshot = dict(self._servers)
+        return [server.state for server in servers_snapshot.values()]
     
     def get_servers_for_agent(self, agent_name: str) -> List[MCPServerManager]:
         """Get MCP servers assigned to a specific agent.
@@ -467,7 +470,10 @@ class MCPClientManager:
         """Start servers configured for auto-start."""
         start_tasks = []
         
-        for server in self._servers.values():
+        # Create snapshot to avoid race conditions during iteration
+        servers_snapshot = dict(self._servers)
+        
+        for server in servers_snapshot.values():
             if server.config.auto_start:
                 start_tasks.append(self._safe_start_server(server))
         
@@ -488,20 +494,32 @@ class MCPClientManager:
             try:
                 await asyncio.sleep(self._health_check_interval)
                 
-                # Ping all running servers
-                for server in self._servers.values():
+                # Create snapshot to avoid race conditions during dictionary iteration
+                # This prevents RuntimeError when servers are added/removed during health checks
+                servers_snapshot = dict(self._servers)
+                
+                # Ping all running servers from snapshot
+                for server in servers_snapshot.values():
+                    # Check if server still exists (might have been removed after snapshot)
+                    if server.name not in self._servers:
+                        logger.debug(f"Skipping health check for removed server: {server.name}")
+                        continue
+                        
                     if server.is_running:
-                        is_healthy = await server.ping()
-                        if not is_healthy:
-                            logger.warning(f"Health check failed for MCP server: {server.name}")
-                            
-                            # Attempt restart if configured
-                            if server.config.max_retries > 0:
-                                try:
-                                    await server.restart()
-                                    logger.info(f"Successfully restarted unhealthy MCP server: {server.name}")
-                                except Exception as e:
-                                    logger.error(f"Failed to restart MCP server {server.name}: {str(e)}")
+                        try:
+                            is_healthy = await server.ping()
+                            if not is_healthy:
+                                logger.warning(f"Health check failed for MCP server: {server.name}")
+                                
+                                # Attempt restart if configured and server still exists
+                                if server.config.max_retries > 0 and server.name in self._servers:
+                                    try:
+                                        await server.restart()
+                                        logger.info(f"Successfully restarted unhealthy MCP server: {server.name}")
+                                    except Exception as e:
+                                        logger.error(f"Failed to restart MCP server {server.name}: {str(e)}")
+                        except Exception as e:
+                            logger.error(f"Health check ping failed for server {server.name}: {str(e)}")
                 
             except asyncio.CancelledError:
                 break
@@ -539,9 +557,10 @@ class MCPClientManager:
         logger.info("Refreshing MCP server configurations from database")
         
         try:
-            # Stop all currently running servers
+            # Stop all currently running servers (use snapshot for thread safety)
+            servers_snapshot = dict(self._servers)
             stop_tasks = []
-            for server in self._servers.values():
+            for server in servers_snapshot.values():
                 if server.is_running:
                     stop_tasks.append(server.stop())
             
