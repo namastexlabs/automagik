@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class MemoryCreate(BaseModel):
     name: str = Field(..., description="Name of the memory")

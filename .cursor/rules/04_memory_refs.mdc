@@ -3,14 +3,15 @@ description: Memory API commands, template variables, and query patterns for aut
 globs: src/memory/**/*,src/agents/**/*,tests/**/*memory*,tests/**/*agent*
 alwaysApply: false
 ---
-# Memory References - Graphiti
+# Memory References - Graphiti & Database
 
-## 🧠 Graphiti Memory Architecture
+## 🧠 Memory Architecture
 
 **Documentation**: [memory.md](mdc:docs/memory.md) | [database.md](mdc:docs/database.md) | [agents_overview.md](mdc:docs/agents_overview.md)
 
 ### **Core Components**
-- **Knowledge Graph**: Entity-relationship based memory storage
+- **Knowledge Graph**: Entity-relationship based memory storage (Graphiti)
+- **Database Memory**: Structured key-value storage (PostgreSQL)
 - **Nodes**: Preferences, Procedures, Requirements, and other entities
 - **Facts**: Relationships and factual connections between entities
 - **Episodes**: Structured data inputs (text, json, message)
@@ -19,7 +20,7 @@ alwaysApply: false
 
 **Memory Flow**: Search → Apply → Capture → Store → Enhance
 
-## 🔍 Memory Search Commands
+## 🔍 Graphiti Memory Search Commands
 
 ### **Search Nodes** (Entities)
 ```bash
@@ -52,7 +53,7 @@ mcp_agent-memory_search_memory_facts \
 - **Connections**: `"related to|connected with|associated"`
 - **Ownership**: `"owned by|belongs to|created by"`
 
-## 💾 Memory Storage Commands
+## 💾 Graphiti Memory Storage Commands
 
 ### **Add Episode** (Primary Storage)
 ```bash
@@ -85,6 +86,27 @@ mcp_agent-memory_add_memory \
 - **Add descriptive names**: Help future searches
 - **Include context**: source_description for clarity
 
+## 🗄️ Database Memory API
+
+### **Memory Validation Rules** (NMSTX-63)
+**✅ WORKING**: `user_id=provided` + `agent_id=any` → User-specific memory  
+**❌ FAILING**: `user_id=None` + `agent_id=provided` → Should work, currently fails  
+**🔧 WORKAROUND**: Always provide `user_id` until fixed
+
+### **API Endpoints**
+```bash
+# Create memory (requires user_id currently)
+curl -X POST -H "X-API-Key: am-xxxxx" -H "Content-Type: application/json" \
+  -d '{"name": "test", "content": "content", "user_id": "uuid", "agent_id": 1}' \
+  http://server:port/api/v1/memories
+
+# List memories
+GET /api/v1/memories?user_id=uuid&agent_id=1
+
+# Get/Update/Delete
+GET/PUT/DELETE /api/v1/memories/{memory_id}
+```
+
 ## 🏗️ Development Workflow with Memory
 
 ### **1. Before Starting ANY Task**
@@ -97,6 +119,9 @@ mcp_agent-memory_search_memory_nodes --query "workflow steps" --entity "Procedur
 
 # Search for related facts
 mcp_agent-memory_search_memory_facts --query "connections dependencies"
+
+# Commit findings
+git commit -m "docs: capture memory search results for task"
 ```
 
 ### **2. During Development**
@@ -118,6 +143,9 @@ mcp_agent-memory_add_memory \
   --name "Component Dependencies" \
   --episode_body "{\\\"agent\\\": {\\\"depends_on\\\": [\\\"memory_manager\\\", \\\"tool_registry\\\"]}}" \
   --source "json"
+
+# Commit incremental progress
+git add -p && git commit -m "feat: implement based on discovered patterns"
 ```
 
 ### **3. After Task Completion**
@@ -133,51 +161,27 @@ mcp_agent-memory_add_memory \
   --name "API Rate Limit Discovered" \
   --episode_body "{\\\"constraint\\\": {\\\"api\\\": \\\"discord\\\", \\\"rate_limit\\\": \\\"50/minute\\\"}}" \
   --source "json"
-```
 
-## 🏷️ Template Variables Integration
-
-### **Memory-Enhanced Templates**
-```python
-SYSTEM_PROMPT = """You are helping {{user_name}}.
-
-# From memory searches:
-Preferences: {{user_preferences}}
-Current Procedure: {{active_procedure}}
-Constraints: {{known_requirements}}
-
-Recent: {{recent_context}}
-Task: {{current_task}}
-
-Available tools: {tools}"""
-```
-
-### **Dynamic Memory Injection**
-```python
-class MemoryEnhancedAgent(AutomagikAgent):
-    async def enhance_prompt_with_memory(self, base_prompt: str, query: str):
-        # Search relevant preferences
-        prefs = await search_memory_nodes(
-            query=query,
-            entity="Preference",
-            max_nodes=5
-        )
-        
-        # Search applicable procedures
-        procedures = await search_memory_nodes(
-            query=query,
-            entity="Procedure",
-            max_nodes=3
-        )
-        
-        # Inject into prompt
-        return base_prompt.replace(
-            "{{user_preferences}}", 
-            "\n".join(pref['summary'] for pref in prefs)
-        )
+# Final commit and tag if milestone
+git commit -m "feat: complete implementation with discovered patterns"
+git tag -a "milestone-name" -m "Description"
 ```
 
 ## 🧪 Memory Testing Patterns
+
+### **Database Memory Testing**
+```python
+@pytest.mark.asyncio
+async def test_memory_api_creation():
+    # Test user-specific memory (working)
+    response = await client.post("/api/v1/memories", json={
+        "name": "test_memory",
+        "content": "test content",
+        "user_id": str(test_user_id),  # Required until NMSTX-63
+        "agent_id": 1
+    })
+    assert response.status_code == 200
+```
 
 ### **Graph Memory Testing**
 ```python
@@ -227,6 +231,7 @@ async def test_memory_relationships():
 3. **Combine searches**: Use both node and fact searches for context
 4. **Center explorations**: Use center_node_uuid for related info
 5. **Respect findings**: Align work with discovered knowledge
+6. **Commit discoveries**: Document findings in Git history
 
 ### **Storage Guidelines**
 1. **Immediate capture**: Store preferences/procedures as discovered
@@ -234,6 +239,13 @@ async def test_memory_relationships():
 3. **Clear categorization**: Label with appropriate entity types
 4. **Update explicitly**: Only add new/changed information
 5. **Context included**: Always add source_description
+6. **Version control**: Commit after storing significant patterns
+
+### **API Memory Guidelines**
+1. **Always provide user_id**: Until NMSTX-63 is fixed
+2. **Use agent tools**: For automatic context handling
+3. **Validate agent_id**: Required when user_id is None (future)
+4. **Handle failures gracefully**: 500 errors indicate validation issues
 
 ### **Common Patterns**
 
@@ -267,9 +279,9 @@ mcp_agent-memory_add_memory \
 ## 🎯 Strategic Memory Usage
 
 ### **Development Cycle Integration**
-1. **Pre-task**: Search nodes for context
-2. **During task**: Capture discoveries immediately
-3. **Post-task**: Store patterns and solutions
+1. **Pre-task**: Search nodes for context → Commit findings
+2. **During task**: Capture discoveries immediately → Commit progress
+3. **Post-task**: Store patterns and solutions → Tag milestones
 4. **Review**: Search facts for impact analysis
 
 ### **Memory-Driven Decisions**
@@ -286,6 +298,14 @@ if any("type hints" in p['summary'] for p in preferences):
 - **Optimization**: Record performance improvements
 - **Team Knowledge**: Share discoveries via memory
 
+## 🚨 Known Issues
+
+### **NMSTX-63: Memory API user_id=None Support**
+**Status**: Open  
+**Impact**: Cannot create agent global memories via API  
+**Workaround**: Always provide user_id  
+**Fix**: In progress - will support agent global memories
+
 ---
 
-**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships.
+**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships. For database memories, always provide user_id until NMSTX-63 is resolved. **Commit discoveries** to maintain knowledge in Git history.
