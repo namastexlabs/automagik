@@ -54,7 +54,7 @@ from src.db import (
 new_agent_data = Agent(
     name="docs_agent",
     type="helpful_writer",
-    model="gpt-4o-mini",
+    model="gpt-4.1-mini",
     description="Writes project documentation"
 )
 # Save to database

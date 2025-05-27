@@ -5,16 +5,17 @@ and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import asyncio
 
 from pydantic_ai import Agent
+from pydantic_ai.tools import RunContext
 from src.config import settings
-from src.mcp.client import refresh_mcp_client_manager
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
+from src.agents.common.evolution import EvolutionMessagePayload
 
 # Import only necessary utilities
 from src.agents.common.message_parser import (
@@ -78,11 +79,46 @@ class SimpleAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
+        # Register Evolution tools with context-aware wrappers
+        self.tool_registry.register_tool(self._create_send_reaction_wrapper())
+        self.tool_registry.register_tool(self._create_send_text_wrapper())
+        
         # MCP Servers - Will be loaded fresh on each run to ensure latest configurations
         # Don't cache MCP servers or client manager to avoid synchronization issues
         
         logger.info("SimpleAgent initialized successfully")
     
+    def _convert_image_payload_to_pydantic(self, image_item_payload: Dict[str, Any]) -> Any:
+        """Convert image payload to PydanticAI format.
+        
+        Args:
+            image_item_payload: Image payload dict with 'data' and 'mime_type' keys
+            
+        Returns:
+            ImageUrl object for PydanticAI or original payload if conversion fails
+        """
+        try:
+            from pydantic_ai import ImageUrl, BinaryContent
+        except ImportError:
+            ImageUrl = None
+            BinaryContent = None
+
+        if not ImageUrl:  # PydanticAI types not available
+            return image_item_payload
+
+        # image_item_payload is expected to be like {'data': 'url_or_base64', 'mime_type': 'image/jpeg'}
+        data_content = image_item_payload.get("data")
+        mime_type = image_item_payload.get("mime_type", "")
+
+        if isinstance(data_content, str) and mime_type.startswith("image/"):
+            if data_content.lower().startswith("http"):
+                # Remote image (HTTP/S) → wrap as ImageUrl
+                logger.debug(f"Converting image URL to ImageUrl object: {data_content[:100]}…")
+                return ImageUrl(url=data_content)
+        
+        logger.debug(f"Image payload not converted to ImageUrl/BinaryContent: {str(image_item_payload)[:100]}…")
+        return image_item_payload  # Return original if not a convertible image URL
+
     async def _load_mcp_servers(self) -> List:
         """Load RUNNING MCP servers assigned to this agent from the MCP client manager.
         
@@ -94,11 +130,14 @@ class SimpleAgent(AutomagikAgent):
             List of running MCP server instances for PydanticAI
         """
         try:
+            # Import MCP refresh function
+            from src.mcp.client import refresh_mcp_client_manager
+            
             # Force refresh to ensure we get the latest server configurations
             mcp_client_manager = await refresh_mcp_client_manager()
             
-            # Get servers assigned to this agent (using agent name)
-            agent_name = self.name if hasattr(self, 'name') else 'simple'
+            # Get servers assigned to this agent (use 'simple' name for MCP server assignment)
+            agent_name = 'simple'  # Use 'simple' for MCP servers
             servers = mcp_client_manager.get_servers_for_agent(agent_name)
             
             # Get RUNNING server instances from our MCP server manager
@@ -183,7 +222,7 @@ class SimpleAgent(AutomagikAgent):
                 mcp_servers=mcp_servers  # Fresh servers loaded each time
             )
             
-            logger.info(f"Initialized agent with model: {model_name}, {len(tools)} tools, and {len(mcp_servers)} MCP servers")
+            logger.info(f"Initialized Simple agent with model: {model_name}, {len(tools)} tools, and {len(mcp_servers)} MCP servers")
         except Exception as e:
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
@@ -198,10 +237,96 @@ class SimpleAgent(AutomagikAgent):
             multimodal_content: Optional multimodal content
             system_message: Optional system message for this run (ignored in favor of template)
             message_history_obj: Optional MessageHistory instance for DB storage
+            channel_payload: Optional Evolution payload dictionary
             
         Returns:
             AgentResponse object with result and metadata
         """
+        
+        # -------------------------------------------------------------
+        # Evolution (WhatsApp) channel payload handling
+        # -------------------------------------------------------------
+        evolution_payload = None  # type: Optional[EvolutionMessagePayload]
+        if channel_payload:
+            try:
+                # Convert raw dict coming from webhook into the Pydantic model
+                evolution_payload = EvolutionMessagePayload(**channel_payload)
+                logger.debug(
+                    "Successfully converted channel_payload to EvolutionMessagePayload"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to convert channel_payload to EvolutionMessagePayload: {str(e)}"
+                )
+
+        if evolution_payload is not None:
+            # Make it available in context/dependencies
+            self.context["evolution_payload"] = evolution_payload
+
+            if hasattr(self.dependencies, 'set_context'):
+                combined_ctx = {**getattr(self.dependencies, 'context', {}), "evolution_payload": evolution_payload}
+                self.dependencies.set_context(combined_ctx)
+
+            # Extract basic user info from the payload
+            user_number: Optional[str] = None
+            user_name: Optional[str] = None
+
+            try:
+                user_number = evolution_payload.get_user_number()
+                user_name = evolution_payload.get_user_name()
+                logger.debug(
+                    f"Extracted user info from evolution_payload: number={user_number}, name={user_name}"
+                )
+                
+                # Set user_phone_number and user_name in context for test compatibility
+                if user_number:
+                    self.context["user_phone_number"] = user_number
+                if user_name:
+                    self.context["user_name"] = user_name
+                    
+            except Exception as e:
+                logger.error(f"Error extracting user info from evolution_payload: {str(e)}")
+
+            
+            # Detect if we are in a group chat
+            if evolution_payload.is_group_chat():
+                self.context["is_group_chat"] = True
+                self.context["group_jid"] = evolution_payload.get_group_jid()
+            else:
+                self.context.pop("is_group_chat", None)
+                self.context.pop("group_jid", None)
+                
+            # Persist user information into memory so it can be injected into the
+            # system prompt via the {{user_information}} template variable (same
+            # pattern used by StanAgent).
+            if self.db_id and (user_number or user_name):
+                try:
+                    from src.db.models import Memory
+                    from src.db.repository import create_memory
+
+                    # Build info dict without None values
+                    info_dict: Dict[str, Any] = {
+                        k: v for k, v in {
+                            "user_name": user_name,
+                            "user_number": user_number,
+                        }.items() if v is not None
+                    }
+
+                    if info_dict:
+                        memory_to_create = Memory(
+                            name="user_information",
+                            content=str(info_dict),
+                            user_id=self.context.get("user_id"),
+                            agent_id=self.db_id,
+                            read_mode="system_prompt",
+                            access="read_write",
+                        )
+
+                        create_memory(memory=memory_to_create)
+                        logger.info("Created/Updated user_information memory for SimpleAgent run")
+                except Exception as e:
+                    logger.error(f"Failed to create user_information memory: {str(e)}")
+
         # Register the code-defined prompt if not already done
         await self._check_and_register_prompt()
         
@@ -212,22 +337,58 @@ class SimpleAgent(AutomagikAgent):
         if self.db_id:
             await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
         
-        # Initialize the agent
-        await self._initialize_pydantic_agent()
-        
         # Get message history in PydanticAI format
         pydantic_message_history = []
         if message_history_obj:
             pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
         
         # Prepare user input (handle multimodal content)
-        user_input = input_text
+        user_input = input_text if input_text else "empty message" # Default to text-only or empty message
+
         if multimodal_content:
+            # This call is a placeholder in dependencies, but good to keep for intent
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)
-            user_input = {"text": input_text, "multimodal_content": multimodal_content}
+            
+            # Attempt to import the rich multimodal types from *pydantic_ai*.
+            # We fall back gracefully if running with an older/stripped version
+            # of the library.
+            try:
+                from pydantic_ai import ImageUrl, BinaryContent  # type: ignore
+            except ImportError:
+                ImageUrl = None  # type: ignore
+                BinaryContent = None  # type: ignore
+
+            pydantic_ai_input_list: list[Any] = [input_text] # Start with the text prompt
+            successfully_converted_at_least_one = False
+
+            # Process the 'images' list from the multimodal_content dictionary
+            if isinstance(multimodal_content, dict) and "images" in multimodal_content:
+                image_list = multimodal_content.get("images", [])
+                if isinstance(image_list, list):
+                    for item_payload in image_list:
+                        if isinstance(item_payload, dict): # Ensure item in list is a dict
+                            converted_obj = self._convert_image_payload_to_pydantic(item_payload)
+                            if converted_obj != item_payload:  # Successfully converted
+                                successfully_converted_at_least_one = True
+                            pydantic_ai_input_list.append(converted_obj)
+                        else:
+                            pydantic_ai_input_list.append(item_payload) # Append as-is if not a dict
+            # TODO: Add elif clauses here to handle other direct multimodal_content structures if necessary,
+            # e.g., if multimodal_content could be a list of URLs or a single URL string directly.
+            # For now, focusing on the {'images': [...]} structure from the API controller.
+            
+            if successfully_converted_at_least_one:
+                user_input = pydantic_ai_input_list
+                logger.debug(f"Using PydanticAI list format for user_input: {str(user_input)[:200]}")
+            else:
+                # Fallback if no items were successfully converted to PydanticAI objects
+                user_input = {"text": input_text, "multimodal_content": multimodal_content}
+                logger.debug(f"Using legacy dict format for user_input: {str(user_input)[:200]}")
         
         try:
+            # Initialize the agent
+            await self._initialize_pydantic_agent()
             # Get filled system prompt
             filled_system_prompt = await self.get_filled_system_prompt(
                 user_id=getattr(self.dependencies, 'user_id', None)
@@ -298,7 +459,127 @@ class SimpleAgent(AutomagikAgent):
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
             )
 
-    # -----------------------@-------------------------------------------
+    # ------------------------------------------------------------------
+    # Evolution tool wrappers
+    # ------------------------------------------------------------------
+
+    def _create_send_reaction_wrapper(self):
+        """Wrap send_reaction to auto-fill JIDs from evolution payload."""
+        from src.tools.evolution.tool import send_reaction as evo_send_reaction
+
+        async def send_reaction_wrapper(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            reaction: str,
+        ) -> Dict[str, Any]:
+            # Try multiple locations to mirror product.py logic
+            evo_payload = None
+            if hasattr(ctx, "evolution_payload"):
+                evo_payload = ctx.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "evolution_payload"):
+                evo_payload = ctx.deps.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "context") and ctx.deps.context:
+                evo_payload = ctx.deps.context.get("evolution_payload")
+            if not evo_payload and hasattr(ctx, "parent_context") and isinstance(ctx.parent_context, dict):
+                evo_payload = ctx.parent_context.get("evolution_payload")
+
+            if not evo_payload:
+                return {"success": False, "error": "evolution_payload not found in context"}
+
+            try:
+                # -----------------------------
+                # 1. Locate message key safely
+                # -----------------------------
+                key_obj = None
+                if hasattr(evo_payload, "data") and hasattr(evo_payload.data, "key"):
+                    key_obj = evo_payload.data.key  # new structure
+                elif hasattr(evo_payload, "output") and hasattr(evo_payload.output, "key"):
+                    key_obj = evo_payload.output.key  # legacy structure
+
+                if not key_obj:
+                    return {"success": False, "error": "Message key not found in payload"}
+
+                remote_jid = getattr(key_obj, "remoteJid", None)
+                message_id = getattr(key_obj, "id", None)
+                if not remote_jid or not message_id:
+                    return {"success": False, "error": "Missing remote_jid or message_id"}
+
+                # -----------------------------
+                # 2. Credentials / config
+                # -----------------------------
+                instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+                api_url       = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
+                api_key       = getattr(evo_payload, "apikey", None)      or getattr(settings, "EVOLUTION_API_KEY", None)
+
+                # -----------------------------
+                # 3. Call evolution tool
+                # -----------------------------
+                return await evo_send_reaction(
+                    ctx,
+                    remote_jid,
+                    message_id,
+                    reaction,
+                    instance=instance_name,
+                    api_url=api_url,
+                    api_key=api_key,
+                )
+            except Exception as e:
+                logger.error(f"send_reaction_wrapper error: {e}")
+                return {"success": False, "error": str(e)}
+
+        # Add metadata for tool registration
+        send_reaction_wrapper.__name__ = "send_reaction"
+        send_reaction_wrapper.__doc__ = "Send a reaction (emoji) to the last user message via Evolution. Auto-detects JID and message ID from context."
+        return send_reaction_wrapper
+
+    def _create_send_text_wrapper(self):
+        """Wrap send_message tool to auto-fill phone number and instance."""
+        from src.tools.evolution.tool import send_message as evo_send_text
+
+        async def send_text_wrapper(
+            ctx: RunContext[AutomagikAgentsDependencies],
+            text: str,
+        ) -> Dict[str, Any]:
+            # Get evolution payload
+            evo_payload = None
+            if hasattr(ctx, "evolution_payload"):
+                evo_payload = ctx.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "evolution_payload"):
+                evo_payload = ctx.deps.evolution_payload
+            if not evo_payload and hasattr(ctx, "deps") and hasattr(ctx.deps, "context") and ctx.deps.context:
+                evo_payload = ctx.deps.context.get("evolution_payload")
+            if not evo_payload and hasattr(ctx, "parent_context") and isinstance(ctx.parent_context, dict):
+                evo_payload = ctx.parent_context.get("evolution_payload")
+
+            if not evo_payload:
+                return {"success": False, "error": "evolution_payload not found"}
+
+            try:
+                phone_number = evo_payload.get_user_number()
+                if not phone_number:
+                    return {"success": False, "error": "Could not determine user number"}
+
+                # Prefer credentials from payload, else config
+                instance_name = getattr(evo_payload, "instance", None) or getattr(settings, "EVOLUTION_INSTANCE", "default")
+                api_url       = getattr(evo_payload, "server_url", None) or getattr(settings, "EVOLUTION_API_URL", None)
+                api_key       = getattr(evo_payload, "apikey", None)      or getattr(settings, "EVOLUTION_API_KEY", None)
+
+                return await evo_send_text(
+                    ctx,
+                    phone=phone_number,
+                    message=text,
+                    instance=instance_name,
+                    api_url=api_url,
+                    token=api_key,
+                )
+            except Exception as e:
+                logger.error(f"send_text_wrapper error: {e}")
+                return {"success": False, "error": str(e)}
+
+        send_text_wrapper.__name__ = "send_text_to_user"
+        send_text_wrapper.__doc__ = "Send plain text to the current user via Evolution API. Auto-fills phone number."
+        return send_text_wrapper
+
+    # ------------------------------------------------------------------
     # Backwards-compatibility shim
     # ------------------------------------------------------------------
     async def _initialize_agent(self) -> None:  # noqa: D401

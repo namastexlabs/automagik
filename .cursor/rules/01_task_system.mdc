@@ -12,7 +12,6 @@ alwaysApply: true
 ### **Core IDs**
 ```bash
 TEAM_ID="2c6b21de-9db7-44ac-9666-9079ff5b9b84"
-MCP_PROJECT_ID="dbb25a78-ffce-45ba-af9c-898b35255896"
 ```
 
 ### **Issue States**
