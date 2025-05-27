@@ -333,22 +333,23 @@ class MCPClientManager:
     
     async def _load_server_configurations(self) -> None:
         """Load MCP server configurations from database."""
+        from fastapi.concurrency import run_in_threadpool
         from src.db.repository.mcp import list_mcp_servers, get_server_agents
         from src.db.repository.agent import get_agent
         
         try:
-            # Get all MCP servers using repository method
-            servers = list_mcp_servers(enabled_only=False)
+            # Get all MCP servers using repository method (async)
+            servers = await run_in_threadpool(list_mcp_servers, enabled_only=False)
             
             for server in servers:
                 try:
-                    # Get agent assignments for this server
-                    agent_ids = get_server_agents(server.id)
+                    # Get agent assignments for this server (async)
+                    agent_ids = await run_in_threadpool(get_server_agents, server.id)
                     agent_names = []
                     
-                    # Convert agent IDs to names
+                    # Convert agent IDs to names (async)
                     for agent_id in agent_ids:
-                        agent = get_agent(agent_id)
+                        agent = await run_in_threadpool(get_agent, agent_id)
                         if agent:
                             agent_names.append(agent.name)
                     
@@ -387,6 +388,7 @@ class MCPClientManager:
     
     async def _save_server_config(self, config: MCPServerConfig) -> None:
         """Save MCP server configuration to database."""
+        from fastapi.concurrency import run_in_threadpool
         from src.db.repository.mcp import (
             get_mcp_server_by_name, create_mcp_server, update_mcp_server,
             assign_agent_to_server, remove_agent_from_server, get_server_agents
@@ -395,8 +397,8 @@ class MCPClientManager:
         from src.db.models import MCPServerDB
         
         try:
-            # Check if server already exists
-            existing_server = get_mcp_server_by_name(config.name)
+            # Check if server already exists (async)
+            existing_server = await run_in_threadpool(get_mcp_server_by_name, config.name)
             
             # Create MCPServerDB object from config
             server_data = MCPServerDB(
@@ -415,37 +417,37 @@ class MCPClientManager:
             )
             
             if existing_server:
-                # Update existing server
-                success = update_mcp_server(server_data)
+                # Update existing server (async)
+                success = await run_in_threadpool(update_mcp_server, server_data)
                 if not success:
                     raise MCPError("Failed to update MCP server")
                 server_id = existing_server.id
             else:
-                # Create new server
-                server_id = create_mcp_server(server_data)
+                # Create new server (async)
+                server_id = await run_in_threadpool(create_mcp_server, server_data)
                 if not server_id:
                     raise MCPError("Failed to create MCP server")
             
             # Handle agent assignments
-            # Get current agent assignments
-            current_agent_ids = set(get_server_agents(server_id))
+            # Get current agent assignments (async)
+            current_agent_ids = set(await run_in_threadpool(get_server_agents, server_id))
             
-            # Get new agent IDs from names
+            # Get new agent IDs from names (async)
             new_agent_ids = set()
             for agent_name in config.agent_names:
-                agent = get_agent_by_name(agent_name)
+                agent = await run_in_threadpool(get_agent_by_name, agent_name)
                 if agent:
                     new_agent_ids.add(agent.id)
                 else:
                     logger.warning(f"Agent '{agent_name}' not found for server '{config.name}'")
             
-            # Remove agents that are no longer assigned
+            # Remove agents that are no longer assigned (async)
             for agent_id in current_agent_ids - new_agent_ids:
-                remove_agent_from_server(agent_id, server_id)
+                await run_in_threadpool(remove_agent_from_server, agent_id, server_id)
             
-            # Add new agent assignments
+            # Add new agent assignments (async)
             for agent_id in new_agent_ids - current_agent_ids:
-                assign_agent_to_server(agent_id, server_id)
+                await run_in_threadpool(assign_agent_to_server, agent_id, server_id)
                 
         except Exception as e:
             logger.error(f"Failed to save server config: {str(e)}")
@@ -453,17 +455,18 @@ class MCPClientManager:
     
     async def _delete_server_config(self, server_name: str) -> None:
         """Delete MCP server configuration from database."""
+        from fastapi.concurrency import run_in_threadpool
         from src.db.repository.mcp import get_mcp_server_by_name, delete_mcp_server
         
         try:
-            # Get server by name to get its ID
-            server = get_mcp_server_by_name(server_name)
+            # Get server by name to get its ID (async)
+            server = await run_in_threadpool(get_mcp_server_by_name, server_name)
             if not server:
                 logger.warning(f"Server '{server_name}' not found for deletion")
                 return
             
-            # Delete server (this will also delete agent assignments due to CASCADE)
-            success = delete_mcp_server(server.id)
+            # Delete server (this will also delete agent assignments due to CASCADE) (async)
+            success = await run_in_threadpool(delete_mcp_server, server.id)
             if not success:
                 raise MCPError(f"Failed to delete server '{server_name}'")
                 
