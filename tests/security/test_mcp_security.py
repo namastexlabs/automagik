@@ -6,9 +6,7 @@ vulnerabilities are properly blocked.
 """
 
 import pytest
-import os
-import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from src.mcp.security import (
     build_secure_command,
@@ -23,7 +21,6 @@ from src.mcp.security import (
     resolve_command_path,
     SecurityError,
     ValidationError,
-    ALLOWED_COMMANDS,
     DANGEROUS_ENV_VARS,
     MCPInputValidator
 )
@@ -446,7 +443,7 @@ class TestSecurityPerformance:
         large_env = {f"VAR_{i}": f"value_{i}" for i in range(100)}
         
         start_time = time.time()
-        filtered = filter_environment(large_env)
+        filter_environment(large_env)
         elapsed = time.time() - start_time
         
         assert elapsed < 0.1  # Should be very fast

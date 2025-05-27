@@ -270,7 +270,7 @@ def start_server(
     if mode == "service":
         # Service mode: use systemctl start
         try:
-            result = subprocess.run(["sudo", "systemctl", "start", "automagik-agents"], 
+            subprocess.run(["sudo", "systemctl", "start", "automagik-agents"], 
                                  capture_output=True, text=True, check=True)
             typer.echo("✅ Service started successfully")
             
@@ -295,7 +295,7 @@ def start_server(
             docker_compose = get_docker_compose_cmd()
             project_root = get_project_root()
             
-            result = subprocess.run([
+            subprocess.run([
                 *docker_compose.split(), 
                 "--env-file", str(project_root / ".env"),
                 "up", "-d", "automagik-agents"
@@ -342,7 +342,7 @@ def stop_server():
     if mode == "service":
         # Exactly what service mode does: sudo systemctl stop automagik-agents
         try:
-            result = subprocess.run(["sudo", "systemctl", "stop", "automagik-agents"], 
+            subprocess.run(["sudo", "systemctl", "stop", "automagik-agents"], 
                                  capture_output=True, text=True, check=True)
             typer.echo("✅ Service stopped successfully")
         except subprocess.CalledProcessError as e:
@@ -355,7 +355,7 @@ def stop_server():
             docker_compose = get_docker_compose_cmd()
             project_root = get_project_root()
             
-            result = subprocess.run([
+            subprocess.run([
                 *docker_compose.split(), 
                 "--env-file", str(project_root / ".env"),
                 "stop", "automagik-agents"
@@ -384,7 +384,7 @@ def restart_server():
     if mode == "service":
         # Exactly what service mode does: sudo systemctl restart automagik-agents
         try:
-            result = subprocess.run(["sudo", "systemctl", "restart", "automagik-agents"], 
+            subprocess.run(["sudo", "systemctl", "restart", "automagik-agents"], 
                                  capture_output=True, text=True, check=True)
             typer.echo("✅ Service restarted successfully")
             
@@ -406,7 +406,7 @@ def restart_server():
     elif mode == "docker":
         # Docker mode: docker restart automagik_agents (note: underscore in container name)
         try:
-            result = subprocess.run(["docker", "restart", "automagik_agents"], 
+            subprocess.run(["docker", "restart", "automagik_agents"], 
                                  capture_output=True, text=True, check=True)
             typer.echo("✅ Docker container restarted successfully")
             
@@ -446,7 +446,7 @@ def status_server():
     if mode == "service":
         # Exactly what service mode does: systemctl status automagik-agents --no-pager
         try:
-            result = subprocess.run(["systemctl", "status", "automagik-agents", "--no-pager"], 
+            subprocess.run(["systemctl", "status", "automagik-agents", "--no-pager"], 
                                  check=False)
             # systemctl status returns different exit codes but we want to show the output regardless
         except Exception as e:
@@ -456,7 +456,7 @@ def status_server():
         # Exactly what Docker mode does: docker ps | grep automagik
         try:
             typer.echo("🐳 Docker Container Status:")
-            result = subprocess.run(["docker", "ps", "-a", "--filter", "name=automagik"], 
+            subprocess.run(["docker", "ps", "-a", "--filter", "name=automagik"], 
                                  check=True)
             
             # Also show health if container exists

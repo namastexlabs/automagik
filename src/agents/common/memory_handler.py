@@ -40,10 +40,6 @@ class MemoryHandler:
             from src.db.models import Memory
             
             # Create context
-            context = {
-                "agent_id": agent_id,
-                "user_id": user_id
-            }
                 
             # Extract all variables except run_id which is handled separately
             memory_vars = [var for var in template_vars if var != "run_id"]
@@ -214,10 +210,6 @@ class MemoryHandler:
             from src.db.repository.memory import get_memory_by_name
             
             # Create a context dict for memory operations
-            context = {
-                "agent_id": agent_id,
-                "user_id": user_id
-            }
             
             # Extract all variables except run_id which is handled separately
             memory_vars = [var for var in template_vars if var != "run_id"]

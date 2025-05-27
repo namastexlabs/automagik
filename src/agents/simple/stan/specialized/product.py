@@ -24,10 +24,6 @@ def get_tabela_files_from_supabase():
     """
     
     # Target files to fetch
-    target_files = [
-        'TABELA_REDRAGON_2025.xlsx',
-        'TABELA_SOLID_MARCAS_2025.xlsx'
-    ]
     
     # Results dictionary
     result = """
@@ -54,7 +50,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     user_id = ctx.deps.get("user_id") if isinstance(ctx.deps, dict) else None
     stan_agent_id = ctx.deps.get("_agent_id_numeric") if isinstance(ctx.deps, dict) else None
     
-    message_history = ctx.messages if hasattr(ctx, 'messages') else []
+    ctx.messages if hasattr(ctx, 'messages') else []
     logger.info(f"User ID: {user_id}")
     logger.info(f"Stan Agent ID: {stan_agent_id}")
     

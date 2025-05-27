@@ -227,7 +227,7 @@ async def run_agent(
             try:
                 # Make a call to get the session info first if it's an existing session
                 session_endpoint = get_api_endpoint(f"sessions/{session_name}")
-                session_response = requests.get(
+                requests.get(
                     session_endpoint, 
                     headers={"x-api-key": settings.AM_API_KEY} if settings.AM_API_KEY else {},
                     timeout=10

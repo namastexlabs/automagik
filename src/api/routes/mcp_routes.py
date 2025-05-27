@@ -27,7 +27,6 @@ from src.mcp.security import (
     build_secure_command, 
     validate_server_name,
     validate_mcp_config,
-    filter_environment,
     SecurityError,
     ValidationError as SecurityValidationError
 )

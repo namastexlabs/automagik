@@ -152,7 +152,6 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
     
     summary_result_str = await make_conversation_summary(message_history)
     
-    EXTRA_PROMPT = ""
 
     # Initialize the agent with appropriate system prompt
     backoffice_agent = Agent(  

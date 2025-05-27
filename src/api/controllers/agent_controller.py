@@ -222,7 +222,6 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
         # Extract content and content type from the request
         content = request.message_content
-        content_type = request.message_type
         
         # Apply system prompt override if provided
         if request.system_prompt:
@@ -328,14 +327,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             combined_content.update(multimodal_content)
         
         # Process the message history
-        messages = []
         if request.messages:
             # Use provided messages
-            messages = request.messages
+            pass
         elif message_history:
             # Use message history
             history_messages, _ = await run_in_threadpool(message_history.get_messages, 1, 100, False)
-            messages = history_messages
         
         # -----------------------------------------------
         # Prepare context (system prompt + multimodal)

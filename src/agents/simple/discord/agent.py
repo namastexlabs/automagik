@@ -131,7 +131,6 @@ class DiscordAgent(AutomagikAgent):
             A wrapped version of the list_guilds_and_channels function.
         """
         # Capture references to required variables
-        agent_context = self.context
         bot_token = self.discord_bot_token
         
         async def list_guilds_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
@@ -154,7 +153,6 @@ class DiscordAgent(AutomagikAgent):
             A wrapped version of the get_guild_info function.
         """
         # Capture references to required variables
-        agent_context = self.context
         bot_token = self.discord_bot_token
         
         async def guild_info_wrapper(ctx: RunContext[AutomagikAgentsDependencies], guild_id: str) -> Dict[str, Any]:
@@ -178,7 +176,6 @@ class DiscordAgent(AutomagikAgent):
             A wrapped version of the fetch_messages function.
         """
         # Capture references to required variables
-        agent_context = self.context
         bot_token = self.discord_bot_token
         
         async def fetch_messages_wrapper(ctx: RunContext[AutomagikAgentsDependencies], channel_id: str, limit: int = 100) -> Dict[str, Any]:
@@ -203,7 +200,6 @@ class DiscordAgent(AutomagikAgent):
             A wrapped version of the send_message function.
         """
         # Capture references to required variables
-        agent_context = self.context
         bot_token = self.discord_bot_token
         
         async def send_message_wrapper(ctx: RunContext[AutomagikAgentsDependencies], channel_id: str, content: str) -> Dict[str, Any]:

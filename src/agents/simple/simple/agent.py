@@ -10,7 +10,7 @@ import asyncio
 
 from pydantic_ai import Agent
 from src.config import settings
-from src.mcp.client import get_mcp_client_manager, refresh_mcp_client_manager
+from src.mcp.client import refresh_mcp_client_manager
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse

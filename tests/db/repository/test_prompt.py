@@ -77,7 +77,7 @@ class TestPromptRepository:
         assert prompt is not None
         assert prompt.agent_id == TEST_AGENT_ID
         assert prompt.status_key == TEST_STATUS_KEY
-        assert prompt.is_active == True
+        assert prompt.is_active
         mock_execute_query.assert_called_once()
         
     def test_get_latest_version_for_status(self, mock_execute_query):
@@ -137,5 +137,5 @@ class TestPromptRepository:
             result = set_prompt_active(1, True)
             
             # Verify
-            assert result == True
+            assert result
             assert mock_execute_query.call_count == 3  # Deactivate others + activate this one + update agent's active_default_prompt_id 

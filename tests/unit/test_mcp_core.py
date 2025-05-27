@@ -16,7 +16,7 @@ def test_imports():
 def test_models():
     """Test MCP model creation and validation."""
     # Test MCPServerConfig creation
-    config = MCPServerConfig(
+    MCPServerConfig(
         name='test_server',
         server_type=MCPServerType.STDIO,
         description='Test server for validation',

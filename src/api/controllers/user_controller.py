@@ -129,7 +129,7 @@ async def update_user_data(user_identifier: str, user_update: UserUpdate) -> Use
             raise HTTPException(status_code=404, detail=f"User not found with identifier: {user_identifier}")
         
         # Convert user_data dict to JSON string if it's not None
-        user_data_json = json.dumps(user_update.user_data) if user_update.user_data else None
+        json.dumps(user_update.user_data) if user_update.user_data else None
         
         # Create a User object with the updated fields
         updated_user_obj = User(

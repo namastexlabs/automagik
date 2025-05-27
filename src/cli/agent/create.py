@@ -121,7 +121,6 @@ def create_agent(
 
     # Get the base names for class naming (no _agent suffix needed)
     template_base = template
-    name_base = name
     
     # Compute the new agent class name and the template class name
     new_agent_class = ''.join(word.capitalize() for word in name.split('_')) + "Agent"
