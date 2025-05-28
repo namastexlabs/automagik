@@ -48,7 +48,7 @@ try:
         
         Args:
             max_retries: Maximum number of connection attempts
-            retry_delay: Initial delay between retries (will increase exponentially)
+            retry_delay: Initial delay between retries (will increase but capped)
             
         Returns:
             Initialized Graphiti client or None if all attempts fail
@@ -75,7 +75,8 @@ try:
                 
             # Try to initialize with retries
             attempt = 0
-            current_delay = retry_delay
+            # Cap maximum delay to prevent excessive waiting, especially in development
+            max_delay = 5.0  # Maximum delay between retries
             
             while attempt < max_retries:
                 attempt += 1
@@ -99,14 +100,30 @@ try:
                     
                     return _shared_graphiti_client
                     
+                except asyncio.CancelledError:
+                    # Handle async cancellation properly
+                    logger.info("Graphiti client initialization cancelled")
+                    _graphiti_initialized = True
+                    raise
+                    
                 except Exception as e:
                     logger.warning(f"Attempt {attempt}/{max_retries} failed: {e}")
                     
                     if attempt < max_retries:
-                        # Wait with exponential backoff before retrying
-                        wait_time = current_delay * (2 ** (attempt - 1))  # Exponential backoff
+                        # Wait with capped exponential backoff
+                        wait_time = min(retry_delay * (2 ** (attempt - 1)), max_delay)
                         logger.info(f"Waiting {wait_time:.1f}s before retry...")
-                        await asyncio.sleep(wait_time)
+                        
+                        # Use interruptible async sleep
+                        try:
+                            # Sleep in small intervals to allow cancellation
+                            intervals = int(wait_time * 10)
+                            for _ in range(intervals):
+                                await asyncio.sleep(0.1)
+                        except asyncio.CancelledError:
+                            logger.info("Graphiti retry sleep cancelled")
+                            _graphiti_initialized = True
+                            raise
                     else:
                         logger.error(f"Failed to initialize shared Graphiti client after {max_retries} attempts: {e}")
             
