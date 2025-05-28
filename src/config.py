@@ -25,6 +25,10 @@ def detect_environment_file() -> str:
     env_file = ".env"
     prod_env_file = ".env.prod"
     
+    # Check if development mode is forced (e.g., from make dev)
+    if os.environ.get('AM_FORCE_DEV_ENV') == '1':
+        return env_file
+    
     # Check if .env.prod exists
     if not Path(prod_env_file).exists():
         return env_file
