@@ -205,9 +205,23 @@ class TestMCPIntegration:
                 )
                 assert config_response.status_code == 200
                 
-                # Give server a moment to start
+                # Give server more time to start and discover tools
                 import asyncio
-                await asyncio.sleep(1)
+                await asyncio.sleep(3)  # Increased from 1 to 3 seconds
+                
+                # Check server status first
+                server_response = await client.get(
+                    f"{base_url}/api/v1/mcp/servers/{unique_name}",
+                    headers=auth_headers
+                )
+                print(f"Server status: {server_response.json()}")
+                
+                # Also check server tools directly
+                tools_response = await client.get(
+                    f"{base_url}/api/v1/mcp/servers/{unique_name}/tools",
+                    headers=auth_headers
+                )
+                print(f"Server tools: {tools_response.json()}")
                 
                 # List MCP tools available to the agent
                 response = await client.get(
@@ -217,6 +231,10 @@ class TestMCPIntegration:
                 
                 assert response.status_code == 200
                 data = response.json()
+                
+                # Debug output
+                print(f"Agent tools response: {data}")
+                
                 assert data["agent_name"] == "simple"
                 assert unique_name in data["servers"]
                 assert data["total"] >= 1  # Should have at least 1 tool

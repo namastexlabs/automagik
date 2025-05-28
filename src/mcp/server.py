@@ -104,6 +104,8 @@ class MCPServerManager:
                     command = self.config.command[0]
                     args = self.config.command[1:] if len(self.config.command) > 1 else []
                     
+                    logger.info(f"Creating MCP server with command: {command}, args: {args}")
+                    
                     # Create server instance
                     self._server_class = MCPServerStdio
                     self._server_args = {
@@ -134,10 +136,12 @@ class MCPServerManager:
                 # Test connection by temporarily entering context to discover capabilities
                 # Add timeout to prevent hanging indefinitely
                 try:
-                    async with asyncio.timeout(self.config.timeout_seconds):
+                    async def discover_with_timeout():
                         async with self._server as temp_server:
                             # Discover tools and resources
                             await self._discover_capabilities_with_server(temp_server)
+                    
+                    await asyncio.wait_for(discover_with_timeout(), timeout=self.config.timeout_seconds)
                 except asyncio.TimeoutError:
                     logger.warning(f"MCP server {self.name} startup timed out after {self.config.timeout_seconds}s")
                     raise MCPServerError(f"Server startup timed out after {self.config.timeout_seconds} seconds", self.name)
@@ -310,11 +314,17 @@ class MCPServerManager:
             server_instance: Active MCP server instance within async context
         """
         try:
+            logger.info(f"Starting capability discovery for server {self.name}")
+            
             # Discover tools
+            logger.debug(f"Calling list_tools() for server {self.name}")
             tools = await server_instance.list_tools()
+            logger.info(f"Server {self.name} returned {len(tools)} tools")
+            
             self._tools.clear()
             
             for tool in tools:
+                logger.debug(f"Processing tool: {tool.name}")
                 tool_info = MCPToolInfo(
                     name=tool.name,
                     description=getattr(tool, 'description', None),
@@ -325,12 +335,15 @@ class MCPServerManager:
                 self._tools[tool.name] = tool_info
             
             self.state.tools_discovered = list(self._tools.keys())
+            logger.info(f"Server {self.name} tools discovered: {self.state.tools_discovered}")
             
             # Discover resources
             try:
                 # Check if server instance has list_resources method
                 if hasattr(server_instance, 'list_resources'):
+                    logger.debug(f"Calling list_resources() for server {self.name}")
                     resources = await server_instance.list_resources()
+                    logger.info(f"Server {self.name} returned {len(resources)} resources")
                     self._resources.clear()
                     
                     for resource in resources:
@@ -351,11 +364,13 @@ class MCPServerManager:
                 
             except Exception as e:
                 # Resource discovery is optional
-                logger.debug(f"Resource discovery failed for {self.name}: {str(e)}")
+                logger.warning(f"Resource discovery failed for {self.name}: {str(e)}")
                 self.state.resources_discovered = []
             
         except Exception as e:
             logger.error(f"Failed to discover capabilities for {self.name}: {str(e)}")
+            import traceback
+            logger.error(f"Capability discovery traceback: {traceback.format_exc()}")
             raise MCPServerError(f"Capability discovery failed: {str(e)}", self.name)
 
     async def _discover_capabilities(self) -> None:
