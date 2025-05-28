@@ -271,36 +271,52 @@ class AutomagikAgent(ABC, Generic[T]):
         if self.db_id is None:
             try:
                 # Only import here to avoid circular imports
-                from src.db import register_agent, get_agent_by_name
+                from src.db import register_agent, get_agent_by_name, list_agents
                 
-                # Check if agent already exists in database
-                existing_agent = get_agent_by_name(self.name)
-                if existing_agent:
-                    # Use existing ID
-                    self.db_id = existing_agent.id
-                    logger.debug(f"Using existing agent ID {self.db_id} for {self.name}")
-                else:
-                    # Extract agent metadata
-                    agent_type = self.name
-                    description = getattr(self, "description", f"{self.name} agent")
-                    model = getattr(self.config, "model", "openai:gpt-4.1-mini-turbo")
-                    
-                    # Prepare config for database
-                    agent_config = {}
-                    if hasattr(self.config, "__dict__"):
-                        agent_config = self.config.__dict__
-                    elif isinstance(self.config, dict):
-                        agent_config = self.config
-                    
-                    # Register the agent
-                    self.db_id = register_agent(
-                        name=self.name,
-                        agent_type=agent_type,
-                        model=model,
-                        description=description,
-                        config=agent_config
-                    )
-                    logger.info(f"Registered agent {self.name} with ID {self.db_id}")
+                # First validate if this is a variation of an existing agent
+                all_agents = list_agents(active_only=False)
+                
+                # Check if this agent name is a variation of an existing agent
+                for existing_agent in all_agents:
+                    # Check for common variations
+                    if (self.name.lower() == f"{existing_agent.name.lower()}agent" or
+                        self.name.lower() == f"{existing_agent.name.lower()}-agent" or
+                        self.name.lower() == f"{existing_agent.name.lower()}_agent"):
+                        # Use the existing agent instead
+                        self.db_id = existing_agent.id
+                        logger.warning(f"Agent name '{self.name}' is a variation of '{existing_agent.name}', using existing agent ID {self.db_id}")
+                        self.context["agent_id"] = self.db_id
+                        break
+                
+                # If not a variation, check if agent already exists in database
+                if self.db_id is None:
+                    existing_agent = get_agent_by_name(self.name)
+                    if existing_agent:
+                        # Use existing ID
+                        self.db_id = existing_agent.id
+                        logger.debug(f"Using existing agent ID {self.db_id} for {self.name}")
+                    else:
+                        # Extract agent metadata
+                        agent_type = self.name
+                        description = getattr(self, "description", f"{self.name} agent")
+                        model = getattr(self.config, "model", "openai:gpt-4.1-mini-turbo")
+                        
+                        # Prepare config for database
+                        agent_config = {}
+                        if hasattr(self.config, "__dict__"):
+                            agent_config = self.config.__dict__
+                        elif isinstance(self.config, dict):
+                            agent_config = self.config
+                        
+                        # Register the agent
+                        self.db_id = register_agent(
+                            name=self.name,
+                            agent_type=agent_type,
+                            model=model,
+                            description=description,
+                            config=agent_config
+                        )
+                        logger.info(f"Registered agent {self.name} with ID {self.db_id}")
                     
                 # Update context with new ID
                 self.context["agent_id"] = self.db_id
