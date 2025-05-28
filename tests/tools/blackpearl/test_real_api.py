@@ -367,33 +367,25 @@ async def test_ordering_functionality():
     if len(asc_result["results"]) < 2 or len(desc_result["results"]) < 2:
         pytest.skip("Not enough clients to test ordering")
     
-    # Check that the ordering is different
+    # Get the ordering values
     asc_names = [client["nome_fantasia"] for client in asc_result["results"]]
     desc_names = [client["nome_fantasia"] for client in desc_result["results"]]
     
     logger.info(f"Ascending order: {asc_names[:3]} ...")
     logger.info(f"Descending order: {desc_names[:3]} ...")
     
-    # Check if ordering functionality works
-    if asc_names == desc_names:
-        logger.warning("⚠️  API ordering appears to not be working - ascending and descending return same results")
-        # Just verify the API accepts ordering parameters without error
-        assert True, "Ordering parameters were accepted without error, even if functionality doesn't work"
-    else:
-        # Verify that the first items are in different order
-        assert asc_names[0] != desc_names[0], "Ordering functionality doesn't appear to work"
-        
-        # Check if ascending is actually ascending
-        for i in range(len(asc_names) - 1):
-            if asc_names[i] > asc_names[i + 1]:
-                logger.warning(f"Ascending order may not be working correctly: {asc_names[i]} > {asc_names[i + 1]}")
-                break
-                
-        # Check if descending is actually descending
-        for i in range(len(desc_names) - 1):
-            if desc_names[i] < desc_names[i + 1]:
-                logger.warning(f"Descending order may not be working correctly: {desc_names[i]} < {desc_names[i + 1]}")
-                break
+    # Verify that the ordering is working correctly
+    assert asc_names[0] != desc_names[0], "Ordering functionality should return different first items"
+    
+    # Verify ascending order is actually ascending
+    for i in range(len(asc_names) - 1):
+        assert asc_names[i] <= asc_names[i + 1], f"Ascending order broken: {asc_names[i]} > {asc_names[i + 1]}"
+    
+    # Verify descending order is actually descending  
+    for i in range(len(desc_names) - 1):
+        assert desc_names[i] >= desc_names[i + 1], f"Descending order broken: {desc_names[i]} < {desc_names[i + 1]}"
+    
+    logger.info("✅ Ordering functionality working correctly!")
 
 @skip_real_api_tests
 @pytest.mark.asyncio
