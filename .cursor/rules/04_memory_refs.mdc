@@ -24,7 +24,7 @@ alwaysApply: false
 
 ### **Search Nodes** (Entities)
 ```bash
-mcp_agent-memory_search_memory_nodes \
+agent-memory_search_memory_nodes \
   --query "search terms" \
   --entity "Preference|Procedure|Requirement" \
   --max_nodes 10
@@ -42,7 +42,7 @@ mcp_agent-memory_search_memory_nodes \
 
 ### **Search Facts** (Relationships)
 ```bash
-mcp_agent-memory_search_memory_facts \
+agent-memory_search_memory_facts \
   --query "relationship terms" \
   --max_facts 10 \
   --center_node_uuid "node-uuid"  # Optional: explore around specific node
@@ -58,21 +58,21 @@ mcp_agent-memory_search_memory_facts \
 ### **Add Episode** (Primary Storage)
 ```bash
 # Text content
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Episode Name" \
   --episode_body "Content to store" \
   --source "text" \
   --source_description "Context description"
 
 # JSON structured data
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "API Configuration" \
   --episode_body "{\\\"api\\\": {\\\"endpoint\\\": \\\"https://api.example.com\\\"}}" \
   --source "json" \
   --source_description "API settings"
 
 # Message/conversation format
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "User Conversation" \
   --episode_body "user: How should I format code?\nassistant: Use Black formatter" \
   --source "message" \
@@ -112,13 +112,13 @@ GET/PUT/DELETE /api/v1/memories/{memory_id}
 ### **1. Before Starting ANY Task**
 ```bash
 # Search for preferences
-mcp_agent-memory_search_memory_nodes --query "task keywords" --entity "Preference"
+agent-memory_search_memory_nodes --query "task keywords" --entity "Preference"
 
 # Search for procedures  
-mcp_agent-memory_search_memory_nodes --query "workflow steps" --entity "Procedure"
+agent-memory_search_memory_nodes --query "workflow steps" --entity "Procedure"
 
 # Search for related facts
-mcp_agent-memory_search_memory_facts --query "connections dependencies"
+agent-memory_search_memory_facts --query "connections dependencies"
 
 # Commit findings
 git commit -m "docs: capture memory search results for task"
@@ -127,19 +127,19 @@ git commit -m "docs: capture memory search results for task"
 ### **2. During Development**
 ```python
 # When user expresses preference
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Code Style Preference" \
   --episode_body "User prefers type hints on all functions" \
   --source "text"
 
 # When discovering procedure
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Deployment Procedure" \
   --episode_body "1. Run tests\n2. Update version\n3. Build Docker image\n4. Deploy to staging" \
   --source "text"
 
 # When learning relationships
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Component Dependencies" \
   --episode_body "{\\\"agent\\\": {\\\"depends_on\\\": [\\\"memory_manager\\\", \\\"tool_registry\\\"]}}" \
   --source "json"
@@ -151,13 +151,13 @@ git add -p && git commit -m "feat: implement based on discovered patterns"
 ### **3. After Task Completion**
 ```bash
 # Store successful patterns
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Successful Agent Pattern" \
   --episode_body "AutomagikAgent extension with custom tool registration worked well for Discord integration" \
   --source "text"
 
 # Document discovered constraints
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "API Rate Limit Discovered" \
   --episode_body "{\\\"constraint\\\": {\\\"api\\\": \\\"discord\\\", \\\"rate_limit\\\": \\\"50/minute\\\"}}" \
   --source "json"
@@ -251,7 +251,7 @@ async def test_memory_relationships():
 
 **Storing User Preferences**:
 ```bash
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Communication Style" \
   --episode_body "User prefers concise technical explanations with code examples" \
   --source "text" \
@@ -260,7 +260,7 @@ mcp_agent-memory_add_memory \
 
 **Documenting Procedures**:
 ```bash
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Agent Testing Procedure" \
   --episode_body "1. Unit test agent initialization\n2. Test tool registration\n3. Integration test with API\n4. Test memory persistence" \
   --source "text" \
@@ -269,7 +269,7 @@ mcp_agent-memory_add_memory \
 
 **Recording Requirements**:
 ```bash
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Security Requirements" \
   --episode_body "{\\\"security\\\": {\\\"auth\\\": \\\"API key required\\\", \\\"rate_limit\\\": \\\"100/hour\\\"}}" \
   --source "json" \
