@@ -26,22 +26,41 @@ Agents need LLM provider keys to function. Examples: `OPENAI_API_KEY`, `GEMINI_A
 ```bash
 git clone https://github.com/namastexlabs/automagik-agents.git
 cd automagik-agents
-bash scripts/install/setup.sh
+
+# Show all available commands
+make help
+
+# Quick installation and startup
+make install-dev    # Install development environment
+make dev           # Start development mode
+
+# Check status and logs
+make status        # PM2-style status of all instances
+make logs          # View colorized logs
 ```
 
-The installer guides you through:
-- **Local**: Python virtual environment (development)
-- **Docker**: Containerized deployment (production)
-
-**Non-Interactive Installation:**
+**Auto-Install Prerequisites:**
 ```bash
-# Docker (recommended for production)
-bash scripts/install/setup.sh --component agents --mode docker \
-  --openai-key sk-your-key --non-interactive
+# Install system dependencies (all platforms)
+make install-prerequisites
 
-# Local with service commands
-bash scripts/install/setup.sh --component agents --mode local \
-  --openai-key sk-your-key --install-service --non-interactive
+# Quick environment setup
+make install        # Auto-detects best installation mode
+```
+
+**Installation Modes:**
+```bash
+# Development (local Python + venv)
+make install-dev
+
+# Docker development
+make install-docker
+
+# Production Docker
+make install-prod
+
+# Systemd service
+make install-service
 ```
 
 ## 📝 Post-Installation
@@ -52,11 +71,11 @@ nano .env
 # Add: OPENAI_API_KEY=sk-your-actual-key
 ```
 
-2. **Start the server:**
+2. **Start and monitor:**
 ```bash
-automagik agents start  # Start server
-# Optional: Install alias for shorter commands
-automagik install-alias  # Now you can use 'agent start'
+make dev           # Start development mode
+make status        # Show PM2-style status table
+make logs-f        # Follow logs in real-time
 ```
 
 3. **Test it:**
@@ -66,26 +85,42 @@ curl http://localhost:${AM_PORT}/health
 
 ## 🎯 Usage
 
-### Commands
+### Make Commands
+
 ```bash
-# Unified CLI Commands
-automagik agents start      # Start service/container
-automagik agents stop       # Stop service/container  
-automagik agents restart    # Restart service/container
-automagik agents status     # Show detailed service/container status
-automagik agents logs       # Show live logs (with colors if available)
-automagik agents dev        # Start in development mode with auto-reload
-automagik agents --help     # Show all available commands
+# 🚀 Quick Start
+make help                    # Show all available commands
+make install-dev            # Install development environment  
+make dev                     # Start development mode
 
-# Optional: Install shorter alias
-automagik install-alias     # Install 'agent' alias
-automagik uninstall-alias   # Remove 'agent' alias
+# 📊 Monitoring & Status
+make status                  # PM2-style status table of all instances
+make status-quick           # Quick one-line status summary
+make health                 # Check health of all services
+make logs                   # View colorized logs (auto-detect source)
+make logs-f                 # Follow logs in real-time
 
-# After installing alias, you can use:
-agent start      # Same as 'automagik agents start'
-agent stop       # Same as 'automagik agents stop'
-agent status     # Same as 'automagik agents status'
-# ... etc
+# 🎛️ Service Management  
+make start                  # Start services (auto-detect mode)
+make stop                   # Stop all services
+make restart                # Restart services
+make docker                 # Start Docker development stack
+make prod                   # Start production Docker stack
+
+# 🗄️ Database
+make db-init               # Initialize database
+make db-migrate            # Run database migrations
+
+# 🛠️ Development
+make test                  # Run test suite
+make lint                  # Run code linting
+make format                # Format code with ruff
+```
+
+**Force Mode for Conflicts:**
+```bash
+make dev FORCE=1           # Stop existing services and start dev
+make docker FORCE=1        # Force start Docker stack
 ```
 
 ### API Examples
@@ -112,6 +147,10 @@ curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
 ## 🛠️ Create Custom Agents
 
 ```bash
+# Create new agent
+make create-agent name=my_agent type=simple
+
+# Or use CLI
 automagik agents create -n my_agent -t simple
 # Customize: src/agents/simple/my_agent/
 ```
