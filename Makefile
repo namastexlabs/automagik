@@ -414,10 +414,3 @@ endef
 .PHONY: help install install-dev install-docker install-prod
 .PHONY: dev docker prod stop stop-prod stop-all restart status logs health
 .PHONY: update clean test
-=======
-lint:
-	ruff check .
-
-format:
-	ruff format . 
->>>>>>> ec6dedd (feat: add Makefile with lint and format targets)

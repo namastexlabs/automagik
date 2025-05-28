@@ -1,0 +1,36 @@
+name: Lint and Format Check
+
+on:
+  push:
+    branches: [ main ] # Adicione outras branches principais se necessário, ex: [ main, dev ]
+  pull_request:
+    branches: [ main ] # Adicione outras branches principais se necessário
+
+jobs:
+  lint_and_format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # Ajuste a versão do Python conforme seu pyproject.toml
+
+    - name: Install uv
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    - name: Add uv to PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: uv sync --frozen-lockfile # ou apenas uv sync se o uv.lock não estiver sempre atualizado
+
+    - name: Run Linter (Ruff)
+      run: make lint
+
+    - name: Check Formatter (Ruff)
+      run: make format ARGS=--check # Passa o --check para o comando ruff format dentro do Makefile 
