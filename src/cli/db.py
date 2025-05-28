@@ -13,94 +13,89 @@ from src.config import settings
 db_app = typer.Typer()
 
 def apply_migrations(cursor, logger=None):
-    """Apply all SQL migrations from the migrations directory."""
+    """Apply database migrations"""
     if logger is None:
         logger = logging.getLogger("apply_migrations")
     
-    try:
-        # Get the migrations directory path
-        migrations_dir = Path("src/db/migrations")
-        if not migrations_dir.exists():
-            logger.info("No migrations directory found, skipping migrations")
-            return
-        
-        # Get all SQL files and sort them by name (which includes timestamp)
-        migration_files = sorted(migrations_dir.glob("*.sql"))
-        
-        if not migration_files:
-            logger.info("No migration files found")
-            return
-        
-        logger.info(f"Found {len(migration_files)} migration files")
-        
-        # Create migrations table if it doesn't exist
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS migrations (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                applied_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-        
-        # Get list of already applied migrations
-        cursor.execute("SELECT name FROM migrations")
-        applied_migrations = {row[0] for row in cursor.fetchall()}
-        
-        migration_success_count = 0
-        migration_error_count = 0
-        
-        # Apply each migration that hasn't been applied yet
-        for migration_file in migration_files:
-            migration_name = migration_file.name
+    # Create migrations table if it doesn't exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS migrations (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) UNIQUE NOT NULL,
+            applied_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    
+    # Define migrations
+    migrations = [
+        ("add_user_data_column", """
+            ALTER TABLE users 
+            ADD COLUMN IF NOT EXISTS user_data JSONB;
+        """),
+        ("add_run_finished_at_column", """
+            ALTER TABLE sessions 
+            ADD COLUMN IF NOT EXISTS run_finished_at TIMESTAMPTZ;
+        """),
+        ("add_agents_unique_name_constraint", """
+            -- First remove any duplicate agents keeping the one with the lowest ID
+            DELETE FROM agents a1
+            WHERE EXISTS (
+                SELECT 1 FROM agents a2 
+                WHERE LOWER(a2.name) = LOWER(a1.name) 
+                AND a2.id < a1.id
+            );
             
-            if migration_name in applied_migrations:
-                logger.info(f"Migration {migration_name} already applied, skipping")
+            -- Add unique constraint on name (case-insensitive)
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'agents_name_unique'
+                ) THEN
+                    ALTER TABLE agents ADD CONSTRAINT agents_name_unique UNIQUE (name);
+                END IF;
+            END
+            $$;
+        """),
+    ]
+    
+    # Apply migrations
+    migration_success_count = 0
+    migration_error_count = 0
+    
+    for migration_name, migration_sql in migrations:
+        try:
+            # Check if migration has already been applied
+            cursor.execute(
+                "SELECT 1 FROM migrations WHERE name = %s",
+                (migration_name,)
+            )
+            if cursor.fetchone():
+                logger.info(f"Migration '{migration_name}' already applied, skipping.")
                 continue
             
+            # Apply migration
             logger.info(f"Applying migration: {migration_name}")
+            cursor.execute(migration_sql)
             
-            try:
-                # Read and execute the migration file
-                with open(migration_file, 'r') as f:
-                    migration_sql = f.read()
-                
-                # Execute the migration
-                cursor.execute(migration_sql)
-                
-                # Record the migration as applied
-                cursor.execute(
-                    "INSERT INTO migrations (name) VALUES (%s)",
-                    (migration_name,)
-                )
-                
-                logger.info(f"Successfully applied migration: {migration_name}")
-                migration_success_count += 1
-                
-            except Exception as e:
-                migration_error_count += 1
-                logger.error(f"Error applying migration {migration_name}: {str(e)}")
-                logger.warning("Continuing with next migration despite error")
-                
-                # Try to mark it as applied so we don't attempt it again
-                try:
-                    cursor.execute(
-                        "INSERT INTO migrations (name) VALUES (%s)",
-                        (migration_name,)
-                    )
-                    logger.info(f"Marked migration {migration_name} as applied despite error")
-                except:
-                    logger.warning(f"Could not mark migration {migration_name} as applied")
-        
-        if migration_error_count == 0:
-            logger.info(f"All migrations applied successfully ({migration_success_count} total)")
-        else:
-            logger.warning(f"Migrations completed with {migration_error_count} errors and {migration_success_count} successes")
-        
-    except Exception as e:
-        logger.error(f"Error in migration process: {e}")
-        import traceback
-        logger.error(f"Detailed error: {traceback.format_exc()}")
-        raise
+            # Record migration
+            cursor.execute(
+                "INSERT INTO migrations (name) VALUES (%s)",
+                (migration_name,)
+            )
+            migration_success_count += 1
+            logger.info(f"✅ Migration '{migration_name}' applied successfully")
+            
+        except Exception as e:
+            migration_error_count += 1
+            logger.error(f"❌ Failed to apply migration '{migration_name}': {e}")
+            # Continue with other migrations
+            continue
+    
+    if migration_error_count == 0:
+        logger.info(f"✅ All {migration_success_count} migrations completed successfully")
+    else:
+        logger.warning(f"Migrations completed with {migration_error_count} errors and {migration_success_count} successes")
 
 @db_app.callback()
 def db_callback(
