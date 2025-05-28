@@ -24,6 +24,7 @@ async def list_registered_agents() -> List[AgentInfo]:
     """
     List all registered agents from the database.
     Removes duplicates by normalizing agent names and grouping them by base name.
+    Only returns agents that are marked as active in the database.
     """
     try:
         # Get all registered agents from the database
