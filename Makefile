@@ -43,19 +43,19 @@ FOLLOW ?=
 # 🛠️ Utility Functions
 # ===========================================
 define print_status
-	@echo -e "$(PURPLE)🪄 $(1)$(NC)"
+	echo -e "$(PURPLE)🪄 $(1)$(NC)"
 endef
 
 define print_success
-	@echo -e "$(GREEN)$(CHECKMARK) $(1)$(NC)"
+	echo -e "$(GREEN)$(CHECKMARK) $(1)$(NC)"
 endef
 
 define print_warning
-	@echo -e "$(YELLOW)$(WARNING) $(1)$(NC)"
+	echo -e "$(YELLOW)$(WARNING) $(1)$(NC)"
 endef
 
 define print_error
-	@echo -e "$(RED)$(ERROR) $(1)$(NC)"
+	echo -e "$(RED)$(ERROR) $(1)$(NC)"
 endef
 
 define check_docker
@@ -82,7 +82,7 @@ define check_env_file
 endef
 
 define detect_graphiti_profile
-	if [ -f ".env" ] && grep -q "NEO4J_URI.*neo4j" .env && grep -q "NEO4J_USERNAME" .env; then \
+	if [ -f ".env" ] && grep -q "NEO4J_URI" .env && grep -q "NEO4J_USERNAME" .env; then \
 		echo "--profile graphiti"; \
 	else \
 		echo ""; \
@@ -188,13 +188,13 @@ dev: ## 🛠️ Start development mode
 	@. $(VENV_PATH)/bin/activate && AM_FORCE_DEV_ENV=1 python -m src
 
 docker: ## 🐳 Start Docker development stack
-	$(call print_status,Starting Docker development stack...)
+	@$(call print_status,Starting Docker development stack...)
 	@$(call check_docker)
 	@$(call check_env_file)
 	@profile=$$($(call detect_graphiti_profile)); \
 	$(call print_status,Starting services$$profile...); \
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) $$profile up -d
-	$(call print_success,Docker stack started!)
+	@$(call print_success,Docker stack started!)
 
 prod: ## 🏭 Start production Docker stack
 	$(call print_status,Starting production Docker stack...)
@@ -261,26 +261,26 @@ status: ## 📊 Show service status
 logs: ## 📄 View logs (use N=lines, FOLLOW=1 for tail -f)
 	@if [ "$(FOLLOW)" = "1" ]; then \
 		echo -e "$(PURPLE)🪄 Following logs - Press Ctrl+C to stop$(NC)"; \
-	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+		if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 			journalctl -u automagik-agents -f --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
 			container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
 			docker logs -f $$container 2>&1 | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		elif [ -f "logs/automagik.log" ]; then \
 			tail -f logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-	else \
+		else \
 			echo -e "$(YELLOW)⚠️ No log sources found to follow$(NC)"; \
 		fi; \
-			else \
+	else \
 		echo -e "$(PURPLE)🪄 Showing last $(N) log lines$(NC)"; \
-	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+		if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 			journalctl -u automagik-agents -n $(N) --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
 			container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
 			docker logs --tail $(N) $$container 2>&1 | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-	elif [ -f "logs/automagik.log" ]; then \
+		elif [ -f "logs/automagik.log" ]; then \
 			tail -n $(N) logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-	else \
+		else \
 			echo -e "$(YELLOW)⚠️ No log sources found$(NC)"; \
 		fi; \
 	fi
