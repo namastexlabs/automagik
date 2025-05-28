@@ -16,7 +16,6 @@ from src.db.connection import generate_uuid, safe_uuid
 from src.db.repository.session import get_session_by_name, create_session
 from src.db.repository.agent import list_agents as list_db_agents
 from src.db.repository.user import list_users
-from src.config import settings
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ async def list_registered_agents() -> List[AgentInfo]:
     """
     List all registered agents from the database.
     Removes duplicates by normalizing agent names and grouping them by base name.
-    If AM_AGENTS_NAMES is set, only returns agents specified in that environment variable.
+    Only returns agents that are marked as active in the database.
     """
     try:
         # Get all registered agents from the database
@@ -48,27 +47,6 @@ async def list_registered_agents() -> List[AgentInfo]:
             unique_agents[agent_name] = agent
             
         logger.info(f"Found {len(registered_agents)} agents, {len(unique_agents)} unique agents")
-        
-        # Filter agents based on AM_AGENTS_NAMES if it's set
-        if settings.AM_AGENTS_NAMES:
-            # Parse comma-separated list of agent names
-            allowed_agents = [name.strip() for name in settings.AM_AGENTS_NAMES.split(',')]
-            logger.info(f"Filtering agents based on AM_AGENTS_NAMES: {', '.join(allowed_agents)}")
-            
-            # Filter unique_agents to only include those in the allowed list
-            filtered_agents = {}
-            for agent_name, agent in unique_agents.items():
-                # Check if agent name matches exactly or without "_agent" suffix
-                if (agent_name in allowed_agents or 
-                    agent_name.replace('_agent', '') in allowed_agents or 
-                    agent_name.replace('-agent', '') in allowed_agents or 
-                    agent_name.replace('agent', '') in allowed_agents):
-                    filtered_agents[agent_name] = agent
-                else:
-                    logger.debug(f"Excluding agent '{agent_name}' - not in AM_AGENTS_NAMES")
-            
-            unique_agents = filtered_agents
-            logger.info(f"After filtering: {len(unique_agents)} agents match AM_AGENTS_NAMES")
         
         # Convert to list of AgentInfo objects
         agent_infos = []

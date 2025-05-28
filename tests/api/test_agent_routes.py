@@ -1,7 +1,5 @@
 import pytest
 import uuid
-import os
-from unittest.mock import patch
 from src.agents.models.agent_factory import AgentFactory
 
 # Global variables
@@ -173,83 +171,6 @@ def test_run_agent_with_parameters(client):
     # Check response structure
     data = response.json()
     assert "message" in data
-
-def test_list_agents_with_am_agents_names_filter(client):
-    """Test that listing agents respects AM_AGENTS_NAMES environment variable"""
-    
-    # First, get the current list of all agents without filter
-    response = client.get("/api/v1/agent/list")
-    assert response.status_code == 200
-    all_agents = response.json()
-    all_agent_names = [agent["name"] for agent in all_agents]
-    
-    # Ensure we have multiple agents for a meaningful test
-    if len(all_agent_names) < 2:
-        pytest.skip("Need at least 2 agents for this test")
-    
-    # Pick the first agent to include in our filter
-    test_agent_name = all_agent_names[0]
-    
-    # Test with AM_AGENTS_NAMES set to a single agent
-    with patch.dict(os.environ, {"AM_AGENTS_NAMES": test_agent_name}):
-        # Need to patch the settings object as well since it's already loaded
-        from src.config import settings
-        original_value = settings.AM_AGENTS_NAMES
-        try:
-            settings.AM_AGENTS_NAMES = test_agent_name
-            
-            response = client.get("/api/v1/agent/list")
-            assert response.status_code == 200
-            filtered_agents = response.json()
-            filtered_agent_names = [agent["name"] for agent in filtered_agents]
-            
-            # Should only return the specified agent
-            assert len(filtered_agent_names) == 1
-            assert test_agent_name in filtered_agent_names
-        finally:
-            # Restore original value
-            settings.AM_AGENTS_NAMES = original_value
-    
-    # Test with multiple agents in AM_AGENTS_NAMES
-    if len(all_agent_names) >= 3:
-        # Pick first two agents
-        test_agents = f"{all_agent_names[0]},{all_agent_names[1]}"
-        
-        with patch.dict(os.environ, {"AM_AGENTS_NAMES": test_agents}):
-            from src.config import settings
-            original_value = settings.AM_AGENTS_NAMES
-            try:
-                settings.AM_AGENTS_NAMES = test_agents
-                
-                response = client.get("/api/v1/agent/list")
-                assert response.status_code == 200
-                filtered_agents = response.json()
-                filtered_agent_names = [agent["name"] for agent in filtered_agents]
-                
-                # Should return exactly 2 agents
-                assert len(filtered_agent_names) == 2
-                assert all_agent_names[0] in filtered_agent_names
-                assert all_agent_names[1] in filtered_agent_names
-            finally:
-                # Restore original value
-                settings.AM_AGENTS_NAMES = original_value
-    
-    # Test with empty AM_AGENTS_NAMES (should return all agents)
-    with patch.dict(os.environ, {"AM_AGENTS_NAMES": ""}):
-        from src.config import settings
-        original_value = settings.AM_AGENTS_NAMES
-        try:
-            settings.AM_AGENTS_NAMES = ""
-            
-            response = client.get("/api/v1/agent/list")
-            assert response.status_code == 200
-            unfiltered_agents = response.json()
-            
-            # Should return all agents
-            assert len(unfiltered_agents) == len(all_agents)
-        finally:
-            # Restore original value
-            settings.AM_AGENTS_NAMES = original_value
 
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__]) 
