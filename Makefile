@@ -3,6 +3,7 @@
 # 🪄 Automagik Agents - Streamlined Makefile
 # ===========================================
 
+<<<<<<< HEAD
 .DEFAULT_GOAL := help
 MAKEFLAGS += --no-print-directory
 SHELL := /bin/bash
@@ -414,3 +415,10 @@ endef
 .PHONY: help install install-dev install-docker install-prod
 .PHONY: dev docker prod stop stop-prod stop-all restart status logs health
 .PHONY: update clean test
+=======
+lint:
+	uv run ruff check .
+
+format:
+	uv run ruff format . $(ARGS)
+>>>>>>> 2c1f066 (fix(ci): use 'uv run ruff' in Makefile for CI environment)
