@@ -30,6 +30,40 @@ _pool: Optional[ThreadedConnectionPool] = None
 psycopg2.extensions.register_adapter(uuid.UUID, lambda u: psycopg2.extensions.AsIs(f"'{u}'"))
 
 
+def _is_shutdown_requested() -> bool:
+    """Check if shutdown has been requested from main.py signal handler."""
+    try:
+        # Import here to avoid circular imports and get fresh value
+        import src.main
+        return getattr(src.main, '_shutdown_requested', False)
+    except (ImportError, AttributeError):
+        return False
+
+
+def _interruptible_sleep(seconds: float) -> None:
+    """Sleep that can be interrupted by shutdown signal or KeyboardInterrupt.
+    
+    Args:
+        seconds: Total seconds to sleep
+        
+    Raises:
+        KeyboardInterrupt: If shutdown is requested or Ctrl+C is pressed
+    """
+    start_time = time.time()
+    while time.time() - start_time < seconds:
+        # Check for shutdown signal
+        if _is_shutdown_requested():
+            logger.info("Sleep interrupted by shutdown signal")
+            raise KeyboardInterrupt("Shutdown requested")
+        
+        # Sleep in small intervals
+        try:
+            time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.info("Sleep interrupted by KeyboardInterrupt")
+            raise
+
+
 def generate_uuid() -> uuid.UUID:
     """Safely generate a new UUID.
     
@@ -177,6 +211,11 @@ def get_connection_pool() -> ThreadedConnectionPool:
         retry_delay = 2  # seconds
 
         for attempt in range(max_retries):
+            # Check for shutdown before each attempt
+            if _is_shutdown_requested():
+                logger.info("Database connection pool initialization interrupted by shutdown signal")
+                raise KeyboardInterrupt("Shutdown requested")
+                
             try:
                 min_conn = getattr(settings, "POSTGRES_POOL_MIN", 1)
                 max_conn = getattr(settings, "POSTGRES_POOL_MAX", 10)
@@ -252,11 +291,9 @@ def get_connection_pool() -> ThreadedConnectionPool:
                     logger.warning(
                         f"Failed to connect to database (attempt {attempt + 1}/{max_retries}): {str(e)}"
                     )
-                    # Use interruptible sleep instead of blocking time.sleep()
+                    # Use interruptible sleep that checks for shutdown signals
                     try:
-                        # Sleep in small intervals to allow interruption
-                        for _ in range(retry_delay * 10):
-                            time.sleep(0.1)
+                        _interruptible_sleep(retry_delay)
                     except KeyboardInterrupt:
                         logger.info("Database connection retry interrupted by user")
                         raise

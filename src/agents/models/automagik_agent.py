@@ -55,6 +55,29 @@ try:
         """
         global _shared_graphiti_client, _graphiti_initialized
         
+        def _is_shutdown_requested() -> bool:
+            """Check if shutdown has been requested from main.py signal handler."""
+            try:
+                import src.main
+                return getattr(src.main, '_shutdown_requested', False)
+            except (ImportError, AttributeError):
+                return False
+        
+        async def _async_interruptible_sleep(seconds: float) -> None:
+            """Async sleep that can be interrupted by shutdown signal or cancellation."""
+            start_time = asyncio.get_event_loop().time()
+            while asyncio.get_event_loop().time() - start_time < seconds:
+                # Check for shutdown signal
+                if _is_shutdown_requested():
+                    logger.info("Async sleep interrupted by shutdown signal")
+                    raise asyncio.CancelledError("Shutdown requested")
+                
+                # Sleep in small intervals
+                try:
+                    await asyncio.sleep(0.1)
+                except asyncio.CancelledError:
+                    logger.info("Async sleep cancelled")
+                    raise
         
         if _shared_graphiti_client is not None:
             return _shared_graphiti_client
@@ -80,6 +103,13 @@ try:
             
             while attempt < max_retries:
                 attempt += 1
+                
+                # Check for shutdown before each attempt
+                if _is_shutdown_requested():
+                    logger.info("Graphiti client initialization interrupted by shutdown signal")
+                    _graphiti_initialized = True
+                    raise asyncio.CancelledError("Shutdown requested")
+                
                 try:
                     logger.info(f"Attempt {attempt}/{max_retries}: Initializing shared Graphiti client with Neo4j at {settings.NEO4J_URI}")
                     
@@ -114,12 +144,9 @@ try:
                         wait_time = min(retry_delay * (2 ** (attempt - 1)), max_delay)
                         logger.info(f"Waiting {wait_time:.1f}s before retry...")
                         
-                        # Use interruptible async sleep
+                        # Use interruptible async sleep that checks for shutdown
                         try:
-                            # Sleep in small intervals to allow cancellation
-                            intervals = int(wait_time * 10)
-                            for _ in range(intervals):
-                                await asyncio.sleep(0.1)
+                            await _async_interruptible_sleep(wait_time)
                         except asyncio.CancelledError:
                             logger.info("Graphiti retry sleep cancelled")
                             _graphiti_initialized = True
