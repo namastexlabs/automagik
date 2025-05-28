@@ -62,7 +62,7 @@ jobs:
         AM_API_KEY: "test_am_api_key_placeholder"
         OPENAI_API_KEY: "test_openai_api_key_placeholder"
         DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
-        # Adicione outras variáveis de ambiente que possam ser necessárias para os testes
+        # Add other environment variables that might be necessary for the tests
       run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing tests/ # Assumes your tests are in the 'tests/' directory
 
     - name: Upload coverage to Artifacts
