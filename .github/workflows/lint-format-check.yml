@@ -1,4 +1,4 @@
-name: Lint, Format, and Test Checks
+name: Code Quality and Security Checks
 
 on:
   push:
@@ -7,67 +7,109 @@ on:
     branches: [ main ] # Add other main branches if necessary
 
 jobs:
-  build_and_test:
-    name: Build, Lint, Format & Test
+  lint_and_format:
+    name: Lint & Format
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv --version
+      - name: Get uv cache directory path
+        id: uv-cache-path
+        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |-
+            ${{ runner.os }}-uv-
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run Linter (Ruff)
+        run: make lint
+      - name: Check Formatter (Ruff)
+        run: make format ARGS=--check
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11' # Adjust Python version according to your pyproject.toml
+  security_scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv --version
+      - name: Get uv cache directory path
+        id: uv-cache-path
+        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |-
+            ${{ runner.os }}-uv-
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Audit Dependencies
+        run: uv run pip-audit
+      - name: Run Bandit Security Analysis
+        run: 'uv run bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
 
-    - name: Install uv
-      run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-    - name: Add uv to PATH
-      # Ensure uv is in PATH for subsequent steps, including uv cache dir
-      run: |
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        uv --version # Verify uv installation
-
-    - name: Get uv cache directory path
-      id: uv-cache-path
-      # Ensure uv is available and in PATH before running this
-      run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-
-    - name: Cache uv dependencies
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.UV_CACHE_DIR }}
-        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-uv-
-
-    - name: Install dependencies
-      run: uv sync --frozen
-
-    - name: Audit Dependencies
-      run: uv run pip-audit
-
-    - name: Run Bandit Security Analysis
-      run: 'uv run bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
-
-    - name: Run Linter (Ruff)
-      run: make lint
-
-    - name: Check Formatter (Ruff)
-      run: make format ARGS=--check # Passes --check to the ruff format command within the Makefile
-
-    - name: Run Pytest with Coverage
-      env:
-        AM_API_KEY: "test_am_api_key_placeholder"
-        OPENAI_API_KEY: "test_openai_api_key_placeholder"
-        DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
-        # Adicione outras variáveis de ambiente que possam ser necessárias para os testes
-      run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing tests/ # Assumes your tests are in the 'tests/' directory
-
-    - name: Upload coverage to Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: coverage.xml
-        if-no-files-found: error # Opcional: falha se o coverage.xml não for encontrado 
+  run_tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv --version
+      - name: Get uv cache directory path
+        id: uv-cache-path
+        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |-
+            ${{ runner.os }}-uv-
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run Pytest with Coverage
+        env:
+          AM_API_KEY: "test_am_api_key_placeholder"
+          OPENAI_API_KEY: "test_openai_api_key_placeholder"
+          DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
+        run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing tests/
+      - name: Upload coverage to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: error 
