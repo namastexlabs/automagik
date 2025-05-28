@@ -13,11 +13,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+<<<<<<< HEAD
       - name: Display uv.lock head (Lint & Format)
         run: |
           echo "--- uv.lock content in CI (Lint & Format) ---"
           if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
           echo "------------------------------------------------"
+=======
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -25,7 +28,11 @@ jobs:
       - name: Install uv & Setup Cache
         uses: astral-sh/setup-uv@v1
         with:
+<<<<<<< HEAD
           version: 'latest'
+=======
+          uv-version: 'latest'
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Install dependencies
         run: uv sync --frozen
       - name: Run Linter (Ruff)
@@ -39,11 +46,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+<<<<<<< HEAD
       - name: Display uv.lock head (Security Scan)
         run: |
           echo "--- uv.lock content in CI (Security Scan) ---"
           if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
           echo "--------------------------------------------------"
+=======
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -51,7 +61,11 @@ jobs:
       - name: Install uv & Setup Cache
         uses: astral-sh/setup-uv@v1
         with:
+<<<<<<< HEAD
           version: 'latest'
+=======
+          uv-version: 'latest'
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Install dependencies
         run: uv sync --frozen
       - name: Audit Dependencies
@@ -65,11 +79,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+<<<<<<< HEAD
       - name: Display uv.lock head (Run Tests)
         run: |
           echo "--- uv.lock content in CI (Run Tests) ---"
           if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
           echo "----------------------------------------------"
+=======
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -77,7 +94,11 @@ jobs:
       - name: Install uv & Setup Cache
         uses: astral-sh/setup-uv@v1
         with:
+<<<<<<< HEAD
           version: 'latest'
+=======
+          uv-version: 'latest'
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Install dependencies
         run: uv sync --frozen
       - name: Run Pytest with Coverage
@@ -99,11 +120,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+<<<<<<< HEAD
       - name: Display uv.lock head (Type Checking)
         run: |
           echo "--- uv.lock content in CI (Type Checking) ---"
           if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
           echo "---------------------------------------------------"
+=======
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -111,7 +135,11 @@ jobs:
       - name: Install uv & Setup Cache
         uses: astral-sh/setup-uv@v1
         with:
+<<<<<<< HEAD
           version: 'latest'
+=======
+          uv-version: 'latest'
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Install dependencies
         run: uv sync --frozen
       - name: Run Mypy
@@ -154,11 +182,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required to get history for some doc/changelog generators
+<<<<<<< HEAD
       - name: Display uv.lock head (Build Docs)
         run: |
           echo "--- uv.lock content in CI (Build Docs) ---"
           if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
           echo "-------------------------------------------------"
+=======
+
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -167,7 +199,11 @@ jobs:
       - name: Install uv & Setup Cache
         uses: astral-sh/setup-uv@v1
         with:
+<<<<<<< HEAD
           version: 'latest'
+=======
+          uv-version: 'latest'
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
 
       - name: Install dependencies
         run: uv sync --frozen
@@ -248,11 +284,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+<<<<<<< HEAD
       - name: Display uv.lock head (Codeflash)
         run: |
           echo "--- uv.lock content in CI (Codeflash) ---"
           if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
           echo "-----------------------------------------------"
+=======
+
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -261,7 +301,11 @@ jobs:
       - name: Install uv & Setup Cache
         uses: astral-sh/setup-uv@v1
         with:
+<<<<<<< HEAD
           version: 'latest'
+=======
+          uv-version: 'latest'
+>>>>>>> dfe8c169a5b4cd717c817f72f30825feef151afb
 
       - name: Install dependencies (including codeflash)
         run: uv sync --frozen
