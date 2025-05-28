@@ -46,7 +46,7 @@ ALLOWED_COMMANDS = {
     # Python package runner (uvx for MCP servers)
     "uvx": {
         "path": "/usr/local/bin/uvx",
-        "fallback_paths": ["/usr/bin/uvx", "/home/*/.local/bin/uvx", "/root/workspace/am-agents-labs/.venv/bin/uvx"],
+        "fallback_paths": ["/usr/bin/uvx", "/home/*/.local/bin/uvx", "/root/.local/bin/uvx", "/root/workspace/am-agents-labs/.venv/bin/uvx"],
         "allowed_args": [
             "mcp-server-*", "@modelcontextprotocol/server-*",
             "--python", "--with", "--from",  # UV arguments
