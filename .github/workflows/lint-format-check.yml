@@ -20,23 +20,27 @@ jobs:
       with:
         python-version: '3.11' # Adjust Python version according to your pyproject.toml
 
-    - name: Get uv cache directory
-      id: uv-cache
-      run: echo "dir=$(uv cache dir)" >> $GITHUB_OUTPUT
-
-    - name: Cache uv
-      uses: actions/cache@v4 # Atualizado para v4
-      with:
-        path: ${{ steps.uv-cache.outputs.dir }}
-        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-uv-
-
     - name: Install uv
       run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
     - name: Add uv to PATH
-      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      # Ensure uv is in PATH for subsequent steps, including uv cache dir
+      run: |
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        uv --version # Verify uv installation
+
+    - name: Get uv cache directory path
+      id: uv-cache-path
+      # Ensure uv is available and in PATH before running this
+      run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+
+    - name: Cache uv dependencies
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.UV_CACHE_DIR }}
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
 
     - name: Install dependencies
       run: uv sync --frozen # or just uv sync if uv.lock is not always up-to-date
