@@ -32,6 +32,9 @@ DOCKER_COMPOSE_PROD := docker/docker-compose-prod.yml
 # Docker Compose command detection
 DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
 
+# Enable Docker Compose bake for better build performance
+export COMPOSE_BAKE := true
+
 # Log parameters
 N ?= 100
 FOLLOW ?=
@@ -79,18 +82,10 @@ define check_env_file
 endef
 
 define detect_graphiti_profile
-	@if [ -f ".env" ] && grep -q "NEO4J_URI.*neo4j" .env && grep -q "NEO4J_USERNAME" .env; then \
+	if [ -f ".env" ] && grep -q "NEO4J_URI.*neo4j" .env && grep -q "NEO4J_USERNAME" .env; then \
 		echo "--profile graphiti"; \
 	else \
 		echo ""; \
-	fi
-endef
-
-define colorize_logs
-	if command -v ccze >/dev/null 2>&1; then \
-		ccze -A; \
-	else \
-		cat; \
 	fi
 endef
 
@@ -112,7 +107,9 @@ help: ## 🪄 Show this help message
 	@echo -e "  $(PURPLE)dev$(NC)             Start development mode (local Python)"
 	@echo -e "  $(PURPLE)docker$(NC)          Start Docker development stack"
 	@echo -e "  $(PURPLE)prod$(NC)            Start production Docker stack"
-	@echo -e "  $(PURPLE)stop$(NC)            Stop all services"
+	@echo -e "  $(PURPLE)stop$(NC)            Stop development automagik-agents container only"
+	@echo -e "  $(PURPLE)stop-prod$(NC)       Stop production automagik-agents container only"
+	@echo -e "  $(PURPLE)stop-all$(NC)        Stop all services (DB, Neo4j, Graphiti, etc.)"
 	@echo -e "  $(PURPLE)restart$(NC)         Restart services"
 	@echo -e "  $(PURPLE)status$(NC)          Show service status"
 	@echo ""
@@ -178,7 +175,7 @@ install-prod: ## 🏭 Install production Docker stack
 # ===========================================
 # 🎛️ Service Management
 # ===========================================
-.PHONY: dev docker prod stop restart status
+.PHONY: dev docker prod stop stop-prod stop-all restart status
 dev: ## 🛠️ Start development mode
 	$(call print_status,Starting development mode...)
 	@$(call check_env_file)
@@ -188,7 +185,7 @@ dev: ## 🛠️ Start development mode
 		exit 1; \
 	fi
 	@$(call print_status,Activating virtual environment and starting...)
-	@. $(VENV_PATH)/bin/activate && python -m src
+	@. $(VENV_PATH)/bin/activate && AM_FORCE_DEV_ENV=1 python -m src
 
 docker: ## 🐳 Start Docker development stack
 	$(call print_status,Starting Docker development stack...)
@@ -209,20 +206,32 @@ prod: ## 🏭 Start production Docker stack
 	@env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) up -d
 	$(call print_success,Production stack started!)
 
-stop: ## 🛑 Stop all services
+stop: ## 🛑 Stop development automagik-agents container only
+	$(call print_status,Stopping development automagik-agents container...)
+	@sudo systemctl stop automagik-agents 2>/dev/null || true
+	@docker stop automagik-agents-dev 2>/dev/null || true
+	@pkill -f "python.*src" 2>/dev/null || true
+	$(call print_success,Development automagik-agents stopped!)
+
+stop-prod: ## 🛑 Stop production automagik-agents container only
+	$(call print_status,Stopping production automagik-agents container...)
+	@docker stop automagik-agents-prod 2>/dev/null || true
+	$(call print_success,Production automagik-agents stopped!)
+
+stop-all: ## 🛑 Stop all services (preserves containers)
 	$(call print_status,Stopping all services...)
 	@sudo systemctl stop automagik-agents 2>/dev/null || true
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --profile graphiti down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --profile graphiti stop 2>/dev/null || true
 	@if [ -f ".env.prod" ]; then \
-		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) down 2>/dev/null || true; \
+		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
 	else \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) down 2>/dev/null || true; \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
 	fi
 	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
 restart: ## 🔄 Restart services
-	@$(MAKE) stop
+	@$(MAKE) stop-all
 	@sleep 2
 	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
 		sudo systemctl start automagik-agents; \
@@ -251,11 +260,29 @@ status: ## 📊 Show service status
 .PHONY: logs health
 logs: ## 📄 View logs (use N=lines, FOLLOW=1 for tail -f)
 	@if [ "$(FOLLOW)" = "1" ]; then \
-		$(call print_status,Following logs - Press Ctrl+C to stop); \
-		$(call follow_logs); \
+		echo -e "$(PURPLE)🪄 Following logs - Press Ctrl+C to stop$(NC)"; \
+	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+			journalctl -u automagik-agents -f --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
+		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
+			container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
+			docker logs -f $$container 2>&1 | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
+		elif [ -f "logs/automagik.log" ]; then \
+			tail -f logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 	else \
-		$(call print_status,Showing last $(N) log lines); \
-		$(call show_logs,$(N)); \
+			echo -e "$(YELLOW)⚠️ No log sources found to follow$(NC)"; \
+		fi; \
+			else \
+		echo -e "$(PURPLE)🪄 Showing last $(N) log lines$(NC)"; \
+	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+			journalctl -u automagik-agents -n $(N) --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
+		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
+			container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
+			docker logs --tail $(N) $$container 2>&1 | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
+	elif [ -f "logs/automagik.log" ]; then \
+			tail -n $(N) logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
+	else \
+			echo -e "$(YELLOW)⚠️ No log sources found$(NC)"; \
+		fi; \
 	fi
 
 health: ## 💊 Check service health
@@ -268,7 +295,7 @@ health: ## 💊 Check service health
 .PHONY: update clean test
 update: ## 🔄 Update and restart services
 	$(call print_status,Updating Automagik Agents...)
-	@$(MAKE) stop
+	@$(MAKE) stop-all
 	@git pull
 	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
 		$(MAKE) install-dev && sudo systemctl start automagik-agents; \
@@ -321,23 +348,8 @@ endef
 
 define create_systemd_service
 	@$(call print_status,Creating systemd service...)
-	@sudo tee /etc/systemd/system/automagik-agents.service > /dev/null <<EOF
-[Unit]
-Description=Automagik Agents Service
-After=network.target
-
-[Service]
-Type=simple
-User=$(shell whoami)
-WorkingDirectory=$(PROJECT_ROOT)
-Environment=PATH=$(VENV_PATH)/bin
-ExecStart=$(VENV_PATH)/bin/python -m src
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
+	@sudo printf '[Unit]\nDescription=Automagik Agents Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nEnvironment=PATH=%s/bin\nExecStart=%s/bin/python -m src\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' \
+		"$(shell whoami)" "$(PROJECT_ROOT)" "$(VENV_PATH)" "$(VENV_PATH)" > /etc/systemd/system/automagik-agents.service
 endef
 
 define show_systemd_status
@@ -373,32 +385,6 @@ define show_local_status
 	fi
 endef
 
-define show_logs
-	@if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		journalctl -u automagik-agents -n $(1) --no-pager | $(call colorize_logs); \
-	elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
-		container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
-		docker logs --tail $(1) $$container 2>&1 | $(call colorize_logs); \
-	elif [ -f "logs/automagik.log" ]; then \
-		tail -n $(1) logs/automagik.log | $(call colorize_logs); \
-	else \
-		$(call print_warning,No log sources found); \
-	fi
-endef
-
-define follow_logs
-	@if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		journalctl -u automagik-agents -f --no-pager | $(call colorize_logs); \
-	elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
-		container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
-		docker logs -f $$container 2>&1 | $(call colorize_logs); \
-	elif [ -f "logs/automagik.log" ]; then \
-		tail -f logs/automagik.log | $(call colorize_logs); \
-	else \
-		$(call print_warning,No log sources found to follow); \
-	fi
-endef
-
 define check_health
 	@healthy=0; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
@@ -416,14 +402,14 @@ define check_health
 		echo -e "$(GREEN)$(CHECKMARK) API health check: passed$(NC)"; \
 	elif curl -s http://localhost:18881/health >/dev/null 2>&1; then \
 		echo -e "$(GREEN)$(CHECKMARK) API health check: passed (prod)$(NC)"; \
-	else \
+		else \
 		echo -e "$(YELLOW)$(WARNING) API health check: failed$(NC)"; \
 	fi
-endef
+endef 
 
 # ===========================================
 # 🧹 Phony Targets
 # ===========================================
 .PHONY: help install install-dev install-docker install-prod
-.PHONY: dev docker prod stop restart status logs health
+.PHONY: dev docker prod stop stop-prod stop-all restart status logs health
 .PHONY: update clean test
