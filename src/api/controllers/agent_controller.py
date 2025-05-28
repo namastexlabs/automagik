@@ -179,6 +179,25 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         if "nonexistent" in agent_name:
             raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
         
+        # Validate agent name and normalize if it's a variation
+        # Get all registered agents from the database
+        registered_agents = await run_in_threadpool(list_db_agents, active_only=False)
+        
+        # Check if this agent name is a variation of an existing agent
+        normalized_agent_name = agent_name
+        for existing_agent in registered_agents:
+            # Check for common variations
+            if (agent_name.lower() == f"{existing_agent.name.lower()}agent" or
+                agent_name.lower() == f"{existing_agent.name.lower()}-agent" or
+                agent_name.lower() == f"{existing_agent.name.lower()}_agent"):
+                # Use the base agent name instead
+                normalized_agent_name = existing_agent.name
+                logger.info(f"Normalized agent name '{agent_name}' to '{normalized_agent_name}'")
+                break
+        
+        # Use normalized name for all operations
+        agent_name = normalized_agent_name
+        
         # Get or create user
         user_id = await get_or_create_user(request.user_id, request.user)
             
