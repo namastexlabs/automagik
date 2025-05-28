@@ -50,18 +50,26 @@ def _interruptible_sleep(seconds: float) -> None:
         KeyboardInterrupt: If shutdown is requested or Ctrl+C is pressed
     """
     start_time = time.time()
+    # Use much shorter intervals for more responsive shutdown detection
+    check_interval = 0.05  # 50ms intervals for very responsive checking
+    
     while time.time() - start_time < seconds:
-        # Check for shutdown signal
+        # Check for shutdown signal FIRST - more aggressive
         if _is_shutdown_requested():
-            logger.info("Sleep interrupted by shutdown signal")
+            logger.info("Sleep interrupted by shutdown signal - exiting immediately")
             raise KeyboardInterrupt("Shutdown requested")
         
-        # Sleep in small intervals
+        # Sleep in very small intervals for maximum responsiveness
         try:
-            time.sleep(0.1)
+            time.sleep(check_interval)
         except KeyboardInterrupt:
-            logger.info("Sleep interrupted by KeyboardInterrupt")
+            logger.info("Sleep interrupted by KeyboardInterrupt - exiting immediately")
             raise
+            
+        # Double-check shutdown flag after each sleep interval
+        if _is_shutdown_requested():
+            logger.info("Sleep interrupted by shutdown signal after interval - exiting immediately")
+            raise KeyboardInterrupt("Shutdown requested")
 
 
 def generate_uuid() -> uuid.UUID:
@@ -211,7 +219,7 @@ def get_connection_pool() -> ThreadedConnectionPool:
         retry_delay = 2  # seconds
 
         for attempt in range(max_retries):
-            # Check for shutdown before each attempt
+            # AGGRESSIVE: Check for shutdown before AND during each attempt
             if _is_shutdown_requested():
                 logger.info("Database connection pool initialization interrupted by shutdown signal")
                 raise KeyboardInterrupt("Shutdown requested")
@@ -223,6 +231,11 @@ def get_connection_pool() -> ThreadedConnectionPool:
                 logger.info(
                     f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{config['database']} with UTF8 encoding..."
                 )
+
+                # Check shutdown flag again right before connection attempt
+                if _is_shutdown_requested():
+                    logger.info("Database connection attempt aborted due to shutdown signal")
+                    raise KeyboardInterrupt("Shutdown requested during connection attempt")
 
                 # Can either connect with individual params or with a connection string
                 if settings.DATABASE_URL and attempt == 0:
@@ -282,21 +295,37 @@ def get_connection_pool() -> ThreadedConnectionPool:
                 break
                 
             except KeyboardInterrupt:
-                # Handle Ctrl+C gracefully
-                logger.info("Database connection attempt interrupted by user")
+                # Handle Ctrl+C gracefully - IMMEDIATE EXIT
+                logger.info("Database connection attempt interrupted by user - exiting immediately")
                 raise
                 
             except psycopg2.Error as e:
+                # Check shutdown flag immediately after any database error
+                if _is_shutdown_requested():
+                    logger.info("Shutdown requested during database error handling - exiting immediately")
+                    raise KeyboardInterrupt("Shutdown requested during error handling")
+                    
                 if attempt < max_retries - 1:
                     logger.warning(
                         f"Failed to connect to database (attempt {attempt + 1}/{max_retries}): {str(e)}"
                     )
-                    # Use interruptible sleep that checks for shutdown signals
+                    
+                    # AGGRESSIVE: Check shutdown flag before starting sleep
+                    if _is_shutdown_requested():
+                        logger.info("Shutdown requested before retry delay - exiting immediately")
+                        raise KeyboardInterrupt("Shutdown requested before retry")
+                    
+                    # Use more aggressive interruptible sleep with shorter intervals
                     try:
                         _interruptible_sleep(retry_delay)
                     except KeyboardInterrupt:
-                        logger.info("Database connection retry interrupted by user")
+                        logger.info("Database connection retry interrupted by user - exiting immediately")
                         raise
+                        
+                    # Check shutdown flag again after sleep
+                    if _is_shutdown_requested():
+                        logger.info("Shutdown requested after retry delay - exiting immediately")
+                        raise KeyboardInterrupt("Shutdown requested after retry delay")
                 else:
                     logger.error(
                         f"Failed to connect to database after {max_retries} attempts: {str(e)}"
