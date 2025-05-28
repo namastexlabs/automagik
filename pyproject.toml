@@ -45,6 +45,7 @@ dependencies = [
     "ruff>=0.10.0",
     "pytest-cov>=2.12",
     "uv>=0.6.8",
+    "pip-audit>=2.7.0",
     "pydantic-ai-slim[duckduckgo]>=0.0.42",
     "pip>=25.0.1",
     "pydantic[email]>=2.10.6",
