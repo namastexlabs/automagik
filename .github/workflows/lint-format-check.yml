@@ -169,3 +169,56 @@ jobs:
           #   ARG_NAME=value
           # labels: |
           #   org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} 
+
+  build_and_deploy_docs:
+    name: Build & Deploy Docs
+    runs-on: ubuntu-latest
+    # Só roda em pushes para a branch main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write # Necessário para fazer push para a branch gh-pages
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necessário para obter histórico para alguns geradores de docs/changelog
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv --version
+
+      - name: Get uv cache directory path
+        id: uv-cache-path
+        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-docs-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |-
+            ${{ runner.os }}-uv-docs-
+
+      - name: Install dependencies (including Sphinx)
+        run: uv sync --frozen
+
+      - name: Build Sphinx Documentation
+        # O -W transforma warnings em erros, garantindo qualidade
+        run: uv run sphinx-build -b html -W --keep-going docs/ build/docs
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/docs
+          # Opcional: se você quiser um domínio customizado
+          # cname: docs.meudominio.com 
