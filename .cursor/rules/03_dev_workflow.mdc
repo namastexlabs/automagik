@@ -26,14 +26,16 @@ mcp_agent-memory_search_memory_facts --query "dependencies relationships"
 
 **Git Integration:**
 ```bash
-# Start work with clean state
+# MANDATORY: Start work with Linear-first naming
+# 1. Create Linear task FIRST, get NMSTX-XX ID
+# 2. Create standardized branch name
 git checkout -b NMSTX-XX-feature-name  # Branch from Linear issue ID
 
 # Commit after each meaningful change (not entire features)
 git add -p  # Review changes incrementally
-git commit -m "feat(agent): add tool registration logic"  # Semantic commits
+git commit -m "feat(NMSTX-XX): add tool registration logic"  # Always reference Linear ID
 
-# Push progress regularly
+# Push progress regularly with standardized name
 git push origin NMSTX-XX-feature-name
 ```
 
@@ -391,4 +393,32 @@ temp_api_check.py
 Debug script for NMSTX-123 memory integration issue
 Created: 2025-01-26
 """
+```
+
+## 🚨 **CRITICAL: Linear-First Branch Naming** 
+
+### **Mandatory Workflow** ✅ **REQUIRED**
+```bash
+# NEVER start development without Linear task
+1. Create Linear task FIRST → Get NMSTX-XX
+2. Create branch: git checkout -b NMSTX-XX-description  
+3. Work with Linear ID in ALL commits
+4. Push using standardized branch name
+```
+
+### **Branch Name Standards** 🚨 **ENFORCED**
+- ✅ **REQUIRED**: `NMSTX-XX-brief-description`
+- ❌ **FORBIDDEN**: Descriptive names without Linear ID
+- ❌ **FORBIDDEN**: Starting work before creating Linear task
+- ❌ **FORBIDDEN**: Pushing non-standard branch names
+
+### **Standardization Enforcement**
+```bash
+# If you have non-standard branch name:
+git branch -m old-name NMSTX-XX-corrected-name
+git push origin NMSTX-XX-corrected-name
+git push origin --delete old-name  # Clean up
+
+# Before any remote push, verify naming:
+git branch --show-current  # Must start with NMSTX-XX
 ```

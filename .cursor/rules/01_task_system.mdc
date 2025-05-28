@@ -58,6 +58,56 @@ CANCELED="15aaa37e-a012-43a8-92d2-b6ff3399137e"
 "🚫 AI BLOCKED: [Problem]"  # Example: "🚫 AI BLOCKED: Missing API credentials"
 ```
 
+## 🚨 **MANDATORY BRANCH NAMING** (CRITICAL)
+
+### **Standard Format** ✅ **REQUIRED**
+```bash
+# MANDATORY: Always use Linear task ID as prefix
+NMSTX-{NUMBER}-{brief-description}
+
+# ✅ CORRECT Examples:
+git checkout -b NMSTX-127-database-retry-interrupt-fix
+git checkout -b NMSTX-63-memory-user-validation
+git checkout -b NMSTX-89-discord-agent-integration
+
+# ❌ WRONG Examples (NEVER USE):
+git checkout -b database-retry-fix          # Missing Linear ID
+git checkout -b fix/memory-validation       # Wrong format
+git checkout -b feature-discord-agent       # No traceability
+```
+
+### **Branch Naming Enforcement** 🚨 **CRITICAL**
+1. **NEVER start work without Linear task ID**
+2. **Always create Linear task FIRST**
+3. **Rename existing branches** if they don't follow standard
+4. **Use `git branch -m old-name NMSTX-XX-new-name`** to fix naming
+5. **Push only standardized branch names** to remote
+
+### **Workflow Standardization**
+```bash
+# 1. Create Linear task FIRST
+mcp_linear_create_issue --title "🐛 Component: Issue description"
+
+# 2. Get returned NMSTX-XX ID from Linear response
+
+# 3. Create standardized branch name
+git checkout -b NMSTX-XX-brief-description
+
+# 4. Work and commit with Linear ID references
+git commit -m "fix(NMSTX-XX): implement solution"
+
+# 5. Push with standardized name
+git push origin NMSTX-XX-brief-description
+```
+
+### **Branch Rename Process** (For existing branches)
+```bash
+# If you have non-standard branch name:
+git branch -m old-branch-name NMSTX-XX-corrected-name
+git push origin NMSTX-XX-corrected-name
+git push origin --delete old-branch-name  # Clean up old branch
+```
+
 ## 🚀 **Efficient Workflow**
 
 ### **Standard Issue Creation**
