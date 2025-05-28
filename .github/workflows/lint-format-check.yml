@@ -8,7 +8,7 @@ on:
 
 jobs:
   lint_and_format:
-    name: Lint & Format
+    name: CI / Lint & Format (${{ github.event_name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -41,7 +41,7 @@ jobs:
         run: make format ARGS=--check
 
   security_scan:
-    name: Security Scan
+    name: CI / Security Scan (${{ github.event_name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -74,7 +74,7 @@ jobs:
         run: 'uv run bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
 
   run_tests:
-    name: Run Tests
+    name: CI / Run Tests (${{ github.event_name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -115,7 +115,7 @@ jobs:
           if-no-files-found: error 
 
   type_check:
-    name: Type Checking
+    name: CI / Type Checking (${{ github.event_name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -146,7 +146,7 @@ jobs:
         run: uv run mypy src/ 
 
   build_docker_image:
-    name: Build Docker Image
+    name: CI / Build Docker Image (${{ github.event_name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -171,7 +171,7 @@ jobs:
           #   org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} 
 
   build_and_deploy_docs:
-    name: Build & Deploy Docs
+    name: CI / Build & Deploy Docs (${{ github.event_name }})
     runs-on: ubuntu-latest
     # Só roda em pushes para a branch main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
