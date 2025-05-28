@@ -4,112 +4,77 @@ This guide provides step-by-step instructions for setting up your local developm
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+The Makefile system can automatically install most prerequisites, but you'll need:
 
-*   **Python:** Version 3.10, 3.11, or 3.12 (check with `python --version`). You can use tools like `pyenv` to manage multiple Python versions.
-*   **Docker & Docker Compose:** Required for running the PostgreSQL database and optional services (Neo4j, Graphiti). Visit the [Docker website](https://docs.docker.com/get-docker/) for installation instructions.
-*   **Git:** For cloning the repository.
-*   **`uv`:** The Python package installer and virtual environment manager used by this project. The setup script will install it automatically if not present.
+*   **Basic System**: Linux, macOS, or WSL on Windows
+*   **Git:** For cloning the repository
+*   **Internet Connection:** For downloading dependencies
+
+The following will be installed automatically if missing:
+*   **Python:** Version 3.10+ (automatically detected/installed)
+*   **Docker & Docker Compose:** For containerized services
+*   **uv:** Python package manager (preferred over pip)
+*   **System tools:** make, curl, jq, ccze (for colored logs)
 
 ## Quick Start (Recommended)
 
-The easiest way to get started is using the automated setup script:
+The easiest way to get started is using the automated Makefile system:
 
 ```bash
 git clone https://github.com/namastexlabs/automagik-agents.git
 cd automagik-agents
-bash scripts/install/setup.sh
+
+# Show all available commands
+make help
+
+# Install prerequisites (all platforms)
+make install-prerequisites
+
+# Quick installation and startup
+make install-dev    # Install development environment
+make dev           # Start development mode
 ```
 
-The installer will guide you through:
-- **Local Installation**: Python virtual environment (recommended for development)
-- **Docker Installation**: Containerized deployment (recommended for production)
-
-### Non-Interactive Installation
-
-For automated deployments or CI/CD, you can use non-interactive mode:
+### Installation Modes
 
 ```bash
-# Local installation with API keys
-bash scripts/install/setup.sh --component agents --mode local \
-  --openai-key sk-your-openai-key \
-  --discord-token your-discord-token \
-  --non-interactive
+# Auto-detect best mode for your system
+make install
 
-# Docker installation (production)
-bash scripts/install/setup.sh --component agents --mode docker \
-  --openai-key sk-your-openai-key \
-  --non-interactive
-
-# Install as systemd service (Linux only)
-bash scripts/install/setup.sh --component agents --mode local \
-  --install-service --non-interactive
+# Specific installation modes:
+make install-dev       # Development (local Python + venv)
+make install-docker    # Docker development environment
+make install-prod      # Production Docker environment  
+make install-service   # Systemd service (Linux only)
 ```
 
-### Setup Script Options
+### Platform Support
+
+The Makefile automatically detects your platform and uses the appropriate package manager:
+
+- **Ubuntu/Debian**: `apt-get`
+- **RHEL/CentOS**: `yum`
+- **Fedora**: `dnf`
+- **Arch Linux**: `pacman`
+- **macOS**: `brew` (installs Homebrew if needed)
+
+## Manual Prerequisites (Advanced)
+
+If you prefer to install prerequisites manually:
 
 ```bash
-# Available options:
---component NAME        # Component to install (agents, omni, langflow, bundle)
---mode MODE            # Installation mode (local, docker, quick-update)
---openai-key KEY       # OpenAI API key for non-interactive installs
---discord-token TOKEN  # Discord bot token for non-interactive installs
---am-api-key KEY       # Automagik API key (auto-generated if not provided)
---no-python           # Skip Python installation
---no-docker           # Skip Docker installation
---no-dev              # Skip development tools installation
---verbose             # Enable verbose output
---non-interactive     # Skip interactive prompts and use defaults
---install-service     # Install as systemd service (Linux only)
+# Check what's needed
+make check-system
+
+# Verify after installation
+make verify-prerequisites
 ```
 
-## Manual Installation (Advanced)
+## Configuration
 
-If you prefer to set up manually or need to customize the installation:
+### 1. Environment Variables
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/namastexlabs/automagik-agents.git
-cd automagik-agents
-```
-
-### 2. Install UV Package Manager
-
-If `uv` is not installed, install it:
-
-```bash
-# Install UV
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# or
-pip install uv
-```
-
-### 3. Create Virtual Environment
-
-```bash
-# Create virtual environment with UV
-uv venv
-
-# Activate virtual environment
-source .venv/bin/activate  # On Linux/macOS
-# or
-.venv\Scripts\activate     # On Windows
-```
-
-### 4. Install Dependencies
-
-```bash
-# Sync dependencies using UV
-uv sync
-
-# Install project in editable mode
-uv pip install -e .
-```
-
-### 5. Set Up Environment Variables
-
-Copy the example environment file and configure it:
+Copy and configure the environment file:
 
 ```bash
 cp .env.example .env
@@ -155,39 +120,68 @@ ANTHROPIC_API_KEY=
 - Get API keys from: [OpenAI](https://platform.openai.com/api-keys), [Google AI Studio](https://makersuite.google.com/app/apikey), [Anthropic](https://console.anthropic.com/)
 - The `AM_API_KEY` is used for internal API authentication - generate a secure random string
 
-### 6. Start Database Services
-
-#### Option A: Using Setup Script (Recommended)
-
-The setup script handles Docker service management automatically:
+### 2. Database Setup
 
 ```bash
-# Use the setup script - it will handle Docker services
-bash scripts/install/setup.sh --component agents --mode docker
+# Install and start PostgreSQL
+make install-postgres
 
-# Or for local mode with Docker database
-bash scripts/install/setup.sh --component agents --mode local
+# Initialize database
+make db-init
+
+# Optional: Install graph services
+make install-neo4j      # Neo4j database
+make install-graphiti   # Graphiti service
 ```
 
-#### Option B: Manual Docker Commands (Advanced)
+## Service Management
 
-If you need to manage Docker services manually:
+### Starting Services
 
 ```bash
-# Start PostgreSQL only
-cd docker
-docker compose up -d postgres
+# Development mode (local Python)
+make dev
 
-# Start all services (PostgreSQL + Neo4j + Graphiti)
-docker compose --profile graphiti up -d
+# Docker development stack
+make docker
+
+# Production Docker stack  
+make prod
+
+# Force start (stops conflicting services)
+make dev FORCE=1
 ```
 
-#### Option C: Local PostgreSQL
-
-If you have PostgreSQL installed locally, ensure it's running and create the database:
+### Monitoring
 
 ```bash
-createdb automagik_agents
+# Beautiful PM2-style status display
+make status
+
+# Quick status summary
+make status-quick
+
+# Health check all services
+make health
+
+# View logs (colorized)
+make logs
+
+# Follow logs in real-time
+make logs-f
+```
+
+### Service Control
+
+```bash
+# Stop all services
+make stop
+
+# Restart services
+make restart
+
+# Auto-detect mode and start appropriate service
+make start
 ```
 
 ## Verification
@@ -195,30 +189,17 @@ createdb automagik_agents
 ### 1. Check Installation
 
 ```bash
-# Check if virtual environment is activated
-which python  # Should point to .venv/bin/python
+# Comprehensive system check
+make check-system
 
-# Check if automagik CLI is available
-automagik --help
+# Verify all prerequisites
+make verify-prerequisites
 
-# Check database connection
-automagik agents db init  # Initialize database schema
+# Check service status
+make status
 ```
 
-### 2. Start the Server
-
-```bash
-# Using the new CLI commands
-automagik agents start              # Start the server
-
-# Or in development mode with auto-reload
-automagik agents dev                # Start with auto-reload (stops any existing server)
-
-# Or using uvicorn directly (if needed)
-uvicorn src.main:app --host 0.0.0.0 --port 8881 --reload
-```
-
-### 3. Test the API
+### 2. Test the API
 
 ```bash
 # Health check
@@ -234,200 +215,223 @@ curl -X POST http://localhost:8881/api/v1/agent/simple/run \
   -d '{"message_content": "Hello!", "session_name": "test"}'
 ```
 
-## Post-Installation Commands
+## Development Workflow
 
-The automagik CLI provides unified commands for managing your installation:
-
-```bash
-automagik agents start      # Start the service/container
-automagik agents stop       # Stop the service/container
-automagik agents restart    # Restart the service/container
-automagik agents status     # Show service status
-automagik agents logs       # View logs with colors
-automagik agents dev        # Start in development mode
-automagik agents --help     # Show all commands
-
-# Optional: Install alias for shorter commands
-automagik install-alias     # Install 'agent' alias
-automagik uninstall-alias   # Remove 'agent' alias
-
-# After installing alias, you can use shorter commands:
-agent start      # Same as 'automagik agents start'
-agent stop       # Same as 'automagik agents stop'
-agent status     # Same as 'automagik agents status'
-# ... etc
-```
-
-## Docker Installation Details
-
-The Docker setup includes:
-
-- **PostgreSQL**: Main database (port 5432)
-- **Neo4j**: Graph database for advanced memory (port 7474 web, 7687 bolt)
-- **Graphiti**: Graph intelligence service (port 8000)
-- **Automagik Agents**: Main application (port 8881)
-
-### Recommended: Use Setup Script
-
-The setup script automatically manages Docker services:
+### Essential Commands
 
 ```bash
-# Install with Docker mode (handles everything automatically)
-bash scripts/install/setup.sh --component agents --mode docker
+# Start development
+make dev                  # Start with auto-reload
 
-# Quick update (rebuilds and restarts containers)
-bash scripts/install/setup.sh --component agents --mode quick-update
+# Monitor and debug
+make status              # PM2-style status table
+make logs-f              # Follow logs
+make health              # Check all services
+
+# Development tools
+make test                # Run test suite
+make lint                # Code linting
+make format              # Code formatting
+make requirements-update # Update dependencies
 ```
 
-### Manual Docker Commands (Advanced)
-
-If you need direct Docker control:
+### Database Operations
 
 ```bash
-# Start all services
-cd docker
-docker compose up -d
-
-# Start with graph services
-docker compose --profile graphiti up -d
-
-# View logs
-docker compose logs -f automagik-agents
-
-# Stop services
-docker compose down
-
-# Rebuild and restart
-docker compose up -d --build
+# Database management
+make db-init             # Initialize schema
+make db-migrate          # Run migrations
+make db-reset            # Reset database (⚠️ destructive)
 ```
 
-## Development Setup
-
-For development work, additional setup is recommended:
-
-### 1. Install Development Dependencies
+### Docker Operations
 
 ```bash
-# Development tools are included in uv sync
-# Additional tools can be installed as needed
-uv pip install pytest pytest-asyncio ruff black isort mypy
+# Docker development
+make docker              # Start Docker stack
+make docker-build        # Build images
+make docker-clean        # Clean containers/images
 ```
 
-### 2. Pre-commit Hooks (Optional)
+## Production Deployment
+
+### Docker Production Setup
 
 ```bash
-# Install pre-commit
-uv pip install pre-commit
+# Install production environment
+make install-prod
 
-# Set up hooks
-pre-commit install
+# Start production stack
+make prod
+
+# Monitor production
+make status
+make health
+make logs-f
 ```
 
-### 3. IDE Configuration
+### Systemd Service Setup
 
-For VS Code, recommended extensions:
-- Python
-- Pylance
-- Ruff
-- Docker
+```bash
+# Install as systemd service (Linux only)
+make install-service
+
+# Control via systemd
+sudo systemctl start automagik-agents
+sudo systemctl status automagik-agents
+
+# Or use make commands
+make start    # Uses systemd if installed
+make stop
+make restart
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**1. `uv` command not found:**
+**1. Prerequisites missing:**
 ```bash
-# Install UV manually
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Add to PATH
-export PATH="$HOME/.local/bin:$PATH"
+# Install all prerequisites
+make install-prerequisites
+
+# Check what's missing
+make check-system
 ```
 
-**2. Virtual environment activation fails:**
+**2. Virtual environment issues:**
 ```bash
-# Recreate virtual environment
-rm -rf .venv
-uv venv
-source .venv/bin/activate
-uv sync
+# Clean and recreate
+make venv-clean
+make install-python-env
 ```
 
 **3. Database connection errors:**
 ```bash
 # Check service status
-automagik agents status
+make status
 
-# Manual Docker checks
-cd docker
-docker compose ps postgres
+# Check health
+make health
 
-# Check database logs
-docker compose logs postgres
+# View logs
+make logs
 
-# Verify connection string in .env
-echo $DATABASE_URL
+# Restart database
+make install-postgres
 ```
 
-**4. Permission denied on setup script:**
+**4. Port conflicts:**
 ```bash
-chmod +x scripts/install/setup.sh
+# Stop conflicting services
+make stop
+
+# Force start new service
+make dev FORCE=1
+
+# Check what's using ports
+make status
 ```
 
-**5. Docker port conflicts:**
+**5. Docker issues:**
 ```bash
-# Check what's using the port
-lsof -i :8881
-lsof -i :5432
+# Clean Docker resources
+make docker-clean
 
-# Change ports in .env file
-AM_PORT=8882
-POSTGRES_PORT=5433
+# Rebuild containers
+make docker-build
+make docker
 ```
 
-**6. API key errors:**
-- Ensure API keys are properly set in `.env`
-- Check that `.env` file is in the project root
-- Verify API key format (OpenAI keys start with `sk-`)
+### Log Analysis
 
-### Getting Help
+```bash
+# Smart log detection (auto-finds source)
+make logs
 
-1. Check the [API documentation](http://localhost:8881/docs) when the server is running
-2. View logs: `automagik agents logs` or `docker compose logs -f`
-3. Check service status: `automagik agents status` or `docker compose ps`
-4. Verify environment: `automagik agents db check` (if available)
+# Follow logs from all sources
+make logs-all
+
+# Interactive container selection
+make logs-docker
+
+# Specific line counts
+make logs-100    # Last 100 lines
+make logs-500    # Last 500 lines
+```
+
+### Health Diagnostics
+
+```bash
+# Comprehensive health check
+make health
+
+# Individual service checks
+make status           # All instances
+make status-quick     # One-line summary
+
+# Check specific components
+curl http://localhost:8881/health      # API health
+make db-init                          # Database connectivity
+```
 
 ### Clean Installation
 
-If you need to start fresh:
+```bash
+# Full reset (⚠️ destructive)
+make reset
+
+# Clean specific components
+make clean              # Temporary files
+make venv-clean         # Virtual environment
+make docker-clean       # Docker resources
+
+# Reinstall from scratch
+make install-dev
+```
+
+## Advanced Configuration
+
+### Environment Detection
+
+The Makefile automatically detects:
+- **Environment files**: `.env` for development, `.env.prod` for production
+- **Running services**: Docker containers, systemd services, local processes
+- **Platform**: Linux distribution or macOS for package management
+
+### Force Mode
+
+Use `FORCE=1` to override conflict detection:
 
 ```bash
-# Stop services using unified CLI
-automagik agents stop
+make dev FORCE=1        # Stop existing and start dev
+make docker FORCE=1     # Force Docker mode
+make prod FORCE=1       # Force production mode
+```
 
-# Or manually stop Docker services
-cd docker && docker compose down -v  # -v removes volumes
+### Individual Services
 
-# Remove virtual environment
-rm -rf .venv
-
-# Remove environment file (optional)
-rm .env
-
-# Run setup again
-bash scripts/install/setup.sh
+```bash
+# Install specific services
+make install-postgres   # PostgreSQL only
+make install-neo4j      # Neo4j only
+make install-graphiti   # Graphiti only
+make install-python-env # Python environment only
 ```
 
 ## Next Steps
 
 After successful installation:
 
-1. **Configure your agents**: Edit agent configurations in `src/agents/`
-2. **Add integrations**: Configure Discord, Notion, or other tools in `.env`
-3. **Create custom agents**: Use `automagik agents create` command
-4. **Set up monitoring**: Configure Logfire or other monitoring tools
-5. **Deploy to production**: Use Docker mode for production deployments
+1. **Test basic functionality**: `make dev && make status && make logs-f`
+2. **Configure agents**: Edit configurations in `src/agents/`
+3. **Add integrations**: Configure Discord, Notion, etc. in `.env`
+4. **Create custom agents**: Use the agent creation system
+5. **Set up monitoring**: Configure health checks and logging
+6. **Deploy to production**: Use `make install-prod && make prod`
 
 For more information, see:
-- [Configuration Guide](./configuration.md)
-- [Agent Development Guide](./agents.md)
-- [API Reference](http://localhost:8881/docs) 
+- [Makefile Reference](./makefile-reference.md) - Complete command reference
+- [Configuration Guide](./configuration.md) - Detailed configuration
+- [Running Guide](./running.md) - Operational procedures
+- [API Reference](http://localhost:8881/docs) - API documentation 
