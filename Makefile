@@ -228,4 +228,87 @@ check-force:
 		$(call print_warning,This operation may conflict with running services); \
 		echo "$(YELLOW)💡 Use 'make $@ FORCE=1' to proceed anyway$(NC)"; \
 		exit 1; \
-	fi 
+	fi
+
+# ===========================================
+# 💜 PM2-STYLE STATUS DISPLAY
+# ===========================================
+status: ## 📊 Show PM2-style status table
+	$(call print_status,Automagik Agents Status)
+	@echo ""
+	@echo "$(BOLD_PURPLE)┌─────────────────┬──────────┬───────┬────────┬─────────┬──────────┐$(NC)"
+	@echo "$(BOLD_PURPLE)│ Instance        │ Mode     │ Port  │ PID    │ Uptime  │ Status   │$(NC)"
+	@echo "$(BOLD_PURPLE)├─────────────────┼──────────┼───────┼────────┼─────────┼──────────┤$(NC)"
+	@$(call show_docker_status)
+	@$(call show_local_status)
+	@$(call show_service_status)
+	@echo "$(BOLD_PURPLE)└─────────────────┴──────────┴───────┴────────┴─────────┴──────────┘$(NC)"
+	@echo ""
+
+status-quick: ## ⚡ Quick status summary
+	@mode=$$($(call detect_mode)); \
+	docker_count=$$(docker ps --filter "name=automagik" --format "{{.Names}}" 2>/dev/null | wc -l); \
+	local_count=$$(pgrep -f "uvicorn.*automagik" | wc -l); \
+	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+		service_active="active"; \
+	else \
+		service_active="inactive"; \
+	fi; \
+	echo "$(PURPLE)💜 Mode: $$mode | Docker: $$docker_count | Local: $$local_count | Service: $$service_active$(NC)"
+
+define show_docker_status
+	if docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -q "automagik"; then \
+		docker ps --format "{{.Names}}\t{{.Status}}\t{{.Ports}}" | grep "automagik" | while IFS=$$'\t' read -r name status ports; do \
+			uptime=$$(echo "$$status" | sed 's/Up //g' | sed 's/ (.*//g'); \
+			port=$$(echo "$$ports" | grep -o '[0-9]*->[0-9]*' | head -1 | cut -d'>' -f2 | cut -d'/' -f1); \
+			if [ -z "$$port" ]; then \
+				port=$$(echo "$$ports" | grep -o '[0-9]*:[0-9]*->[0-9]*' | head -1 | cut -d'>' -f2 | cut -d'/' -f1); \
+			fi; \
+			if [ -z "$$port" ]; then port="-"; fi; \
+			container_id=$$(docker ps --format "{{.ID}}" --filter "name=$$name" | head -c 6); \
+			if echo "$$status" | grep -q "Up"; then \
+				status_icon="$(GREEN)● online$(NC)"; \
+			else \
+				status_icon="$(RED)● error$(NC)"; \
+			fi; \
+			printf "$(BOLD_PURPLE)│$(NC) %-15s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC) %-5s $(BOLD_PURPLE)│$(NC) %-6s $(BOLD_PURPLE)│$(NC) %-7s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC)\n" \
+				"$$(echo $$name | cut -c1-15)" "docker" "$$port" "$$container_id" "$$uptime" "$$status_icon"; \
+		done; \
+	fi
+endef
+
+define show_local_status
+	if pgrep -f "uvicorn.*automagik" >/dev/null 2>&1; then \
+		pid=$$(pgrep -f "uvicorn.*automagik"); \
+		port=$$(netstat -tlnp 2>/dev/null | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
+		uptime=$$(ps -o etime= -p $$pid | tr -d ' '); \
+		printf "$(BOLD_PURPLE)│$(NC) %-15s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC) %-5s $(BOLD_PURPLE)│$(NC) %-6s $(BOLD_PURPLE)│$(NC) %-7s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC)\n" \
+			"automagik-local" "process" "$$port" "$$pid" "$$uptime" "$(GREEN)● online$(NC)"; \
+	else \
+		printf "$(BOLD_PURPLE)│$(NC) %-15s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC) %-5s $(BOLD_PURPLE)│$(NC) %-6s $(BOLD_PURPLE)│$(NC) %-7s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC)\n" \
+			"automagik-local" "process" "-" "-" "-" "$(YELLOW)○ stopped$(NC)"; \
+	fi
+endef
+
+define show_service_status
+	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+		pid=$$(systemctl show automagik-agents --property=MainPID --value 2>/dev/null); \
+		if [ "$$pid" != "0" ] && [ -n "$$pid" ]; then \
+			port=$$(netstat -tlnp 2>/dev/null | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
+			uptime=$$(systemctl show automagik-agents --property=ActiveEnterTimestamp --value 2>/dev/null | xargs -I {} date -d "{}" +%s 2>/dev/null | xargs -I {} echo "scale=0; ($$(date +%s) - {}) / 60" | bc 2>/dev/null || echo "0"); \
+			if [ "$$uptime" -gt 60 ]; then \
+				uptime="$$(echo "scale=0; $$uptime / 60" | bc)h $$(echo "$$uptime % 60" | bc)m"; \
+			else \
+				uptime="$${uptime}m"; \
+			fi; \
+			printf "$(BOLD_PURPLE)│$(NC) %-15s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC) %-5s $(BOLD_PURPLE)│$(NC) %-6s $(BOLD_PURPLE)│$(NC) %-7s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC)\n" \
+				"automagik-svc" "service" "$$port" "$$pid" "$$uptime" "$(GREEN)● online$(NC)"; \
+		else \
+			printf "$(BOLD_PURPLE)│$(NC) %-15s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC) %-5s $(BOLD_PURPLE)│$(NC) %-6s $(BOLD_PURPLE)│$(NC) %-7s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC)\n" \
+				"automagik-svc" "service" "-" "-" "-" "$(RED)● error$(NC)"; \
+		fi; \
+	else \
+		printf "$(BOLD_PURPLE)│$(NC) %-15s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC) %-5s $(BOLD_PURPLE)│$(NC) %-6s $(BOLD_PURPLE)│$(NC) %-7s $(BOLD_PURPLE)│$(NC) %-8s $(BOLD_PURPLE)│$(NC)\n" \
+			"automagik-svc" "service" "-" "-" "-" "$(YELLOW)○ stopped$(NC)"; \
+	fi
+endef 
