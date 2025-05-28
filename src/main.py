@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 async def initialize_all_agents():
     """Initialize agents at startup.
     
-    If AGENTS_NAMES environment variable is set, only initialize those specific agents.
-    Otherwise, initialize all available agents.
+    If AM_AGENTS_NAMES environment variable is set, activate only those specific agents
+    and deactivate all others. Otherwise, all agents remain in their current active state.
     
     This ensures that agents are created and registered in the database
     before any API requests are made, rather than waiting for the first
@@ -46,24 +46,55 @@ async def initialize_all_agents():
         available_agents = AgentFactory.list_available_agents()
         logger.info(f"Found {len(available_agents)} available agents: {', '.join(available_agents)}")
         
-        # Check if specific agents are configured to be initialized
-        agents_to_initialize = available_agents
+        # Handle AM_AGENTS_NAMES to update active status in database
         if settings.AM_AGENTS_NAMES:
             # Parse comma-separated list of agent names
             specified_agents = [name.strip() for name in settings.AM_AGENTS_NAMES.split(',')]
-            logger.info(f"🔧 AM_AGENTS_NAMES environment variable specified. Initializing only: {', '.join(specified_agents)}")
+            logger.info(f"🔧 AM_AGENTS_NAMES environment variable specified: {', '.join(specified_agents)}")
             
-            # Filter specified agents to ensure they actually exist
-            agents_to_initialize = [agent for agent in specified_agents if agent in available_agents 
-                                   or f"{agent}_agent" in available_agents]
+            # Import database functions
+            from src.db.repository.agent import list_agents, get_agent_by_name, update_agent
             
-            # Log warning for any requested agents that don't exist
-            missing_agents = [agent for agent in specified_agents if agent not in available_agents
-                             and f"{agent}_agent" not in available_agents]
-            if missing_agents:
-                logger.warning(f"⚠️ These requested agents were not found: {', '.join(missing_agents)}")
-        else:
-            logger.info(f"🔧 Initializing all {len(available_agents)} available agents...")
+            # First, deactivate all agents
+            all_db_agents = list_agents(active_only=False)
+            deactivated_count = 0
+            for db_agent in all_db_agents:
+                if db_agent.active:
+                    db_agent.active = False
+                    if update_agent(db_agent):
+                        deactivated_count += 1
+                        logger.debug(f"Deactivated agent: {db_agent.name}")
+            
+            if deactivated_count > 0:
+                logger.info(f"📌 Deactivated {deactivated_count} agents")
+            
+            # Activate only the specified agents
+            activated_count = 0
+            for agent_name in specified_agents:
+                # Try exact name first
+                db_agent = get_agent_by_name(agent_name)
+                
+                # If not found, try with _agent suffix
+                if not db_agent and f"{agent_name}_agent" in available_agents:
+                    db_agent = get_agent_by_name(f"{agent_name}_agent")
+                
+                if db_agent:
+                    if not db_agent.active:
+                        db_agent.active = True
+                        if update_agent(db_agent):
+                            activated_count += 1
+                            logger.info(f"✅ Activated agent: {db_agent.name}")
+                else:
+                    logger.warning(f"⚠️ Agent '{agent_name}' not found in database")
+            
+            logger.info(f"✅ Activated {activated_count} agents based on AM_AGENTS_NAMES")
+        
+        # Get only active agents from database for initialization
+        from src.db.repository.agent import list_agents
+        active_db_agents = list_agents(active_only=True)
+        agents_to_initialize = [agent.name for agent in active_db_agents if agent.name in available_agents]
+        
+        logger.info(f"🔧 Initializing {len(agents_to_initialize)} active agents...")
         
         # List to collect all initialized agents
         initialized_agents = []
