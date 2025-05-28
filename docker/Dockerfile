@@ -21,13 +21,15 @@ RUN apk add --no-cache --virtual .build-deps \
 WORKDIR /app
 
 # Copy dependency files first (for better layer caching)
-COPY pyproject.toml uv.lock* ./
+# Ensure uv.lock (TOML format) is copied
+COPY pyproject.toml uv.lock ./
 
 # Copy source code
 COPY src/ ./src/
 
-# Install dependencies and project using uv sync (creates .venv)
-RUN uv sync --no-dev
+# Install dependencies from the TOML uv.lock using uv sync
+# --frozen ensures it uses the lockfile without trying to update it
+RUN uv sync --frozen
 
 # Clean up build dependencies to reduce image size
 RUN apk del .build-deps
