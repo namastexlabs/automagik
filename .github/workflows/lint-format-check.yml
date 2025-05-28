@@ -48,6 +48,9 @@ jobs:
     - name: Audit Dependencies
       run: uv run pip-audit
 
+    - name: Run Bandit Security Analysis
+      run: uv run bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"
+
     - name: Run Linter (Ruff)
       run: make lint
 

@@ -47,6 +47,7 @@ dependencies = [
     "uv>=0.6.8",
     "pip-audit>=2.7.0",
     "pydantic-ai-slim[duckduckgo]>=0.0.42",
+    "bandit>=1.7.5",
     "pip>=25.0.1",
     "pydantic[email]>=2.10.6",
     "pytest-asyncio>=0.26.0",
