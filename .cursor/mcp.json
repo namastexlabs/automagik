@@ -8,15 +8,6 @@
           "postgresql://postgres:postgres@localhost:35432/automagik_agents"
         ]
       },
-      "deepwiki": {
-        "command": "npx",
-        "args": [
-          "-y",
-          "supergateway",
-          "--sse",
-          "https://mcp.deepwiki.com/sse"
-        ]
-      },
       "agent-memory": {
         "transport": "sse",
         "url": "https://genie.brain.namastex.ai/sse"
