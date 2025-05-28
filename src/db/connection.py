@@ -241,12 +241,25 @@ def get_connection_pool() -> ThreadedConnectionPool:
                     raise Exception("Database migrations are not up to date")
                 
                 break
+                
+            except KeyboardInterrupt:
+                # Handle Ctrl+C gracefully
+                logger.info("Database connection attempt interrupted by user")
+                raise
+                
             except psycopg2.Error as e:
                 if attempt < max_retries - 1:
                     logger.warning(
                         f"Failed to connect to database (attempt {attempt + 1}/{max_retries}): {str(e)}"
                     )
-                    time.sleep(retry_delay)
+                    # Use interruptible sleep instead of blocking time.sleep()
+                    try:
+                        # Sleep in small intervals to allow interruption
+                        for _ in range(retry_delay * 10):
+                            time.sleep(0.1)
+                    except KeyboardInterrupt:
+                        logger.info("Database connection retry interrupted by user")
+                        raise
                 else:
                     logger.error(
                         f"Failed to connect to database after {max_retries} attempts: {str(e)}"
