@@ -177,6 +177,11 @@ cython_debug/
 # Credentials
 credentials/
 
+# Makefile artifacts
+.make/
+.makefile-state
+.makefile-cache/
+
 # Added by Claude Task Master
 # Logs
 logs
