@@ -1,4 +1,4 @@
-name: Lint and Format Check
+name: Lint, Format, and Test Checks
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     branches: [ main ] # Add other main branches if necessary
 
 jobs:
-  lint_and_format:
-    name: Lint and Format Check
+  build_and_test:
+    name: Build, Lint, Format & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -19,6 +19,18 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11' # Adjust Python version according to your pyproject.toml
+
+    - name: Get uv cache directory
+      id: uv-cache
+      run: echo "dir=$(uv cache dir)" >> $GITHUB_OUTPUT
+
+    - name: Cache uv
+      uses: actions/cache@v4 # Atualizado para v4
+      with:
+        path: ${{ steps.uv-cache.outputs.dir }}
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
 
     - name: Install uv
       run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -33,4 +45,12 @@ jobs:
       run: make lint
 
     - name: Check Formatter (Ruff)
-      run: make format ARGS=--check # Passes --check to the ruff format command within the Makefile 
+      run: make format ARGS=--check # Passes --check to the ruff format command within the Makefile
+
+    - name: Run Pytest
+      env:
+        AM_API_KEY: "test_am_api_key_placeholder"
+        OPENAI_API_KEY: "test_openai_api_key_placeholder"
+        DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
+        # Adicione outras variáveis de ambiente que possam ser necessárias para os testes
+      run: uv run pytest tests/ # Assumes your tests are in the 'tests/' directory 
