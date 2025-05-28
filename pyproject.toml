@@ -49,6 +49,7 @@ dependencies = [
     "pydantic-ai-slim[duckduckgo]>=0.0.42",
     "bandit>=1.7.5",
     "pip>=25.0.1",
+    "mypy>=1.0",
     "pydantic[email]>=2.10.6",
     "pytest-asyncio>=0.26.0",
     "google-api-python-client>=2.165.0",

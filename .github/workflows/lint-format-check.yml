@@ -113,3 +113,34 @@ jobs:
           name: coverage-report
           path: coverage.xml
           if-no-files-found: error 
+
+  type_check:
+    name: Type Checking
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv --version
+      - name: Get uv cache directory path
+        id: uv-cache-path
+        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |-
+            ${{ runner.os }}-uv-
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run Mypy
+        run: uv run mypy src/ 
