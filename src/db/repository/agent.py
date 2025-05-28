@@ -209,9 +209,6 @@ def delete_agent(agent_id: int) -> bool:
         return False
 
 
-
-
-
 def register_agent(name: str, agent_type: str, model: str, description: Optional[str] = None, config: Optional[Dict] = None) -> Optional[int]:
     """Register an agent in the database or update an existing one.
     
@@ -228,6 +225,30 @@ def register_agent(name: str, agent_type: str, model: str, description: Optional
     try:
         # Use the name as-is, no normalization
         agent_name = name
+        
+        # Validate agent name - check if it's a variation of an existing agent
+        # Get all existing agents to check against
+        existing_agents = list_agents(active_only=False)
+        
+        # Check if this agent name is a variation of an existing agent
+        for existing in existing_agents:
+            # Check if the new name is the existing name with "agent" suffix
+            if agent_name.lower() == f"{existing.name.lower()}agent":
+                logger.warning(f"Blocked registration of '{agent_name}' - variation of existing agent '{existing.name}'")
+                # Return the existing agent's ID instead
+                return existing.id
+            
+            # Check if the new name is the existing name with "-agent" suffix  
+            if agent_name.lower() == f"{existing.name.lower()}-agent":
+                logger.warning(f"Blocked registration of '{agent_name}' - variation of existing agent '{existing.name}'")
+                # Return the existing agent's ID instead
+                return existing.id
+                
+            # Check if the new name is the existing name with "_agent" suffix
+            if agent_name.lower() == f"{existing.name.lower()}_agent":
+                logger.warning(f"Blocked registration of '{agent_name}' - variation of existing agent '{existing.name}'")
+                # Return the existing agent's ID instead
+                return existing.id
         
         # Check for existing agent with the exact name
         existing = get_agent_by_name(agent_name)
