@@ -19,7 +19,7 @@
       },
       "agent-memory": {
         "transport": "sse",
-        "url": "http://192.168.112.149:8000/sse"
+        "url": "https://genie.brain.namastex.ai/sse"
       }
     }
   }
