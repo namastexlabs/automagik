@@ -1,14 +1,15 @@
 # ===========================================
-# 💜 Automagik Agents - Makefile
+# 🪄 Automagik Agents - Makefile
 # ===========================================
 # Production-grade AI agent deployment automation
 # Designed for AI agents to parse and execute
 
 .DEFAULT_GOAL := help
+MAKEFLAGS += --no-print-directory
 SHELL := /bin/bash
 
 # ===========================================
-# 💜 COLORS & STYLING
+# 🪄 COLORS & STYLING
 # ===========================================
 PURPLE := \033[0;35m
 BOLD_PURPLE := \033[1;35m
@@ -22,9 +23,11 @@ WARNING := ⚠️
 ERROR := ❌
 ROCKET := 🚀
 GEAR := ⚙️
+MAGIC := 🪄
+SPARKLE := ✨
 
 # ===========================================
-# 💜 CONFIGURATION
+# 🪄 CONFIGURATION
 # ===========================================
 PROJECT_ROOT := $(shell pwd)
 VENV_PATH := $(PROJECT_ROOT)/.venv
@@ -57,7 +60,7 @@ DOCKER_COMPOSE_PROD_FILE := docker/docker-compose-prod.yml
 CONTAINER_PREFIX := automagik
 
 # ===========================================
-# 💜 UTILITY FUNCTIONS
+# 🪄 UTILITY FUNCTIONS
 # ===========================================
 define print_banner
 	@echo ""
@@ -70,7 +73,7 @@ define print_banner
 	@echo -e "  ║       ██ ░██▒██▓   ██▓░██▓  ██▓   ███▒█▓░████▓▒█▓░██▓ ██▓ ██▓  ██▓▒█▓▒██░██▓       ║"
 	@echo -e "  ║      ██▓  ██▓ █████▓▓  ██▓   ██████▓ ░█▓  ██▓    ██▓   ██  ███████████▓    ██▓     ║"
 	@echo -e "  ║                                                                                    ║"
-	@echo -e "  ║                         💜 Production-Ready AI Agents 💜                           ║"
+	@echo -e "  ║                      ✨ 🪄 Automagik AI Agents 🪄 ✨                              ║"
 	@echo -e "  ║                           by Namastex Labs namastex.ai                             ║"
 	@echo -e "  ║                                                                                    ║"
 	@echo -e "  ╚════════════════════════════════════════════════════════════════════════════════════╝"
@@ -85,7 +88,7 @@ define print_section
 endef
 
 define print_status
-	@echo -e "$(PURPLE)💜 $(1)$(NC)"
+	@echo -e "$(PURPLE)🪄 $(1)$(NC)"
 endef
 
 define print_success
@@ -103,7 +106,7 @@ endef
 define check_env_file
 	@if [ ! -f "$(1)" ]; then \
 		$(call print_error,Environment file $(1) not found); \
-		echo "$(YELLOW)💡 Copy .env.example to $(1) and configure it$(NC)"; \
+		echo -e "$(YELLOW)💡 Copy .env.example to $(1) and configure it$(NC)"; \
 		exit 1; \
 	fi
 endef
@@ -111,7 +114,7 @@ endef
 define check_venv
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_error,Virtual environment not found at $(VENV_PATH)); \
-		echo "$(YELLOW)💡 Run 'make install-dev' to set up the environment$(NC)"; \
+		echo -e "$(YELLOW)💡 Run 'make install-dev' to set up the environment$(NC)"; \
 		exit 1; \
 	fi
 endef
@@ -119,14 +122,23 @@ endef
 define check_docker
 	@if ! command -v docker >/dev/null 2>&1; then \
 		$(call print_error,Docker not found); \
-		echo "$(YELLOW)💡 Install Docker first: https://docs.docker.com/get-docker/$(NC)"; \
+		echo -e "$(YELLOW)💡 Install Docker first: https://docs.docker.com/get-docker/$(NC)"; \
 		exit 1; \
 	fi
 	@if ! command -v docker-compose >/dev/null 2>&1; then \
 		$(call print_error,Docker Compose not found); \
-		echo "$(YELLOW)💡 Install Docker Compose: https://docs.docker.com/compose/install/$(NC)"; \
+		echo -e "$(YELLOW)💡 Install Docker Compose: https://docs.docker.com/compose/install/$(NC)"; \
 		exit 1; \
 	fi
+endef
+
+define magic_loading
+	@echo -ne "$(PURPLE)$(MAGIC) $(1)"; \
+	for i in 1 2 3; do \
+		echo -ne " $(SPARKLE)"; \
+		sleep 0.3; \
+	done; \
+	echo -e " $(GREEN)$(CHECKMARK)$(NC)"
 endef
 
 define detect_mode
@@ -142,7 +154,7 @@ define detect_mode
 endef
 
 # ===========================================
-# 💜 PHONY TARGETS
+# 🪄 PHONY TARGETS
 # ===========================================
 .PHONY: help install start stop restart status logs health dev docker prod
 .PHONY: install-dev install-docker install-prod clean reset test lint format
@@ -158,112 +170,65 @@ endef
 .PHONY: check-conflicts-dev check-conflicts-docker check-conflicts-prod
 
 # ===========================================
-# 💜 HELP SYSTEM
+# 🪄 HELP SYSTEM
 # ===========================================
-help: ## 💜 Show this help message
+help: ## 🪄 Show this help message
 	$(call print_banner)
 	@echo -e "$(CYAN)Environment: $(ACTIVE_ENV) (using $(ACTIVE_ENV_FILE))$(NC)"
 	
-	$(call print_section,🚀 Quick Start)
-	@echo -e "  $(PURPLE)install local$(NC)        🏠 Local with uv sync + system service"
-	@echo -e "  $(PURPLE)install dev$(NC)          🛠️  Local with uv sync (no service)"
-	@echo -e "  $(PURPLE)install docker$(NC)       🐳 Docker development environment"
-	@echo -e "  $(PURPLE)install prod$(NC)         🚀 Production Docker environment"
-	@echo -e "  $(PURPLE)dev$(NC)                  🔧 Start development (auto-installs)"
-	@echo -e "  $(PURPLE)docker$(NC)               🐳 Start Docker (auto-installs)"
-	@echo -e "  $(PURPLE)prod$(NC)                 🚀 Start production (auto-installs)"
+	$(call print_section,✨ Quick Start)
+	@echo -e "  $(PURPLE)install$(NC)              🎯 Auto-detect and install environment"
+	@echo -e "  $(PURPLE)install-dev$(NC)          🛠️  Local development environment"
+	@echo -e "  $(PURPLE)dev$(NC)                  🔧 Start development mode"
+	@echo -e "  $(PURPLE)docker$(NC)               🐳 Docker development stack"
+	@echo -e "  $(PURPLE)prod$(NC)                 🚀 Production Docker stack"
 	
-	$(call print_section,🔧 Prerequisites)
-	@echo -e "  $(PURPLE)verify$(NC)               ✅ Verify system prerequisites"
-	@echo -e "  $(PURPLE)install prerequisites$(NC) 📦 Install system dependencies"
-	@echo -e "  $(PURPLE)install uv$(NC)           ⚡ Install UV package manager"
+	$(call print_section,🪄 Prerequisites)
+	@echo -e "  $(PURPLE)install-prerequisites$(NC) 📦 System dependencies (all platforms)"
+	@echo -e "  $(PURPLE)install-uv$(NC)           ⚡ UV Python package manager"
+	@echo -e "  $(PURPLE)verify-prerequisites$(NC) ✅ Verify installation"
+	@echo -e "  $(PURPLE)check-system$(NC)         🔍 Check system status"
 	
 	$(call print_section,🎛️ Service Management)
-	@echo -e "  $(PURPLE)dev start/stop/status$(NC) 🔧 Development service control"
-	@echo -e "  $(PURPLE)docker start/stop/status$(NC) 🐳 Docker service control"
-	@echo -e "  $(PURPLE)prod start/stop/status$(NC) 🚀 Production service control"
+	@echo -e "  $(PURPLE)start$(NC)                ▶️  Start services (auto-detect)"
+	@echo -e "  $(PURPLE)stop$(NC)                 ⏹️  Stop all services"
+	@echo -e "  $(PURPLE)restart$(NC)              🔄 Restart services"
+	@echo -e "  $(PURPLE)status$(NC)               📊 Show service status"
 	@echo -e "  $(PURPLE)logs$(NC)                 📋 View colorized logs"
 	@echo -e "  $(PURPLE)health$(NC)               💊 Health check"
 	
 	$(call print_section,🗄️ Database & Services)
-	@echo -e "  $(PURPLE)install postgres$(NC)     🐘 PostgreSQL database"
-	@echo -e "  $(PURPLE)install neo4j$(NC)        🔗 Neo4j graph database"
-	@echo -e "  $(PURPLE)install graphiti$(NC)     🧠 Knowledge graph service"
-	@echo -e "  $(PURPLE)db init$(NC)              🎯 Initialize database"
-	@echo -e "  $(PURPLE)db migrate$(NC)           📈 Run migrations"
-	@echo -e "  $(PURPLE)db reset$(NC)             🗑️  Reset database $(RED)(destructive!)$(NC)"
+	@echo -e "  $(PURPLE)install-postgres$(NC)     🐘 PostgreSQL database"
+	@echo -e "  $(PURPLE)install-neo4j$(NC)        🔗 Neo4j graph database"
+	@echo -e "  $(PURPLE)install-graphiti$(NC)     🧠 Knowledge graph service"
+	@echo -e "  $(PURPLE)db-init$(NC)              🎯 Initialize database"
+	@echo -e "  $(PURPLE)db-migrate$(NC)           📈 Run migrations"
+	@echo -e "  $(PURPLE)db-reset$(NC)             🗑️  Reset database $(RED)(destructive!)$(NC)"
 	
 	$(call print_section,🛠️ Development)
 	@echo -e "  $(PURPLE)test$(NC)                 🧪 Run test suite"
 	@echo -e "  $(PURPLE)lint$(NC)                 🔍 Code linting"
 	@echo -e "  $(PURPLE)format$(NC)               ✨ Format code"
-	@echo -e "  $(PURPLE)requirements update$(NC)  📦 Update dependencies"
+	@echo -e "  $(PURPLE)requirements-update$(NC)  📦 Update dependencies"
 	
 	$(call print_section,🐳 Docker & Production)
-	@echo -e "  $(PURPLE)docker build$(NC)         🔨 Build Docker images"
-	@echo -e "  $(PURPLE)docker clean$(NC)         🧹 Clean Docker resources"
+	@echo -e "  $(PURPLE)install-docker$(NC)       🐳 Docker environment"
+	@echo -e "  $(PURPLE)install-prod$(NC)         🚀 Production environment"
+	@echo -e "  $(PURPLE)docker-build$(NC)         🔨 Build Docker images"
+	@echo -e "  $(PURPLE)docker-clean$(NC)         🧹 Clean Docker resources"
 	
-	$(call print_section,🗑️ Uninstall & Cleanup)
-	@echo -e "  $(PURPLE)uninstall local$(NC)      🗑️ Remove local environment + service"
-	@echo -e "  $(PURPLE)uninstall dev$(NC)        🗑️ Remove development environment"
-	@echo -e "  $(PURPLE)uninstall docker$(NC)     🗑️ Remove Docker environment"
-	@echo -e "  $(PURPLE)uninstall prod$(NC)       🗑️ Remove production environment"
-	@echo -e "  $(PURPLE)purge$(NC)                💥 Complete system purge"
-	@echo -e "  $(PURPLE)purge-deps$(NC)           🧹 Remove system dependencies only"
+	$(call print_section,🧹 Maintenance)
+	@echo -e "  $(PURPLE)clean$(NC)                🧹 Clean temporary files"
+	@echo -e "  $(PURPLE)reset$(NC)                💥 Full reset $(RED)(destructive!)$(NC)"
+	@echo -e "  $(PURPLE)venv-clean$(NC)           🗑️  Remove virtual environment"
 	
 	@echo ""
-	@echo -e "$(CYAN)💡 Pro tip: Use $(YELLOW)'make <target> FORCE=1'$(CYAN) to force operations$(NC)"
+	@echo -e "$(CYAN)$(SPARKLE) Pro tip: Use $(YELLOW)'make <target> FORCE=1'$(CYAN) to force operations$(NC)"
 	@echo -e "$(CYAN)🔗 More info: $(YELLOW)https://github.com/namastexlabs/automagik-agents$(NC)"
 	@echo ""
 
 # ===========================================
-# 💜 SYSTEM VERIFICATION (COMBINED)
-# ===========================================
-verify: ## ✅ Verify system prerequisites and status
-	$(call print_status,Verifying system prerequisites and status...)
-	@echo ""
-	@echo -e "$(PURPLE)🐍 Python:$(NC)"
-	@python3 --version 2>/dev/null || (echo -e "$(RED)$(ERROR) Python 3 not found$(NC)" && exit 1)
-	@echo -e "$(GREEN)$(CHECKMARK) Python 3 found$(NC)"
-	@echo ""
-	@echo -e "$(PURPLE)🐳 Docker:$(NC)"
-	@docker --version 2>/dev/null || echo -e "$(YELLOW)$(WARNING) Docker not found - required for Docker mode$(NC)"
-	@docker-compose --version 2>/dev/null || echo -e "$(YELLOW)$(WARNING) Docker Compose not found - required for Docker mode$(NC)"
-	@echo ""
-	@echo -e "$(PURPLE)🔧 Build Tools:$(NC)"
-	@make --version >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) make installed$(NC)" || echo -e "$(RED)$(ERROR) make not found$(NC)"
-	@curl --version >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) curl installed$(NC)" || echo -e "$(YELLOW)$(WARNING) curl not found$(NC)"
-	@jq --version >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) jq installed$(NC)" || echo -e "$(YELLOW)$(WARNING) jq not found$(NC)"
-	@git --version >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) git installed$(NC)" || echo -e "$(YELLOW)$(WARNING) git not found$(NC)"
-	@echo ""
-	@echo -e "$(PURPLE)🎨 Optional Tools:$(NC)"
-	@ccze --version >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) ccze installed (colorized logs)$(NC)" || echo -e "$(YELLOW)$(WARNING) ccze not found - logs won't be colorized$(NC)"
-	@multitail -V >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) multitail installed$(NC)" || echo -e "$(YELLOW)$(WARNING) multitail not found$(NC)"
-	@htop --version >/dev/null 2>&1 && echo -e "$(GREEN)$(CHECKMARK) htop installed$(NC)" || echo -e "$(YELLOW)$(WARNING) htop not found$(NC)"
-	@echo ""
-	@echo -e "$(PURPLE)⚡ Package Manager:$(NC)"
-	@if command -v uv >/dev/null 2>&1; then \
-		echo -e "$(GREEN)$(CHECKMARK) uv $$(uv --version | cut -d' ' -f2)$(NC)"; \
-	else \
-		echo -e "$(YELLOW)$(WARNING) uv not found - run 'make install uv'$(NC)"; \
-	fi
-	@echo ""
-	@echo -e "$(PURPLE)📁 Environment:$(NC)"
-	@if [ -f "$(ACTIVE_ENV_FILE)" ]; then \
-		echo -e "$(GREEN)$(CHECKMARK) Environment file $(ACTIVE_ENV_FILE) found$(NC)"; \
-	else \
-		echo -e "$(YELLOW)$(WARNING) Environment file $(ACTIVE_ENV_FILE) not found$(NC)"; \
-	fi
-	@echo ""
-	@echo -e "$(PURPLE)🐍 Virtual Environment:$(NC)"
-	@if [ -d "$(VENV_PATH)" ]; then \
-		echo -e "$(GREEN)$(CHECKMARK) Virtual environment found at $(VENV_PATH)$(NC)"; \
-	else \
-		echo -e "$(YELLOW)$(WARNING) Virtual environment not found - run 'make install dev'$(NC)"; \
-	fi
-
-# ===========================================
-# 💜 SYSTEM CHECKS
+# 🪄 SYSTEM CHECKS
 # ===========================================
 check-system: ## 🔍 Check system prerequisites
 	$(call print_status,Checking system prerequisites...)
@@ -291,7 +256,7 @@ check-system: ## 🔍 Check system prerequisites
 	fi
 
 # ===========================================
-# 💜 PREREQUISITE INSTALLATION SYSTEM
+# 🪄 PREREQUISITE INSTALLATION SYSTEM
 # ===========================================
 
 # OS detection variables
@@ -299,7 +264,6 @@ UNAME_S := $(shell uname -s)
 DISTRO := $(shell lsb_release -si 2>/dev/null || echo "Unknown")
 
 install-prerequisites: ## 🔧 Install system prerequisites for all platforms
-	$(call print_banner)
 	$(call print_status,Installing system prerequisites...)
 	@echo -e "$(CYAN)Detected OS: $(UNAME_S)$(NC)"
 	@if [ "$(DISTRO)" != "Unknown" ]; then \
@@ -317,8 +281,9 @@ install-prerequisites: ## 🔧 Install system prerequisites for all platforms
 	@$(MAKE) install-uv
 	@$(MAKE) verify-prerequisites
 	@echo ""
+	$(call magic_loading,Casting installation spells)
 	$(call print_success,System prerequisites installation complete!)
-	@echo -e "$(CYAN)💡 Run 'make install-dev' to set up the Python environment$(NC)"
+	@echo -e "$(CYAN)$(SPARKLE) Run 'make install-dev' to set up the Python environment$(NC)"
 
 install-prerequisites-linux: ## 🐧 Install Linux system prerequisites
 	$(call print_status,Installing Linux prerequisites...)
@@ -332,7 +297,7 @@ install-prerequisites-linux: ## 🐧 Install Linux system prerequisites
 		$(MAKE) install-prerequisites-arch; \
 	else \
 		$(call print_error,Unsupported Linux distribution); \
-		echo -e "$(YELLOW)💡 Please install manually: python3.12, docker, docker-compose, make, curl, jq, ccze, git$(NC)"; \
+		echo -e "$(YELLOW)💡 Please install manually: python3.12, docker, docker-compose, nodejs, make, curl, jq, ccze, git$(NC)"; \
 		exit 1; \
 	fi
 
@@ -341,16 +306,48 @@ install-prerequisites-debian: ## 📦 Install Debian/Ubuntu prerequisites
 	@echo -e "$(CYAN)Updating package lists...$(NC)"
 	@sudo apt-get update -qq
 	@echo -e "$(CYAN)Installing core packages...$(NC)"
-	@sudo apt-get install -y \
-		python3 python3-pip python3-venv python3-dev \
+	@sudo apt-get install -y -qq \
+		make curl jq git build-essential \
+		software-properties-common apt-transport-https ca-certificates gnupg lsb-release >/dev/null 2>&1 && \
+	echo -e "$(GREEN)$(CHECKMARK) Core packages ready$(NC)" || \
+	sudo apt-get install -y \
 		make curl jq git build-essential \
 		software-properties-common apt-transport-https ca-certificates gnupg lsb-release
+	@echo -e "$(CYAN)Installing Python 3.12...$(NC)"
+	@if ! apt-cache show python3.12 >/dev/null 2>&1; then \
+		echo -e "$(CYAN)Adding deadsnakes PPA for Python 3.12...$(NC)"; \
+		sudo add-apt-repository ppa:deadsnakes/ppa -y; \
+		sudo apt-get update -qq; \
+	fi
+	@if apt-cache show python3.12 >/dev/null 2>&1; then \
+		sudo apt-get install -y -qq python3.12 python3.12-pip python3.12-venv python3.12-dev >/dev/null 2>&1 || \
+		sudo apt-get install -y -qq python3.12 python3.12-venv python3.12-dev python3-pip >/dev/null 2>&1; \
+		echo -e "$(GREEN)$(CHECKMARK) Python 3.12 installed$(NC)"; \
+	else \
+		echo -e "$(YELLOW)$(WARNING) Installing available Python 3 version...$(NC)"; \
+		sudo apt-get install -y -qq python3 python3-pip python3-venv python3-dev >/dev/null 2>&1; \
+		echo -e "$(YELLOW)$(WARNING) Using system Python 3 (Python 3.12 recommended)$(NC)"; \
+	fi
+	@echo -e "$(CYAN)Installing Node.js 22 LTS...$(NC)"
+	@if ! command -v node >/dev/null 2>&1 || ! node --version | grep -q "v22"; then \
+		curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1; \
+		sudo apt-get install -y -qq nodejs >/dev/null 2>&1; \
+		echo -e "$(GREEN)$(CHECKMARK) Node.js 22 LTS installed$(NC)"; \
+	else \
+		echo -e "$(GREEN)$(CHECKMARK) Node.js 22 already installed$(NC)"; \
+	fi
 	@echo -e "$(CYAN)Installing colorization tools...$(NC)"
-	@sudo apt-get install -y ccze multitail || echo -e "$(YELLOW)$(WARNING) ccze/multitail not available in repos$(NC)"
+	@sudo apt-get install -y -qq ccze multitail >/dev/null 2>&1 && \
+	echo -e "$(GREEN)$(CHECKMARK) Colorization tools ready$(NC)" || \
+	echo -e "$(YELLOW)$(WARNING) ccze/multitail not available in repos$(NC)"
 	@echo -e "$(CYAN)Installing optional development tools...$(NC)"
-	@sudo apt-get install -y htop ncdu tree || echo -e "$(YELLOW)$(WARNING) Some development tools not available$(NC)"
+	@sudo apt-get install -y -qq htop ncdu tree >/dev/null 2>&1 && \
+	echo -e "$(GREEN)$(CHECKMARK) Development tools ready$(NC)" || \
+	echo -e "$(YELLOW)$(WARNING) Some development tools not available$(NC)"
 	@echo -e "$(CYAN)Installing PostgreSQL client...$(NC)"
-	@sudo apt-get install -y postgresql-client || echo -e "$(YELLOW)$(WARNING) PostgreSQL client not available$(NC)"
+	@sudo apt-get install -y -qq postgresql-client >/dev/null 2>&1 && \
+	echo -e "$(GREEN)$(CHECKMARK) PostgreSQL client ready$(NC)" || \
+	echo -e "$(YELLOW)$(WARNING) PostgreSQL client not available$(NC)"
 	@$(MAKE) install-docker-debian
 
 install-prerequisites-rhel: ## 📦 Install RHEL/CentOS prerequisites
@@ -358,9 +355,17 @@ install-prerequisites-rhel: ## 📦 Install RHEL/CentOS prerequisites
 	@echo -e "$(CYAN)Installing core packages...$(NC)"
 	@sudo yum install -y epel-release || echo -e "$(YELLOW)$(WARNING) EPEL repository not available$(NC)"
 	@sudo yum install -y \
-		python3 python3-pip python3-devel \
+		python3.12 python3.12-pip python3.12-devel \
 		make curl jq git gcc gcc-c++ \
 		ca-certificates
+	@echo -e "$(CYAN)Installing Node.js 22 LTS...$(NC)"
+	@if ! command -v node >/dev/null 2>&1 || ! node --version | grep -q "v22"; then \
+		curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -; \
+		sudo yum install -y nodejs; \
+		echo -e "$(GREEN)$(CHECKMARK) Node.js 22 LTS installed$(NC)"; \
+	else \
+		echo -e "$(GREEN)$(CHECKMARK) Node.js 22 already installed$(NC)"; \
+	fi
 	@echo -e "$(CYAN)Installing colorization tools...$(NC)"
 	@sudo yum install -y ccze multitail || echo -e "$(YELLOW)$(WARNING) ccze/multitail not available in repos$(NC)"
 	@echo -e "$(CYAN)Installing optional development tools...$(NC)"
@@ -373,9 +378,17 @@ install-prerequisites-fedora: ## 📦 Install Fedora prerequisites
 	$(call print_status,Installing Fedora packages...)
 	@echo -e "$(CYAN)Installing core packages...$(NC)"
 	@sudo dnf install -y \
-		python3 python3-pip python3-devel \
+		python3.12 python3.12-pip python3.12-devel \
 		make curl jq git gcc gcc-c++ \
 		ca-certificates
+	@echo -e "$(CYAN)Installing Node.js 22 LTS...$(NC)"
+	@if ! command -v node >/dev/null 2>&1 || ! node --version | grep -q "v22"; then \
+		curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -; \
+		sudo dnf install -y nodejs; \
+		echo -e "$(GREEN)$(CHECKMARK) Node.js 22 LTS installed$(NC)"; \
+	else \
+		echo -e "$(GREEN)$(CHECKMARK) Node.js 22 already installed$(NC)"; \
+	fi
 	@echo -e "$(CYAN)Installing colorization tools...$(NC)"
 	@sudo dnf install -y ccze multitail || echo -e "$(YELLOW)$(WARNING) ccze/multitail not available in repos$(NC)"
 	@echo -e "$(CYAN)Installing optional development tools...$(NC)"
@@ -392,7 +405,7 @@ install-prerequisites-arch: ## 📦 Install Arch Linux prerequisites
 	@sudo pacman -S --noconfirm --needed \
 		python python-pip \
 		make curl jq git base-devel \
-		ca-certificates
+		ca-certificates nodejs npm
 	@echo -e "$(CYAN)Installing colorization tools...$(NC)"
 	@sudo pacman -S --noconfirm --needed ccze multitail || echo -e "$(YELLOW)$(WARNING) ccze/multitail not available$(NC)"
 	@echo -e "$(CYAN)Installing optional development tools...$(NC)"
@@ -415,6 +428,8 @@ install-prerequisites-mac: ## 🍎 Install macOS prerequisites
 	@echo -e "$(CYAN)Installing core packages...$(NC)"
 	@brew install python@3.12 || brew install python@3.11 || brew install python3
 	@brew install make curl jq git
+	@echo -e "$(CYAN)Installing Node.js 22 LTS...$(NC)"
+	@brew install node@22 || brew install node
 	@echo -e "$(CYAN)Installing colorization tools...$(NC)"
 	@brew install ccze multitail || echo -e "$(YELLOW)$(WARNING) ccze/multitail not available$(NC)"
 	@echo -e "$(CYAN)Installing optional development tools...$(NC)"
@@ -431,7 +446,7 @@ install-docker-debian: ## 🐳 Install Docker on Debian/Ubuntu
 		curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; \
 		echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null; \
 		sudo apt-get update -qq; \
-		sudo apt-get install -y docker-ce docker-ce-cli containerd.io; \
+		sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io >/dev/null 2>&1; \
 		sudo systemctl enable docker; \
 		sudo systemctl start docker; \
 		sudo usermod -aG docker $$USER; \
@@ -442,7 +457,7 @@ install-docker-debian: ## 🐳 Install Docker on Debian/Ubuntu
 	fi
 	@if ! command -v docker-compose >/dev/null 2>&1; then \
 		echo -e "$(CYAN)Installing Docker Compose...$(NC)"; \
-		sudo apt-get install -y docker-compose-plugin; \
+		sudo apt-get install -y -qq docker-compose-plugin >/dev/null 2>&1; \
 		echo -e "$(GREEN)$(CHECKMARK) Docker Compose installed$(NC)"; \
 	else \
 		echo -e "$(GREEN)$(CHECKMARK) Docker Compose already installed$(NC)"; \
@@ -520,11 +535,31 @@ verify-prerequisites: ## ✅ Verify all prerequisites are properly installed
 	$(call print_status,Verifying prerequisites installation...)
 	@echo ""
 	@echo -e "$(PURPLE)🐍 Python:$(NC)"
-	@if python3 --version >/dev/null 2>&1; then \
-		version=$$(python3 --version 2>&1); \
+	@if command -v python3.12 >/dev/null 2>&1; then \
+		version=$$(python3.12 --version 2>&1); \
 		echo -e "$(GREEN)$(CHECKMARK) $$version$(NC)"; \
+	elif command -v python3 >/dev/null 2>&1; then \
+		version=$$(python3 --version 2>&1); \
+		echo -e "$(YELLOW)$(WARNING) $$version (preferably use Python 3.12)$(NC)"; \
 	else \
 		echo -e "$(RED)$(ERROR) Python 3 not found$(NC)"; \
+	fi
+	@echo ""
+	@echo -e "$(PURPLE)🟩 Node.js:$(NC)"
+	@if command -v node >/dev/null 2>&1; then \
+		version=$$(node --version 2>&1); \
+		if echo "$$version" | grep -q "v22"; then \
+			echo -e "$(GREEN)$(CHECKMARK) Node.js $$version (LTS)$(NC)"; \
+		else \
+			echo -e "$(YELLOW)$(WARNING) Node.js $$version (v22 LTS recommended)$(NC)"; \
+		fi; \
+	else \
+		echo -e "$(RED)$(ERROR) Node.js not found$(NC)"; \
+	fi
+	@if command -v npx >/dev/null 2>&1; then \
+		echo -e "$(GREEN)$(CHECKMARK) npx available$(NC)"; \
+	else \
+		echo -e "$(RED)$(ERROR) npx not found$(NC)"; \
 	fi
 	@echo ""
 	@echo -e "$(PURPLE)🐳 Docker:$(NC)"
@@ -589,7 +624,7 @@ verify-prerequisites: ## ✅ Verify all prerequisites are properly installed
 	fi
 
 # ===========================================
-# 💜 STATUS DETECTION
+# 🪄 STATUS DETECTION
 # ===========================================
 detect-mode: ## 🔍 Detect current running mode
 	@echo "$(shell $(call detect_mode))"
@@ -603,7 +638,7 @@ check-force:
 	fi
 
 # ===========================================
-# 💜 PM2-STYLE STATUS DISPLAY
+# 🪄 PM2-STYLE STATUS DISPLAY
 # ===========================================
 status: ## 📊 Show PM2-style status table
 	$(call print_status,Automagik Agents Status)
@@ -626,7 +661,7 @@ status-quick: ## ⚡ Quick status summary
 	else \
 		service_active="inactive"; \
 	fi; \
-	echo -e "$(PURPLE)💜 Mode: $$mode | Docker: $$docker_count | Local: $$local_count | Service: $$service_active$(NC)"
+	echo -e "$(PURPLE)🪄 Mode: $$mode | Docker: $$docker_count | Local: $$local_count | Service: $$service_active$(NC)"
 
 define show_docker_instances
 	@id=0; \
@@ -731,7 +766,7 @@ define show_service_instances
 endef
 
 # ===========================================
-# 💜 COLORFUL LOG VIEWING SYSTEM
+# 🪄 COLORFUL LOG VIEWING SYSTEM
 # ===========================================
 logs: ## 📄 View colorized logs (auto-detect source)
 	@$(call print_status,Automagik Agents Logs)
@@ -751,70 +786,70 @@ logs-500: ## 📄 View last 500 log lines
 
 # Log source detection and display
 define detect_and_show_logs
-	@echo "$(CYAN)🔍 Detecting log sources...$(NC)"; \
+	@echo -e "$(CYAN)🔍 Detecting log sources...$(NC)"; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		echo "$(GREEN)📋 Found systemd service logs$(NC)"; \
+		echo -e "$(GREEN)📋 Found systemd service logs$(NC)"; \
 		$(call show_service_logs,$(1)); \
 	elif docker ps --filter "name=automagik" --format "{{.Names}}" | head -1 | grep -q automagik; then \
 		primary_container=$$(docker ps --filter "name=automagik" --format "{{.Names}}" | grep -E "(automagik_agents|automagik-agents)" | head -1); \
-		echo "$(GREEN)🐳 Found Docker logs for: $$primary_container$(NC)"; \
+		echo -e "$(GREEN)🐳 Found Docker logs for: $$primary_container$(NC)"; \
 		$(call show_docker_logs,$$primary_container,$(1)); \
 	elif [ -f "logs/automagik.log" ]; then \
-		echo "$(GREEN)📁 Found local log file$(NC)"; \
+		echo -e "$(GREEN)📁 Found local log file$(NC)"; \
 		$(call show_file_logs,$(1)); \
 	else \
-		echo "$(YELLOW)$(WARNING) No log sources found$(NC)"; \
-		echo "$(CYAN)💡 Available sources: systemd service, docker containers, log files$(NC)"; \
+		echo -e "$(YELLOW)$(WARNING) No log sources found$(NC)"; \
+		echo -e "$(CYAN)💡 Available sources: systemd service, docker containers, log files$(NC)"; \
 	fi
 endef
 
 define detect_and_follow_logs
 	@if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		echo "$(GREEN)📋 Following systemd service logs$(NC)"; \
+		echo -e "$(GREEN)📋 Following systemd service logs$(NC)"; \
 		$(call follow_service_logs); \
 	elif docker ps --filter "name=automagik" --format "{{.Names}}" | head -1 | grep -q automagik; then \
 		primary_container=$$(docker ps --filter "name=automagik" --format "{{.Names}}" | grep -E "(automagik_agents|automagik-agents)" | head -1); \
-		echo "$(GREEN)🐳 Following Docker logs for: $$primary_container$(NC)"; \
+		echo -e "$(GREEN)🐳 Following Docker logs for: $$primary_container$(NC)"; \
 		$(call follow_docker_logs,$$primary_container); \
 	elif [ -f "logs/automagik.log" ]; then \
-		echo "$(GREEN)📁 Following local log file$(NC)"; \
+		echo -e "$(GREEN)📁 Following local log file$(NC)"; \
 		$(call follow_file_logs); \
 	else \
-		echo "$(YELLOW)$(WARNING) No log sources found to follow$(NC)"; \
+		echo -e "$(YELLOW)$(WARNING) No log sources found to follow$(NC)"; \
 	fi
 endef
 
 # Service logs
 define show_service_logs
 	journalctl -u automagik-agents -n $(1) --no-pager 2>/dev/null | $(call colorize_logs) || \
-	echo "$(RED)$(ERROR) Unable to access systemd logs$(NC)"
+	echo -e "$(RED)$(ERROR) Unable to access systemd logs$(NC)"
 endef
 
 define follow_service_logs
 	journalctl -u automagik-agents -f --no-pager 2>/dev/null | $(call colorize_logs) || \
-	echo "$(RED)$(ERROR) Unable to follow systemd logs$(NC)"
+	echo -e "$(RED)$(ERROR) Unable to follow systemd logs$(NC)"
 endef
 
 # Docker logs
 define show_docker_logs
 	docker logs --tail $(2) $(1) 2>&1 | $(call colorize_logs) || \
-	echo "$(RED)$(ERROR) Unable to access Docker logs for $(1)$(NC)"
+	echo -e "$(RED)$(ERROR) Unable to access Docker logs for $(1)$(NC)"
 endef
 
 define follow_docker_logs
 	docker logs -f $(1) 2>&1 | $(call colorize_logs) || \
-	echo "$(RED)$(ERROR) Unable to follow Docker logs for $(1)$(NC)"
+	echo -e "$(RED)$(ERROR) Unable to follow Docker logs for $(1)$(NC)"
 endef
 
 # File logs
 define show_file_logs
 	tail -n $(1) logs/automagik.log 2>/dev/null | $(call colorize_logs) || \
-	echo "$(RED)$(ERROR) Unable to access log file$(NC)"
+	echo -e "$(RED)$(ERROR) Unable to access log file$(NC)"
 endef
 
 define follow_file_logs
 	tail -f logs/automagik.log 2>/dev/null | $(call colorize_logs) || \
-	echo "$(RED)$(ERROR) Unable to follow log file$(NC)"
+	echo -e "$(RED)$(ERROR) Unable to follow log file$(NC)"
 endef
 
 # Log colorization with graceful fallback
@@ -822,7 +857,7 @@ define colorize_logs
 	if command -v ccze >/dev/null 2>&1; then \
 		ccze -A; \
 	else \
-		echo "$(YELLOW)$(WARNING) ccze not available - showing plain logs$(NC)" >&2; \
+		echo -e "$(YELLOW)$(WARNING) ccze not available - showing plain logs$(NC)" >&2; \
 		cat; \
 	fi
 endef
@@ -832,10 +867,10 @@ logs-docker: ## 🐳 View Docker container logs (interactive selection)
 	@$(call print_status,Docker Container Logs)
 	@containers=$$(docker ps --filter "name=automagik" --format "{{.Names}}" | sort); \
 	if [ -z "$$containers" ]; then \
-		echo "$(RED)$(ERROR) No automagik Docker containers running$(NC)"; \
+		echo -e "$(RED)$(ERROR) No automagik Docker containers running$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(CYAN)Available containers:$(NC)"; \
+	echo -e "$(CYAN)Available containers:$(NC)"; \
 	i=1; \
 	for container in $$containers; do \
 		echo "  $$i) $$container"; \
@@ -845,15 +880,15 @@ logs-docker: ## 🐳 View Docker container logs (interactive selection)
 	read -p "Select container (1-$$((i-1))): " choice; \
 	selected=$$(echo "$$containers" | sed -n "$${choice}p"); \
 	if [ -n "$$selected" ]; then \
-		echo "$(GREEN)📋 Showing logs for: $$selected$(NC)"; \
+		echo -e "$(GREEN)📋 Showing logs for: $$selected$(NC)"; \
 		docker logs --tail 100 $$selected 2>&1 | $(call colorize_logs); \
 	else \
-		echo "$(RED)$(ERROR) Invalid selection$(NC)"; \
+		echo -e "$(RED)$(ERROR) Invalid selection$(NC)"; \
 	fi
 
 logs-all: ## 📄 View logs from all sources
 	@$(call print_status,All Automagik Logs)
-	@echo "$(PURPLE)🔍 Checking all log sources...$(NC)"
+	@echo -e "$(PURPLE)🔍 Checking all log sources...$(NC)"
 	@echo ""
 	@if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 		echo "$(BOLD_PURPLE)📋 Systemd Service Logs:$(NC)"; \
@@ -872,19 +907,19 @@ logs-all: ## 📄 View logs from all sources
 	fi
 
 # ===========================================
-# 💜 INSTALLATION TARGETS
+# 🪄 INSTALLATION TARGETS
 # ===========================================
 
 install: ## 🚀 Auto-detect and install appropriate environment
 	@$(call print_status,Auto-detecting installation mode...)
 	@if [ -f "$(PROD_ENV_FILE)" ]; then \
-		echo "$(CYAN)Production environment detected - installing prod mode$(NC)"; \
+		echo -e "$(CYAN)Production environment detected - installing prod mode$(NC)"; \
 		$(MAKE) install-prod; \
 	elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
-		echo "$(CYAN)Docker available - installing docker mode$(NC)"; \
+		echo -e "$(CYAN)Docker available - installing docker mode$(NC)"; \
 		$(MAKE) install-docker; \
 	else \
-		echo "$(CYAN)Standard environment - installing dev mode$(NC)"; \
+		echo -e "$(CYAN)Standard environment - installing dev mode$(NC)"; \
 		$(MAKE) install-dev; \
 	fi
 
@@ -898,10 +933,10 @@ install-dev: ## 🛠️ Install development environment
 	@$(MAKE) install-database-local
 	@echo ""
 	$(call print_success,Development environment installed!)
-	@echo "$(CYAN)💡 Next steps:$(NC)"
-	@echo "  $(PURPLE)make dev$(NC)     Start development server"
-	@echo "  $(PURPLE)make test$(NC)    Run test suite"
-	@echo "  $(PURPLE)make status$(NC)  Check service status"
+	@echo -e "$(CYAN)$(SPARKLE) Next steps:$(NC)"
+	@echo -e "  $(PURPLE)make dev$(NC)     Start development server"
+	@echo -e "  $(PURPLE)make test$(NC)    Run test suite"
+	@echo -e "  $(PURPLE)make status$(NC)  Check service status"
 
 install-docker: ## 🐳 Install Docker development environment
 	$(call print_banner)
@@ -913,10 +948,10 @@ install-docker: ## 🐳 Install Docker development environment
 	@$(MAKE) docker-build
 	@echo ""
 	$(call print_success,Docker development environment installed!)
-	@echo "$(CYAN)💡 Next steps:$(NC)"
-	@echo "  $(PURPLE)make docker$(NC)  Start Docker stack"
-	@echo "  $(PURPLE)make logs$(NC)    View container logs"
-	@echo "  $(PURPLE)make status$(NC)  Check container status"
+	@echo -e "$(CYAN)$(SPARKLE) Next steps:$(NC)"
+	@echo -e "  $(PURPLE)make docker$(NC)  Start Docker stack"
+	@echo -e "  $(PURPLE)make logs$(NC)    View container logs"
+	@echo -e "  $(PURPLE)make status$(NC)  Check container status"
 
 install-prod: ## 🏭 Install production environment
 	$(call print_banner)
@@ -929,64 +964,56 @@ install-prod: ## 🏭 Install production environment
 	@$(MAKE) setup-prod-volumes
 	@echo ""
 	$(call print_success,Production environment installed!)
-	@echo "$(CYAN)💡 Next steps:$(NC)"
-	@echo "  $(PURPLE)make prod$(NC)    Start production stack"
-	@echo "  $(PURPLE)make health$(NC)  Check service health"
-	@echo "  $(PURPLE)make logs$(NC)    View production logs"
+	@echo -e "$(CYAN)$(SPARKLE) Next steps:$(NC)"
+	@echo -e "  $(PURPLE)make prod$(NC)    Start production stack"
+	@echo -e "  $(PURPLE)make health$(NC)  Check service health"
+	@echo -e "  $(PURPLE)make logs$(NC)    View production logs"
 
 install-service: ## ⚙️ Install systemd service (requires install-dev first)
 	$(call print_status,Installing systemd service...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
-		echo "$(YELLOW)$(WARNING) Development environment not found$(NC)"; \
-		echo "$(CYAN)💡 Running install-dev first...$(NC)"; \
+		echo -e "$(YELLOW)$(WARNING) Development environment not found$(NC)"; \
+		echo -e "$(CYAN)💡 Running install-dev first...$(NC)"; \
 		$(MAKE) install-dev; \
 	fi
 	@$(call create_systemd_service)
 	@sudo systemctl daemon-reload
 	@sudo systemctl enable automagik-agents
 	$(call print_success,Systemd service installed!)
-	@echo "$(CYAN)💡 Service commands:$(NC)"
+	@echo -e "$(CYAN)💡 Service commands:$(NC)"
 	@echo "  $(PURPLE)sudo systemctl start automagik-agents$(NC)   Start service"
 	@echo "  $(PURPLE)sudo systemctl status automagik-agents$(NC)  Check status"
 	@echo "  $(PURPLE)make logs$(NC)                               View logs"
 
 # ===========================================
-# 💜 PYTHON ENVIRONMENT MANAGEMENT
+# 🪄 PYTHON ENVIRONMENT MANAGEMENT
 # ===========================================
 
 install-python-env: ## 🐍 Install Python virtual environment
 	$(call print_status,Setting up Python environment...)
-	@echo "$(CYAN)Checking Python version compatibility...$(NC)"
-	@python_version=$$(python3 --version 2>/dev/null | cut -d' ' -f2); \
-	major_minor=$$(echo $$python_version | cut -d'.' -f1,2); \
-	if [ "$$major_minor" = "3.11" ] || [ "$$major_minor" = "3.12" ] || [ "$$major_minor" = "3.13" ]; then \
-		echo "$(GREEN)$(CHECKMARK) Compatible Python $$python_version found$(NC)"; \
-	else \
-		echo "$(YELLOW)$(WARNING) Python $$python_version detected$(NC)"; \
-		echo "$(CYAN)💡 Recommended: Python 3.11+ (3.12 preferred)$(NC)"; \
-		if [ "$$major_minor" = "3.10" ]; then \
-			echo "$(CYAN)📝 Python 3.10 should work but may have compatibility issues$(NC)"; \
-		elif [ "$$(echo $$major_minor | cut -d'.' -f1)" != "3" ]; then \
-			echo "$(RED)$(ERROR) Python 3.x required$(NC)"; \
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		echo -e "$(CYAN)Creating virtual environment with Python 3.12...$(NC)"; \
+		if command -v python3.12 >/dev/null 2>&1; then \
+			python3.12 -m venv $(VENV_PATH); \
+		elif command -v python3 >/dev/null 2>&1; then \
+			python3 -m venv $(VENV_PATH); \
+		else \
+			echo -e "$(RED)$(ERROR) Python 3 not found$(NC)"; \
 			exit 1; \
 		fi; \
-	fi
-	@if [ ! -d "$(VENV_PATH)" ]; then \
-		echo "$(CYAN)Creating virtual environment with system Python...$(NC)"; \
-		python3 -m venv $(VENV_PATH); \
-		echo "$(GREEN)$(CHECKMARK) Virtual environment created$(NC)"; \
+		echo -e "$(GREEN)$(CHECKMARK) Virtual environment created$(NC)"; \
 	else \
-		echo "$(GREEN)$(CHECKMARK) Virtual environment already exists$(NC)"; \
+		echo -e "$(GREEN)$(CHECKMARK) Virtual environment already exists$(NC)"; \
 	fi
-	@echo "$(CYAN)Installing dependencies with uv...$(NC)"
+	@echo -e "$(CYAN)Installing dependencies with uv...$(NC)"
 	@$(VENV_PATH)/bin/python -m pip install --upgrade pip
 	@if command -v uv >/dev/null 2>&1; then \
 		. $(VENV_PATH)/bin/activate && uv sync; \
-		echo "$(GREEN)$(CHECKMARK) Dependencies installed with uv$(NC)"; \
+		echo -e "$(GREEN)$(CHECKMARK) Dependencies installed with uv$(NC)"; \
 	else \
-		echo "$(YELLOW)$(WARNING) uv not found, using pip...$(NC)"; \
+		echo -e "$(YELLOW)$(WARNING) uv not found, using pip...$(NC)"; \
 		$(VENV_PATH)/bin/pip install -e .; \
-		echo "$(GREEN)$(CHECKMARK) Dependencies installed with pip$(NC)"; \
+		echo -e "$(GREEN)$(CHECKMARK) Dependencies installed with pip$(NC)"; \
 	fi
 
 venv-create: install-python-env ## 🐍 Create virtual environment (alias)
@@ -995,9 +1022,9 @@ venv-clean: ## 🧹 Remove virtual environment
 	$(call print_status,Removing virtual environment...)
 	@if [ -d "$(VENV_PATH)" ]; then \
 		rm -rf "$(VENV_PATH)"; \
-		echo "$(GREEN)$(CHECKMARK) Virtual environment removed$(NC)"; \
+		echo -e "$(GREEN)$(CHECKMARK) Virtual environment removed$(NC)"; \
 	else \
-		echo "$(YELLOW)$(WARNING) Virtual environment not found$(NC)"; \
+		echo -e "$(YELLOW)$(WARNING) Virtual environment not found$(NC)"; \
 	fi
 
 requirements-update: ## 📦 Update Python dependencies
@@ -1011,26 +1038,26 @@ requirements-update: ## 📦 Update Python dependencies
 	$(call print_success,Dependencies updated!)
 
 # ===========================================
-# 💜 INDIVIDUAL SERVICE INSTALLATION
+# 🪄 INDIVIDUAL SERVICE INSTALLATION
 # ===========================================
 
 install-postgres: ## 🐘 Install PostgreSQL service
 	$(call print_status,Installing PostgreSQL...)
 	@$(call verify_docker)
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d automagik-agents-db
-	@echo "$(CYAN)Waiting for PostgreSQL to be ready...$(NC)"
+	@echo -e "$(CYAN)Waiting for PostgreSQL to be ready...$(NC)"
 	@timeout=60; \
 	while [ $$timeout -gt 0 ]; do \
 		if docker-compose -f $(DOCKER_COMPOSE_FILE) exec -T automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
-			echo "$(GREEN)$(CHECKMARK) PostgreSQL is ready$(NC)"; \
+			echo -e "$(GREEN)$(CHECKMARK) PostgreSQL is ready$(NC)"; \
 			break; \
 		fi; \
-		echo "$(YELLOW)Waiting for PostgreSQL... ($$timeout seconds remaining)$(NC)"; \
+		echo -e "$(YELLOW)Waiting for PostgreSQL... ($$timeout seconds remaining)$(NC)"; \
 		sleep 2; \
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		echo "$(RED)$(ERROR) PostgreSQL failed to start$(NC)"; \
+		echo -e "$(RED)$(ERROR) PostgreSQL failed to start$(NC)"; \
 		exit 1; \
 	fi
 
@@ -1038,19 +1065,19 @@ install-neo4j: ## 🔗 Install Neo4j service (for graphiti profile)
 	$(call print_status,Installing Neo4j...)
 	@$(call verify_docker)
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) --profile graphiti up -d automagik-agents-neo4j
-	@echo "$(CYAN)Waiting for Neo4j to be ready...$(NC)"
+	@echo -e "$(CYAN)Waiting for Neo4j to be ready...$(NC)"
 	@timeout=90; \
 	while [ $$timeout -gt 0 ]; do \
 		if curl -s http://localhost:7474 >/dev/null 2>&1; then \
-			echo "$(GREEN)$(CHECKMARK) Neo4j is ready$(NC)"; \
+			echo -e "$(GREEN)$(CHECKMARK) Neo4j is ready$(NC)"; \
 			break; \
 		fi; \
-		echo "$(YELLOW)Waiting for Neo4j... ($$timeout seconds remaining)$(NC)"; \
+		echo -e "$(YELLOW)Waiting for Neo4j... ($$timeout seconds remaining)$(NC)"; \
 		sleep 3; \
 		timeout=$$((timeout - 3)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		echo "$(RED)$(ERROR) Neo4j failed to start$(NC)"; \
+		echo -e "$(RED)$(ERROR) Neo4j failed to start$(NC)"; \
 		exit 1; \
 	fi
 
@@ -1058,53 +1085,53 @@ install-graphiti: ## 🕸️ Install Graphiti service (requires Neo4j)
 	$(call print_status,Installing Graphiti...)
 	@$(call verify_docker)
 	@if ! docker ps | grep -q automagik-agents-neo4j; then \
-		echo "$(CYAN)Neo4j not running, starting it first...$(NC)"; \
+		echo -e "$(CYAN)Neo4j not running, starting it first...$(NC)"; \
 		$(MAKE) install-neo4j; \
 	fi
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) --profile graphiti up -d automagik-agents-graphiti
-	@echo "$(CYAN)Waiting for Graphiti to be ready...$(NC)"
+	@echo -e "$(CYAN)Waiting for Graphiti to be ready...$(NC)"
 	@timeout=60; \
 	while [ $$timeout -gt 0 ]; do \
 		if curl -s http://localhost:8000/healthcheck >/dev/null 2>&1; then \
-			echo "$(GREEN)$(CHECKMARK) Graphiti is ready$(NC)"; \
+			echo -e "$(GREEN)$(CHECKMARK) Graphiti is ready$(NC)"; \
 			break; \
 		fi; \
-		echo "$(YELLOW)Waiting for Graphiti... ($$timeout seconds remaining)$(NC)"; \
+		echo -e "$(YELLOW)Waiting for Graphiti... ($$timeout seconds remaining)$(NC)"; \
 		sleep 2; \
 		timeout=$$((timeout - 2)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		echo "$(RED)$(ERROR) Graphiti failed to start$(NC)"; \
+		echo -e "$(RED)$(ERROR) Graphiti failed to start$(NC)"; \
 		exit 1; \
 	fi
 
 install-database-local: ## 🗄️ Install database for local development
 	@if [ "$(ACTIVE_ENV)" = "development" ]; then \
-		echo "$(CYAN)Setting up local database (Docker)...$(NC)"; \
+		echo -e "$(CYAN)Setting up local database (Docker)...$(NC)"; \
 		$(MAKE) install-postgres; \
 	else \
-		echo "$(YELLOW)$(WARNING) Local database setup skipped in production mode$(NC)"; \
+		echo -e "$(YELLOW)$(WARNING) Local database setup skipped in production mode$(NC)"; \
 	fi
 
 # ===========================================
-# 💜 ENVIRONMENT VALIDATION
+# 🪄 ENVIRONMENT VALIDATION
 # ===========================================
 
 check-env-dev: ## ✅ Check development environment configuration
 	$(call print_status,Validating development environment...)
 	@$(call check_env_file,$(ENV_FILE))
-	@echo "$(GREEN)$(CHECKMARK) Development environment file validated$(NC)"
+	@echo -e "$(GREEN)$(CHECKMARK) Development environment file validated$(NC)"
 
 check-env-prod: ## ✅ Check production environment configuration
 	$(call print_status,Validating production environment...)
 	@$(call check_env_file,$(PROD_ENV_FILE))
-	@echo "$(GREEN)$(CHECKMARK) Production environment file validated$(NC)"
+	@echo -e "$(GREEN)$(CHECKMARK) Production environment file validated$(NC)"
 
 verify-docker: ## 🐳 Verify Docker is available and running
 	@$(call verify_docker)
 
 # ===========================================
-# 💜 DOCKER UTILITIES
+# 🪄 DOCKER UTILITIES
 # ===========================================
 
 docker-build: ## 🔨 Build Docker images
@@ -1114,12 +1141,12 @@ docker-build: ## 🔨 Build Docker images
 
 docker-clean: ## 🧹 Clean Docker images and containers
 	$(call print_status,Cleaning Docker resources...)
-	@echo "$(CYAN)Stopping containers...$(NC)"
+	@echo -e "$(CYAN)Stopping containers...$(NC)"
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) down 2>/dev/null || true
 	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down 2>/dev/null || true
-	@echo "$(CYAN)Removing images...$(NC)"
-	@docker rmi automagik-agents:latest 2>/dev/null || echo "$(YELLOW)Image not found$(NC)"
-	@echo "$(CYAN)Pruning system...$(NC)"
+	@echo -e "$(CYAN)Removing images...$(NC)"
+	@docker rmi automagik-agents:latest 2>/dev/null || echo -e "$(YELLOW)Image not found$(NC)"
+	@echo -e "$(CYAN)Pruning system...$(NC)"
 	@docker system prune -f
 	$(call print_success,Docker cleanup complete!)
 
@@ -1127,36 +1154,36 @@ setup-prod-volumes: ## 📦 Set up production volumes
 	@$(call setup_prod_volumes)
 
 # ===========================================
-# 💜 HELPER FUNCTIONS
+# 🪄 HELPER FUNCTIONS
 # ===========================================
 
 define verify_docker
 	@if ! command -v docker >/dev/null 2>&1; then \
 		$(call print_error,Docker not found); \
-		echo "$(YELLOW)💡 Run 'make install-prerequisites' to install Docker$(NC)"; \
+		echo -e "$(YELLOW)💡 Run 'make install-prerequisites' to install Docker$(NC)"; \
 		exit 1; \
 	fi
 	@if ! docker info >/dev/null 2>&1; then \
 		$(call print_error,Docker daemon not running); \
-		echo "$(YELLOW)💡 Start Docker service: sudo systemctl start docker$(NC)"; \
+		echo -e "$(YELLOW)💡 Start Docker service: sudo systemctl start docker$(NC)"; \
 		exit 1; \
 	fi
 	@if ! command -v docker-compose >/dev/null 2>&1; then \
 		$(call print_error,Docker Compose not found); \
-		echo "$(YELLOW)💡 Run 'make install-prerequisites' to install Docker Compose$(NC)"; \
+		echo -e "$(YELLOW)💡 Run 'make install-prerequisites' to install Docker Compose$(NC)"; \
 		exit 1; \
 	fi
 endef
 
 define setup_prod_volumes
-	@echo "$(CYAN)Setting up production volumes...$(NC)"
+	@echo -e "$(CYAN)Setting up production volumes...$(NC)"
 	@docker volume create automagik_postgres_data_prod 2>/dev/null || true
 	@docker volume create automagik_logs_prod 2>/dev/null || true
-	@echo "$(GREEN)$(CHECKMARK) Production volumes ready$(NC)"
+	@echo -e "$(GREEN)$(CHECKMARK) Production volumes ready$(NC)"
 endef
 
 define create_systemd_service
-	@echo "$(CYAN)Creating systemd service file...$(NC)"
+	@echo -e "$(CYAN)Creating systemd service file...$(NC)"
 	@sudo tee /etc/systemd/system/automagik-agents.service > /dev/null << EOF
 [Unit]
 Description=Automagik Agents Service
@@ -1174,42 +1201,79 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
-	@echo "$(GREEN)$(CHECKMARK) Systemd service file created$(NC)"
+	@echo -e "$(GREEN)$(CHECKMARK) Systemd service file created$(NC)"
 endef
 
 # ===========================================
-# 💜 SERVICE MANAGEMENT
+# 🪄 SERVICE MANAGEMENT
 # ===========================================
 
 start: ## 🚀 Start systemd service
 	@$(call print_status,Starting systemd service...)
 	@if ! systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
-		echo "$(RED)❌ Service not installed$(NC)"; \
-		echo "$(YELLOW)💡 Run 'make install-service' first$(NC)"; \
+		echo -e "$(RED)❌ Service not installed$(NC)"; \
+		echo -e "$(YELLOW)💡 Run 'make install-service' first$(NC)"; \
 		exit 1; \
 	fi
 	@sudo systemctl start automagik-agents
-	@echo "$(GREEN)✅ Service started$(NC)"
-	@echo "$(CYAN)💡 Check status with 'make status'$(NC)"
+	@echo -e "$(GREEN)✅ Service started$(NC)"
+	@echo -e "$(CYAN)💡 Check status with 'make status'$(NC)"
 
 stop: ## 🛑 Stop all instances
 	@$(call print_status,Stopping all automagik-agents instances...)
-	@echo "$(CYAN)Stopping systemd service...$(NC)"
-	@sudo systemctl stop automagik-agents 2>/dev/null || echo "$(YELLOW)⚠️ Service not running$(NC)"
-	@echo "$(CYAN)Stopping Docker containers...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) down 2>/dev/null || echo "$(YELLOW)⚠️ Docker dev not running$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down 2>/dev/null || echo "$(YELLOW)⚠️ Docker prod not running$(NC)"
-	@echo "$(CYAN)Stopping development processes...$(NC)"
-	@pkill -f "python.*src" 2>/dev/null || echo "$(YELLOW)⚠️ No dev processes found$(NC)"
-	@echo "$(GREEN)✅ All instances stopped$(NC)"
+	@echo -e "$(CYAN)Stopping systemd service...$(NC)"
+	@sudo systemctl stop automagik-agents 2>/dev/null || echo -e "$(YELLOW)⚠️ Service not running$(NC)"
+	@echo -e "$(CYAN)Stopping Docker containers...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down 2>/dev/null || echo -e "$(YELLOW)⚠️ Docker dev not running$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down 2>/dev/null || echo -e "$(YELLOW)⚠️ Docker prod not running$(NC)"
+	@echo -e "$(CYAN)Stopping development processes...$(NC)"
+	@pkill -f "python.*src" 2>/dev/null || echo -e "$(YELLOW)⚠️ No dev processes found$(NC)"
+	@echo -e "$(GREEN)✅ All instances stopped$(NC)"
 
 restart: ## 🔄 Restart systemd service
 	@$(call print_status,Restarting systemd service...)
 	@sudo systemctl restart automagik-agents
-	@echo "$(GREEN)✅ Service restarted$(NC)"
+	@echo -e "$(GREEN)✅ Service restarted$(NC)"
+
+dev: check-conflicts-dev ## 🛠️ Start development mode
+	@$(call print_status,Starting development mode...)
+	@$(call check_env_dev)
+	@echo -e "$(CYAN)Activating virtual environment...$(NC)"
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		echo -e "$(RED)❌ Virtual environment not found$(NC)"; \
+		echo -e "$(YELLOW)$(SPARKLE) Run 'make install-dev' first$(NC)"; \
+		exit 1; \
+	fi
+	@echo -e "$(CYAN)$(MAGIC) Starting automagik-agents in development mode...$(NC)"
+	@echo -e "$(PURPLE)🔧 Debug mode enabled - breakpoints supported$(NC)"
+	@. $(VENV_PATH)/bin/activate && python -m src
+
+docker: check-conflicts-docker ## 🐳 Start Docker development stack
+	@$(call print_status,Starting Docker development stack...)
+	@$(call verify_docker)
+	@$(call check_env_dev)
+	@echo -e "$(CYAN)Building images if needed...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) build
+	@echo -e "$(CYAN)Starting services...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo -e "$(GREEN)✅ Docker development stack started$(NC)"
+	@echo -e "$(CYAN)💡 View logs with 'make logs'$(NC)"
+
+prod: check-conflicts-prod ## 🏭 Start production Docker stack
+	@$(call print_status,Starting production Docker stack...)
+	@$(call verify_docker)
+	@$(call check_env_prod)
+	@echo -e "$(CYAN)Building production images...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) build
+	@echo -e "$(CYAN)Setting up production volumes...$(NC)"
+	@$(call setup_prod_volumes)
+	@echo -e "$(CYAN)Starting production services...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) up -d
+	@echo -e "$(GREEN)✅ Production stack started$(NC)"
+	@echo -e "$(CYAN)💡 Monitor with 'make status' and 'make health'$(NC)"
 
 # ===========================================
-# 💜 CONFLICT DETECTION
+# 🪄 CONFLICT DETECTION
 # ===========================================
 
 check-conflicts-dev: ## 🔍 Check for development mode conflicts
@@ -1222,51 +1286,51 @@ check-conflicts-prod: ## 🔍 Check for production conflicts
 	@$(call check_conflicts,"prod","production")
 
 # ===========================================
-# 💜 CONFLICT RESOLUTION FUNCTIONS
+# 🪄 CONFLICT RESOLUTION FUNCTIONS
 # ===========================================
 
 define check_conflicts
-	@echo "$(CYAN)Checking for conflicts with $(2) mode...$(NC)"; \
+	@echo -e "$(CYAN)Checking for conflicts with $(2) mode...$(NC)"; \
 	conflicts=0; \
 	port=$$($(call get_port)); \
 	if [ -z "$$port" ]; then \
-		echo "$(RED)❌ Cannot determine port from environment$(NC)"; \
+		echo -e "$(RED)❌ Cannot determine port from environment$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(CYAN)Checking port $$port...$(NC)"; \
+	echo -e "$(CYAN)Checking port $$port...$(NC)"; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		echo "$(YELLOW)⚠️ Systemd service is running$(NC)"; \
+		echo -e "$(YELLOW)⚠️ Systemd service is running$(NC)"; \
 		conflicts=$$((conflicts + 1)); \
 	fi; \
 	if docker ps --format "table {{.Names}}" | grep -q "automagik-agents-"; then \
-		echo "$(YELLOW)⚠️ Docker containers are running$(NC)"; \
+		echo -e "$(YELLOW)⚠️ Docker containers are running$(NC)"; \
 		docker ps --filter "name=automagik-agents-" --format "table {{.Names}}\t{{.Status}}"; \
 		conflicts=$$((conflicts + 1)); \
 	fi; \
 	if lsof -ti:$$port >/dev/null 2>&1; then \
 		pid=$$(lsof -ti:$$port); \
-		echo "$(YELLOW)⚠️ Port $$port is in use by PID $$pid$(NC)"; \
+		echo -e "$(YELLOW)⚠️ Port $$port is in use by PID $$pid$(NC)"; \
 		ps -p $$pid -o pid,ppid,cmd --no-headers 2>/dev/null || echo "Process details unavailable"; \
 		conflicts=$$((conflicts + 1)); \
 	fi; \
 	if [ $$conflicts -gt 0 ]; then \
 		if [ -z "$(FORCE)" ]; then \
 			echo ""; \
-			echo "$(RED)❌ Conflicts detected! Cannot start $(2) mode.$(NC)"; \
+			echo -e "$(RED)❌ Conflicts detected! Cannot start $(2) mode.$(NC)"; \
 			echo ""; \
-			echo "$(PURPLE)💡 Resolution options:$(NC)"; \
+			echo -e "$(PURPLE)💡 Resolution options:$(NC)"; \
 			echo "  $(CYAN)1. Stop conflicts manually:$(NC) make stop"; \
 			echo "  $(CYAN)2. Force start (stops conflicts):$(NC) make $(1) FORCE=1"; \
 			echo "  $(CYAN)3. Check what's running:$(NC) make status"; \
 			echo ""; \
 			exit 1; \
 		else \
-			echo "$(PURPLE)🔧 FORCE=1 detected - resolving conflicts...$(NC)"; \
+			echo -e "$(PURPLE)🔧 FORCE=1 detected - resolving conflicts...$(NC)"; \
 			$(MAKE) stop; \
-			echo "$(GREEN)✅ Conflicts resolved$(NC)"; \
+			echo -e "$(GREEN)✅ Conflicts resolved$(NC)"; \
 		fi; \
 	else \
-		echo "$(GREEN)✅ No conflicts detected$(NC)"; \
+		echo -e "$(GREEN)✅ No conflicts detected$(NC)"; \
 	fi
 endef
 
@@ -1276,497 +1340,103 @@ define get_port
 	else \
 		echo "8000"; \
 	fi
-endef
+endef 
 
 # ===========================================
-# 💜 NEW PRD-ALIGNED INSTALLATION TARGETS
+# 🪄 UNINSTALLATION
 # ===========================================
 
-install\ local: ## 🏠 Install local with uv sync + system service
-	$(call print_banner)
-	$(call print_status,Installing local environment with system service...)
-	@echo ""
-	@$(MAKE) install-prerequisites
-	@$(MAKE) install-python-env
-	@$(MAKE) check-env-dev
-	@$(MAKE) install-database-local
-	@$(MAKE) install-service
-	@echo ""
-	$(call print_success,Local environment with system service installed!)
-	@echo "$(CYAN)💡 Service is installed and ready:$(NC)"
-	@echo "  $(PURPLE)sudo systemctl start automagik-agents$(NC)   Start service"
-	@echo "  $(PURPLE)sudo systemctl status automagik-agents$(NC)  Check status"
-	@echo "  $(PURPLE)make logs$(NC)                               View logs"
-
-install\ dev: ## 🛠️ Install local with uv sync (no service)
-	$(call print_banner)
-	$(call print_status,Installing development environment...)
-	@echo ""
-	@$(MAKE) install-prerequisites
-	@$(MAKE) install-python-env
-	@$(MAKE) check-env-dev
-	@$(MAKE) install-database-local
-	@echo ""
-	$(call print_success,Development environment installed!)
-	@echo "$(CYAN)💡 Next steps:$(NC)"
-	@echo "  $(PURPLE)make dev$(NC)     Start development server"
-	@echo "  $(PURPLE)make test$(NC)    Run test suite"
-	@echo "  $(PURPLE)make dev status$(NC)  Check service status"
-
-install\ docker: ## 🐳 Install Docker development environment
-	$(call print_banner)
-	$(call print_status,Installing Docker development environment...)
-	@echo ""
-	@$(MAKE) verify-docker
-	@$(MAKE) install-prerequisites
-	@$(MAKE) check-env-dev
-	@$(MAKE) docker-build
-	@echo ""
-	$(call print_success,Docker development environment installed!)
-	@echo "$(CYAN)💡 Next steps:$(NC)"
-	@echo "  $(PURPLE)make docker$(NC)  Start Docker stack"
-	@echo "  $(PURPLE)make logs$(NC)    View container logs"
-	@echo "  $(PURPLE)make docker status$(NC)  Check container status"
-
-install\ prod: ## 🚀 Install production Docker environment
-	$(call print_banner)
-	$(call print_status,Installing production environment...)
-	@echo ""
-	@$(MAKE) verify-docker
-	@$(MAKE) install-prerequisites
-	@$(MAKE) check-env-prod
-	@$(MAKE) docker-build
-	@$(MAKE) setup-prod-volumes
-	@echo ""
-	$(call print_success,Production environment installed!)
-	@echo "$(CYAN)💡 Next steps:$(NC)"
-	@echo "  $(PURPLE)make prod$(NC)    Start production stack"
-	@echo "  $(PURPLE)make health$(NC)  Check service health"
-	@echo "  $(PURPLE)make prod status$(NC)    View production logs"
-
-# ===========================================
-# 💜 ENHANCED AUTO-INSTALL TARGETS
-# ===========================================
-
-dev: check-conflicts-dev ## 🔧 Start development (auto-installs)
-	@$(call print_status,Starting development mode...)
-	@if [ ! -d "$(VENV_PATH)" ]; then \
-		echo "$(CYAN)Development environment not found, installing...$(NC)"; \
-		$(MAKE) install\ dev; \
-	fi
-	@$(call check_env_dev)
-	@echo "$(CYAN)Starting development server with reload and debug...$(NC)"
-	@. $(VENV_PATH)/bin/activate && python -m uvicorn src.main:app --host 0.0.0.0 --port $$(grep AM_PORT .env | cut -d= -f2 | tr -d '"' || echo 8881) --reload --log-level debug
-
-docker: check-conflicts-docker ## 🐳 Start Docker (auto-installs)
-	@$(call print_status,Starting Docker development stack...)
-	@if [ ! -f "docker-compose.yml" ]; then \
-		echo "$(CYAN)Docker environment not found, installing...$(NC)"; \
-		$(MAKE) install\ docker; \
-	fi
-	@$(call verify_docker)
-	@$(call check_env_dev)
-	@echo "$(CYAN)Building images if needed...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) build
-	@echo "$(CYAN)Starting services...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
-	@echo "$(GREEN)✅ Docker development stack started$(NC)"
-	@echo "$(CYAN)💡 View logs with 'make logs'$(NC)"
-
-prod: check-conflicts-prod ## 🚀 Start production (auto-installs)
-	@$(call print_status,Starting production Docker stack...)
-	@if [ ! -f "docker/docker-compose-prod.yml" ]; then \
-		echo "$(CYAN)Production environment not found, installing...$(NC)"; \
-		$(MAKE) install\ prod; \
-	fi
-	@$(call verify_docker)
-	@$(call check_env_prod)
-	@echo "$(CYAN)Building production images...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) build
-	@echo "$(CYAN)Setting up production volumes...$(NC)"
-	@$(call setup_prod_volumes)
-	@echo "$(CYAN)Starting production services...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) up -d
-	@echo "$(GREEN)✅ Production stack started$(NC)"
-	@echo "$(CYAN)💡 Monitor with 'make status' and 'make health'$(NC)"
-
-# ===========================================
-# 💜 NEW SPACE-BASED COMMAND ALIASES
-# ===========================================
-
-install\ prerequisites: install-prerequisites ## 📦 Install system dependencies (space alias)
-install\ uv: install-uv ## ⚡ Install UV package manager (space alias)
-install\ postgres: install-postgres ## 🐘 PostgreSQL database (space alias)
-install\ neo4j: install-neo4j ## 🔗 Neo4j graph database (space alias)
-install\ graphiti: install-graphiti ## 🧠 Knowledge graph service (space alias)
-
-db\ init: ## 🎯 Initialize database
-	@$(call print_status,Initializing database...)
-	@if [ -f "src/db/migrations/init.sql" ]; then \
-		echo "$(CYAN)Running database initialization...$(NC)"; \
-		$(PYTHON) -c "from src.db.repository.init import init_database; init_database()"; \
-		echo "$(GREEN)$(CHECKMARK) Database initialized$(NC)"; \
-	else \
-		echo "$(YELLOW)$(WARNING) No initialization script found$(NC)"; \
-	fi
-
-db\ migrate: ## 📈 Run database migrations
-	@$(call print_status,Running database migrations...)
-	@$(PYTHON) -c "from src.db.migrations import run_migrations; run_migrations()"
-	@echo "$(GREEN)$(CHECKMARK) Database migrations completed$(NC)"
-
-db\ reset: ## 🗑️ Reset database (destructive!)
-	@echo "$(RED)⚠️  WARNING: This will destroy all data!$(NC)"
-	@read -p "Are you sure? Type 'yes' to continue: " confirm; \
-	if [ "$$confirm" = "yes" ]; then \
-		$(call print_status,Resetting database...); \
-		$(PYTHON) -c "from src.db.repository.init import reset_database; reset_database()"; \
-		echo "$(GREEN)$(CHECKMARK) Database reset completed$(NC)"; \
-	else \
-		echo "$(CYAN)Operation cancelled$(NC)"; \
-	fi
-
-requirements\ update: requirements-update ## 📦 Update dependencies (space alias)
-
-docker\ build: docker-build ## 🔨 Build Docker images (space alias)
-docker\ clean: docker-clean ## 🧹 Clean Docker resources (space alias)
-
-# ===========================================
-# 💜 SERVICE MANAGEMENT WITH SPACES
-# ===========================================
-
-dev\ start: ## 🔧 Start development service
-	@$(MAKE) dev
-
-dev\ stop: ## 🔧 Stop development service
-	@$(call print_status,Stopping development service...)
-	@pkill -f "uvicorn src.main:app" || echo "$(YELLOW)No development server running$(NC)"
-	@echo "$(GREEN)$(CHECKMARK) Development server stopped$(NC)"
-
-dev\ status: ## 🔧 Development service status
-	@$(call print_status,Development service status...)
-	@if pgrep -f "uvicorn src.main:app" >/dev/null; then \
-		echo "$(GREEN)$(CHECKMARK) Development server is running$(NC)"; \
-		echo "$(CYAN)PID: $(shell pgrep -f 'uvicorn src.main:app')$(NC)"; \
-	else \
-		echo "$(YELLOW)Development server is not running$(NC)"; \
-	fi
-
-docker\ start: ## 🐳 Start Docker services
-	@$(MAKE) docker
-
-docker\ stop: ## 🐳 Stop Docker services
-	@$(call print_status,Stopping Docker services...)
-	@docker-compose down
-	@echo "$(GREEN)$(CHECKMARK) Docker services stopped$(NC)"
-
-docker\ status: ## 🐳 Docker service status
-	@$(call print_status,Docker service status...)
-	@docker-compose ps
-
-prod\ start: ## 🚀 Start production services
-	@$(MAKE) prod
-
-prod\ stop: ## 🚀 Stop production services
-	@$(call print_status,Stopping production services...)
-	@docker-compose -f docker/docker-compose-prod.yml down
-	@echo "$(GREEN)$(CHECKMARK) Production services stopped$(NC)"
-
-prod\ status: ## 🚀 Production service status
-	@$(call print_status,Production service status...)
-	@docker-compose -f docker/docker-compose-prod.yml ps
-
-# ===========================================
-# 💜 UNINSTALL & CLEANUP SYSTEM
-# ===========================================
-
-uninstall\ local: ## 🗑️ Uninstall local environment + systemd service
-	$(call print_banner)
-	$(call print_status,Uninstalling local environment with systemd service...)
-	@echo ""
-	@echo "$(RED)⚠️  WARNING: This will remove the local environment and systemd service!$(NC)"
-	@if [ -z "$(FORCE)" ]; then \
-		read -p "Are you sure? Type 'yes' to continue: " confirm; \
-		if [ "$$confirm" != "yes" ]; then \
-			echo "$(CYAN)Operation cancelled$(NC)"; \
-			exit 0; \
-		fi; \
-	fi
-	@echo ""
-	@$(call uninstall_systemd_service)
-	@$(call uninstall_local_database)
-	@$(call remove_python_env)
-	@echo ""
-	$(call print_success,Local environment with systemd service uninstalled!)
-	@echo "$(CYAN)💡 Python virtual environment and systemd service removed$(NC)"
-
-uninstall\ dev: ## 🗑️ Uninstall development environment
-	$(call print_banner)
-	$(call print_status,Uninstalling development environment...)
-	@echo ""
-	@echo "$(RED)⚠️  WARNING: This will remove the development environment!$(NC)"
-	@if [ -z "$(FORCE)" ]; then \
-		read -p "Are you sure? Type 'yes' to continue: " confirm; \
-		if [ "$$confirm" != "yes" ]; then \
-			echo "$(CYAN)Operation cancelled$(NC)"; \
-			exit 0; \
-		fi; \
-	fi
-	@echo ""
-	@$(call stop_dev_processes)
-	@$(call uninstall_local_database)
-	@$(call remove_python_env)
-	@$(call clean_logs)
-	@echo ""
-	$(call print_success,Development environment uninstalled!)
-	@echo "$(CYAN)💡 Python virtual environment and local database removed$(NC)"
-
-uninstall\ docker: ## 🗑️ Uninstall Docker development environment
-	$(call print_banner)
-	$(call print_status,Uninstalling Docker development environment...)
-	@echo ""
-	@echo "$(RED)⚠️  WARNING: This will remove Docker containers, images, and volumes!$(NC)"
-	@if [ -z "$(FORCE)" ]; then \
-		read -p "Are you sure? Type 'yes' to continue: " confirm; \
-		if [ "$$confirm" != "yes" ]; then \
-			echo "$(CYAN)Operation cancelled$(NC)"; \
-			exit 0; \
-		fi; \
-	fi
-	@echo ""
-	@$(call uninstall_docker_dev)
-	@$(call clean_logs)
-	@echo ""
-	$(call print_success,Docker development environment uninstalled!)
-	@echo "$(CYAN)💡 Docker containers, images, and volumes removed$(NC)"
-
-uninstall\ prod: ## 🗑️ Uninstall production environment
-	$(call print_banner)
-	$(call print_status,Uninstalling production environment...)
-	@echo ""
-	@echo "$(RED)⚠️  WARNING: This will remove production Docker containers, images, and volumes!$(NC)"
-	@echo "$(RED)⚠️  ALL PRODUCTION DATA WILL BE LOST!$(NC)"
-	@if [ -z "$(FORCE)" ]; then \
-		read -p "Are you sure? Type 'YES I UNDERSTAND' to continue: " confirm; \
-		if [ "$$confirm" != "YES I UNDERSTAND" ]; then \
-			echo "$(CYAN)Operation cancelled$(NC)"; \
-			exit 0; \
-		fi; \
-	fi
-	@echo ""
-	@$(call uninstall_docker_prod)
-	@$(call clean_logs)
-	@echo ""
-	$(call print_success,Production environment uninstalled!)
-	@echo "$(CYAN)💡 Production Docker containers, images, and volumes removed$(NC)"
-
-purge: ## 💥 Complete system purge - remove everything including dependencies
-	$(call print_banner)
-	$(call print_status,COMPLETE SYSTEM PURGE - REMOVING EVERYTHING...)
-	@echo ""
-	@echo "$(RED)⚠️⚠️⚠️  DANGER: COMPLETE SYSTEM PURGE  ⚠️⚠️⚠️$(NC)"
-	@echo "$(RED)This will remove:$(NC)"
-	@echo "$(RED)  • All automagik-agents environments$(NC)"
-	@echo "$(RED)  • All Docker containers, images, and volumes$(NC)"
-	@echo "$(RED)  • Python virtual environment$(NC)"
-	@echo "$(RED)  • Systemd service$(NC)"
-	@echo "$(RED)  • Log files$(NC)"
-	@echo "$(RED)  • Optionally: System dependencies (uv, etc.)$(NC)"
+uninstall: ## 🗑️ Uninstall Automagik Agents (keeps Docker, Node.js, Python)
+	$(call print_status,Uninstalling Automagik Agents...)
+	@echo -e "$(YELLOW)⚠️ This will remove automagik-agents services and containers$(NC)"
+	@echo -e "$(CYAN)💡 Core dependencies (Docker, Node.js, Python) will be preserved$(NC)"
 	@echo ""
 	@if [ -z "$(FORCE)" ]; then \
-		read -p "Type 'PURGE EVERYTHING' to confirm complete removal: " confirm; \
-		if [ "$$confirm" != "PURGE EVERYTHING" ]; then \
-			echo "$(CYAN)Operation cancelled$(NC)"; \
-			exit 0; \
-		fi; \
-	fi
-	@echo ""
-	@$(call stop_all_services)
-	@$(call uninstall_systemd_service)
-	@$(call uninstall_docker_all)
-	@$(call remove_python_env)
-	@$(call clean_all_logs)
-	@$(call clean_temp_files)
-	@echo ""
-	@read -p "Remove system dependencies (uv, development tools)? [y/N]: " remove_deps; \
-	if [ "$$remove_deps" = "y" ] || [ "$$remove_deps" = "Y" ]; then \
-		$(call remove_system_dependencies); \
-	else \
-		echo "$(CYAN)💡 System dependencies kept (run 'make purge-deps' to remove them later)$(NC)"; \
-	fi
-	@echo ""
-	$(call print_success,COMPLETE PURGE FINISHED!)
-	@echo "$(CYAN)💡 System cleaned - ready for fresh installation$(NC)"
-
-purge-deps: ## 🧹 Remove system dependencies only
-	@echo "$(RED)⚠️  WARNING: This will attempt to remove system dependencies!$(NC)"
-	@if [ -z "$(FORCE)" ]; then \
-		read -p "Remove system dependencies (uv, development tools)? [y/N]: " confirm; \
+		read -p "Continue with uninstall? [y/N]: " confirm; \
 		if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
-			echo "$(CYAN)Operation cancelled$(NC)"; \
+			echo -e "$(YELLOW)Uninstall cancelled$(NC)"; \
 			exit 0; \
 		fi; \
 	fi
-	@$(call remove_system_dependencies)
+	@$(MAKE) uninstall-services
+	@$(MAKE) uninstall-containers
+	@$(MAKE) uninstall-volumes
+	@$(MAKE) uninstall-python-env
+	@$(MAKE) uninstall-systemd-service
+	@echo ""
+	$(call print_success,Automagik Agents uninstalled successfully!)
+	@echo -e "$(CYAN)💡 Core dependencies preserved: Docker, Node.js, Python$(NC)"
 
-# ===========================================
-# 💜 UNINSTALL HELPER FUNCTIONS
-# ===========================================
+uninstall-force: ## 🗑️ Force uninstall without confirmation
+	@$(MAKE) uninstall FORCE=1
 
-define stop_all_services
-	@echo "$(CYAN)Stopping all automagik-agents services...$(NC)"
-	@sudo systemctl stop automagik-agents 2>/dev/null || echo "$(YELLOW)Systemd service not running$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) down 2>/dev/null || echo "$(YELLOW)Docker dev not running$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down 2>/dev/null || echo "$(YELLOW)Docker prod not running$(NC)"
-	@pkill -f "uvicorn.*src.main:app" 2>/dev/null || echo "$(YELLOW)No dev processes running$(NC)"
-	@pkill -f "python.*src" 2>/dev/null || echo "$(YELLOW)No python processes running$(NC)"
-	@echo "$(GREEN)$(CHECKMARK) All services stopped$(NC)"
-endef
+uninstall-services: ## 🛑 Stop and remove all Automagik services
+	$(call print_status,Stopping Automagik services...)
+	@echo -e "$(CYAN)Stopping systemd service...$(NC)"
+	@sudo systemctl stop automagik-agents 2>/dev/null || echo -e "$(YELLOW)⚠️ Service not running$(NC)"
+	@echo -e "$(CYAN)Stopping Docker containers...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down 2>/dev/null || echo -e "$(YELLOW)⚠️ Docker dev not running$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down 2>/dev/null || echo -e "$(YELLOW)⚠️ Docker prod not running$(NC)"
+	@echo -e "$(CYAN)Stopping development processes...$(NC)"
+	@pkill -f "python.*src" 2>/dev/null || echo -e "$(YELLOW)⚠️ No dev processes found$(NC)"
+	@echo -e "$(GREEN)✅ All services stopped$(NC)"
 
-define stop_dev_processes
-	@echo "$(CYAN)Stopping development processes...$(NC)"
-	@pkill -f "uvicorn.*src.main:app" 2>/dev/null || echo "$(YELLOW)No uvicorn processes running$(NC)"
-	@pkill -f "python.*src" 2>/dev/null || echo "$(YELLOW)No python src processes running$(NC)"
-	@echo "$(GREEN)$(CHECKMARK) Development processes stopped$(NC)"
-endef
+uninstall-containers: ## 🐳 Remove Docker containers and images
+	$(call print_status,Removing Automagik containers and images...)
+	@echo -e "$(CYAN)Removing containers...$(NC)"
+	@docker rm -f $$(docker ps -aq --filter "name=automagik") 2>/dev/null || echo -e "$(YELLOW)⚠️ No containers to remove$(NC)"
+	@echo -e "$(CYAN)Removing images...$(NC)"
+	@docker rmi automagik-agents:latest 2>/dev/null || echo -e "$(YELLOW)⚠️ No images to remove$(NC)"
+	@docker rmi $$(docker images --filter "reference=automagik*" -q) 2>/dev/null || echo -e "$(YELLOW)⚠️ No additional images found$(NC)"
+	@echo -e "$(GREEN)✅ Containers and images removed$(NC)"
 
-define uninstall_systemd_service
-	@echo "$(CYAN)Removing systemd service...$(NC)"
-	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
-		sudo systemctl stop automagik-agents 2>/dev/null || true; \
-		sudo systemctl disable automagik-agents; \
-		echo "$(GREEN)$(CHECKMARK) Systemd service disabled$(NC)"; \
-	else \
-		echo "$(YELLOW)Systemd service not enabled$(NC)"; \
+uninstall-volumes: ## 📦 Remove Docker volumes (WARNING: This removes all data!)
+	$(call print_status,Removing Docker volumes...)
+	@echo -e "$(RED)⚠️ WARNING: This will delete all database data!$(NC)"
+	@if [ -z "$(FORCE)" ]; then \
+		read -p "Delete all data volumes? [y/N]: " confirm; \
+		if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+			echo -e "$(YELLOW)Volume removal cancelled$(NC)"; \
+			exit 0; \
+		fi; \
 	fi
-	@if [ -f "/etc/systemd/system/automagik-agents.service" ]; then \
-		sudo rm -f /etc/systemd/system/automagik-agents.service; \
-		sudo systemctl daemon-reload; \
-		echo "$(GREEN)$(CHECKMARK) Systemd service file removed$(NC)"; \
-	else \
-		echo "$(YELLOW)Systemd service file not found$(NC)"; \
-	fi
-endef
+	@echo -e "$(CYAN)Removing volumes...$(NC)"
+	@docker volume rm automagik_postgres_data_prod 2>/dev/null || echo -e "$(YELLOW)⚠️ Prod volume not found$(NC)"
+	@docker volume rm automagik_logs_prod 2>/dev/null || echo -e "$(YELLOW)⚠️ Logs volume not found$(NC)"
+	@docker volume rm $$(docker volume ls --filter "name=automagik" -q) 2>/dev/null || echo -e "$(YELLOW)⚠️ No additional volumes found$(NC)"
+	@echo -e "$(GREEN)✅ Volumes removed$(NC)"
 
-define uninstall_local_database
-	@echo "$(CYAN)Stopping local database containers...$(NC)"
-	@if command -v docker >/dev/null 2>&1; then \
-		docker-compose -f $(DOCKER_COMPOSE_FILE) stop automagik-agents-db 2>/dev/null || true; \
-		docker-compose -f $(DOCKER_COMPOSE_FILE) rm -f automagik-agents-db 2>/dev/null || true; \
-		echo "$(GREEN)$(CHECKMARK) Local database containers removed$(NC)"; \
-	else \
-		echo "$(YELLOW)Docker not available$(NC)"; \
-	fi
-endef
-
-define uninstall_docker_dev
-	@echo "$(CYAN)Removing Docker development environment...$(NC)"
-	@if command -v docker >/dev/null 2>&1; then \
-		docker-compose -f $(DOCKER_COMPOSE_FILE) down -v --rmi all 2>/dev/null || true; \
-		docker system prune -f --volumes 2>/dev/null || true; \
-		echo "$(GREEN)$(CHECKMARK) Docker development environment removed$(NC)"; \
-	else \
-		echo "$(YELLOW)Docker not available$(NC)"; \
-	fi
-endef
-
-define uninstall_docker_prod
-	@echo "$(CYAN)Removing Docker production environment...$(NC)"
-	@if command -v docker >/dev/null 2>&1; then \
-		docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down -v --rmi all 2>/dev/null || true; \
-		docker volume rm automagik_postgres_data_prod automagik_logs_prod 2>/dev/null || true; \
-		docker system prune -f --volumes 2>/dev/null || true; \
-		echo "$(GREEN)$(CHECKMARK) Docker production environment removed$(NC)"; \
-	else \
-		echo "$(YELLOW)Docker not available$(NC)"; \
-	fi
-endef
-
-define uninstall_docker_all
-	@echo "$(CYAN)Removing all Docker automagik environments...$(NC)"
-	@if command -v docker >/dev/null 2>&1; then \
-		docker-compose -f $(DOCKER_COMPOSE_FILE) down -v --rmi all 2>/dev/null || true; \
-		docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down -v --rmi all 2>/dev/null || true; \
-		docker volume rm automagik_postgres_data_prod automagik_logs_prod 2>/dev/null || true; \
-		docker container prune -f 2>/dev/null || true; \
-		docker image prune -a -f 2>/dev/null || true; \
-		docker volume prune -f 2>/dev/null || true; \
-		docker network prune -f 2>/dev/null || true; \
-		echo "$(GREEN)$(CHECKMARK) All Docker automagik environments removed$(NC)"; \
-	else \
-		echo "$(YELLOW)Docker not available$(NC)"; \
-	fi
-endef
-
-define remove_python_env
-	@echo "$(CYAN)Removing Python virtual environment...$(NC)"
+uninstall-python-env: ## 🐍 Remove Python virtual environment
+	$(call print_status,Removing Python virtual environment...)
 	@if [ -d "$(VENV_PATH)" ]; then \
 		rm -rf "$(VENV_PATH)"; \
-		echo "$(GREEN)$(CHECKMARK) Python virtual environment removed$(NC)"; \
+		echo -e "$(GREEN)✅ Virtual environment removed$(NC)"; \
 	else \
-		echo "$(YELLOW)Python virtual environment not found$(NC)"; \
+		echo -e "$(YELLOW)⚠️ Virtual environment not found$(NC)"; \
 	fi
-endef
 
-define clean_logs
-	@echo "$(CYAN)Cleaning log files...$(NC)"
-	@if [ -d "logs" ]; then \
-		rm -rf logs/; \
-		echo "$(GREEN)$(CHECKMARK) Log directory removed$(NC)"; \
+uninstall-systemd-service: ## ⚙️ Remove systemd service
+	$(call print_status,Removing systemd service...)
+	@if systemctl list-unit-files | grep -q automagik-agents; then \
+		sudo systemctl disable automagik-agents 2>/dev/null || true; \
+		sudo rm -f /etc/systemd/system/automagik-agents.service; \
+		sudo systemctl daemon-reload; \
+		echo -e "$(GREEN)✅ Systemd service removed$(NC)"; \
 	else \
-		echo "$(YELLOW)Log directory not found$(NC)"; \
+		echo -e "$(YELLOW)⚠️ Systemd service not found$(NC)"; \
 	fi
-endef
 
-define clean_all_logs
-	@echo "$(CYAN)Cleaning all log files...$(NC)"
-	@rm -rf logs/ 2>/dev/null || true
-	@rm -f *.log 2>/dev/null || true
-	@rm -f nohup.out 2>/dev/null || true
-	@echo "$(GREEN)$(CHECKMARK) All log files removed$(NC)"
-endef
-
-define clean_temp_files
-	@echo "$(CYAN)Cleaning temporary files...$(NC)"
-	@rm -rf .pytest_cache/ 2>/dev/null || true
-	@rm -rf __pycache__/ 2>/dev/null || true
-	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
-	@find . -type f -name ".coverage" -delete 2>/dev/null || true
-	@rm -rf .coverage 2>/dev/null || true
-	@rm -rf htmlcov/ 2>/dev/null || true
-	@rm -rf .tox/ 2>/dev/null || true
-	@rm -rf build/ 2>/dev/null || true
-	@rm -rf dist/ 2>/dev/null || true
-	@rm -rf *.egg-info/ 2>/dev/null || true
-	@echo "$(GREEN)$(CHECKMARK) Temporary files cleaned$(NC)"
-endef
-
-define remove_system_dependencies
-	@echo "$(CYAN)Attempting to remove system dependencies...$(NC)"
-	@echo "$(YELLOW)💡 Note: This may require manual intervention on some systems$(NC)"
-	@if command -v uv >/dev/null 2>&1; then \
-		echo "$(CYAN)Removing uv...$(NC)"; \
-		rm -f ~/.cargo/bin/uv 2>/dev/null || true; \
-		rm -f ~/.local/bin/uv 2>/dev/null || true; \
-		echo "$(GREEN)$(CHECKMARK) uv removed (you may need to update PATH)$(NC)"; \
-	else \
-		echo "$(YELLOW)uv not found in PATH$(NC)"; \
-	fi
-	@if [ "$(UNAME_S)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then \
-		echo "$(CYAN)macOS detected - offering to remove Homebrew packages...$(NC)"; \
-		read -p "Remove automagik-agents Homebrew packages? [y/N]: " remove_brew; \
-		if [ "$$remove_brew" = "y" ] || [ "$$remove_brew" = "Y" ]; then \
-			brew uninstall ccze multitail htop ncdu tree 2>/dev/null || true; \
-			echo "$(GREEN)$(CHECKMARK) Homebrew packages removed$(NC)"; \
-		fi; \
-	fi
-	@echo "$(YELLOW)💡 System packages (Python, Docker, git, etc.) were not removed$(NC)"
-	@echo "$(YELLOW)💡 Use your system's package manager to remove them if needed$(NC)"
-endef
+uninstall-clean: ## 🧹 Clean up temporary files and logs
+	$(call print_status,Cleaning up temporary files...)
+	@echo -e "$(CYAN)Removing logs...$(NC)"
+	@rm -rf logs/ || echo -e "$(YELLOW)⚠️ No logs directory found$(NC)"
+	@echo -e "$(CYAN)Removing temporary files...$(NC)"
+	@rm -rf dev/temp/* || echo -e "$(YELLOW)⚠️ No temp files found$(NC)"
+	@echo -e "$(CYAN)Removing cache files...$(NC)"
+	@find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+	@find . -name "*.pyc" -delete 2>/dev/null || true
+	@echo -e "$(GREEN)✅ Cleanup complete$(NC)"
 
 # ===========================================
-# 💜 PHONY TARGET UPDATES
+# 🪄 STATUS DETECTION
 # ===========================================
-.PHONY: uninstall\ local uninstall\ dev uninstall\ docker uninstall\ prod purge purge-deps
