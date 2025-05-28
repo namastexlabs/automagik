@@ -267,32 +267,50 @@ class AgentFactory:
             if not agent_id:
                 # Try to register the agent in the database
                 try:
-                    from src.db import register_agent
+                    from src.db import register_agent, list_agents
                     
-                    # Extract agent metadata
-                    agent_type = agent_name
-                    description = getattr(agent, "description", f"{agent_name} agent")
-                    model = getattr(getattr(agent, "config", {}), "model", "")
-                    config = getattr(agent, "config", {})
+                    # First validate if this is a variation of an existing agent
+                    all_agents = list_agents(active_only=False)
                     
-                    # If config is not a dict, convert it
-                    if not isinstance(config, dict):
-                        if hasattr(config, "__dict__"):
-                            config = config.__dict__
-                        else:
-                            config = {"config": str(config)}
+                    # Check if this agent name is a variation of an existing agent
+                    for existing_agent in all_agents:
+                        # Check for common variations
+                        if (agent_name.lower() == f"{existing_agent.name.lower()}agent" or
+                            agent_name.lower() == f"{existing_agent.name.lower()}-agent" or
+                            agent_name.lower() == f"{existing_agent.name.lower()}_agent"):
+                            # Use the existing agent instead
+                            agent_id = existing_agent.id
+                            logger.warning(f"Agent name '{agent_name}' is a variation of '{existing_agent.name}', using existing agent ID {agent_id}")
+                            # Update the agent's db_id
+                            agent.db_id = agent_id
+                            break
                     
-                    # Register the agent
-                    agent_id = register_agent(
-                        name=agent_name,
-                        agent_type=agent_type,
-                        model=model,
-                        description=description,
-                        config=config
-                    )
-                    
-                    # Update the agent's db_id
-                    agent.db_id = agent_id
+                    # If not a variation and agent_id is still None, register as new agent
+                    if not agent_id:
+                        # Extract agent metadata
+                        agent_type = agent_name
+                        description = getattr(agent, "description", f"{agent_name} agent")
+                        model = getattr(getattr(agent, "config", {}), "model", "")
+                        config = getattr(agent, "config", {})
+                        
+                        # If config is not a dict, convert it
+                        if not isinstance(config, dict):
+                            if hasattr(config, "__dict__"):
+                                config = config.__dict__
+                            else:
+                                config = {"config": str(config)}
+                        
+                        # Register the agent
+                        agent_id = register_agent(
+                            name=agent_name,
+                            agent_type=agent_type,
+                            model=model,
+                            description=description,
+                            config=config
+                        )
+                        
+                        # Update the agent's db_id
+                        agent.db_id = agent_id
                     
                 except Exception as e:
                     logger.error(f"Error registering agent in database: {str(e)}")
