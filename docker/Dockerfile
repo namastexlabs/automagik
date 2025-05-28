@@ -1,48 +1,65 @@
-# Automagik Agents Dockerfile - Optimized
-FROM python:3.11-alpine
+# Stage 1: Builder
+FROM python:3.11-alpine AS builder
 
-# Set environment variables
+# Set environment variables for builder stage
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies efficiently
-RUN apk add --no-cache --virtual .build-deps \
-    gcc \
-    musl-dev \
+# Install build-time system dependencies for z3-solver and other packages
+# alpine-sdk includes make, gcc, etc.
+# cmake is required by z3-solver
+# postgresql-dev and libffi-dev for psycopg2 and cffi if they have native parts
+RUN apk add --no-cache \
+    alpine-sdk \
+    cmake \
     postgresql-dev \
     libffi-dev \
-    && apk add --no-cache \
-    postgresql-client \
-    curl \
-    bash \
-    && pip install --no-cache-dir uv
+    curl # For installing uv
 
-# Set working directory
+# Install uv in the builder stage
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    cp /root/.cargo/bin/uv /usr/local/bin/uv
+
 WORKDIR /app
 
-# Copy dependency files first (for better layer caching)
-# Ensure uv.lock (TOML format) is copied
+# Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Copy source code
-COPY src/ ./src/
-
-# Install dependencies from the TOML uv.lock using uv sync
-# --frozen ensures it uses the lockfile without trying to update it
+# Install Python dependencies, including compiling z3-solver
+# This creates the .venv directory with all dependencies
 RUN uv sync --frozen
 
-# Clean up build dependencies to reduce image size
-RUN apk del .build-deps
+# Stage 2: Runtime
+FROM python:3.11-alpine AS runtime
 
-# Set environment variables
+# Set environment variables for runtime stage
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 ENV AM_ENV=production
+# Ensure Python from our venv is found first
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Install runtime system dependencies
+# postgresql-client for running db commands if needed by app, curl for healthcheck
+RUN apk add --no-cache \
+    postgresql-client \
+    curl \
+    bash # If any scripts use bash
+
+WORKDIR /app
+
+# Copy the virtual environment with compiled dependencies from the builder stage
+COPY --from=builder /app/.venv ./.venv
+
+# Copy the application source code
+COPY src/ ./src/
 
 # Expose port for API
 EXPOSE 18881
 
-# Health check (use the venv's python)
+# Health check (uses Python from the copied venv due to PATH modification)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:18881/health || exit 1
 
-# Command to run the application (use the venv's python)
-CMD [".venv/bin/python", "-m", "src"]
+# Command to run the application (uses Python from the copied venv)
+CMD ["python", "-m", "src"]
