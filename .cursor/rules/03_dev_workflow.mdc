@@ -19,9 +19,9 @@ alwaysApply: false
 **Memory-First Approach:**
 ```bash
 # Before starting any task
-mcp_agent-memory_search_memory_nodes --query "task keywords" --entity "Procedure"
-mcp_agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
-mcp_agent-memory_search_memory_facts --query "dependencies relationships"
+agent-memory_search_memory_nodes --query "task keywords" --entity "Procedure"
+agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
+agent-memory_search_memory_facts --query "dependencies relationships"
 ```
 
 **Git Integration:**
@@ -45,8 +45,8 @@ git push origin NMSTX-XX-feature-name
 - **Focus**: Implementation, file editing, testing
 - **Memory**: 
   ```bash
-  mcp_agent-memory_search_memory_nodes --query "code patterns implementation" --entity "Procedure"
-  mcp_agent-memory_search_memory_nodes --query "coding style" --entity "Preference"
+  agent-memory_search_memory_nodes --query "code patterns implementation" --entity "Procedure"
+  agent-memory_search_memory_nodes --query "coding style" --entity "Preference"
   ```
 - **Pattern**: Extend AutomagikAgent, use {{memory_templates}}, register tools
 - **Trigger**: Implementation tasks, bug fixes, feature coding
@@ -55,8 +55,8 @@ git push origin NMSTX-XX-feature-name
 - **Focus**: Analysis, design, planning
 - **Memory**: 
   ```bash
-  mcp_agent-memory_search_memory_nodes --query "architecture design patterns" --entity "Procedure"
-  mcp_agent-memory_search_memory_facts --query "component relationships dependencies"
+  agent-memory_search_memory_nodes --query "architecture design patterns" --entity "Procedure"
+  agent-memory_search_memory_facts --query "component relationships dependencies"
   ```
 - **Constraint**: .md files only, high-level planning
 - **Trigger**: System design, structure planning, documentation
@@ -65,8 +65,8 @@ git push origin NMSTX-XX-feature-name
 - **Focus**: Problem diagnosis, systematic analysis
 - **Memory**: 
   ```bash
-  mcp_agent-memory_search_memory_nodes --query "debug troubleshoot error" --entity "Procedure"
-  mcp_agent-memory_search_memory_facts --query "error caused by solution"
+  agent-memory_search_memory_nodes --query "debug troubleshoot error" --entity "Procedure"
+  agent-memory_search_memory_facts --query "error caused by solution"
   ```
 - **Pattern**: 5-7 hypotheses → 1-2 likely → add logs → validate
 - **Trigger**: Bugs, unexpected behavior, performance issues
@@ -75,8 +75,8 @@ git push origin NMSTX-XX-feature-name
 - **Focus**: Test execution, coverage, validation  
 - **Memory**: 
   ```bash
-  mcp_agent-memory_search_memory_nodes --query "test patterns validation" --entity "Procedure"
-  mcp_agent-memory_search_memory_nodes --query "test requirements" --entity "Requirement"
+  agent-memory_search_memory_nodes --query "test patterns validation" --entity "Procedure"
+  agent-memory_search_memory_nodes --query "test requirements" --entity "Requirement"
   ```
 - **Pattern**: Use test criteria from Linear issue description
 - **Trigger**: Verification, quality assurance, CI/CD
@@ -86,7 +86,7 @@ git push origin NMSTX-XX-feature-name
 ### **Agent Development** (8-Step Process)
 1. **Search Memory**: Check for existing agent patterns and preferences
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "agent development" --entity "Procedure"
+   agent-memory_search_memory_nodes --query "agent development" --entity "Procedure"
    ```
 2. **Directory**: `mkdir -p src/agents/simple/<agent_name>`
 3. **Structure**: Create `agent.py`, `prompts/prompt.py`, `__init__.py`
@@ -105,14 +105,14 @@ git push origin NMSTX-XX-feature-name
    ```
 8. **Document**: Store pattern if new approach used
    ```bash
-   mcp_agent-memory_add_memory --name "Agent Pattern: [Name]" --episode_body "pattern details" --source "text"
+   agent-memory_add_memory --name "Agent Pattern: [Name]" --episode_body "pattern details" --source "text"
    git commit -m "docs: document new agent pattern"
    ```
 
 ### **Tool Development** (8-Step Process)
 1. **Search Memory**: Check for tool patterns and integration procedures
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "tool development integration" --entity "Procedure"
+   agent-memory_search_memory_nodes --query "tool development integration" --entity "Procedure"
    ```
 2. **Directory**: `mkdir -p src/tools/<service_name>`
 3. **Schema**: Define `ToolInput`/`ToolOutput` Pydantic models
@@ -137,7 +137,7 @@ git push origin NMSTX-XX-feature-name
 ### **API Endpoint** (5-Step Process)
 1. **Search Memory**: Check for API patterns and security requirements
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "API endpoint security" --entity "Requirement"
+   agent-memory_search_memory_nodes --query "API endpoint security" --entity "Requirement"
    ```
 2. **Models**: Define Pydantic request/response models
    ```bash
@@ -314,10 +314,10 @@ async def test_agent_memory_integration():
 **Development Pattern Recording**:
 ```bash
 # Before implementation
-mcp_agent-memory_search_memory_nodes --query "implementation pattern" --entity "Procedure"
+agent-memory_search_memory_nodes --query "implementation pattern" --entity "Procedure"
 
 # During development - capture discoveries
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "AutomagikAgent Extension Procedure" \
   --episode_body "1. Call super().__init__\n2. Set _code_prompt_text\n3. Register tools" \
   --source "text"
@@ -326,7 +326,7 @@ mcp_agent-memory_add_memory \
 git add -p && git commit -m "feat: implement discovered pattern"
 
 # After completion - store successful patterns
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Successful Pattern: [Feature]" \
   --episode_body "Key learnings and implementation details" \
   --source "text"
