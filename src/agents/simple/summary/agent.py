@@ -83,7 +83,7 @@ class SummaryAgentAgent(AutomagikAgent):
             return
             
         # Get model configuration
-        model_name = "gemini-2.5-flash-preview-04-17"
+        model_name = "claude-sonnet-4-20250514"
         model_settings = create_model_settings(self.dependencies.model_settings)
         
         # Convert tools to PydanticAI format
