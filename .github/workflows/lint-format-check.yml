@@ -34,7 +34,7 @@ jobs:
           restore-keys: |-
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip sync uv.lock
       - name: Run Linter (Ruff)
         run: make lint
       - name: Check Formatter (Ruff)
@@ -67,7 +67,7 @@ jobs:
           restore-keys: |-
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip sync uv.lock
       - name: Audit Dependencies
         run: uv run pip-audit
       - name: Run Bandit Security Analysis
@@ -100,7 +100,7 @@ jobs:
           restore-keys: |-
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip sync uv.lock
       - name: Run Pytest with Coverage
         env:
           AM_API_KEY: "test_am_api_key_placeholder"
@@ -141,7 +141,7 @@ jobs:
           restore-keys: |-
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv pip sync uv.lock
       - name: Run Mypy
         run: uv run mypy src/ 
 
@@ -209,7 +209,7 @@ jobs:
             ${{ runner.os }}-uv-docs-
 
       - name: Install dependencies (including Sphinx)
-        run: uv sync --frozen
+        run: uv pip sync uv.lock
 
       - name: Build Sphinx Documentation
         # The -W flag turns warnings into errors, ensuring quality
@@ -316,7 +316,7 @@ jobs:
       # Important: 'codeflash' must be a dependency of your project (e.g., in pyproject.toml)
       # to be installed by 'uv sync'.
       - name: Install dependencies (including codeflash)
-        run: uv sync --frozen
+        run: uv pip sync uv.lock
 
       - name: Run Codeflash
         env:
