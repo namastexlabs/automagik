@@ -152,10 +152,10 @@ install-docker: ## 🐳 Install Docker development stack
 	$(call print_status,Installing Docker development stack...)
 	@$(call check_docker)
 	@$(call check_env_file)
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) build
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env build
 	@$(call print_status,Starting Docker development stack...)
 	@profile=$$($(call detect_graphiti_profile)); \
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) $$profile up -d
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
 	$(call print_success,Docker development stack ready!)
 
 install-prod: ## 🏭 Install production Docker stack
@@ -193,7 +193,7 @@ docker: ## 🐳 Start Docker development stack
 	@$(call check_env_file)
 	@profile=$$($(call detect_graphiti_profile)); \
 	$(call print_status,Starting services$$profile...); \
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) $$profile up -d
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
 	@$(call print_success,Docker stack started!)
 
 prod: ## 🏭 Start production Docker stack
@@ -221,11 +221,11 @@ stop-prod: ## 🛑 Stop production automagik-agents container only
 stop-all: ## 🛑 Stop all services (preserves containers)
 	$(call print_status,Stopping all services...)
 	@sudo systemctl stop automagik-agents 2>/dev/null || true
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --profile graphiti stop 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true
 	@if [ -f ".env.prod" ]; then \
 		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
 	else \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) --env-file .env stop 2>/dev/null || true; \
 	fi
 	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
