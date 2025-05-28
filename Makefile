@@ -154,6 +154,7 @@ endef
 .PHONY: install-python-env install-service install-postgres install-neo4j install-graphiti
 .PHONY: install-database-local check-env-dev check-env-prod verify-docker
 .PHONY: venv-create venv-clean requirements-update setup-prod-volumes
+.PHONY: check-conflicts-dev check-conflicts-docker check-conflicts-prod
 
 # ===========================================
 # 💜 HELP SYSTEM
@@ -543,13 +544,6 @@ verify-prerequisites: ## ✅ Verify all prerequisites are properly installed
 		echo "$(GREEN)$(CHECKMARK) $$version$(NC)"; \
 	else \
 		echo "$(YELLOW)$(WARNING) uv not found$(NC)"; \
-	fi
-	@echo ""
-	@echo "$(PURPLE)🔐 Database Client:$(NC)"
-	@if pg_isready --version >/dev/null 2>&1; then \
-		echo "$(GREEN)$(CHECKMARK) PostgreSQL client installed$(NC)"; \
-	else \
-		echo "$(YELLOW)$(WARNING) PostgreSQL client not found$(NC)"; \
 	fi
 
 # ===========================================
@@ -1124,4 +1118,142 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 	@echo "$(GREEN)$(CHECKMARK) Systemd service file created$(NC)"
+endef
+
+# ===========================================
+# 💜 SERVICE MANAGEMENT
+# ===========================================
+
+start: ## 🚀 Start systemd service
+	@$(call print_status,Starting systemd service...)
+	@if ! systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
+		echo "$(RED)❌ Service not installed$(NC)"; \
+		echo "$(YELLOW)💡 Run 'make install-service' first$(NC)"; \
+		exit 1; \
+	fi
+	@sudo systemctl start automagik-agents
+	@echo "$(GREEN)✅ Service started$(NC)"
+	@echo "$(CYAN)💡 Check status with 'make status'$(NC)"
+
+stop: ## 🛑 Stop all instances
+	@$(call print_status,Stopping all automagik-agents instances...)
+	@echo "$(CYAN)Stopping systemd service...$(NC)"
+	@sudo systemctl stop automagik-agents 2>/dev/null || echo "$(YELLOW)⚠️ Service not running$(NC)"
+	@echo "$(CYAN)Stopping Docker containers...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down 2>/dev/null || echo "$(YELLOW)⚠️ Docker dev not running$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) down 2>/dev/null || echo "$(YELLOW)⚠️ Docker prod not running$(NC)"
+	@echo "$(CYAN)Stopping development processes...$(NC)"
+	@pkill -f "python.*src" 2>/dev/null || echo "$(YELLOW)⚠️ No dev processes found$(NC)"
+	@echo "$(GREEN)✅ All instances stopped$(NC)"
+
+restart: ## 🔄 Restart systemd service
+	@$(call print_status,Restarting systemd service...)
+	@sudo systemctl restart automagik-agents
+	@echo "$(GREEN)✅ Service restarted$(NC)"
+
+dev: check-conflicts-dev ## 🛠️ Start development mode
+	@$(call print_status,Starting development mode...)
+	@$(call check_env_dev)
+	@echo "$(CYAN)Activating virtual environment...$(NC)"
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		echo "$(RED)❌ Virtual environment not found$(NC)"; \
+		echo "$(YELLOW)💡 Run 'make install-dev' first$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)Starting automagik-agents in development mode...$(NC)"
+	@echo "$(PURPLE)🔧 Debug mode enabled - breakpoints supported$(NC)"
+	@. $(VENV_PATH)/bin/activate && python -m src
+
+docker: check-conflicts-docker ## 🐳 Start Docker development stack
+	@$(call print_status,Starting Docker development stack...)
+	@$(call verify_docker)
+	@$(call check_env_dev)
+	@echo "$(CYAN)Building images if needed...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) build
+	@echo "$(CYAN)Starting services...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "$(GREEN)✅ Docker development stack started$(NC)"
+	@echo "$(CYAN)💡 View logs with 'make logs'$(NC)"
+
+prod: check-conflicts-prod ## 🏭 Start production Docker stack
+	@$(call print_status,Starting production Docker stack...)
+	@$(call verify_docker)
+	@$(call check_env_prod)
+	@echo "$(CYAN)Building production images...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) build
+	@echo "$(CYAN)Setting up production volumes...$(NC)"
+	@$(call setup_prod_volumes)
+	@echo "$(CYAN)Starting production services...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_PROD_FILE) up -d
+	@echo "$(GREEN)✅ Production stack started$(NC)"
+	@echo "$(CYAN)💡 Monitor with 'make status' and 'make health'$(NC)"
+
+# ===========================================
+# 💜 CONFLICT DETECTION
+# ===========================================
+
+check-conflicts-dev: ## 🔍 Check for development mode conflicts
+	@$(call check_conflicts,"dev","development")
+
+check-conflicts-docker: ## 🔍 Check for Docker development conflicts  
+	@$(call check_conflicts,"docker","Docker development")
+
+check-conflicts-prod: ## 🔍 Check for production conflicts
+	@$(call check_conflicts,"prod","production")
+
+# ===========================================
+# 💜 CONFLICT RESOLUTION FUNCTIONS
+# ===========================================
+
+define check_conflicts
+	@echo "$(CYAN)Checking for conflicts with $(2) mode...$(NC)"; \
+	conflicts=0; \
+	port=$$($(call get_port)); \
+	if [ -z "$$port" ]; then \
+		echo "$(RED)❌ Cannot determine port from environment$(NC)"; \
+		exit 1; \
+	fi; \
+	echo "$(CYAN)Checking port $$port...$(NC)"; \
+	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠️ Systemd service is running$(NC)"; \
+		conflicts=$$((conflicts + 1)); \
+	fi; \
+	if docker ps --format "table {{.Names}}" | grep -q "automagik-agents-"; then \
+		echo "$(YELLOW)⚠️ Docker containers are running$(NC)"; \
+		docker ps --filter "name=automagik-agents-" --format "table {{.Names}}\t{{.Status}}"; \
+		conflicts=$$((conflicts + 1)); \
+	fi; \
+	if lsof -ti:$$port >/dev/null 2>&1; then \
+		pid=$$(lsof -ti:$$port); \
+		echo "$(YELLOW)⚠️ Port $$port is in use by PID $$pid$(NC)"; \
+		ps -p $$pid -o pid,ppid,cmd --no-headers 2>/dev/null || echo "Process details unavailable"; \
+		conflicts=$$((conflicts + 1)); \
+	fi; \
+	if [ $$conflicts -gt 0 ]; then \
+		if [ -z "$(FORCE)" ]; then \
+			echo ""; \
+			echo "$(RED)❌ Conflicts detected! Cannot start $(2) mode.$(NC)"; \
+			echo ""; \
+			echo "$(PURPLE)💡 Resolution options:$(NC)"; \
+			echo "  $(CYAN)1. Stop conflicts manually:$(NC) make stop"; \
+			echo "  $(CYAN)2. Force start (stops conflicts):$(NC) make $(1) FORCE=1"; \
+			echo "  $(CYAN)3. Check what's running:$(NC) make status"; \
+			echo ""; \
+			exit 1; \
+		else \
+			echo "$(PURPLE)🔧 FORCE=1 detected - resolving conflicts...$(NC)"; \
+			$(MAKE) stop; \
+			echo "$(GREEN)✅ Conflicts resolved$(NC)"; \
+		fi; \
+	else \
+		echo "$(GREEN)✅ No conflicts detected$(NC)"; \
+	fi
+endef
+
+define get_port
+	@if [ -f "$(ACTIVE_ENV_FILE)" ]; then \
+		grep "^AM_PORT=" "$(ACTIVE_ENV_FILE)" | cut -d= -f2 | tr -d ' "'"'"''; \
+	else \
+		echo "8000"; \
+	fi
 endef 
