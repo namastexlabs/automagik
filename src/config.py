@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 import urllib.parse
 from pathlib import Path
 import logging
+import subprocess
 
 try:
     from dotenv import load_dotenv
@@ -15,6 +16,72 @@ except ImportError:
         return None
 
 logger = logging.getLogger(__name__)
+
+def detect_environment_file() -> str:
+    """
+    Detect which environment file to use based on the same logic as env_loader.sh
+    Returns the path to the appropriate .env file.
+    """
+    env_file = ".env"
+    prod_env_file = ".env.prod"
+    
+    # Check if .env.prod exists
+    if not Path(prod_env_file).exists():
+        return env_file
+    
+    # Check AM_ENV in both files
+    def get_am_env_from_file(file_path: str) -> str:
+        try:
+            with open(file_path, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('AM_ENV='):
+                        value = line.split('=', 1)[1].strip().strip('"').strip("'")
+                        return value.lower()
+        except (FileNotFoundError, IOError):
+            pass
+        return ""
+    
+    # Get AM_ENV from both files
+    current_env = get_am_env_from_file(env_file)
+    prod_env = get_am_env_from_file(prod_env_file)
+    
+    # Get production port for container detection
+    def get_port_from_file(file_path: str) -> str:
+        try:
+            with open(file_path, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('AM_PORT='):
+                        value = line.split('=', 1)[1].strip().strip('"').strip("'")
+                        return value
+        except (FileNotFoundError, IOError):
+            pass
+        return ""
+    
+    prod_port = get_port_from_file(prod_env_file) or "18881"
+    
+    # Check if production containers are running
+    try:
+        result = subprocess.run(
+            ["docker", "ps"], 
+            capture_output=True, 
+            text=True, 
+            timeout=5
+        )
+        if result.returncode == 0:
+            docker_output = result.stdout
+            if (f"automagik-agents-prod" in docker_output or 
+                f"automagik_agent" in docker_output and prod_port in docker_output):
+                return prod_env_file
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
+        # Docker not available or error - continue with file-based detection
+        pass
+    
+    # Check if environment is explicitly set to production
+    if current_env == "production" or prod_env == "production":
+        return prod_env_file
+    
+    # Default to development
+    return env_file
 
 class LogLevel(str, Enum):
     DEBUG = "DEBUG"
@@ -184,22 +251,25 @@ class Settings(BaseSettings):
     )
 
     model_config = ConfigDict(
-        env_file=".env",
+        # Dynamic env_file will be set in load_settings()
         case_sensitive=True,
         extra="ignore"  # Allow extra fields in environment variables
     )
 
 def load_settings() -> Settings:
     """Load and validate settings from environment variables and .env file."""
+    # Detect which environment file to use
+    env_file = detect_environment_file()
+    
     # Check if we're in debug mode (AM_LOG_LEVEL set to DEBUG)
     debug_mode = os.environ.get('AM_LOG_LEVEL', '').upper() == 'DEBUG'
     
-    # Load environment variables from .env file
+    # Load environment variables from the detected env file
     try:
-        load_dotenv(override=True)
-        print(f"📝 .env file loaded from: {Path('.env').absolute()}")
+        load_dotenv(dotenv_path=env_file, override=True)
+        print(f"📝 Environment file loaded from: {Path(env_file).absolute()}")
     except Exception as e:
-        print(f"⚠️ Error loading .env file: {str(e)}")
+        print(f"⚠️ Error loading {env_file} file: {str(e)}")
 
     # Debug DATABASE_URL only if in debug mode
     if debug_mode:
@@ -213,8 +283,8 @@ def load_settings() -> Settings:
                 print(f"📝 Stripped comments from environment variable: {key}")
 
     try:
-        # Explicitly set reload=True to ensure environment variables are reloaded
-        settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
+        # Create settings with the detected env file
+        settings = Settings(_env_file=env_file, _env_file_encoding='utf-8')
         
         # Debug DATABASE_URL after loading settings - only in debug mode
         if debug_mode:
