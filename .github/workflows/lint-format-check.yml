@@ -51,10 +51,17 @@ jobs:
     - name: Check Formatter (Ruff)
       run: make format ARGS=--check # Passes --check to the ruff format command within the Makefile
 
-    - name: Run Pytest
+    - name: Run Pytest with Coverage
       env:
         AM_API_KEY: "test_am_api_key_placeholder"
         OPENAI_API_KEY: "test_openai_api_key_placeholder"
         DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
         # Adicione outras variáveis de ambiente que possam ser necessárias para os testes
-      run: uv run pytest tests/ # Assumes your tests are in the 'tests/' directory 
+      run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing tests/ # Assumes your tests are in the 'tests/' directory
+
+    - name: Upload coverage to Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.xml
+        if-no-files-found: error # Opcional: falha se o coverage.xml não for encontrado 
