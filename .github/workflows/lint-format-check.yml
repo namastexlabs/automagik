@@ -23,6 +23,8 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           uv --version
+      - name: Create virtual environment
+        run: uv venv
       - name: Get uv cache directory path
         id: uv-cache-path
         run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
@@ -56,6 +58,8 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           uv --version
+      - name: Create virtual environment
+        run: uv venv
       - name: Get uv cache directory path
         id: uv-cache-path
         run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
@@ -89,6 +93,8 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           uv --version
+      - name: Create virtual environment
+        run: uv venv
       - name: Get uv cache directory path
         id: uv-cache-path
         run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
@@ -130,6 +136,8 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           uv --version
+      - name: Create virtual environment
+        run: uv venv
       - name: Get uv cache directory path
         id: uv-cache-path
         run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
@@ -195,6 +203,8 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           uv --version
+      - name: Create virtual environment
+        run: uv venv
 
       - name: Get uv cache directory path
         id: uv-cache-path
@@ -300,6 +310,8 @@ jobs:
         run: |
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           uv --version
+      - name: Create virtual environment
+        run: uv venv
 
       - name: Get uv cache directory path
         id: uv-cache-path
