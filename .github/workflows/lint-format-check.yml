@@ -43,7 +43,10 @@ jobs:
           ${{ runner.os }}-uv-
 
     - name: Install dependencies
-      run: uv sync --frozen # or just uv sync if uv.lock is not always up-to-date
+      run: uv sync --frozen
+
+    - name: Audit Dependencies
+      run: uv run pip-audit
 
     - name: Run Linter (Ruff)
       run: make lint
