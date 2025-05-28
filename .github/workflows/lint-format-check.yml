@@ -17,24 +17,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-      - name: Add uv to PATH
-        run: |
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv --version
-      - name: Create virtual environment
-        run: uv venv
-      - name: Get uv cache directory path
-        id: uv-cache-path
-        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
         with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
+          uv-version: 'latest'
       - name: Install dependencies
         run: uv sync --frozen
       - name: Run Linter (Ruff)
@@ -52,28 +38,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-      - name: Add uv to PATH
-        run: |
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv --version
-      - name: Create virtual environment
-        run: uv venv
-      - name: Get uv cache directory path
-        id: uv-cache-path
-        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
         with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
+          uv-version: 'latest'
       - name: Install dependencies
         run: uv sync --frozen
       - name: Audit Dependencies
-        run: uv export --format requirements.txt -o requirements.txt && uv run --frozen pip-audit -r requirements.txt
+        run: uv run --frozen pip-audit --desc
       - name: Run Bandit Security Analysis
         run: 'uv run --frozen bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
 
@@ -87,24 +59,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-      - name: Add uv to PATH
-        run: |
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv --version
-      - name: Create virtual environment
-        run: uv venv
-      - name: Get uv cache directory path
-        id: uv-cache-path
-        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
         with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
+          uv-version: 'latest'
       - name: Install dependencies
         run: uv sync --frozen
       - name: Run Pytest with Coverage
@@ -130,24 +88,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-      - name: Add uv to PATH
-        run: |
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv --version
-      - name: Create virtual environment
-        run: uv venv
-      - name: Get uv cache directory path
-        id: uv-cache-path
-        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
         with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
+          uv-version: 'latest'
       - name: Install dependencies
         run: uv sync --frozen
       - name: Run Mypy
@@ -196,27 +140,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Add uv to PATH
-        run: |
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv --version
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Get uv cache directory path
-        id: uv-cache-path
-        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
         with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
+          uv-version: 'latest'
 
       - name: Install dependencies
         run: uv sync --frozen
@@ -303,30 +230,11 @@ jobs:
         with:
           python-version: '3.11' # Adjust as needed for Codeflash or your project.
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Add uv to PATH
-        run: |
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv --version
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Get uv cache directory path
-        id: uv-cache-path
-        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
-
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
         with:
-          path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-codeflash-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-codeflash-
+          uv-version: 'latest'
 
-      # Important: 'codeflash' must be a dependency of your project (e.g., in pyproject.toml)
-      # to be installed by 'uv sync'.
       - name: Install dependencies (including codeflash)
         run: uv sync --frozen
 
