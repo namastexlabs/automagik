@@ -13,12 +13,11 @@ RUN apk add --no-cache \
     alpine-sdk \
     cmake \
     postgresql-dev \
-    libffi-dev \
-    curl # For installing uv
+    libffi-dev
+    # curl is not strictly needed here anymore if we use COPY --from for uv
 
-# Install uv in the builder stage
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    cp /root/.cargo/bin/uv /usr/local/bin/uv
+# Install uv in the builder stage - MÉTODO OFICIAL
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
