@@ -222,3 +222,30 @@ jobs:
           publish_dir: ./build/docs
           # Opcional: se você quiser um domínio customizado
           # cname: docs.meudominio.com 
+
+  label_pr_conventional:
+    name: Label PR (Conventional Commits)
+    runs-on: ubuntu-latest
+    # Roda em pull_request_target para permitir adicionar labels em PRs de forks
+    if: github.event_name == 'pull_request_target'
+    permissions:
+      pull-requests: write # Necessário para adicionar/remover labels
+      contents: read       # Necessário para ler os commits da PR
+    steps:
+      - name: Label PR based on Conventional Commits
+        uses: mheap/conventional-pr-labels-action@v3
+        env: # Usamos 'env' para definir as variáveis que a action lerá
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Mapeamento de tipos de commit para labels
+          # Formato: CONVENTIONAL_PR_LABEL_<TIPO_COMMIT_EM_MAIUSCULAS>=<label>
+          CONVENTIONAL_PR_LABEL_FEAT: "enhancement"
+          CONVENTIONAL_PR_LABEL_FIX: "bug"
+          CONVENTIONAL_PR_LABEL_DOCS: "documentation"
+          CONVENTIONAL_PR_LABEL_STYLE: "style"
+          CONVENTIONAL_PR_LABEL_REFACTOR: "refactor"
+          CONVENTIONAL_PR_LABEL_PERF: "performance"
+          CONVENTIONAL_PR_LABEL_TEST: "test"
+          CONVENTIONAL_PR_LABEL_BUILD: "build"
+          # Para ignorar 'chore', simplesmente não definimos CONVENTIONAL_PR_LABEL_CHORE
+        with:
+          skip_label_if_present: "ignore-for-release" 
