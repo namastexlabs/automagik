@@ -43,6 +43,7 @@ dependencies = [
     "pytest-xdist>=3.6.1",
     "requests>=2.32.3",
     "ruff>=0.10.0",
+    "pytest-cov>=2.12",
     "uv>=0.6.8",
     "pydantic-ai-slim[duckduckgo]>=0.0.42",
     "pip>=25.0.1",
