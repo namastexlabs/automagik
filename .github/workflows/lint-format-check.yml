@@ -112,7 +112,7 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
-          if-no-files-found: error 
+          if-no-files-found: error # Important: Fails the workflow if coverage.xml is not found
 
   type_check:
     name: Type Checking
@@ -163,25 +163,25 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
-          push: false
+          push: false # Important: Set to true to push to a registry after a successful build
           tags: automagik-agents:latest
-          # build-args: |
+          # build-args: | # Optional: Pass build arguments
           #   ARG_NAME=value
-          # labels: |
+          # labels: | # Optional: Add labels to the image
           #   org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} 
 
   build_and_deploy_docs:
     name: Build & Deploy Docs
     runs-on: ubuntu-latest
-    # Só roda em pushes para a branch main
+    # Only runs on pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      contents: write # Necessário para fazer push para a branch gh-pages
+      contents: write # Required to push to the gh-pages branch
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Necessário para obter histórico para alguns geradores de docs/changelog
+          fetch-depth: 0 # Required to get history for some doc/changelog generators
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -212,7 +212,8 @@ jobs:
         run: uv sync --frozen
 
       - name: Build Sphinx Documentation
-        # O -W transforma warnings em erros, garantindo qualidade
+        # The -W flag turns warnings into errors, ensuring quality
+        # --keep-going allows the build to continue on warnings if -W is not used to fail on them
         run: uv run sphinx-build -b html -W --keep-going docs/ build/docs
 
       - name: Deploy to GitHub Pages
@@ -220,24 +221,24 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/docs
-          # Opcional: se você quiser um domínio customizado
-          # cname: docs.meudominio.com 
+          # Optional: if you want a custom domain
+          # cname: docs.yourdomain.com 
 
   label_pr_conventional:
     name: Label PR (Conventional Commits)
     runs-on: ubuntu-latest
-    # Roda em pull_request_target para permitir adicionar labels em PRs de forks
+    # Runs on pull_request_target to allow adding labels to PRs from forks
     if: github.event_name == 'pull_request_target'
     permissions:
-      pull-requests: write # Necessário para adicionar/remover labels
-      contents: read       # Necessário para ler os commits da PR
+      pull-requests: write # Required to add/remove labels
+      contents: read       # Required to read PR commits
     steps:
       - name: Label PR based on Conventional Commits
         uses: mheap/conventional-pr-labels-action@v3
-        env: # Usamos 'env' para definir as variáveis que a action lerá
+        env: # We use 'env' to define variables the action will read
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Mapeamento de tipos de commit para labels
-          # Formato: CONVENTIONAL_PR_LABEL_<TIPO_COMMIT_EM_MAIUSCULAS>=<label>
+          # Mapping of commit types to labels
+          # Format: CONVENTIONAL_PR_LABEL_<COMMIT_TYPE_IN_UPPERCASE>=<label>
           CONVENTIONAL_PR_LABEL_FEAT: "enhancement"
           CONVENTIONAL_PR_LABEL_FIX: "bug"
           CONVENTIONAL_PR_LABEL_DOCS: "documentation"
@@ -246,45 +247,42 @@ jobs:
           CONVENTIONAL_PR_LABEL_PERF: "performance"
           CONVENTIONAL_PR_LABEL_TEST: "test"
           CONVENTIONAL_PR_LABEL_BUILD: "build"
-          # Para ignorar 'chore', simplesmente não definimos CONVENTIONAL_PR_LABEL_CHORE
+          # To ignore 'chore', we simply don't define CONVENTIONAL_PR_LABEL_CHORE
         with:
-          skip_label_if_present: "ignore-for-release" 
+          skip_label_if_present: "ignore-for-release" # Optional: Skip labeling if this label is present
 
   validate_pr:
     name: Validate PR Title (Conventional Commits)
     runs-on: ubuntu-latest
-    # Roda em pull_request_target para permitir acesso a segredos e funcionar em forks
+    # Runs on pull_request_target to allow access to secrets and work on forks
     if: github.event_name == 'pull_request_target'
     permissions:
-      contents: read # Necessário para ler o título e commits do PR
+      contents: read # Required to read the PR title and commits
     steps:
       - name: Validate PR Title
         uses: Namchee/conventional-pr@v0.15.6
         with:
-          # O token é necessário para a action interagir com a API do GitHub
+          # The token is required for the action to interact with the GitHub API
           access_token: ${{ secrets.GITHUB_TOKEN }}
-          # Configurações padrão geralmente validam o título.
-          # Você pode adicionar mais configurações aqui se necessário,
-          # por exemplo, para validar commits ou o nome da branch:
+          # Default settings usually validate the title.
+          # You can add more settings here if needed,
+          # e.g., to validate commits or the branch name:
           # validate_commits: true
           # validate_branch: true
-          # Para uma lista completa de opções, consulte a documentação da action:
+          # For a full list of options, consult the action's documentation:
           # https://github.com/Namchee/conventional-pr
+          # The following lines were commented out as they seemed to be remnants of a previous action's config
           # CONVENTIONAL_PR_LABEL_TEST: "test"
           # CONVENTIONAL_PR_LABEL_BUILD: "build"
-          # Para ignorar 'chore', simplesmente não definimos CONVENTIONAL_PR_LABEL_CHORE
-          # ignored_types: "chore" # Esta action ignora tipos não definidos nas ENVs
-          # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
-          # A configuração é primariamente via variáveis de ambiente como mostrado acima.
-          # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
-          # A configuração é primariamente via variáveis de ambiente como mostrado acima.
-          # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
-          # A configuração é primariamente via variáveis de ambiente como mostrado acima. 
+          # To ignore 'chore', we simply don't define CONVENTIONAL_PR_LABEL_CHORE
+          # ignored_types: "chore" # This action ignores types not defined in ENVs
+          # For the mheap/conventional-pr-labels-action, direct inputs in 'with' are less common
+          # Configuration is primarily via environment variables as shown above.
 
   optimize_python_codeflash:
     name: Optimize new Python code in this PR (Codeflash)
     runs-on: ubuntu-latest
-    # Importante: Este job é configurado para rodar em eventos de 'pull_request'.
+    # Important: This job is configured to run on 'pull_request' events.
     if: github.event_name == 'pull_request' 
     steps:
       - name: Checkout code
@@ -293,7 +291,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Ajuste conforme necessário para o Codeflash ou seu projeto.
+          python-version: '3.11' # Adjust as needed for Codeflash or your project.
 
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -312,17 +310,17 @@ jobs:
         with:
           path: ${{ env.UV_CACHE_DIR }}
           key: ${{ runner.os }}-uv-codeflash-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
+          restore-keys: |-
             ${{ runner.os }}-uv-codeflash-
 
-      # Importante: 'codeflash' deve ser uma dependência do seu projeto (ex: em pyproject.toml)
-      # para ser instalado pelo 'uv sync'.
+      # Important: 'codeflash' must be a dependency of your project (e.g., in pyproject.toml)
+      # to be installed by 'uv sync'.
       - name: Install dependencies (including codeflash)
         run: uv sync --frozen
 
       - name: Run Codeflash
         env:
-          # Crucial: Você DEVE configurar o segredo CODEFLASH_API_KEY nas configurações
-          # do seu repositório GitHub (Settings > Secrets and variables > Actions).
+          # Crucial: You MUST configure the CODEFLASH_API_KEY secret in your
+          # GitHub repository settings (Settings > Secrets and variables > Actions).
           CODEFLASH_API_KEY: ${{ secrets.CODEFLASH_API_KEY }}
         run: uv run codeflash 
