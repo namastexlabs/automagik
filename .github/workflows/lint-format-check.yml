@@ -2,7 +2,7 @@ name: Lint and Format Check
 
 on:
   push:
-    branches: [ main ] # Adicione outras branches principais se necessário, ex: [ main, dev ]
+    branches: [ main ] # Add other main branches if necessary, e.g., [ main, dev ]
   pull_request:
     branches: [ main ] # Adicione outras branches principais se necessário
 
