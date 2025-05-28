@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 import asyncio
 import traceback
+import signal
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,20 @@ configure_logging()
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+# Global shutdown flag for graceful shutdown
+_shutdown_requested = False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    global _shutdown_requested
+    _shutdown_requested = True
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    # Don't raise here, let the async tasks check the flag
+
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 async def initialize_all_agents():
     """Initialize agents at startup.
@@ -156,8 +171,9 @@ def create_app() -> FastAPI:
                 try:
                     from src.agents.models.automagik_agent import get_graphiti_client_async
                     
-                    # Initialize the shared client with retry logic (5 attempts, 2 second initial delay)
-                    client = await get_graphiti_client_async(max_retries=5, retry_delay=2.0)
+                    # Initialize the shared client with retry logic - faster for development
+                    # Use shorter delays in development to make interruption more responsive
+                    client = await get_graphiti_client_async(max_retries=3, retry_delay=1.0)
                     
                     if client:
                         # The build_indices_and_constraints should have already been called
