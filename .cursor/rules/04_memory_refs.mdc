@@ -96,7 +96,7 @@ mcp_agent-memory_add_memory \
 ### **API Endpoints**
 ```bash
 # Create memory (requires user_id currently)
-curl -X POST -H "X-API-Key: am-xxxxx" -H "Content-Type: application/json" \
+curl -X POST -H "X-API-Key: namastex888" -H "Content-Type: application/json" \
   -d '{"name": "test", "content": "content", "user_id": "uuid", "agent_id": 1}' \
   http://server:port/api/v1/memories
 
