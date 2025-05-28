@@ -43,19 +43,19 @@ FOLLOW ?=
 # 🛠️ Utility Functions
 # ===========================================
 define print_status
-	echo -e "$(PURPLE)🪄 $(1)$(NC)"
+	@echo -e "$(PURPLE)🪄 $(1)$(NC)"
 endef
 
 define print_success
-	echo -e "$(GREEN)$(CHECKMARK) $(1)$(NC)"
+	@echo -e "$(GREEN)$(CHECKMARK) $(1)$(NC)"
 endef
 
 define print_warning
-	echo -e "$(YELLOW)$(WARNING) $(1)$(NC)"
+	@echo -e "$(YELLOW)$(WARNING) $(1)$(NC)"
 endef
 
 define print_error
-	echo -e "$(RED)$(ERROR) $(1)$(NC)"
+	@echo -e "$(RED)$(ERROR) $(1)$(NC)"
 endef
 
 define check_docker
