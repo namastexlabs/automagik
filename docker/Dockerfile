@@ -21,11 +21,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Copy dependency files AND source code before sync
+COPY pyproject.toml uv.lock ./          
+COPY src/ ./src/  
 
-# Install Python dependencies, including compiling z3-solver
-# This creates the .venv directory with all dependencies
+# Install Python dependencies, including compiling z3-solver and the local project
 RUN uv sync --frozen
 
 # Stage 2: Runtime
@@ -48,10 +48,11 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy the virtual environment with compiled dependencies from the builder stage
-COPY --from=builder /app/.venv ./.venv
+COPY --from=builder /app/.venv ./.venv/
 
-# Copy the application source code
-COPY src/ ./src/
+# Copy the application source code (já que o venv pode ter referências a ele se instalado em modo editável)
+# Embora o venv seja autocontido para dependências, copiar src/ garante consistência.
+COPY --from=builder /app/src ./src/
 
 # Expose port for API
 EXPOSE 18881
