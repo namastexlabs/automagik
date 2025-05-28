@@ -86,7 +86,7 @@ git checkout -b feature-discord-agent       # No traceability
 ### **Workflow Standardization**
 ```bash
 # 1. Create Linear task FIRST
-mcp_linear_create_issue --title "🐛 Component: Issue description"
+linear_create_issue --title "🐛 Component: Issue description"
 
 # 2. Get returned NMSTX-XX ID from Linear response
 
@@ -113,10 +113,10 @@ git push origin --delete old-branch-name  # Clean up old branch
 ### **Standard Issue Creation**
 ```bash
 # First search memory for existing patterns
-mcp_agent-memory_search_memory_nodes --query "Linear issue patterns" --entity "Procedure"
+agent-memory_search_memory_nodes --query "Linear issue patterns" --entity "Procedure"
 
 # Then create issue
-mcp_linear_create_issue \
+linear_create_issue \
   --title "🔸 Agent: Implement new feature" \
   --teamId "2c6b21de-9db7-44ac-9666-9079ff5b9b84" \
   --projectId "dbb25a78-ffce-45ba-af9c-898b35255896" \
@@ -129,7 +129,7 @@ git checkout -b NMSTX-XX-brief-description
 
 ### **AI Blocking Pattern**
 ```bash
-mcp_linear_create_issue \
+linear_create_issue \
   --title "🚫 AI BLOCKED: [Problem]" \
   --description "## 🤖 AI BLOCKING ISSUE
 **Blocked Task**: [NMSTX-XX]
@@ -147,7 +147,7 @@ mcp_linear_create_issue \
 ### **Task Lifecycle Management**
 ```bash
 # Start work
-mcp_linear_update_issue --id "[NMSTX-XX]" --stateId "99291eb9-7768-4d3b-9778-d69d8de3f333"
+linear_update_issue --id "[NMSTX-XX]" --stateId "99291eb9-7768-4d3b-9778-d69d8de3f333"
 git checkout -b NMSTX-XX-feature  # Branch from issue
 
 # Progress with commits
@@ -155,17 +155,17 @@ git add -p && git commit -m "feat(NMSTX-XX): implement subtask"
 git push origin NMSTX-XX-feature
 
 # Complete task
-mcp_linear_update_issue --id "[NMSTX-XX]" --stateId "1551da4c-03c1-4169-9690-8688f95f9e87"
+linear_update_issue --id "[NMSTX-XX]" --stateId "1551da4c-03c1-4169-9690-8688f95f9e87"
 git commit -m "feat(NMSTX-XX): complete implementation"
 
 # Cancel if needed
-mcp_linear_update_issue --id "[NMSTX-XX]" --stateId "15aaa37e-a012-43a8-92d2-b6ff3399137e"
-mcp_linear_create_comment --issueId "[NMSTX-XX]" --body "Canceled: [reason]"
+linear_update_issue --id "[NMSTX-XX]" --stateId "15aaa37e-a012-43a8-92d2-b6ff3399137e"
+linear_create_comment --issueId "[NMSTX-XX]" --body "Canceled: [reason]"
 ```
 
 ### **Task Closure Checklist** ✅
 Before moving to next task, ALWAYS:
-1. **List current tasks**: `mcp_linear_list_my_issues --limit 20`
+1. **List current tasks**: `linear_list_my_issues --limit 20`
 2. **Update completed tasks**: Set to "Done" state
 3. **Cancel abandoned tasks**: Set to "Canceled" with comment
 4. **Verify no IN_PROGRESS tasks**: Unless actively working on them
@@ -215,7 +215,7 @@ git commit -m "test(NMSTX-XX): add agent integration tests"
 ### **Memory Integration**
 ```bash
 # Store successful Linear workflows
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Linear Workflow Pattern" \
   --episode_body "Successful issue creation pattern with known IDs" \
   --source "text"
@@ -252,16 +252,16 @@ git push origin NMSTX-XX-feature --tags
 ### **Regular Task Review**
 ```bash
 # Check for rogue tasks periodically
-mcp_linear_list_my_issues --limit 50
+linear_list_my_issues --limit 50
 
 # Clean up old IN_PROGRESS tasks
-mcp_linear_update_issue --id "[old-task-id]" --stateId "1551da4c-03c1-4169-9690-8688f95f9e87"  # Done
+linear_update_issue --id "[old-task-id]" --stateId "1551da4c-03c1-4169-9690-8688f95f9e87"  # Done
 # OR
-mcp_linear_update_issue --id "[old-task-id]" --stateId "15aaa37e-a012-43a8-92d2-b6ff3399137e"  # Canceled
+linear_update_issue --id "[old-task-id]" --stateId "15aaa37e-a012-43a8-92d2-b6ff3399137e"  # Canceled
 ```
 
 ### **Before Starting New Work**
-1. **Check existing tasks**: `mcp_linear_list_my_issues`
+1. **Check existing tasks**: `linear_list_my_issues`
 2. **Close completed work**: Update all finished tasks
 3. **Cancel abandoned work**: With explanatory comments
 4. **Verify clean state**: No unexpected IN_PROGRESS tasks
