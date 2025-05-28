@@ -1,34 +1,34 @@
 services:
-  automagik-agents:
+  automagik-agents-dev:
     build: 
       context: ..
       dockerfile: docker/Dockerfile
       args:
         BUILDKIT_INLINE_CACHE: 1
     image: automagik-agents:latest
-    container_name: automagik_agents
+    container_name: automagik-agents-dev
     env_file:
       - ../.env
     ports:
-      - "${AM_PORT:-8881}:8881"
+      - "${AM_PORT:-8881}:${AM_PORT:-8881}"
     environment:
       - AM_API_KEY=${AM_API_KEY}
       - AM_HOST=0.0.0.0
-      - AM_PORT=8881
+      - AM_PORT=${AM_PORT:-8881}
       - AM_ENV=${AM_ENV:-development}
       - AM_LOG_LEVEL=${AM_LOG_LEVEL:-INFO}
       - AM_TIMEZONE=${AM_TIMEZONE:-UTC}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4.1-mini}
-      - DATABASE_URL=postgresql://postgres:postgres@automagik_agents_db:5432/automagik
-      - POSTGRES_HOST=automagik_agents_db
+      - DATABASE_URL=postgresql://postgres:postgres@automagik-agents-db:5432/automagik
+      - POSTGRES_HOST=automagik-agents-db
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-automagik}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
     depends_on:
-      automagik_agents_db:
+      automagik-agents-db:
         condition: service_healthy
     restart: unless-stopped
     volumes:
@@ -36,15 +36,15 @@ services:
     networks:
       - automagik_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8881/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${AM_PORT:-8881}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-  automagik_agents_db:
+  automagik-agents-db:
     image: postgres:15
-    container_name: automagik_agents_db
+    container_name: automagik-agents-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-automagik}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -62,9 +62,9 @@ services:
       timeout: 5s
       retries: 5
 
-  neo4j:
+  automagik-agents-neo4j:
     image: neo4j:5
-    container_name: automagik_neo4j
+    container_name: automagik-agents-neo4j
     ports:
       - "7474:7474"  # HTTP interface
       - "${NEO4J_PORT:-7687}:7687"  # Bolt interface
@@ -78,20 +78,20 @@ services:
     profiles:
       - graphiti
 
-  graphiti:
+  automagik-agents-graphiti:
     image: zepai/graphiti:latest
-    container_name: automagik_graphiti
+    container_name: automagik-agents-graphiti
     ports:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_URI=bolt://automagik-agents-neo4j:7687
       - NEO4J_USER=${NEO4J_USERNAME}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
       - GRAPHITI_ENV=${GRAPHITI_ENV:-development}
     depends_on:
-      - neo4j
+      - automagik-agents-neo4j
     restart: unless-stopped
     networks:
       - automagik_network
