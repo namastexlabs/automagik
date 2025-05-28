@@ -42,11 +42,16 @@ def get_rc_file(shell: str) -> Optional[Path]:
 
 def get_alias_lines(shell: str) -> Tuple[str, str]:
     """Get the alias lines for the given shell."""
+    # Get the project root to find the bash wrapper
+    from src.cli.agents import get_project_root
+    project_root = get_project_root()
+    wrapper_path = project_root / "scripts" / "automagik"
+    
     if shell == 'fish':
-        alias_line = "alias agent='automagik agents'"
+        alias_line = f"alias agent='{wrapper_path} agents'"
         comment_line = "# Automagik Agents alias"
     else:  # bash/zsh
-        alias_line = "alias agent='automagik agents'"
+        alias_line = f"alias agent='{wrapper_path} agents'"
         comment_line = "# Automagik Agents alias"
     
     return comment_line, alias_line
@@ -58,7 +63,8 @@ def check_alias_exists(rc_file: Path) -> bool:
         return False
     
     content = rc_file.read_text()
-    return "alias agent='automagik agents'" in content or 'alias agent="automagik agents"' in content
+    # Check for both old and new alias formats
+    return ("alias agent=" in content and "agents'" in content) or ("alias agent=" in content and 'agents"' in content)
 
 
 def install_shell_alias():
@@ -142,7 +148,7 @@ def uninstall_shell_alias():
             if "# Automagik Agents alias" in line:
                 skip_next = True  # Skip the next line (the alias)
                 continue
-            elif "alias agent='automagik agents'" in line or 'alias agent="automagik agents"' in line:
+            elif ("alias agent=" in line and "agents'" in line) or ("alias agent=" in line and 'agents"' in line):
                 continue  # Skip alias line even if comment is missing
             else:
                 new_lines.append(line)
