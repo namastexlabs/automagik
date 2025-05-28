@@ -1,0 +1,274 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ] # Add other main branches if necessary, e.g., [ main, dev ]
+  pull_request:
+    branches: [ main ] # Add other main branches if necessary
+
+jobs:
+  lint_and_format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Display uv.lock head (Lint & Format)
+        run: |
+          echo "--- uv.lock content in CI (Lint & Format) ---"
+          if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
+          echo "------------------------------------------------"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 'latest'
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run Linter (Ruff)
+        run: uv run --frozen make lint
+      - name: Check Formatter (Ruff)
+        run: uv run --frozen make format ARGS=--check
+
+  security_scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Display uv.lock head (Security Scan)
+        run: |
+          echo "--- uv.lock content in CI (Security Scan) ---"
+          if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
+          echo "--------------------------------------------------"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 'latest'
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Audit Dependencies
+        run: uv run --frozen pip-audit --desc
+      - name: Run Bandit Security Analysis
+        run: 'uv run --frozen bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
+
+  run_tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Display uv.lock head (Run Tests)
+        run: |
+          echo "--- uv.lock content in CI (Run Tests) ---"
+          if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
+          echo "----------------------------------------------"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 'latest'
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run Pytest with Coverage
+        env:
+          AM_API_KEY: "test_am_api_key_placeholder"
+          OPENAI_API_KEY: "test_openai_api_key_placeholder"
+          DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
+        run: uv run --frozen pytest --cov=src --cov-report=xml --cov-report=term-missing tests/
+      - name: Upload coverage to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: error # Important: Fails the workflow if coverage.xml is not found
+
+  type_check:
+    name: Type Checking
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Display uv.lock head (Type Checking)
+        run: |
+          echo "--- uv.lock content in CI (Type Checking) ---"
+          if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
+          echo "---------------------------------------------------"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 'latest'
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run Mypy
+        run: uv run --frozen mypy src/ 
+
+  build_docker_image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: false # Important: Set to true to push to a registry after a successful build
+          tags: automagik-agents:latest
+          # build-args: | # Optional: Pass build arguments
+          #   ARG_NAME=value
+          # labels: | # Optional: Add labels to the image
+          #   org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} 
+
+  build_and_deploy_docs:
+    name: Build & Deploy Docs
+    runs-on: ubuntu-latest
+    # Only runs on pushes to the main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write # Required to push to the gh-pages branch
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get history for some doc/changelog generators
+      - name: Display uv.lock head (Build Docs)
+        run: |
+          echo "--- uv.lock content in CI (Build Docs) ---"
+          if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
+          echo "-------------------------------------------------"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Build Sphinx Documentation
+        # The -W flag turns warnings into errors, ensuring quality
+        # --keep-going allows the build to continue on warnings if -W is not used to fail on them
+        run: uv run --frozen sphinx-build -b html -W --keep-going docs/ build/docs
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/docs
+          # Optional: if you want a custom domain
+          # cname: docs.yourdomain.com 
+
+  label_pr_conventional:
+    name: Label PR (Conventional Commits)
+    runs-on: ubuntu-latest
+    # Runs on pull_request_target to allow adding labels to PRs from forks
+    if: github.event_name == 'pull_request_target'
+    permissions:
+      pull-requests: write # Required to add/remove labels
+      contents: read       # Required to read PR commits
+    steps:
+      - name: Label PR based on Conventional Commits
+        uses: mheap/conventional-pr-labels-action@v3
+        env: # We use 'env' to define variables the action will read
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Mapping of commit types to labels
+          # Format: CONVENTIONAL_PR_LABEL_<COMMIT_TYPE_IN_UPPERCASE>=<label>
+          CONVENTIONAL_PR_LABEL_FEAT: "enhancement"
+          CONVENTIONAL_PR_LABEL_FIX: "bug"
+          CONVENTIONAL_PR_LABEL_DOCS: "documentation"
+          CONVENTIONAL_PR_LABEL_STYLE: "style"
+          CONVENTIONAL_PR_LABEL_REFACTOR: "refactor"
+          CONVENTIONAL_PR_LABEL_PERF: "performance"
+          CONVENTIONAL_PR_LABEL_TEST: "test"
+          CONVENTIONAL_PR_LABEL_BUILD: "build"
+          # To ignore 'chore', we simply don't define CONVENTIONAL_PR_LABEL_CHORE
+        with:
+          skip_label_if_present: "ignore-for-release" # Optional: Skip labeling if this label is present
+
+  validate_pr:
+    name: Validate PR Title (Conventional Commits)
+    runs-on: ubuntu-latest
+    # Runs on pull_request_target to allow access to secrets and work on forks
+    if: github.event_name == 'pull_request_target'
+    permissions:
+      contents: read # Required to read the PR title and commits
+    steps:
+      - name: Validate PR Title
+        uses: Namchee/conventional-pr@v0.15.6
+        with:
+          # The token is required for the action to interact with the GitHub API
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Default settings usually validate the title.
+          # You can add more settings here if needed,
+          # e.g., to validate commits or the branch name:
+          # validate_commits: true
+          # validate_branch: true
+          # For a full list of options, consult the action's documentation:
+          # https://github.com/Namchee/conventional-pr
+          # The following lines were commented out as they seemed to be remnants of a previous action's config
+          # CONVENTIONAL_PR_LABEL_TEST: "test"
+          # CONVENTIONAL_PR_LABEL_BUILD: "build"
+          # To ignore 'chore', we simply don't define CONVENTIONAL_PR_LABEL_CHORE
+          # ignored_types: "chore" # This action ignores types not defined in ENVs
+          # For the mheap/conventional-pr-labels-action, direct inputs in 'with' are less common
+          # Configuration is primarily via environment variables as shown above.
+
+  optimize_python_codeflash:
+    name: Optimize new Python code in this PR (Codeflash)
+    runs-on: ubuntu-latest
+    # Important: This job is configured to run on 'pull_request' events.
+    if: github.event_name == 'pull_request' 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Display uv.lock head (Codeflash)
+        run: |
+          echo "--- uv.lock content in CI (Codeflash) ---"
+          if [ -f uv.lock ]; then head -10 uv.lock; else echo "uv.lock not found"; fi
+          echo "-----------------------------------------------"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Adjust as needed for Codeflash or your project.
+
+      - name: Install uv & Setup Cache
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 'latest'
+
+      - name: Install dependencies (including codeflash)
+        run: uv sync --frozen
+
+      - name: Run Codeflash
+        env:
+          # Crucial: You MUST configure the CODEFLASH_API_KEY secret in your
+          # GitHub repository settings (Settings > Secrets and variables > Actions).
+          CODEFLASH_API_KEY: ${{ secrets.CODEFLASH_API_KEY }}
+        run: uv run --frozen codeflash 
