@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: uv pip sync uv.lock
       - name: Audit Dependencies
-        run: uv run pip-audit
+        run: uv run pip-audit -r uv.lock
       - name: Run Bandit Security Analysis
         run: 'uv run bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
 
