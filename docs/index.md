@@ -1,20 +1,6 @@
-# Welcome to the Automagik Agents Documentation!
+# Project Documentation
 
-This is the main documentation for the Automagik Agents project.
-
-```{toctree}
-:maxdepth: 2
-:caption: Contents:
-
-getting_started
-api_reference
-```
-
-## Indices and Tables
-
-* {ref}`genindex`
-* {ref}`modindex`
-* {ref}`search`
+Welcome to the documentation for the Automagik Agents project.
 
 ## Navigation
 
