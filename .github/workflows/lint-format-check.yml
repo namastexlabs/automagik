@@ -27,7 +27,7 @@ jobs:
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install dependencies
-      run: uv sync --frozen-lockfile # or just uv sync if uv.lock is not always up-to-date
+      run: uv sync --frozen # or just uv sync if uv.lock is not always up-to-date
 
     - name: Run Linter (Ruff)
       run: make lint
