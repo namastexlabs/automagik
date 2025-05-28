@@ -249,3 +249,34 @@ jobs:
           # Para ignorar 'chore', simplesmente não definimos CONVENTIONAL_PR_LABEL_CHORE
         with:
           skip_label_if_present: "ignore-for-release" 
+
+  validate_pr:
+    name: Validate PR Title (Conventional Commits)
+    runs-on: ubuntu-latest
+    # Roda em pull_request_target para permitir acesso a segredos e funcionar em forks
+    if: github.event_name == 'pull_request_target'
+    permissions:
+      contents: read # Necessário para ler o título e commits do PR
+    steps:
+      - name: Validate PR Title
+        uses: Namchee/conventional-pr@v0.15.6
+        with:
+          # O token é necessário para a action interagir com a API do GitHub
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Configurações padrão geralmente validam o título.
+          # Você pode adicionar mais configurações aqui se necessário,
+          # por exemplo, para validar commits ou o nome da branch:
+          # validate_commits: true
+          # validate_branch: true
+          # Para uma lista completa de opções, consulte a documentação da action:
+          # https://github.com/Namchee/conventional-pr
+          # CONVENTIONAL_PR_LABEL_TEST: "test"
+          # CONVENTIONAL_PR_LABEL_BUILD: "build"
+          # Para ignorar 'chore', simplesmente não definimos CONVENTIONAL_PR_LABEL_CHORE
+          # ignored_types: "chore" # Esta action ignora tipos não definidos nas ENVs
+          # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
+          # A configuração é primariamente via variáveis de ambiente como mostrado acima.
+          # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
+          # A configuração é primariamente via variáveis de ambiente como mostrado acima.
+          # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
+          # A configuração é primariamente via variáveis de ambiente como mostrado acima. 
