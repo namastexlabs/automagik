@@ -32,11 +32,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |-
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync
+        run: uv pip sync uv.lock
       - name: Run Linter (Ruff)
         run: make lint
       - name: Check Formatter (Ruff)
@@ -67,11 +67,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |-
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync
+        run: uv pip sync uv.lock
       - name: Audit Dependencies
         run: uv run pip-audit
       - name: Run Bandit Security Analysis
@@ -102,11 +102,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |-
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync
+        run: uv pip sync uv.lock
       - name: Run Pytest with Coverage
         env:
           AM_API_KEY: "test_am_api_key_placeholder"
@@ -145,11 +145,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |-
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv sync
+        run: uv pip sync uv.lock
       - name: Run Mypy
         run: uv run mypy src/ 
 
@@ -214,12 +214,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-docs-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |-
-            ${{ runner.os }}-uv-docs-
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
 
-      - name: Install dependencies (including Sphinx)
-        run: uv sync
+      - name: Install dependencies
+        run: uv pip sync uv.lock
 
       - name: Build Sphinx Documentation
         # The -W flag turns warnings into errors, ensuring quality
@@ -321,14 +321,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.UV_CACHE_DIR }}
-          key: ${{ runner.os }}-uv-codeflash-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |-
+          key: ${{ runner.os }}-uv-codeflash-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
             ${{ runner.os }}-uv-codeflash-
 
       # Important: 'codeflash' must be a dependency of your project (e.g., in pyproject.toml)
       # to be installed by 'uv sync'.
       - name: Install dependencies (including codeflash)
-        run: uv sync
+        run: uv pip sync uv.lock
 
       - name: Run Codeflash
         env:
