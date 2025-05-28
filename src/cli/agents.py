@@ -27,10 +27,12 @@ agents_app.add_typer(agent_app, name="agent", help="Agent management and interac
 
 # === DEPLOYMENT MODE DETECTION ===
 
-def detect_deployment_mode() -> str:
+def detect_deployment_mode() -> tuple[str, str]:
     """
     Detect how automagik-agents is currently deployed.
-    Returns: 'service', 'docker', or 'process'
+    Returns: tuple of (mode, environment) where:
+    - mode: 'service', 'docker', or 'process' 
+    - environment: 'production', 'development', or None
     """
     
     # Check for systemd service first
@@ -40,7 +42,7 @@ def detect_deployment_mode() -> str:
             capture_output=True, text=True, check=False
         )
         if "automagik-agents.service" in result.stdout:
-            return "service"
+            return "service", None
     except FileNotFoundError:
         pass
     
@@ -51,11 +53,35 @@ def detect_deployment_mode() -> str:
             capture_output=True, text=True, check=False
         )
         if "automagik" in result.stdout:
-            return "docker"
+            # Determine if it's production or development based on container names and .env
+            env_mode = get_env_mode()
+            return "docker", env_mode
     except FileNotFoundError:
         pass
     
-    return "process"  # Default to process mode
+    return "process", None  # Default to process mode
+
+def get_env_mode() -> str:
+    """Get the environment mode from .env file."""
+    try:
+        project_root = get_project_root()
+        env_file = project_root / ".env"
+        if env_file.exists():
+            with open(env_file, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('AM_ENV='):
+                        value = line.split('=', 1)[1].strip().strip('"').strip("'")
+                        return value
+    except Exception:
+        pass
+    return "development"  # Default
+
+def get_docker_config(env_mode: str) -> tuple[str, str]:
+    """Get Docker compose file and container name based on environment."""
+    if env_mode == "production":
+        return "docker-compose-prod.yml", "automagik-agents-prod"
+    else:
+        return "docker-compose.yml", "automagik_agents"
 
 def get_docker_compose_cmd() -> str:
     """Get the appropriate docker compose command (v1 or v2)."""
@@ -261,7 +287,7 @@ def start_server(
     debug: bool = typer.Option(False, "--debug", help="Enable debug mode", is_flag=True)
 ):
     """Start the Automagik Agents server."""
-    mode = detect_deployment_mode()
+    mode, env_mode = detect_deployment_mode()
     typer.echo(f"🚀 Starting automagik agents (mode: {mode})...")
     
     if debug:
@@ -294,11 +320,13 @@ def start_server(
         try:
             docker_compose = get_docker_compose_cmd()
             project_root = get_project_root()
+            compose_file, container_name = get_docker_config(env_mode)
             
             subprocess.run([
                 *docker_compose.split(), 
+                "-f", compose_file,
                 "--env-file", str(project_root / ".env"),
-                "up", "-d", "automagik-agents"
+                "up", "-d", container_name
             ], cwd=project_root / "docker", capture_output=True, text=True, check=True)
             
             typer.echo("✅ Docker container started successfully")
@@ -308,7 +336,7 @@ def start_server(
             
             # Check if it's healthy
             health_result = subprocess.run([
-                "docker", "inspect", "automagik_agents", 
+                "docker", "inspect", container_name, 
                 "--format={{.State.Health.Status}}"
             ], capture_output=True, text=True, check=False)
             
@@ -336,7 +364,7 @@ def start_server(
 @agents_app.command("stop")
 def stop_server():
     """Stop the Automagik Agents server."""
-    mode = detect_deployment_mode()
+    mode, env_mode = detect_deployment_mode()
     typer.echo(f"🛑 Stopping automagik agents (mode: {mode})...")
     
     if mode == "service":
@@ -354,11 +382,13 @@ def stop_server():
         try:
             docker_compose = get_docker_compose_cmd()
             project_root = get_project_root()
+            compose_file, container_name = get_docker_config(env_mode)
             
             subprocess.run([
                 *docker_compose.split(), 
+                "-f", compose_file,
                 "--env-file", str(project_root / ".env"),
-                "stop", "automagik-agents"
+                "stop", container_name
             ], cwd=project_root / "docker", capture_output=True, text=True, check=True)
             
             typer.echo("✅ Docker container stopped successfully")
@@ -378,7 +408,7 @@ def stop_server():
 @agents_app.command("restart")
 def restart_server():
     """Restart the Automagik Agents server."""
-    mode = detect_deployment_mode()
+    mode, env_mode = detect_deployment_mode()
     typer.echo(f"🔄 Restarting automagik agents (mode: {mode})...")
     
     if mode == "service":
@@ -404,9 +434,10 @@ def restart_server():
             raise typer.Exit(code=1)
     
     elif mode == "docker":
-        # Docker mode: docker restart automagik_agents (note: underscore in container name)
+        # Docker mode: docker restart container_name
         try:
-            subprocess.run(["docker", "restart", "automagik_agents"], 
+            compose_file, container_name = get_docker_config(env_mode)
+            subprocess.run(["docker", "restart", container_name], 
                                  capture_output=True, text=True, check=True)
             typer.echo("✅ Docker container restarted successfully")
             
@@ -415,7 +446,7 @@ def restart_server():
             
             # Check if it's healthy
             health_result = subprocess.run([
-                "docker", "inspect", "automagik_agents", 
+                "docker", "inspect", container_name, 
                 "--format={{.State.Health.Status}}"
             ], capture_output=True, text=True, check=False)
             
@@ -439,7 +470,7 @@ def restart_server():
 @agents_app.command("status")
 def status_server():
     """Show Automagik Agents server status."""
-    mode = detect_deployment_mode()
+    mode, env_mode = detect_deployment_mode()
     typer.echo(f"📊 Automagik Agents Status (mode: {mode})")
     typer.echo("=" * 50)
     
@@ -461,8 +492,9 @@ def status_server():
             
             # Also show health if container exists
             typer.echo("\n🏥 Container Health:")
+            compose_file, container_name = get_docker_config(env_mode)
             health_result = subprocess.run([
-                "docker", "inspect", "automagik_agents", 
+                "docker", "inspect", container_name, 
                 "--format={{.State.Health.Status}} ({{.State.Status}})"
             ], capture_output=True, text=True, check=False)
             
@@ -507,7 +539,7 @@ def logs_server(
     follow: bool = typer.Option(False, "-f", "--follow", help="Follow log output")
 ):
     """Show Automagik Agents logs."""
-    mode = detect_deployment_mode()
+    mode, env_mode = detect_deployment_mode()
     typer.echo(f"📋 Automagik Agents Logs (mode: {mode})")
     
     if mode == "service":
@@ -524,8 +556,9 @@ def logs_server(
             typer.echo("\n📋 Log following stopped")
     
     elif mode == "docker":
-        # Exactly what Docker mode does: docker logs automagik_agents -f (or without -f)
-        cmd = ["docker", "logs", "automagik_agents"]
+        # Exactly what Docker mode does: docker logs container_name -f (or without -f)
+        compose_file, container_name = get_docker_config(env_mode)
+        cmd = ["docker", "logs", container_name]
         if follow:
             cmd.append("-f")
         
@@ -543,7 +576,7 @@ def logs_server(
 @agents_app.command("health")
 def health_check():
     """Check Automagik Agents health."""
-    mode = detect_deployment_mode()
+    mode, env_mode = detect_deployment_mode()
     port = get_effective_port()
     
     typer.echo(f"🔍 Checking automagik agents health (mode: {mode})...")
@@ -569,8 +602,9 @@ def health_check():
             
             elif mode == "docker":
                 # Check container health
+                compose_file, container_name = get_docker_config(env_mode)
                 health_result = subprocess.run([
-                    "docker", "inspect", "automagik_agents", 
+                    "docker", "inspect", container_name, 
                     "--format={{.State.Health.Status}}"
                 ], capture_output=True, text=True, check=False)
                 
