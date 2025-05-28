@@ -280,3 +280,49 @@ jobs:
           # A configuração é primariamente via variáveis de ambiente como mostrado acima.
           # Para o mheap/conventional-pr-labels-action, os inputs diretos no 'with' são menos comuns
           # A configuração é primariamente via variáveis de ambiente como mostrado acima. 
+
+  optimize_python_codeflash:
+    name: Optimize new Python code in this PR (Codeflash)
+    runs-on: ubuntu-latest
+    # Importante: Este job é configurado para rodar em eventos de 'pull_request'.
+    if: github.event_name == 'pull_request' 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Ajuste conforme necessário para o Codeflash ou seu projeto.
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv --version
+
+      - name: Get uv cache directory path
+        id: uv-cache-path
+        run: echo "UV_CACHE_DIR=$(uv cache dir)" >> $GITHUB_ENV
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: ${{ runner.os }}-uv-codeflash-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-codeflash-
+
+      # Importante: 'codeflash' deve ser uma dependência do seu projeto (ex: em pyproject.toml)
+      # para ser instalado pelo 'uv sync'.
+      - name: Install dependencies (including codeflash)
+        run: uv sync --frozen
+
+      - name: Run Codeflash
+        env:
+          # Crucial: Você DEVE configurar o segredo CODEFLASH_API_KEY nas configurações
+          # do seu repositório GitHub (Settings > Secrets and variables > Actions).
+          CODEFLASH_API_KEY: ${{ secrets.CODEFLASH_API_KEY }}
+        run: uv run codeflash 
