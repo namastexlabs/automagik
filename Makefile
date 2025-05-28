@@ -1,9 +1,7 @@
-<<<<<<< HEAD
 # ===========================================
 # 🪄 Automagik Agents - Streamlined Makefile
 # ===========================================
 
-<<<<<<< HEAD
 .DEFAULT_GOAL := help
 MAKEFLAGS += --no-print-directory
 SHELL := /bin/bash
@@ -407,18 +405,19 @@ define check_health
 		else \
 		echo -e "$(YELLOW)$(WARNING) API health check: failed$(NC)"; \
 	fi
-endef 
+endef
 
 # ===========================================
-# 🧹 Phony Targets
+# 🧹 Phony Targets & Quality Checks
 # ===========================================
 .PHONY: help install install-dev install-docker install-prod
 .PHONY: dev docker prod stop stop-prod stop-all restart status logs health
-.PHONY: update clean test
-=======
-lint:
-	uv run ruff check .
+.PHONY: update clean test lint format
 
-format:
-	uv run ruff format . $(ARGS)
->>>>>>> 2c1f066 (fix(ci): use 'uv run ruff' in Makefile for CI environment)
+lint: ## ✨ Run linter (Ruff)
+	@$(call print_status,Running linter...)
+	@uv run ruff check .
+
+format: ## 💅 Format code (Ruff)
+	@$(call print_status,Formatting code...)
+	@uv run ruff format . $(ARGS)
