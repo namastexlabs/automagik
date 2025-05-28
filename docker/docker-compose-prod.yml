@@ -8,13 +8,13 @@ services:
     image: automagik-agents:latest
     container_name: automagik-agents-prod
     env_file:
-      - ../.env
+      - ../.env.prod
     ports:
-      - "${AM_PORT:-18881}:18881"
+      - "${AM_PORT:-18881}:${AM_PORT:-18881}"
     environment:
       - AM_API_KEY=${AM_API_KEY}
       - AM_HOST=${AM_HOST}
-      - AM_PORT=${AM_PORT}
+      - AM_PORT=${AM_PORT:-18881}
       - AM_ENV=${AM_ENV:-production}
       - AM_LOG_LEVEL=${AM_LOG_LEVEL:-DEBUG}
       - AM_TIMEZONE=${AM_TIMEZONE:-UTC}
@@ -33,20 +33,18 @@ services:
     networks:
       - automagik_network
     depends_on:
-      graphiti-prod:
+      automagik-agents-graphiti-prod:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18881/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${AM_PORT:-18881}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 20s
 
-
-
-  graphiti-prod:
+  automagik-agents-graphiti-prod:
     image: zepai/graphiti:latest
-    container_name: automagik_graphiti
+    container_name: automagik-agents-graphiti-prod
     ports:
       - "18000:8000"
     environment:
@@ -56,7 +54,6 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
       - GRAPHITI_ENV=${GRAPHITI_ENV:-production}
-
     restart: unless-stopped
     networks:
       - automagik_network
