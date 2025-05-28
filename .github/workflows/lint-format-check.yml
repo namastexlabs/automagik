@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ] # Add other main branches if necessary, e.g., [ main, dev ]
   pull_request:
-    branches: [ main ] # Adicione outras branches principais se necessário
+    branches: [ main ] # Add other main branches if necessary
 
 jobs:
   lint_and_format:
@@ -18,7 +18,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # Ajuste a versão do Python conforme seu pyproject.toml
+        python-version: '3.11' # Adjust Python version according to your pyproject.toml
 
     - name: Install uv
       run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -27,10 +27,10 @@ jobs:
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install dependencies
-      run: uv sync --frozen-lockfile # ou apenas uv sync se o uv.lock não estiver sempre atualizado
+      run: uv sync --frozen-lockfile # or just uv sync if uv.lock is not always up-to-date
 
     - name: Run Linter (Ruff)
       run: make lint
 
     - name: Check Formatter (Ruff)
-      run: make format ARGS=--check # Passa o --check para o comando ruff format dentro do Makefile 
+      run: make format ARGS=--check # Passes --check to the ruff format command within the Makefile 
