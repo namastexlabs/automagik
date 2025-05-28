@@ -36,11 +36,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv pip sync uv.lock
+        run: uv sync --frozen
       - name: Run Linter (Ruff)
-        run: make lint
+        run: uv run --frozen make lint
       - name: Check Formatter (Ruff)
-        run: make format ARGS=--check
+        run: uv run --frozen make format ARGS=--check
 
   security_scan:
     name: Security Scan
@@ -71,11 +71,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv pip sync uv.lock
+        run: uv sync --frozen
       - name: Audit Dependencies
-        run: uv run pip-audit -r uv.lock
+        run: uv export --format requirements.txt -o requirements.txt && uv run --frozen pip-audit -r requirements.txt
       - name: Run Bandit Security Analysis
-        run: 'uv run bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
+        run: 'uv run --frozen bandit -r src/ -c pyproject.toml --quiet --format=custom --msg-template "{abspath}:{line}: {test_id}[{severity}][{confidence}]: {msg}"'
 
   run_tests:
     name: Run Tests
@@ -106,13 +106,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv pip sync uv.lock
+        run: uv sync --frozen
       - name: Run Pytest with Coverage
         env:
           AM_API_KEY: "test_am_api_key_placeholder"
           OPENAI_API_KEY: "test_openai_api_key_placeholder"
           DISCORD_BOT_TOKEN: "test_discord_bot_token_placeholder"
-        run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing tests/
+        run: uv run --frozen pytest --cov=src --cov-report=xml --cov-report=term-missing tests/
       - name: Upload coverage to Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -149,9 +149,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
       - name: Install dependencies
-        run: uv pip sync uv.lock
+        run: uv sync --frozen
       - name: Run Mypy
-        run: uv run mypy src/ 
+        run: uv run --frozen mypy src/ 
 
   build_docker_image:
     name: Build Docker Image
@@ -219,12 +219,12 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
-        run: uv pip sync uv.lock
+        run: uv sync --frozen
 
       - name: Build Sphinx Documentation
         # The -W flag turns warnings into errors, ensuring quality
         # --keep-going allows the build to continue on warnings if -W is not used to fail on them
-        run: uv run sphinx-build -b html -W --keep-going docs/ build/docs
+        run: uv run --frozen sphinx-build -b html -W --keep-going docs/ build/docs
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -328,11 +328,11 @@ jobs:
       # Important: 'codeflash' must be a dependency of your project (e.g., in pyproject.toml)
       # to be installed by 'uv sync'.
       - name: Install dependencies (including codeflash)
-        run: uv pip sync uv.lock
+        run: uv sync --frozen
 
       - name: Run Codeflash
         env:
           # Crucial: You MUST configure the CODEFLASH_API_KEY secret in your
           # GitHub repository settings (Settings > Secrets and variables > Actions).
           CODEFLASH_API_KEY: ${{ secrets.CODEFLASH_API_KEY }}
-        run: uv run codeflash 
+        run: uv run --frozen codeflash 
