@@ -24,7 +24,7 @@ src/tools/service_name/
 ### **Step-by-Step Process**
 1. **Search Memory**: Check for existing tool patterns
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "tool development patterns" --entity "Procedure"
+   agent-memory_search_memory_nodes --query "tool development patterns" --entity "Procedure"
    ```
 2. **Create Directory**: `mkdir -p src/tools/<service_name>`
 3. **Create Schema** (`schema.py`): Define `ToolInput`/`ToolOutput` Pydantic models with `success: bool` and `error_message: str`
@@ -232,18 +232,18 @@ async def secure_api_call(data):
 ### **Record Tool Patterns**
 ```bash
 # Before implementing new tool
-mcp_agent-memory_search_memory_nodes --query "tool development patterns" --entity "Procedure"
-mcp_agent-memory_search_memory_facts --query "tool integration dependencies"
+agent-memory_search_memory_nodes --query "tool development patterns" --entity "Procedure"
+agent-memory_search_memory_facts --query "tool integration dependencies"
 
 # After successful implementation
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Tool Pattern: [Service Name]" \
   --episode_body "Tool structure with RunContext async function, Pydantic I/O models, error handling via return not raise" \
   --source "text" \
   --source_description "Successful tool implementation pattern"
 
 # Store integration procedure
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Tool Integration Procedure" \
   --episode_body "1. Create directory structure\n2. Define schemas\n3. Implement async function\n4. Create interface\n5. Register globally\n6. Test with agent" \
   --source "text"

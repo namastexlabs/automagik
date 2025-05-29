@@ -24,9 +24,9 @@ Rules evolve based on real development experience, captured patterns, and memory
 ### **Memory-Driven Insights**
 ```bash
 # Search for improvement opportunities
-mcp_agent-memory_search_memory_nodes --query "pattern implementation workflow" --entity "Procedure"
-mcp_agent-memory_search_memory_nodes --query "preference coding style" --entity "Preference"
-mcp_agent-memory_search_memory_facts --query "error caused by solution prevented"
+agent-memory_search_memory_nodes --query "pattern implementation workflow" --entity "Procedure"
+agent-memory_search_memory_nodes --query "preference coding style" --entity "Preference"
+agent-memory_search_memory_facts --query "error caused by solution prevented"
 ```
 
 ### **Linear Analysis**
@@ -78,13 +78,13 @@ Preferences: {{user_preferences}}"""
 ### **2. Memory Integration Analysis**
 ```bash
 # Find optimization patterns
-mcp_agent-memory_search_memory_facts --query "optimization improved performance"
+agent-memory_search_memory_facts --query "optimization improved performance"
 
 # Find error solutions
-mcp_agent-memory_search_memory_nodes --query "error solution workaround" --entity "Procedure"
+agent-memory_search_memory_nodes --query "error solution workaround" --entity "Procedure"
 
 # Find preferences
-mcp_agent-memory_search_memory_nodes --query "prefers style approach" --entity "Preference"
+agent-memory_search_memory_nodes --query "prefers style approach" --entity "Preference"
 ```
 
 ### **3. Code Pattern Analysis**
@@ -123,10 +123,10 @@ mcp_agent-memory_search_memory_nodes --query "prefers style approach" --entity "
 ### **Weekly Rule Review**
 1. **Search memory nodes**: 
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "pattern discovered implementation" --max_nodes 20
-   mcp_agent-memory_search_memory_facts --query "caused by prevented solved"
+   agent-memory_search_memory_nodes --query "pattern discovered implementation" --max_nodes 20
+   agent-memory_search_memory_facts --query "caused by prevented solved"
    ```
-2. **Analyze Linear**: `mcp_linear_list_issues --limit 50`
+2. **Analyze Linear**: `linear_list_issues --limit 50`
 3. **Review code changes** for new patterns
 4. **Update rules** based on findings
 5. **Record changes** in memory
@@ -142,14 +142,14 @@ mcp_agent-memory_search_memory_nodes --query "prefers style approach" --entity "
 ### **Record Rule Changes**
 ```bash
 # After updating rules
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "Rule Update: Agent Pattern" \
   --episode_body "Updated agent rules with new AutomagikAgent extension pattern including tool registration sequence" \
   --source "text" \
   --source_description "Rule improvement documentation"
 
 # Record discoveries
-mcp_agent-memory_add_memory \
+agent-memory_add_memory \
   --name "API Pattern Discovery" \
   --episode_body "{\"pattern\": \"API authentication\", \"usage_count\": 4, \"files\": [\"auth.py\", \"middleware.py\"]}" \
   --source "json" \
@@ -159,19 +159,19 @@ mcp_agent-memory_add_memory \
 ### **Search for Rule Gaps**
 ```bash
 # Find missing documentation
-mcp_agent-memory_search_memory_nodes --query "missing unclear confusing documentation"
+agent-memory_search_memory_nodes --query "missing unclear confusing documentation"
 
 # Find repeated questions
-mcp_agent-memory_search_memory_facts --query "asked about repeatedly"
+agent-memory_search_memory_facts --query "asked about repeatedly"
 ```
 
 ### **Track Effectiveness**
 ```bash
 # Search for positive feedback
-mcp_agent-memory_search_memory_nodes --query "helped solved clear pattern" --entity "Preference"
+agent-memory_search_memory_nodes --query "helped solved clear pattern" --entity "Preference"
 
 # Find successful procedures
-mcp_agent-memory_search_memory_nodes --query "procedure worked successfully" --entity "Procedure"
+agent-memory_search_memory_nodes --query "procedure worked successfully" --entity "Procedure"
 ```
 
 ## 📊 Success Metrics
@@ -195,9 +195,9 @@ mcp_agent-memory_search_memory_nodes --query "procedure worked successfully" --e
 **Before completing any major work:**
 1. **Search memory for patterns**: 
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "pattern procedure workflow"
+   agent-memory_search_memory_nodes --query "pattern procedure workflow"
    ```
-2. **Check Linear status**: `mcp_linear_list_issues --limit 20`
+2. **Check Linear status**: `linear_list_issues --limit 20`
 3. **Close completed tasks**: Update status to "Done" for finished work
 4. **Cancel redundant tasks**: Mark as "Canceled" with explanation comment
 5. **Store new patterns** in memory
@@ -205,7 +205,7 @@ mcp_agent-memory_search_memory_nodes --query "procedure worked successfully" --e
 ### **Discovering New Patterns**
 1. **Document in memory immediately**:
    ```bash
-   mcp_agent-memory_add_memory --name "New Pattern: [Name]" --episode_body "description" --source "text"
+   agent-memory_add_memory --name "New Pattern: [Name]" --episode_body "description" --source "text"
    ```
 2. **Check 3+ instances** exist in codebase
 3. **Search existing rules** for gaps
@@ -216,7 +216,7 @@ mcp_agent-memory_search_memory_nodes --query "procedure worked successfully" --e
 ### **Updating Existing Rules**
 1. **Search memory** for better examples:
    ```bash
-   mcp_agent-memory_search_memory_nodes --query "pattern example implementation"
+   agent-memory_search_memory_nodes --query "pattern example implementation"
    ```
 2. **Review codebase** for pattern evolution
 3. **Update examples** with current code
@@ -228,11 +228,11 @@ mcp_agent-memory_search_memory_nodes --query "procedure worked successfully" --e
 ### **Rule Creation from Memory**
 ```bash
 # When memory reveals repeated procedure
-mcp_agent-memory_search_memory_nodes --query "procedure deploy test" --entity "Procedure"
+agent-memory_search_memory_nodes --query "procedure deploy test" --entity "Procedure"
 # If found 3+ times -> Create rule
 
 # When preferences emerge
-mcp_agent-memory_search_memory_nodes --query "prefers style format" --entity "Preference"  
+agent-memory_search_memory_nodes --query "prefers style format" --entity "Preference"  
 # If consistent -> Document in rules
 ```
 

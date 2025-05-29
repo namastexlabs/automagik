@@ -2,6 +2,8 @@ import logging
 from datetime import datetime
 import asyncio
 import traceback
+import signal
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +29,52 @@ configure_logging()
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+# Global shutdown flag for graceful shutdown handling
+_shutdown_requested = False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    global _shutdown_requested
+    _shutdown_requested = True
+    
+    # Log with signal name for better debugging
+    signal_names = {2: "SIGINT (Ctrl+C)", 15: "SIGTERM"}
+    signal_name = signal_names.get(signum, f"Signal {signum}")
+    logger.info(f"📝 Received {signal_name}, initiating graceful shutdown...")
+    
+    # AGGRESSIVE: Try to cancel all pending tasks immediately
+    try:
+        # Get the current event loop if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # Cancel all pending tasks
+            pending_tasks = [task for task in asyncio.all_tasks(loop) if not task.done()]
+            if pending_tasks:
+                logger.info(f"📝 Cancelling {len(pending_tasks)} pending tasks...")
+                for task in pending_tasks:
+                    task.cancel()
+        except RuntimeError:
+            # No event loop running, which is fine for sync contexts
+            pass
+    except Exception as e:
+        logger.warning(f"Error during task cancellation: {e}")
+    
+    # Force exit after a very short timeout to prevent hanging
+    import threading
+    def force_exit():
+        import time
+        time.sleep(2.0)  # Give 2 seconds for graceful shutdown
+        logger.warning("📝 Force exiting due to shutdown timeout...")
+        os._exit(1)
+    
+    # Start force exit timer in background
+    force_exit_thread = threading.Thread(target=force_exit, daemon=True)
+    force_exit_thread.start()
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
 
 async def initialize_all_agents():
     """Initialize agents at startup.
@@ -187,8 +235,9 @@ def create_app() -> FastAPI:
                 try:
                     from src.agents.models.automagik_agent import get_graphiti_client_async
                     
-                    # Initialize the shared client with retry logic (5 attempts, 2 second initial delay)
-                    client = await get_graphiti_client_async(max_retries=5, retry_delay=2.0)
+                    # Initialize the shared client with retry logic - faster for development
+                    # Use shorter delays in development to make interruption more responsive
+                    client = await get_graphiti_client_async(max_retries=3, retry_delay=1.0)
                     
                     if client:
                         # The build_indices_and_constraints should have already been called

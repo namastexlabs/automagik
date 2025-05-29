@@ -1,3 +1,5 @@
+                                                         
+#                                                                        
 # ===========================================
 # 🪄 Automagik Agents - Streamlined Makefile
 # ===========================================
@@ -9,12 +11,16 @@ SHELL := /bin/bash
 # ===========================================
 # 🎨 Colors & Symbols
 # ===========================================
-PURPLE := \033[0;35m
-CYAN := \033[0;36m
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-RED := \033[0;31m
-NC := \033[0m
+FONT_RED := $(shell tput setaf 1)
+FONT_GREEN := $(shell tput setaf 2)
+FONT_YELLOW := $(shell tput setaf 3)
+FONT_BLUE := $(shell tput setaf 4)
+FONT_PURPLE := $(shell tput setaf 5)
+FONT_CYAN := $(shell tput setaf 6)
+FONT_GRAY := $(shell tput setaf 7)
+FONT_BLACK := $(shell tput setaf 8)
+FONT_BOLD := $(shell tput bold)
+FONT_RESET := $(shell tput sgr0)
 CHECKMARK := ✅
 WARNING := ⚠️
 ERROR := ❌
@@ -43,30 +49,65 @@ FOLLOW ?=
 # 🛠️ Utility Functions
 # ===========================================
 define print_status
-	@echo -e "$(PURPLE)🪄 $(1)$(NC)"
+	@echo -e "$(FONT_PURPLE)🪄 $(1)$(FONT_RESET)"
 endef
 
 define print_success
-	@echo -e "$(GREEN)$(CHECKMARK) $(1)$(NC)"
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
 endef
 
 define print_warning
-	@echo -e "$(YELLOW)$(WARNING) $(1)$(NC)"
+	@echo -e "$(FONT_YELLOW)$(WARNING) $(1)$(FONT_RESET)"
 endef
 
 define print_error
-	@echo -e "$(RED)$(ERROR) $(1)$(NC)"
+	@echo -e "$(FONT_RED)$(ERROR) $(1)$(FONT_RESET)"
+endef
+
+define print_success_with_logo
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
+	@$(call show_automagik_logo)
+endef
+
+define show_nmstx_logo
+	@echo ""
+	@echo -e "$(FONT_PURPLE)  :*@@@@*.     :=@@@-%@@@%=          :-@@@%* :*@@@@@@@#-:#@@@@@@@@@@@*-           -#@@@%=   $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@@@#-    :=@@@-%@@@@#=        :-@@@@%--@@@@@%@@@@%-============-.          -@@@@*=    $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@@@@#=   :=@@@-%@@@@@*-      .-@@@@@%-#@@@*  .-%@%+=              :+@@@@*.=@@@@*.     $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@#@@@%*  :=@@@-%@@@@@@*-     -%@@@@@%-#@@@*                        .-@@@@%@@@%+       $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@--@@@@*::=@@@-%@@@%@@@*:   -#@@@@@@%--@@@@@%%#+:     :*@@@*.        -*@@@@@*=        $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@*.-%@@@#:=@@@-%@@@-#@@@*. -*@@@=+@@%* :-@@@@@@@@#-   :*@@@*.        .=@@@@@*.        $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@*. -#@@@#+@@@-%@@@=-#@@@+-+@@@*-+@@%*      .-#@@@*:  :*@@@*.       -*@@@@@@@*-       $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  :*@@@*.  :=@@@@@@@-%@@@*.-@@@%*@@@*--+@@%*       .-@@@**  :*@@@*.      -@@@@#-#@@@%=      $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)            .-@@@@@@-%@@@*..-@@@@@@*=             .=%@@@*.  :*@@@*.    .-@@@@*. .:==-::   $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)              -#@@@@-%@@@*. .-@@@@#=             -+@@@@*:   :*@@@*.   -+@@@%+               $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)               :=+++:=+++-                       ::=-:      .-+++-   :=+++=:                $(FONT_RESET)"
+	@echo ""
+endef
+
+define show_automagik_logo
+	@echo ""
+	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"
+	@echo ""
 endef
 
 define check_docker
 	@if ! command -v docker >/dev/null 2>&1; then \
 		$(call print_error,Docker not found); \
-		echo -e "$(YELLOW)💡 Install Docker: https://docs.docker.com/get-docker/$(NC)"; \
+		echo -e "$(FONT_YELLOW)💡 Install Docker: https://docs.docker.com/get-docker/$(FONT_RESET)"; \
 		exit 1; \
 	fi
 	@if ! docker info >/dev/null 2>&1; then \
 		$(call print_error,Docker daemon not running); \
-		echo -e "$(YELLOW)💡 Start Docker service$(NC)"; \
+		echo -e "$(FONT_YELLOW)💡 Start Docker service$(FONT_RESET)"; \
 		exit 1; \
 	fi
 endef
@@ -74,10 +115,10 @@ endef
 define check_env_file
 	@if [ ! -f ".env" ]; then \
 		$(call print_warning,.env file not found); \
-		echo -e "$(CYAN)Copying .env.example to .env...$(NC)"; \
+		echo -e "$(FONT_CYAN)Copying .env.example to .env...$(FONT_RESET)"; \
 		cp .env.example .env; \
 		$(call print_success,.env created from example); \
-		echo -e "$(YELLOW)💡 Edit .env and add your API keys$(NC)"; \
+		echo -e "$(FONT_YELLOW)💡 Edit .env and add your API keys$(FONT_RESET)"; \
 	fi
 endef
 
@@ -94,59 +135,105 @@ endef
 # ===========================================
 .PHONY: help
 help: ## 🪄 Show this help message
+	@$(call show_nmstx_logo)
+	@echo -e "$(FONT_BOLD)$(FONT_CYAN)Welcome to Automagik Agents$(FONT_RESET) - $(FONT_GRAY)AI Agents from Ideas to Production in Minutes$(FONT_RESET)"
 	@echo ""
-	@echo -e "$(PURPLE)🪄 Automagik Agents - Streamlined Commands$(NC)"
+	@echo -e "$(FONT_YELLOW)🏢 Built by$(FONT_RESET) $(FONT_BOLD)Namastex Labs$(FONT_RESET) | $(FONT_YELLOW)📄 MIT Licensed$(FONT_RESET) | $(FONT_YELLOW)🌟 Open Source Forever$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)📦 GitHub:$(FONT_RESET) $(FONT_BOLD)https://github.com/namastex-labs/automagik-agents$(FONT_RESET)"
 	@echo ""
-	@echo -e "$(CYAN)🚀 Installation:$(NC)"
-	@echo -e "  $(PURPLE)install$(NC)         Install as systemd service"
-	@echo -e "  $(PURPLE)install-dev$(NC)     Install development environment (uv sync)"
-	@echo -e "  $(PURPLE)install-docker$(NC)  Install Docker development stack"
-	@echo -e "  $(PURPLE)install-prod$(NC)    Install production Docker stack"
+	@echo -e "$(FONT_PURPLE)✨ \"Where production-ready agents happen automagikally - no spells required, just good engineering\"$(FONT_RESET)"
 	@echo ""
-	@echo -e "$(CYAN)🎛️ Service Management:$(NC)"
-	@echo -e "  $(PURPLE)dev$(NC)             Start development mode (local Python)"
-	@echo -e "  $(PURPLE)docker$(NC)          Start Docker development stack"
-	@echo -e "  $(PURPLE)prod$(NC)            Start production Docker stack"
-	@echo -e "  $(PURPLE)stop$(NC)            Stop development automagik-agents container only"
-	@echo -e "  $(PURPLE)stop-prod$(NC)       Stop production automagik-agents container only"
-	@echo -e "  $(PURPLE)stop-all$(NC)        Stop all services (DB, Neo4j, Graphiti, etc.)"
-	@echo -e "  $(PURPLE)restart$(NC)         Restart services"
-	@echo -e "  $(PURPLE)status$(NC)          Show service status"
+	@echo -e "$(FONT_PURPLE)🪄 Automagik Agents - Streamlined Commands$(FONT_RESET)"
 	@echo ""
-	@echo -e "$(CYAN)📋 Logs & Monitoring:$(NC)"
-	@echo -e "  $(PURPLE)logs$(NC)            Show last 100 log lines"
-	@echo -e "  $(PURPLE)logs N=50$(NC)       Show last N log lines"
-	@echo -e "  $(PURPLE)logs FOLLOW=1$(NC)   Follow logs in real-time"
-	@echo -e "  $(PURPLE)health$(NC)          Check service health"
+	@echo -e "$(FONT_CYAN)🚀 Installation:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)install$(FONT_RESET)         Install development environment (uv sync)"
+	@echo -e "  $(FONT_PURPLE)install-service$(FONT_RESET) Install as systemd service with optional dependencies"
+	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install database dependencies (PostgreSQL, Neo4j, Graphiti)"
+	@echo -e "  $(FONT_PURPLE)install-docker$(FONT_RESET)  Install Docker development stack"
+	@echo -e "  $(FONT_PURPLE)install-prod$(FONT_RESET)    Install production Docker stack"
 	@echo ""
-	@echo -e "$(CYAN)🔄 Maintenance:$(NC)"
-	@echo -e "  $(PURPLE)update$(NC)          Update and restart services"
-	@echo -e "  $(PURPLE)clean$(NC)           Clean temporary files"
-	@echo -e "  $(PURPLE)test$(NC)            Run test suite"
+	@echo -e "$(FONT_CYAN)🎛️ Service Management:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)dev$(FONT_RESET)             Start development mode (local Python)"
+	@echo -e "  $(FONT_PURPLE)run$(FONT_RESET)             Run development server with hot reload"
+	@echo -e "  $(FONT_PURPLE)docker$(FONT_RESET)          Start Docker development stack"
+	@echo -e "  $(FONT_PURPLE)prod$(FONT_RESET)            Start production Docker stack"
+	@echo -e "  $(FONT_PURPLE)start-service$(FONT_RESET)   Start systemd service and show recent logs"
+	@echo -e "  $(FONT_PURPLE)stop$(FONT_RESET)            Stop development automagik-agents container only"
+	@echo -e "  $(FONT_PURPLE)stop-service$(FONT_RESET)    Stop systemd service"
+	@echo -e "  $(FONT_PURPLE)stop-prod$(FONT_RESET)       Stop production automagik-agents container only"
+	@echo -e "  $(FONT_PURPLE)stop-all$(FONT_RESET)        Stop all services (DB, Neo4j, Graphiti, etc.)"
+	@echo -e "  $(FONT_PURPLE)status$(FONT_RESET)          Show service status"
 	@echo ""
-	@echo -e "$(YELLOW)💡 Neo4j/Graphiti auto-detected from .env$(NC)"
+	@echo -e "$(FONT_CYAN)📋 Logs & Monitoring:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)logs$(FONT_RESET)            Show last 100 log lines"
+	@echo -e "  $(FONT_PURPLE)logs N=50$(FONT_RESET)       Show last N log lines"
+	@echo -e "  $(FONT_PURPLE)logs FOLLOW=1$(FONT_RESET)   Follow logs in real-time"
+	@echo -e "  $(FONT_PURPLE)health$(FONT_RESET)          Check service health"
 	@echo ""
+	@echo -e "$(FONT_CYAN)🔄 Maintenance:$(FONT_RESET)"
+	@echo -e "  $(FONT_PURPLE)update$(FONT_RESET)          Update and restart services"
+	@echo -e "  $(FONT_PURPLE)clean$(FONT_RESET)           Clean temporary files"
+	@echo -e "  $(FONT_PURPLE)test$(FONT_RESET)            Run test suite"
+	@echo ""
+	@echo -e "$(FONT_YELLOW)💡 Neo4j/Graphiti auto-detected from .env$(FONT_RESET)"
+	@echo ""
+
+print-test: ## 🎨 Test color system
+	@printf "$(FONT_RED)red$(FONT_RESET)\n"
+	@printf "$(FONT_GREEN)green$(FONT_RESET)\n"
+	@printf "$(FONT_YELLOW)yellow$(FONT_RESET)\n"
+	@printf "$(FONT_BLUE)blue$(FONT_RESET)\n"
+	@printf "$(FONT_PURPLE)purple$(FONT_RESET)\n"
+	@printf "$(FONT_CYAN)cyan$(FONT_RESET)\n"
+	@printf "$(FONT_GRAY)gray$(FONT_RESET)\n"
+	@printf "$(FONT_BLACK)black$(FONT_RESET)\n"
+	@printf "$(FONT_BOLD)bold$(FONT_RESET)\n"
 
 # ===========================================
 # 🚀 Installation Targets
 # ===========================================
-.PHONY: install install-dev install-docker install-prod
-install: ## ⚙️ Install as systemd service
-	$(call print_status,Installing systemd service...)
-	@$(MAKE) install-dev
-	@$(call check_env_file)
-	@$(call create_systemd_service)
-	@sudo systemctl daemon-reload
-	@sudo systemctl enable automagik-agents
-	$(call print_success,Systemd service installed!)
-	@echo -e "$(CYAN)💡 Start with: sudo systemctl start automagik-agents$(NC)"
-
-install-dev: ## 🛠️ Install development environment
+.PHONY: install install-service install-deps install-docker install-prod
+install: ## 🛠️ Install development environment
 	$(call print_status,Installing development environment...)
 	@$(call check_prerequisites)
 	@$(call setup_python_env)
 	@$(call check_env_file)
-	$(call print_success,Development environment ready!)
+	$(call print_success_with_logo,Development environment ready!)
+
+install-service: ## ⚙️ Install as systemd service with optional dependencies
+	$(call print_status,Installing Automagik Agents systemd service...)
+	@$(MAKE) install
+	@$(call check_env_file)
+	@$(call show_dependency_prompt)
+	@$(call create_systemd_service)
+	@sudo systemctl daemon-reload
+	@sudo systemctl enable automagik-agents
+	$(call print_success_with_logo,Systemd service installed!)
+	@echo -e "$(FONT_CYAN)💡 Start with: sudo systemctl start automagik-agents$(FONT_RESET)"
+
+install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graphiti)
+	$(call print_status,Installing database dependencies...)
+	@$(call check_docker)
+	@$(call check_env_file)
+	@$(call print_status,Stopping any existing containers...)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true
+	@$(call print_status,Starting PostgreSQL container...)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d --force-recreate automagik-agents-db
+	@$(call print_status,Waiting for PostgreSQL to be ready...)
+	@sleep 5
+	@$(call check_postgres_ready)
+	@$(call print_status,Starting Neo4j container...)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-neo4j
+	@$(call print_status,Waiting for Neo4j to be ready...)
+	@sleep 10
+	@$(call print_status,Starting Graphiti service...)
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-graphiti
+	@$(call print_status,Waiting for Graphiti to be ready...)
+	@sleep 5
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"
+	$(call print_success_with_logo,All database dependencies installed!)
 
 install-docker: ## 🐳 Install Docker development stack
 	$(call print_status,Installing Docker development stack...)
@@ -156,32 +243,32 @@ install-docker: ## 🐳 Install Docker development stack
 	@$(call print_status,Starting Docker development stack...)
 	@profile=$$($(call detect_graphiti_profile)); \
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
-	$(call print_success,Docker development stack ready!)
+	$(call print_success_with_logo,Docker development stack ready!)
 
 install-prod: ## 🏭 Install production Docker stack
 	$(call print_status,Installing production Docker stack...)
 	@$(call check_docker)
 	@if [ ! -f ".env.prod" ]; then \
 		$(call print_error,.env.prod file not found); \
-		echo -e "$(YELLOW)💡 Create .env.prod for production$(NC)"; \
+		echo -e "$(FONT_YELLOW)💡 Create .env.prod for production$(FONT_RESET)"; \
 		exit 1; \
 	fi
 	@$(call print_status,Building production containers...)
 	@env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) build
 	@$(call print_status,Starting production Docker stack...)
 	@env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) up -d
-	$(call print_success,Production Docker stack ready!)
+	$(call print_success_with_logo,Production Docker stack ready!)
 
 # ===========================================
 # 🎛️ Service Management
 # ===========================================
-.PHONY: dev docker prod stop stop-prod stop-all restart status
+.PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service status
 dev: ## 🛠️ Start development mode
 	$(call print_status,Starting development mode...)
 	@$(call check_env_file)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_error,Virtual environment not found); \
-		echo -e "$(YELLOW)💡 Run 'make install-dev' first$(NC)"; \
+		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
 		exit 1; \
 	fi
 	@$(call print_status,Activating virtual environment and starting...)
@@ -230,29 +317,47 @@ stop-all: ## 🛑 Stop all services (preserves containers)
 	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
-restart: ## 🔄 Restart services
-	@$(MAKE) stop-all
-	@sleep 2
+run: ## 🚀 Run development server with hot reload
+	$(call print_status,Starting development server with hot reload...)
+	@$(call check_env_file)
+	@echo -e "$(FONT_YELLOW)💡 Press Ctrl+C to stop the server$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)🧹 Nuclear cleanup of any zombie processes...$(FONT_RESET)"
+	@ps aux | grep -E "(python.*src|uv run|uvicorn|multiprocessing)" | grep -v grep | awk '{print $$2}' | xargs -r kill -9 2>/dev/null || true
+	@sleep 1
+	@echo -e "$(FONT_PURPLE)🚀 Starting server...$(FONT_RESET)"
+	@AM_FORCE_DEV_ENV=1 uv run python -m src --reload
+
+start-service: ## 🔧 Start systemd service and show recent logs
+	$(call print_status,Starting systemd service...)
 	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
 		sudo systemctl start automagik-agents; \
-	elif docker ps -a --filter "name=automagik-agents-prod" --format "{{.Names}}" | grep -q prod; then \
-		$(MAKE) prod; \
-	elif docker ps -a --filter "name=automagik-agents-dev" --format "{{.Names}}" | grep -q dev; then \
-		$(MAKE) docker; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service started!$(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)🪄 Recent logs:$(FONT_RESET)"; \
+		journalctl -u automagik-agents -n 20 --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 	else \
-		$(call print_warning,No previous service detected); \
+		echo -e "$(FONT_YELLOW)$(WARNING) Systemd service not installed$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Run 'make install-service' first$(FONT_RESET)"; \
+	fi
+
+stop-service: ## 🛑 Stop systemd service
+	$(call print_status,Stopping systemd service...)
+	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
+		sudo systemctl stop automagik-agents; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service stopped!$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Systemd service not installed$(FONT_RESET)"; \
 	fi
 
 status: ## 📊 Show service status
 	$(call print_status,Service Status)
 	@echo ""
-	@echo -e "$(PURPLE)┌─────────────────────────┬──────────┬─────────┬──────────┐$(NC)"
-	@echo -e "$(PURPLE)│ Service                 │ Status   │ Port    │ PID      │$(NC)"
-	@echo -e "$(PURPLE)├─────────────────────────┼──────────┼─────────┼──────────┤$(NC)"
+	@echo -e "$(FONT_PURPLE)┌─────────────────────────┬──────────┬─────────┬──────────┐$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)│ Service                 │ Status   │ Port    │ PID      │$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)├─────────────────────────┼──────────┼─────────┼──────────┤$(FONT_RESET)"
 	@$(call show_systemd_status)
 	@$(call show_docker_status)
 	@$(call show_local_status)
-	@echo -e "$(PURPLE)└─────────────────────────┴──────────┴─────────┴──────────┘$(NC)"
+	@echo -e "$(FONT_PURPLE)└─────────────────────────┴──────────┴─────────┴──────────┘$(FONT_RESET)"
 
 # ===========================================
 # 📋 Logs & Monitoring
@@ -260,7 +365,7 @@ status: ## 📊 Show service status
 .PHONY: logs health
 logs: ## 📄 View logs (use N=lines, FOLLOW=1 for tail -f)
 	@if [ "$(FOLLOW)" = "1" ]; then \
-		echo -e "$(PURPLE)🪄 Following logs - Press Ctrl+C to stop$(NC)"; \
+		echo -e "$(FONT_PURPLE)🪄 Following logs - Press Ctrl+C to stop$(FONT_RESET)"; \
 		if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 			journalctl -u automagik-agents -f --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
@@ -269,10 +374,10 @@ logs: ## 📄 View logs (use N=lines, FOLLOW=1 for tail -f)
 		elif [ -f "logs/automagik.log" ]; then \
 			tail -f logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		else \
-			echo -e "$(YELLOW)⚠️ No log sources found to follow$(NC)"; \
+			echo -e "$(FONT_YELLOW)⚠️ No log sources found to follow$(FONT_RESET)"; \
 		fi; \
 	else \
-		echo -e "$(PURPLE)🪄 Showing last $(N) log lines$(NC)"; \
+		echo -e "$(FONT_PURPLE)🪄 Showing last $(N) log lines$(FONT_RESET)"; \
 		if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 			journalctl -u automagik-agents -n $(N) --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
@@ -281,7 +386,7 @@ logs: ## 📄 View logs (use N=lines, FOLLOW=1 for tail -f)
 		elif [ -f "logs/automagik.log" ]; then \
 			tail -n $(N) logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
 		else \
-			echo -e "$(YELLOW)⚠️ No log sources found$(NC)"; \
+			echo -e "$(FONT_YELLOW)⚠️ No log sources found$(FONT_RESET)"; \
 		fi; \
 	fi
 
@@ -298,7 +403,7 @@ update: ## 🔄 Update and restart services
 	@$(MAKE) stop-all
 	@git pull
 	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
-		$(MAKE) install-dev && sudo systemctl start automagik-agents; \
+		$(MAKE) install && sudo systemctl start automagik-agents; \
 	elif docker ps -a --filter "name=automagik-agents-prod" --format "{{.Names}}" | grep -q prod; then \
 		$(MAKE) install-prod; \
 	elif docker ps -a --filter "name=automagik-agents-dev" --format "{{.Names}}" | grep -q dev; then \
@@ -306,7 +411,7 @@ update: ## 🔄 Update and restart services
 	else \
 		$(call print_warning,No previous installation detected); \
 	fi
-	$(call print_success,Update complete!)
+	$(call print_success_with_logo,Update complete!)
 
 clean: ## 🧹 Clean temporary files
 	$(call print_status,Cleaning temporary files...)
@@ -319,13 +424,89 @@ test: ## 🧪 Run test suite
 		. $(VENV_PATH)/bin/activate && python -m pytest; \
 	else \
 		$(call print_error,Virtual environment not found); \
-		echo -e "$(YELLOW)💡 Run 'make install-dev' first$(NC)"; \
+		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
 		exit 1; \
 	fi
 
 # ===========================================
 # 🔧 Helper Functions
 # ===========================================
+define show_dependency_prompt
+	@echo ""
+	@echo -e "$(FONT_CYAN)🗄️ Optional Database Dependencies$(FONT_RESET)"
+	@echo "Automagik Agents can work with external databases or use local Docker containers."
+	@echo ""
+	@echo -e "$(FONT_YELLOW)Available dependencies:$(FONT_RESET)"
+	@echo "• 🐘 PostgreSQL (database)"
+	@echo "• 🔗 Neo4j (knowledge graph)"
+	@echo "• 🧠 Graphiti (AI memory service)"
+	@echo ""
+	@bash -c ' \
+		read -p "Install database dependencies? [Y/n]: " install_deps; \
+		if [ "$$install_deps" != "n" ] && [ "$$install_deps" != "N" ]; then \
+			echo ""; \
+			echo -e "$(FONT_PURPLE)🪄 Installing database dependencies...$(FONT_RESET)"; \
+			echo -e "$(FONT_PURPLE)🪄 Starting PostgreSQL container...$(FONT_RESET)"; \
+			$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d automagik-agents-db; \
+			echo -e "$(FONT_PURPLE)🪄 Waiting for PostgreSQL to be ready...$(FONT_RESET)"; \
+			sleep 5; \
+			max_attempts=12; attempt=1; \
+			while [ $$attempt -le $$max_attempts ]; do \
+				if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
+					echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL is ready!$(FONT_RESET)"; \
+					break; \
+				else \
+					echo -n "$(FONT_YELLOW).$(FONT_RESET)"; \
+					sleep 5; \
+					attempt=$$((attempt + 1)); \
+				fi; \
+			done; \
+			if [ $$attempt -gt $$max_attempts ]; then \
+				echo -e "$(FONT_RED)$(ERROR) PostgreSQL failed to start within 60 seconds$(FONT_RESET)"; \
+				exit 1; \
+			fi; \
+			echo ""; \
+			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
+			if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
+				echo -e "$(FONT_PURPLE)🪄 Starting Neo4j container...$(FONT_RESET)"; \
+				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-neo4j; \
+				echo -e "$(FONT_PURPLE)🪄 Waiting for Neo4j to be ready...$(FONT_RESET)"; \
+				sleep 10; \
+				echo -e "$(FONT_PURPLE)🪄 Starting Graphiti service...$(FONT_RESET)"; \
+				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-graphiti; \
+				echo -e "$(FONT_PURPLE)🪄 Waiting for Graphiti to be ready...$(FONT_RESET)"; \
+				sleep 5; \
+				echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
+				echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
+				echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
+			else \
+				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
+			fi; \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) Database dependencies installed!$(FONT_RESET)"; \
+		else \
+			echo -e "$(FONT_YELLOW)$(WARNING) Skipping database dependencies - configure external databases in .env$(FONT_RESET)"; \
+		fi'
+endef
+
+define check_postgres_ready
+	@max_attempts=12; \
+	attempt=1; \
+	while [ $$attempt -le $$max_attempts ]; do \
+		if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
+			echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL is ready!$(FONT_RESET)"; \
+			break; \
+		else \
+			echo -n "$(FONT_YELLOW).$(FONT_RESET)"; \
+			sleep 5; \
+			attempt=$$((attempt + 1)); \
+		fi; \
+	done; \
+	if [ $$attempt -gt $$max_attempts ]; then \
+		echo -e "$(FONT_RED)$(ERROR) PostgreSQL failed to start within 60 seconds$(FONT_RESET)"; \
+		exit 1; \
+	fi
+endef
+
 define check_prerequisites
 	@if ! command -v python3 >/dev/null 2>&1; then \
 		$(call print_error,Python 3 not found); \
@@ -356,10 +537,10 @@ define show_systemd_status
 	@if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 		pid=$$(systemctl show automagik-agents --property=MainPID --value 2>/dev/null); \
 		port=$$(ss -tlnp | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
-		printf "$(PURPLE)│$(NC) %-23s $(PURPLE)│$(NC) $(GREEN)%-8s$(NC) $(PURPLE)│$(NC) %-7s $(PURPLE)│$(NC) %-8s $(PURPLE)│$(NC)\n" \
+		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 			"systemd-service" "running" "$${port:-8881}" "$$pid"; \
 	else \
-		printf "$(PURPLE)│$(NC) %-23s $(PURPLE)│$(NC) $(YELLOW)%-8s$(NC) $(PURPLE)│$(NC) %-7s $(PURPLE)│$(NC) %-8s $(PURPLE)│$(NC)\n" \
+		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_YELLOW)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 			"systemd-service" "stopped" "-" "-"; \
 	fi
 endef
@@ -370,7 +551,7 @@ define show_docker_status
 		echo "$$containers" | while IFS=$$'\t' read -r name status ports; do \
 			port=$$(echo "$$ports" | grep -o '[0-9]*->[0-9]*' | head -1 | cut -d'>' -f2); \
 			container_id=$$(docker ps --format "{{.ID}}" --filter "name=$$name" | head -c 6); \
-			printf "$(PURPLE)│$(NC) %-23s $(PURPLE)│$(NC) $(GREEN)%-8s$(NC) $(PURPLE)│$(NC) %-7s $(PURPLE)│$(NC) %-8s $(PURPLE)│$(NC)\n" \
+			printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 				"$$name" "running" "$${port:-8881}" "$$container_id"; \
 		done; \
 	fi
@@ -380,7 +561,7 @@ define show_local_status
 	@if pgrep -f "python.*src" >/dev/null 2>&1; then \
 		pid=$$(pgrep -f "python.*src"); \
 		port=$$(ss -tlnp | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
-		printf "$(PURPLE)│$(NC) %-23s $(PURPLE)│$(NC) $(GREEN)%-8s$(NC) $(PURPLE)│$(NC) %-7s $(PURPLE)│$(NC) %-8s $(PURPLE)│$(NC)\n" \
+		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 			"local-process" "running" "$${port:-8881}" "$$pid"; \
 	fi
 endef
@@ -388,28 +569,28 @@ endef
 define check_health
 	@healthy=0; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		echo -e "$(GREEN)$(CHECKMARK) Systemd service: running$(NC)"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service: running$(FONT_RESET)"; \
 		healthy=1; \
 	fi; \
 	if docker ps --filter "name=automagik-agents" --format "{{.Names}}" | grep -q automagik; then \
-		echo -e "$(GREEN)$(CHECKMARK) Docker containers: running$(NC)"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Docker containers: running$(FONT_RESET)"; \
 		healthy=1; \
 	fi; \
 	if [ $$healthy -eq 0 ]; then \
-		echo -e "$(YELLOW)$(WARNING) No services running$(NC)"; \
+		echo -e "$(FONT_YELLOW)$(WARNING) No services running$(FONT_RESET)"; \
 	fi; \
 	if curl -s http://localhost:8881/health >/dev/null 2>&1; then \
-		echo -e "$(GREEN)$(CHECKMARK) API health check: passed$(NC)"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) API health check: passed$(FONT_RESET)"; \
 	elif curl -s http://localhost:18881/health >/dev/null 2>&1; then \
-		echo -e "$(GREEN)$(CHECKMARK) API health check: passed (prod)$(NC)"; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) API health check: passed (prod)$(FONT_RESET)"; \
 		else \
-		echo -e "$(YELLOW)$(WARNING) API health check: failed$(NC)"; \
+		echo -e "$(FONT_YELLOW)$(WARNING) API health check: failed$(FONT_RESET)"; \
 	fi
-endef 
+endef
 
 # ===========================================
 # 🧹 Phony Targets
 # ===========================================
-.PHONY: help install install-dev install-docker install-prod
-.PHONY: dev docker prod stop stop-prod stop-all restart status logs health
+.PHONY: help print-test install install-service install-deps install-docker install-prod
+.PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service status logs health
 .PHONY: update clean test
