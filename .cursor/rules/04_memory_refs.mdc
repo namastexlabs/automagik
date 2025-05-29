@@ -231,7 +231,7 @@ async def test_memory_relationships():
 3. **Combine searches**: Use both node and fact searches for context
 4. **Center explorations**: Use center_node_uuid for related info
 5. **Respect findings**: Align work with discovered knowledge
-6. **Commit discoveries**: Document findings in Git history
+6. **Commit discoveries**: Document findings in MCP git tools - see 08_git_version_management.md
 
 ### **Storage Guidelines**
 1. **Immediate capture**: Store preferences/procedures as discovered
@@ -308,4 +308,4 @@ if any("type hints" in p['summary'] for p in preferences):
 
 ---
 
-**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships. For database memories, always provide user_id until NMSTX-63 is resolved. **Commit discoveries** to maintain knowledge in Git history.
+**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships. For database memories, always provide user_id until NMSTX-63 is resolved. **Commit discoveries** to maintain knowledge in MCP git tools - see 08_git_version_management.md.

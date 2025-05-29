@@ -1,0 +1,291 @@
+---
+description: Git version management using MCP tools for structured and safe operations
+globs:
+  - "**/*.py"
+  - "**/*.md"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+alwaysApply: false
+---
+# Git Version Management with MCP Tools
+
+**MANDATORY**: Use MCP git tools for version control operations. Direct shell commands only for push/pull.
+
+## 🎯 **Overview**
+
+This rule defines standardized git workflows using MCP tools, providing structured and safe version control operations integrated with Linear task management.
+
+## 🛠️ **Available MCP Git Tools**
+
+### **Core Operations**
+- `mcp_git_git_status` - Check repository status
+- `mcp_git_git_add` - Stage files for commit
+- `mcp_git_git_commit` - Create commits
+- `mcp_git_git_diff_unstaged` - View unstaged changes
+- `mcp_git_git_diff_staged` - View staged changes
+- `mcp_git_git_reset` - Unstage all changes
+
+### **Branch Management**
+- `mcp_git_git_create_branch` - Create new branches
+- `mcp_git_git_checkout` - Switch branches
+- `mcp_git_git_log` - View commit history
+- `mcp_git_git_show` - Show commit details
+- `mcp_git_git_diff` - Compare branches/commits
+
+### **Limitations** (Use Terminal)
+- ❌ `git push` - Use `run_terminal_cmd`
+- ❌ `git pull` - Use `run_terminal_cmd`
+- ❌ `git merge` - Use `run_terminal_cmd`
+- ❌ `git stash` - Use `run_terminal_cmd`
+- ❌ `git tag` - Use `run_terminal_cmd`
+
+## 📋 **Standard Workflows**
+
+### **1. Starting New Work**
+```python
+# Check current status first
+mcp_git_git_status(repo_path="/root/prod/am-agents-labs")
+
+# Create Linear task and get NMSTX-XX ID
+linear_create_issue(...)  # Returns issue with ID
+
+# Create branch with Linear ID
+mcp_git_git_create_branch(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-feature-description",
+    base_branch="main"  # or current branch
+)
+
+# Switch to new branch
+mcp_git_git_checkout(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-feature-description"
+)
+```
+
+### **2. Making Changes**
+```python
+# Check what changed
+mcp_git_git_diff_unstaged(repo_path="/root/prod/am-agents-labs")
+
+# Stage specific files
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/agents/simple/new_agent.py", "tests/test_new_agent.py"]
+)
+
+# Review staged changes
+mcp_git_git_diff_staged(repo_path="/root/prod/am-agents-labs")
+
+# Commit with semantic message
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(NMSTX-XX): implement new agent functionality"
+)
+```
+
+### **3. Incremental Commits**
+```python
+# After each subtask completion
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/file.py"]
+)
+
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(NMSTX-XX): complete agent initialization"
+)
+
+# Continue with next subtask...
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="test(NMSTX-XX): add unit tests for agent"
+)
+```
+
+### **4. Pushing Changes**
+```python
+# MCP doesn't support push, use terminal
+run_terminal_cmd(
+    command="git push origin NMSTX-XX-feature-description",
+    is_background=False
+)
+```
+
+### **5. Reviewing History**
+```python
+# View recent commits
+mcp_git_git_log(
+    repo_path="/root/prod/am-agents-labs",
+    max_count=10
+)
+
+# Show specific commit
+mcp_git_git_show(
+    repo_path="/root/prod/am-agents-labs",
+    revision="HEAD"  # or commit hash
+)
+
+# Compare with main branch
+mcp_git_git_diff(
+    repo_path="/root/prod/am-agents-labs",
+    target="origin/main"
+)
+```
+
+## 🔄 **Hybrid Approach (MCP + Terminal)**
+
+### **When to Use MCP Tools** ✅
+- Creating branches (ensures naming standards)
+- Staging files (programmatic selection)
+- Committing (structured messages)
+- Checking status/diffs (parsing output)
+- Reviewing history (structured data)
+
+### **When to Use Terminal** 🔧
+```python
+# Push changes
+run_terminal_cmd("git push origin NMSTX-XX-branch")
+
+# Pull updates
+run_terminal_cmd("git pull origin main")
+
+# Merge branches
+run_terminal_cmd("git merge origin/main")
+
+# Stash changes
+run_terminal_cmd("git stash")
+
+# Create tags
+run_terminal_cmd("git tag -a v1.0.0 -m 'Release version 1.0.0'")
+
+# Delete branches
+run_terminal_cmd("git branch -D old-branch")
+```
+
+## 📝 **Commit Message Standards**
+
+### **Format**: `type(scope): description`
+
+**Types**:
+- `feat` - New feature
+- `fix` - Bug fix
+- `docs` - Documentation
+- `test` - Tests
+- `refactor` - Code refactoring
+- `style` - Formatting
+- `chore` - Maintenance
+
+**Always include Linear ID**:
+```python
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(NMSTX-127): implement database retry logic"
+)
+```
+
+## 🚨 **Error Handling**
+
+### **Check Before Operations**
+```python
+# Always check status first
+status = mcp_git_git_status(repo_path="/root/prod/am-agents-labs")
+if "nothing to commit" not in status:
+    # Handle uncommitted changes
+    pass
+
+# Verify branch creation
+try:
+    mcp_git_git_create_branch(...)
+    mcp_git_git_checkout(...)
+except Exception as e:
+    # Handle branch already exists, etc.
+    pass
+```
+
+### **Recovery Patterns**
+```python
+# Unstage accidental changes
+mcp_git_git_reset(repo_path="/root/prod/am-agents-labs")
+
+# Check what would be committed
+mcp_git_git_diff_staged(repo_path="/root/prod/am-agents-labs")
+```
+
+## 🎯 **Best Practices**
+
+### **✅ DO**
+1. **Always use Linear IDs** in branch names and commits
+2. **Check status** before starting work
+3. **Review diffs** before committing
+4. **Make incremental commits** for each subtask
+5. **Use MCP tools** for structured operations
+6. **Handle errors** gracefully
+
+### **❌ DON'T**
+1. **Skip status checks** - might have uncommitted work
+2. **Make giant commits** - harder to review/revert
+3. **Use shell for** operations MCP can handle
+4. **Ignore Linear naming** - loses traceability
+5. **Force operations** without checking state
+
+## 📊 **Common Patterns**
+
+### **Agent Development Flow**
+```python
+# 1. Create branch for new agent
+mcp_git_git_create_branch(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-new-agent",
+    base_branch="main"
+)
+
+# 2. Initial scaffold commit
+mcp_git_git_add(files=["src/agents/simple/new_agent/"])
+mcp_git_git_commit(message="feat(NMSTX-XX): scaffold new agent structure")
+
+# 3. Implementation commit
+mcp_git_git_add(files=["src/agents/simple/new_agent/agent.py"])
+mcp_git_git_commit(message="feat(NMSTX-XX): implement agent logic")
+
+# 4. Test commit
+mcp_git_git_add(files=["tests/agents/new_agent/"])
+mcp_git_git_commit(message="test(NMSTX-XX): add agent tests")
+
+# 5. Push to remote
+run_terminal_cmd("git push origin NMSTX-XX-new-agent")
+```
+
+### **Quick Status Check**
+```python
+def check_git_status():
+    """Quick helper to check if working directory is clean."""
+    status = mcp_git_git_status(repo_path="/root/prod/am-agents-labs")
+    return "nothing to commit" in status and "working tree clean" in status
+```
+
+### **Safe Branch Switch**
+```python
+def safe_branch_switch(target_branch: str):
+    """Switch branches only if working directory is clean."""
+    if check_git_status():
+        mcp_git_git_checkout(
+            repo_path="/root/prod/am-agents-labs",
+            branch_name=target_branch
+        )
+    else:
+        print("Working directory not clean, commit or stash changes first")
+```
+
+## 🔗 **Integration with Other Rules**
+
+- **Linear Integration**: Always create Linear task first ([01_task_system.mdc](mdc:.cursor/rules/01_task_system.mdc))
+- **Development Workflow**: Follow commit patterns ([03_dev_workflow.mdc](mdc:.cursor/rules/03_dev_workflow.mdc))
+- **Memory Storage**: Record successful git patterns ([04_memory_refs.mdc](mdc:.cursor/rules/04_memory_refs.mdc))
+
+---
+
+**Remember**: Use MCP git tools for structured operations, fall back to terminal only for push/pull/merge. Always maintain Linear traceability in branches and commits. 
