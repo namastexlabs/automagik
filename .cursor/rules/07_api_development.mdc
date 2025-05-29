@@ -351,10 +351,10 @@ async def run_agent_bad(agent_name: str, request: AgentRequest):
 ### **Record API Patterns**
 ```bash
 # Before implementing custom endpoints
-memories_search_memory --query "API endpoint patterns authentication"
+agent-memory_search_memory --query "API endpoint patterns authentication"
 
 # After successful implementation
-memories_add_memories --text "Successful custom endpoint pattern: Always use Depends(verify_api_key), return Pydantic models, validate input with Field constraints"
+agent-memory_add_memory --name "API Pattern Discovery" --episode_body "Successful custom endpoint pattern: Always use Depends(verify_api_key), return Pydantic models, validate input with Field constraints" --source "text"
 ```
 
 ---
