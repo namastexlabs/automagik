@@ -421,21 +421,21 @@ make install-deps # Install PostgreSQL, Neo4j, Graphiti
 #### Starting New Work
 ```python
 # 1. Check current status
-git_status(repo_path="/root/prod/am-agents-labs")
+git_status(repo_path="/root/workspace/am-agents-labs")
 
 # 2. Create Linear task first to get NMSTX-XX ID
 linear_create_issue(...)  # Returns issue with ID
 
 # 3. Create branch with Linear ID (MANDATORY)
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-description",
     base_branch="main"
 )
 
 # 4. Switch to new branch
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-description"
 )
 ```
@@ -448,13 +448,13 @@ git_checkout(
 ```python
 # Stage files
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/file.py"]
 )
 
 # Commit with semantic message
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): implement new functionality"
 )
 

@@ -121,8 +121,8 @@ agent-memory_search_memory_nodes --query "workflow steps" --entity "Procedure"
 agent-memory_search_memory_facts --query "connections dependencies"
 
 # Commit findings using MCP tools - See [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md)
-git_add(repo_path="/root/prod/am-agents-labs", files=["docs/memory_search.md"])
-git_commit(repo_path="/root/prod/am-agents-labs", message="docs: capture memory search results for task")
+git_add(repo_path="/root/workspace/am-agents-labs", files=["docs/memory_search.md"])
+git_commit(repo_path="/root/workspace/am-agents-labs", message="docs: capture memory search results for task")
 ```
 
 ### **2. During Development**
@@ -146,8 +146,8 @@ agent-memory_add_memory \
   --source "json"
 
 # Commit incremental progress using MCP tools
-git_add(repo_path="/root/prod/am-agents-labs", files=["src/modified_files.py"])
-git_commit(repo_path="/root/prod/am-agents-labs", message="feat: implement based on discovered patterns")
+git_add(repo_path="/root/workspace/am-agents-labs", files=["src/modified_files.py"])
+git_commit(repo_path="/root/workspace/am-agents-labs", message="feat: implement based on discovered patterns")
 ```
 
 ### **3. After Task Completion**
@@ -165,8 +165,8 @@ agent-memory_add_memory \
   --source "json"
 
 # Final commit using MCP tools
-git_add(repo_path="/root/prod/am-agents-labs", files=["src/completed_work.py"])
-git_commit(repo_path="/root/prod/am-agents-labs", message="feat: complete implementation with discovered patterns")
+git_add(repo_path="/root/workspace/am-agents-labs", files=["src/completed_work.py"])
+git_commit(repo_path="/root/workspace/am-agents-labs", message="feat: complete implementation with discovered patterns")
 
 # Tag milestone (use terminal for git tag - not supported in MCP)
 run_terminal_cmd("git tag -a 'milestone-name' -m 'Description'")
