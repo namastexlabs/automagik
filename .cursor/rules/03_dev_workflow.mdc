@@ -27,21 +27,21 @@ agent-memory_search_memory_facts --query "dependencies relationships"
 # 1. Create Linear task FIRST, get NMSTX-XX ID
 # 2. Create standardized branch name
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-name",  # Branch from Linear issue ID
     base_branch="main"
 )
 
 # 3. Switch to new branch
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-name"
 )
 
 # 4. Work and commit with Linear ID references using MCP tools
-git_add(repo_path="/root/prod/am-agents-labs", files=["src/file.py"])
+git_add(repo_path="/root/workspace/am-agents-labs", files=["src/file.py"])
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): add tool registration logic"  # Always reference Linear ID
 )
 
@@ -125,31 +125,31 @@ agent-memory_search_memory_nodes --query "agent development" --entity "Procedure
 ```python
 # 1. Initial scaffold commit using MCP tools
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/agents/simple/<agent_name>/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(agent): scaffold new agent structure"
 )
 
 # 2. Implementation commit
 git_add(
-    repo_path="/root/prod/am-agents-labs", 
+    repo_path="/root/workspace/am-agents-labs", 
     files=["src/agents/simple/<agent_name>/agent.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(agent): implement core agent logic and prompts"
 )
 
 # 3. Tool registration commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/agents/simple/<agent_name>/tools.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(agent): register tools and enable auto-discovery"
 )
 ```
@@ -158,8 +158,8 @@ git_commit(
 ```bash
 # Store successful agent patterns
 agent-memory_add_memory --name "Agent Pattern: [Name]" --episode_body "pattern details" --source "text"
-git_add(repo_path="/root/prod/am-agents-labs", files=[".cursor/rules/"])
-git_commit(repo_path="/root/prod/am-agents-labs", message="docs: document new agent pattern")
+git_add(repo_path="/root/workspace/am-agents-labs", files=[".cursor/rules/"])
+git_commit(repo_path="/root/workspace/am-agents-labs", message="docs: document new agent pattern")
 ```
 
 ### **🔧 Tool Development Mode** - Building Integrations
@@ -175,41 +175,41 @@ agent-memory_search_memory_nodes --query "tool development integration" --entity
 ```python
 # 1. Schema definition commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/tools/<service>/schema.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(tool): define input/output schemas"
 )
 
 # 2. Implementation commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/tools/<service>/tool.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(tool): implement core business logic"
 )
 
 # 3. Registration commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/tools/<service>/__init__.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(tool): register tool globally"
 )
 
 # 4. Testing commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["tests/tools/<service>/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="test(tool): add unit and integration tests"
 )
 ```
@@ -227,31 +227,31 @@ agent-memory_search_memory_nodes --query "API endpoint security" --entity "Requi
 ```python
 # 1. Model definition commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/api/models/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(api): define endpoint models"
 )
 
 # 2. Implementation commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/api/routes/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(api): implement endpoint logic"
 )
 
 # 3. Testing commit
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["tests/api/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="test(api): add endpoint tests"
 )
 ```
@@ -340,8 +340,8 @@ agent-memory_add_memory \
   --source "text"
 
 # Commit discovery using MCP tools
-git_add(repo_path="/root/prod/am-agents-labs", files=["docs/patterns.md"])
-git_commit(repo_path="/root/prod/am-agents-labs", message="feat: implement discovered pattern")
+git_add(repo_path="/root/workspace/am-agents-labs", files=["docs/patterns.md"])
+git_commit(repo_path="/root/workspace/am-agents-labs", message="feat: implement discovered pattern")
 ```
 
 ### **2. Implementation Phase** 🏗️
@@ -384,27 +384,27 @@ agent-memory_add_memory \
 ### **Semantic Commit Format**
 ```python
 # Examples using MCP tools
-git_commit(repo_path="/root/prod/am-agents-labs", message="feat(agent): add Discord integration")
-git_commit(repo_path="/root/prod/am-agents-labs", message="fix(memory): handle empty search results")
-git_commit(repo_path="/root/prod/am-agents-labs", message="docs: update setup instructions")
-git_commit(repo_path="/root/prod/am-agents-labs", message="test(api): add auth middleware tests")
+git_commit(repo_path="/root/workspace/am-agents-labs", message="feat(agent): add Discord integration")
+git_commit(repo_path="/root/workspace/am-agents-labs", message="fix(memory): handle empty search results")
+git_commit(repo_path="/root/workspace/am-agents-labs", message="docs: update setup instructions")
+git_commit(repo_path="/root/workspace/am-agents-labs", message="test(api): add auth middleware tests")
 ```
 
 ### **Incremental Development Workflow**
 ```python
 # Check current status first
-git_status(repo_path="/root/prod/am-agents-labs")
+git_status(repo_path="/root/workspace/am-agents-labs")
 
 # Create feature branch
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-description",
     base_branch="main"
 )
 
 # Switch to feature branch
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-description"
 )
 
@@ -488,7 +488,7 @@ dev/temp_api_check.py
 # 1. Create Linear task FIRST → Get NMSTX-XX
 # 2. Create branch using MCP tools
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-description",
     base_branch="main"
 )
