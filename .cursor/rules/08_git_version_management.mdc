@@ -46,21 +46,21 @@ This rule defines standardized git workflows using MCP tools, providing structur
 ### **1. Starting New Work**
 ```python
 # Check current status first
-git_status(repo_path="/root/prod/am-agents-labs")
+git_status(repo_path="/root/workspace/am-agents-labs")
 
 # Create Linear task and get NMSTX-XX ID
 linear_create_issue(...)  # Returns issue with ID
 
 # Create branch with Linear ID
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-description",
     base_branch="main"  # or current branch
 )
 
 # Switch to new branch
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature-description"
 )
 ```
@@ -68,20 +68,20 @@ git_checkout(
 ### **2. Making Changes**
 ```python
 # Check what changed
-git_diff_unstaged(repo_path="/root/prod/am-agents-labs")
+git_diff_unstaged(repo_path="/root/workspace/am-agents-labs")
 
 # Stage specific files
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/agents/simple/new_agent.py", "tests/test_new_agent.py"]
 )
 
 # Review staged changes
-git_diff_staged(repo_path="/root/prod/am-agents-labs")
+git_diff_staged(repo_path="/root/workspace/am-agents-labs")
 
 # Commit with semantic message
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): implement new agent functionality"
 )
 ```
@@ -90,18 +90,18 @@ git_commit(
 ```python
 # After each subtask completion
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/file.py"]
 )
 
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): complete agent initialization"
 )
 
 # Continue with next subtask...
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="test(NMSTX-XX): add unit tests for agent"
 )
 ```
@@ -119,19 +119,19 @@ run_terminal_cmd(
 ```python
 # View recent commits
 git_log(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     max_count=10
 )
 
 # Show specific commit
 git_show(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     revision="HEAD"  # or commit hash
 )
 
 # Compare with main branch
 git_diff(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     target="origin/main"
 )
 ```
@@ -182,7 +182,7 @@ run_terminal_cmd("git branch -D old-branch")
 **Always include Linear ID**:
 ```python
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-127): implement database retry logic"
 )
 ```
@@ -192,7 +192,7 @@ git_commit(
 ### **Check Before Operations**
 ```python
 # Always check status first
-status = git_status(repo_path="/root/prod/am-agents-labs")
+status = git_status(repo_path="/root/workspace/am-agents-labs")
 if "nothing to commit" not in status:
     # Handle uncommitted changes
     pass
@@ -209,10 +209,10 @@ except Exception as e:
 ### **Recovery Patterns**
 ```python
 # Unstage accidental changes
-git_reset(repo_path="/root/prod/am-agents-labs")
+git_reset(repo_path="/root/workspace/am-agents-labs")
 
 # Check what would be committed
-git_diff_staged(repo_path="/root/prod/am-agents-labs")
+git_diff_staged(repo_path="/root/workspace/am-agents-labs")
 ```
 
 ## 🎯 **Best Practices**
@@ -238,7 +238,7 @@ git_diff_staged(repo_path="/root/prod/am-agents-labs")
 ```python
 # 1. Create branch for new agent
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-new-agent",
     base_branch="main"
 )
@@ -263,7 +263,7 @@ run_terminal_cmd("git push origin NMSTX-XX-new-agent")
 ```python
 def check_git_status():
     """Quick helper to check if working directory is clean."""
-    status = git_status(repo_path="/root/prod/am-agents-labs")
+    status = git_status(repo_path="/root/workspace/am-agents-labs")
     return "nothing to commit" in status and "working tree clean" in status
 ```
 
@@ -273,7 +273,7 @@ def safe_branch_switch(target_branch: str):
     """Switch branches only if working directory is clean."""
     if check_git_status():
         git_checkout(
-            repo_path="/root/prod/am-agents-labs",
+            repo_path="/root/workspace/am-agents-labs",
             branch_name=target_branch
         )
     else:
