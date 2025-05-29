@@ -23,7 +23,7 @@ Keep development scripts out of the production `scripts/` folder while maintaini
 ### ✅ **Production Scripts** → `scripts/` (PROTECTED)
 - **Purpose**: Reviewed, documented production utilities only
 - **Requirements**: Code review, documentation, used by multiple people
-- **Examples**: `check_mcp_status.py`, `create_user_and_db.sql`, setup scripts
+- **Examples**: `check_connection_status.py`, `create_user_and_db.sql`, setup scripts
 
 ## 🚫 **Simple Rules**
 
@@ -47,7 +47,7 @@ Keep development scripts out of the production `scripts/` folder while maintaini
 ### **Good Naming**
 ```python
 # ✅ DO: Descriptive names
-debug_mcp_connection_issue.py
+debug_connection_issue.py
 test_agent_memory_integration.py
 temp_api_check.py
 
