@@ -67,17 +67,17 @@ NMSTX-{NUMBER}-{brief-description}
 
 # ✅ CORRECT Examples using MCP tools:
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-127-database-retry-interrupt-fix",
     base_branch="main"
 )
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-63-memory-user-validation",
     base_branch="main"
 )
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs", 
+    repo_path="/root/workspace/am-agents-labs", 
     branch_name="NMSTX-89-discord-agent-integration",
     base_branch="main"
 )
@@ -103,24 +103,24 @@ linear_create_issue(title="🐛 Component: Issue description", teamId="team-id")
 
 # 3. Create standardized branch name using MCP tools
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-brief-description",
     base_branch="main"
 )
 
 # 4. Switch to new branch
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-brief-description"
 )
 
 # 5. Work and commit with Linear ID references
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/modified_file.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="fix(NMSTX-XX): implement solution"
 )
 
@@ -156,12 +156,12 @@ linear_create_issue \
 ```python
 # Use returned NMSTX-XX ID from Linear
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-brief-description",
     base_branch="main"
 )
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-brief-description"
 )
 ```
@@ -190,22 +190,22 @@ linear_update_issue(id="NMSTX-XX", stateId="99291eb9-7768-4d3b-9778-d69d8de3f333
 
 # Create branch using MCP tools
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature",
     base_branch="main"
 )
 git_checkout(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-feature"
 )
 
 # Progress with commits using MCP tools
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/feature.py", "tests/test_feature.py"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): implement subtask"
 )
 
@@ -215,11 +215,11 @@ run_terminal_cmd("git push origin NMSTX-XX-feature")
 # Complete task
 linear_update_issue(id="NMSTX-XX", stateId="1551da4c-03c1-4169-9690-8688f95f9e87")
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["docs/completion.md"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): complete implementation"
 )
 
@@ -273,20 +273,20 @@ Before moving to next task, ALWAYS:
 **Commit at each subtask completion using MCP tools:**
 ```python
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["src/agents/simple/new_agent/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): complete agent initialization"
 )
 
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=["tests/agents/new_agent/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="test(NMSTX-XX): add agent integration tests"
 )
 ```
@@ -306,11 +306,11 @@ agent-memory_add_memory \
 
 # Commit pattern documentation using MCP tools
 git_add(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     files=[".cursor/rules/"]
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="docs(NMSTX-XX): capture Linear workflow pattern"
 )
 ```
@@ -323,7 +323,7 @@ git_commit(
 ```python
 # Always use Linear issue ID in branch name
 git_create_branch(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     branch_name="NMSTX-XX-brief-description",
     base_branch="main"
 )
@@ -333,15 +333,15 @@ git_create_branch(
 ```python
 # Reference Linear issue in commits
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="feat(NMSTX-XX): implement feature"
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="fix(NMSTX-XX): resolve blocking issue"
 )
 git_commit(
-    repo_path="/root/prod/am-agents-labs",
+    repo_path="/root/workspace/am-agents-labs",
     message="test(NMSTX-XX): add coverage for edge case"
 )
 ```
