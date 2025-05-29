@@ -120,8 +120,9 @@ agent-memory_search_memory_nodes --query "workflow steps" --entity "Procedure"
 # Search for related facts
 agent-memory_search_memory_facts --query "connections dependencies"
 
-# Commit findings
-git commit -m "docs: capture memory search results for task"
+# Commit findings using MCP tools - See [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md)
+mcp_git_git_add(repo_path="/root/prod/am-agents-labs", files=["docs/memory_search.md"])
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="docs: capture memory search results for task")
 ```
 
 ### **2. During Development**
@@ -144,8 +145,9 @@ agent-memory_add_memory \
   --episode_body "{\\\"agent\\\": {\\\"depends_on\\\": [\\\"memory_manager\\\", \\\"tool_registry\\\"]}}" \
   --source "json"
 
-# Commit incremental progress
-git add -p && git commit -m "feat: implement based on discovered patterns"
+# Commit incremental progress using MCP tools
+mcp_git_git_add(repo_path="/root/prod/am-agents-labs", files=["src/modified_files.py"])
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="feat: implement based on discovered patterns")
 ```
 
 ### **3. After Task Completion**
@@ -162,9 +164,12 @@ agent-memory_add_memory \
   --episode_body "{\\\"constraint\\\": {\\\"api\\\": \\\"discord\\\", \\\"rate_limit\\\": \\\"50/minute\\\"}}" \
   --source "json"
 
-# Final commit and tag if milestone
-git commit -m "feat: complete implementation with discovered patterns"
-git tag -a "milestone-name" -m "Description"
+# Final commit using MCP tools
+mcp_git_git_add(repo_path="/root/prod/am-agents-labs", files=["src/completed_work.py"])
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="feat: complete implementation with discovered patterns")
+
+# Tag milestone (use terminal for git tag - not supported in MCP)
+run_terminal_cmd("git tag -a 'milestone-name' -m 'Description'")
 ```
 
 ## 🧪 Memory Testing Patterns
@@ -231,7 +236,7 @@ async def test_memory_relationships():
 3. **Combine searches**: Use both node and fact searches for context
 4. **Center explorations**: Use center_node_uuid for related info
 5. **Respect findings**: Align work with discovered knowledge
-6. **Commit discoveries**: Document findings in MCP git tools - see 08_git_version_management.md
+6. **Commit discoveries**: Document findings using MCP git tools
 
 ### **Storage Guidelines**
 1. **Immediate capture**: Store preferences/procedures as discovered
@@ -239,7 +244,7 @@ async def test_memory_relationships():
 3. **Clear categorization**: Label with appropriate entity types
 4. **Update explicitly**: Only add new/changed information
 5. **Context included**: Always add source_description
-6. **Version control**: Commit after storing significant patterns
+6. **Version control**: Commit using MCP tools after storing significant patterns
 
 ### **API Memory Guidelines**
 1. **Always provide user_id**: Until NMSTX-63 is fixed
@@ -279,9 +284,9 @@ agent-memory_add_memory \
 ## 🎯 Strategic Memory Usage
 
 ### **Development Cycle Integration**
-1. **Pre-task**: Search nodes for context → Commit findings
-2. **During task**: Capture discoveries immediately → Commit progress
-3. **Post-task**: Store patterns and solutions → Tag milestones
+1. **Pre-task**: Search nodes for context → Commit findings using MCP tools
+2. **During task**: Capture discoveries immediately → Commit progress using MCP tools
+3. **Post-task**: Store patterns and solutions → Tag milestones using terminal
 4. **Review**: Search facts for impact analysis
 
 ### **Memory-Driven Decisions**
@@ -308,4 +313,4 @@ if any("type hints" in p['summary'] for p in preferences):
 
 ---
 
-**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships. For database memories, always provide user_id until NMSTX-63 is resolved. **Commit discoveries** to maintain knowledge in MCP git tools - see 08_git_version_management.md.
+**Remember**: The knowledge graph is your persistent memory. Always search before starting, respect discovered preferences and procedures, capture new knowledge immediately, and use structured data for complex relationships. For database memories, always provide user_id until NMSTX-63 is resolved. **Use MCP git tools** for commits - see [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md).

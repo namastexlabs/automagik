@@ -3,407 +3,499 @@ description: Daily development workflow, mode switching, and implementation patt
 globs: src/**/*,tests/**/*,*.py,*.md
 alwaysApply: false
 ---
-# Development Workflow
+# Development Workflow - Mode Switching Edition
 
-## 🔄 Daily Development Workflow
+## 🎯 Overview
 
-**Documentation**: [setup.md](mdc:docs/setup.md) | [running.md](mdc:docs/running.md) | [agents_overview.md](mdc:docs/agents_overview.md)
+**Related**: [agent_mission.md](mdc:.cursor/rules/00_agent_mission.md) - Core mission and responsibilities
 
-**Standard Process:**
-1. **Start**: Search memory for context → Check Linear tasks → Understand requirements
-2. **Plan**: Search procedures → Break down complex tasks → Create subtasks
-3. **Implement**: Follow discovered procedures → Code → Test → **Commit progress**
-4. **Progress**: Store discoveries → Update Linear → Document patterns → **Push changes**
-5. **Complete**: Save successful patterns → Update task status → Generate updates → **Tag milestone**
+Structured development workflow optimized for automagik-agents codebase. **Search memory first**, then follow patterns.
 
-**Memory-First Approach:**
+## 🧠 **Memory-First Development**
+
+### **Before Starting ANY Task**
 ```bash
-# Before starting any task
+# Search for task-specific patterns and preferences
 agent-memory_search_memory_nodes --query "task keywords" --entity "Procedure"
 agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
 agent-memory_search_memory_facts --query "dependencies relationships"
 ```
 
 **Git Integration:**
-```bash
-# MANDATORY: Start work with Linear-first naming
+```python
+# MANDATORY: Start work with Linear-first naming using MCP tools
 # 1. Create Linear task FIRST, get NMSTX-XX ID
 # 2. Create standardized branch name
-git checkout -b NMSTX-XX-feature-name  # Branch from Linear issue ID
+mcp_git_git_create_branch(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-feature-name",  # Branch from Linear issue ID
+    base_branch="main"
+)
 
-# Commit after each meaningful change (not entire features)
-git add -p  # Review changes incrementally
-git commit -m "feat(NMSTX-XX): add tool registration logic"  # Always reference Linear ID
+# 3. Switch to new branch
+mcp_git_git_checkout(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-feature-name"
+)
 
-# Push progress regularly with standardized name
-git push origin NMSTX-XX-feature-name
+# 4. Work and commit with Linear ID references using MCP tools
+mcp_git_git_add(repo_path="/root/prod/am-agents-labs", files=["src/file.py"])
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(NMSTX-XX): add tool registration logic"  # Always reference Linear ID
+)
+
+# 5. Push progress regularly (use terminal - MCP doesn't support push)
+run_terminal_cmd("git push origin NMSTX-XX-feature-name")
 ```
 
-## 🎯 Development Modes
+## 🛠️ Development Modes
 
-### Code Mode
-- **Focus**: Implementation, file editing, testing
-- **Memory**: 
-  ```bash
-  agent-memory_search_memory_nodes --query "code patterns implementation" --entity "Procedure"
-  agent-memory_search_memory_nodes --query "coding style" --entity "Preference"
-  ```
-- **Pattern**: Extend AutomagikAgent, use {{memory_templates}}, register tools
-- **Trigger**: Implementation tasks, bug fixes, feature coding
+### **🔍 Discovery Mode** - Understanding & Planning
+**When**: Starting new work, investigating issues, architecture decisions
 
-### Architect Mode  
-- **Focus**: Analysis, design, planning
-- **Memory**: 
-  ```bash
-  agent-memory_search_memory_nodes --query "architecture design patterns" --entity "Procedure"
-  agent-memory_search_memory_facts --query "component relationships dependencies"
-  ```
-- **Constraint**: .md files only, high-level planning
-- **Trigger**: System design, structure planning, documentation
-
-### Debug Mode
-- **Focus**: Problem diagnosis, systematic analysis
-- **Memory**: 
-  ```bash
-  agent-memory_search_memory_nodes --query "debug troubleshoot error" --entity "Procedure"
-  agent-memory_search_memory_facts --query "error caused by solution"
-  ```
-- **Pattern**: 5-7 hypotheses → 1-2 likely → add logs → validate
-- **Trigger**: Bugs, unexpected behavior, performance issues
-
-### Test Mode
-- **Focus**: Test execution, coverage, validation  
-- **Memory**: 
-  ```bash
-  agent-memory_search_memory_nodes --query "test patterns validation" --entity "Procedure"
-  agent-memory_search_memory_nodes --query "test requirements" --entity "Requirement"
-  ```
-- **Pattern**: Use test criteria from Linear issue description
-- **Trigger**: Verification, quality assurance, CI/CD
-
-## 🚀 Creation Checklists
-
-### **Agent Development** (8-Step Process)
-1. **Search Memory**: Check for existing agent patterns and preferences
-   ```bash
-   agent-memory_search_memory_nodes --query "agent development" --entity "Procedure"
-   ```
-2. **Directory**: `mkdir -p src/agents/simple/<agent_name>`
-3. **Structure**: Create `agent.py`, `prompts/prompt.py`, `__init__.py`
-   ```bash
-   git add src/agents/simple/<agent_name>/ && git commit -m "feat(agent): scaffold new agent structure"
-   ```
-4. **Agent Class**: Extend `AutomagikAgent` with proper initialization
-5. **System Prompt**: Define with `{{memory_templates}}`
-   ```bash
-   git commit -m "feat(agent): implement core agent logic and prompts"
-   ```
-6. **Tools**: Register default + custom tools if needed
-7. **Export**: Export from `__init__.py` for auto-discovery
-   ```bash
-   git commit -m "feat(agent): register tools and enable auto-discovery"
-   ```
-8. **Document**: Store pattern if new approach used
-   ```bash
-   agent-memory_add_memory --name "Agent Pattern: [Name]" --episode_body "pattern details" --source "text"
-   git commit -m "docs: document new agent pattern"
-   ```
-
-### **Tool Development** (8-Step Process)
-1. **Search Memory**: Check for tool patterns and integration procedures
-   ```bash
-   agent-memory_search_memory_nodes --query "tool development integration" --entity "Procedure"
-   ```
-2. **Directory**: `mkdir -p src/tools/<service_name>`
-3. **Schema**: Define `ToolInput`/`ToolOutput` Pydantic models
-   ```bash
-   git commit -m "feat(tool): define input/output schemas"
-   ```
-4. **Provider**: Handle external API communication (if needed)
-5. **Business Logic**: Async function with `RunContext`
-   ```bash
-   git commit -m "feat(tool): implement core business logic"
-   ```
-6. **Interface**: Create `Tool` object with name, description, function
-7. **Global Registration**: Add to `src/tools/__init__.py`
-   ```bash
-   git commit -m "feat(tool): register tool globally"
-   ```
-8. **Testing**: Unit (mocking) + integration (agent context)
-   ```bash
-   git commit -m "test(tool): add unit and integration tests"
-   ```
-
-### **API Endpoint** (5-Step Process)
-1. **Search Memory**: Check for API patterns and security requirements
-   ```bash
-   agent-memory_search_memory_nodes --query "API endpoint security" --entity "Requirement"
-   ```
-2. **Models**: Define Pydantic request/response models
-   ```bash
-   git commit -m "feat(api): define endpoint models"
-   ```
-3. **Route Handler**: Create with `@router.post` and `Depends(verify_api_key)`
-4. **Business Logic**: Implement endpoint functionality
-   ```bash
-   git commit -m "feat(api): implement endpoint logic"
-   ```
-5. **Testing**: Test with `TestClient` and API keys
-   ```bash
-   git commit -m "test(api): add endpoint tests"
-   ```
-
-## ⚠️ Critical DO/DON'T Rules
-
-### **Agent Development**
-✅ **DO**: 
-- Search memory for established patterns first
-- Extend `AutomagikAgent` base class
-- Use `async def process_message()` pattern
-- Register default tools: `self.tool_registry.register_default_tools()`
-- Use memory templates: `{{user_name}}`, `{{recent_context}}`
-- Store new patterns discovered
-
-❌ **DON'T**: 
-- Skip memory search before implementation
-- Modify `AutomagikAgent` base class directly
-- Create agents bypassing framework
-- Skip tool registration
-- Hardcode user context
-
-### **Tool Development**
-✅ **DO**: 
-- Search for existing tool patterns
-- Use `async def tool(ctx: RunContext[Dict], ...)`
-- Return `ToolOutput(...).dict()`
-- Handle errors gracefully (return error models)
-- Validate inputs with Pydantic
-- Document integration procedures
-
-❌ **DON'T**: 
-- Ignore established patterns
-- Raise exceptions from tools
-- Use blocking operations in async context
-- Skip registration workflow
-- Hardcode API keys
-
-### **API Development**
-✅ **DO**: 
-- Check security requirements from memory
-- Use `Depends(verify_api_key)` for `/api/v1/` endpoints
-- Define Pydantic request/response models
-- Return structured responses with HTTP status codes
-- Handle errors with `HTTPException`
-
-❌ **DON'T**: 
-- Bypass authentication middleware
-- Use raw dictionaries instead of Pydantic models
-- Return unstructured responses
-- Ignore error handling
-
-## 🔧 Implementation Patterns
-
-**Memory Templates**:
-```python
-SYSTEM_PROMPT = """You are an agent.
-User: {{user_name}} | Preferences: {{user_preferences}}
-Context: {{recent_context}} | Available tools: {tools}"""
-```
-
-**Agent Extension**:
-```python
-class MyAgent(AutomagikAgent):
-    def __init__(self, config: Dict[str, str]) -> None:
-        super().__init__(config)
-        self._code_prompt_text = AGENT_PROMPT
-        self.dependencies = AutomagikAgentsDependencies(...)
-        self.tool_registry.register_default_tools(self.context)
-```
-
-**Tool Registration**:
-```python
-# interface.py
-my_tool_object = Tool(name="service_tool", description="...", function=my_tool)
-service_tools = [my_tool_object]
-
-# __init__.py  
-from .interface import service_tools
-__all__ = ["service_tools"]
-
-# src/tools/__init__.py
-from .my_service import service_tools
-__all__.append("service_tools")
-```
-
-## 🧪 Testing Requirements & Organization
-
-### **Test Directory Structure** (MANDATORY)
-```
-tests/
-├── unit/              # Isolated component testing
-│   └── test_mcp_core.py
-├── integration/       # Multi-component testing
-│   └── test_mcp_integration.py
-├── api/              # API endpoint testing
-│   └── test_mcp_routes.py
-├── db/               # Database layer testing
-│   └── test_mcp_repository.py
-├── tools/            # Tool-specific testing
-├── agents/           # Agent-specific testing
-├── utils/            # Utility function testing
-└── perf/             # Performance testing
-```
-
-### **File Placement Rules** ✅ **DO** / ❌ **DON'T**
-
-✅ **DO**:
-- Search memory for test patterns before writing
-- Place unit tests in `tests/unit/test_[module_name].py`
-- Place integration tests in `tests/integration/test_[feature_name].py`
-- Place API tests in `tests/api/test_[route_name].py`
-- Use descriptive test file names matching component being tested
-- **NEVER create test files at project root**
-
-❌ **DON'T**:
-- Skip memory search for test procedures
-- Create test files in project root directory (causes repo mess)
-- Mix different test types in same file
-- Use generic names like `test.py` or `temp_test.py`
-- Skip test organization when debugging
-
-### **Feature Testing Mandate**:
-- **Unit Tests**: Test individual components in isolation
-- **Integration Tests**: Test feature with framework components
-- **Memory Tests**: Test memory persistence and retrieval
-
-**Testing Pattern**:
-```python
-@pytest.mark.asyncio
-async def test_agent_memory_integration():
-    agent = MyAgent({})
-    session = "test_session"
-    
-    await agent.process_message("Remember my preference: detailed", session)
-    response = await agent.process_message("What's my preference?", session)
-    
-    assert "detailed" in response
-```
-
-## 📋 Quality Control
-
-**Before Task Completion**:
-- [ ] Memory searched for established patterns
-- [ ] All subtasks marked as done
-- [ ] Code follows discovered procedures
-- [ ] Tests written and passing (unit + integration + memory)
-- [ ] Documentation updated
-- [ ] New patterns stored in memory
-- [ ] **Git commits are atomic and well-messaged**
-- [ ] **No commits > 200 lines of changes**
-- [ ] Rules updated if new patterns emerged
-
-**Feature Placement Decision**:
-- **Agent Features**: `src/agents/simple/[agent_name]/`
-- **Tool Integration**: `src/tools/[service_name]/`
-- **API Features**: `src/api/routes/`
-- **Memory Features**: `src/memory/`
-- **Cross-Cutting**: Coordinated implementation
-
-## 💾 Memory Integration
-
-**Development Pattern Recording**:
+**Memory Search Pattern**:
 ```bash
-# Before implementation
-agent-memory_search_memory_nodes --query "implementation pattern" --entity "Procedure"
-
-# During development - capture discoveries
-agent-memory_add_memory \
-  --name "AutomagikAgent Extension Procedure" \
-  --episode_body "1. Call super().__init__\n2. Set _code_prompt_text\n3. Register tools" \
-  --source "text"
-
-# Commit the implementation
-git add -p && git commit -m "feat: implement discovered pattern"
-
-# After completion - store successful patterns
-agent-memory_add_memory \
-  --name "Successful Pattern: [Feature]" \
-  --episode_body "Key learnings and implementation details" \
-  --source "text"
-
-# Tag milestone if applicable
-git tag -a "milestone-agent-v1" -m "Complete agent implementation"
+# Understand existing patterns
+agent-memory_search_memory_nodes --query "code patterns implementation" --entity "Procedure"
+agent-memory_search_memory_nodes --query "coding style" --entity "Preference"
 ```
 
-**Memory-Driven Development**:
-1. **Search before coding**: Find established patterns
-2. **Respect preferences**: Align with discovered preferences
-3. **Follow procedures**: Use step-by-step workflows
-4. **Capture immediately**: Store discoveries as you work
-5. **Share knowledge**: Document for team benefit
+**Process**:
+1. **Analyze codebase** - Review existing similar implementations
+2. **Check architecture** - Understand component relationships
+3. **Review patterns** - Follow established conventions
+4. **Plan approach** - Design before implementation
+
+**Memory Search for Architecture**:
+```bash
+# Search for architectural patterns and decisions
+agent-memory_search_memory_nodes --query "architecture design patterns" --entity "Procedure"  
+agent-memory_search_memory_facts --query "component relationships dependencies"
+```
+
+### **🐛 Debug Mode** - Problem Solving
+**When**: Fixing bugs, investigating failures, troubleshooting
+
+**Memory Search Pattern**:
+```bash
+# Search for similar errors and solutions
+agent-memory_search_memory_nodes --query "debug troubleshoot error" --entity "Procedure"
+agent-memory_search_memory_facts --query "error caused by solution"
+```
+
+**Process**:
+1. **Reproduce issue** - Create minimal test case
+2. **Isolate problem** - Narrow down root cause
+3. **Check patterns** - Search for similar issues in memory
+4. **Test solution** - Verify fix works
+
+### **🧪 Testing Mode** - Validation & Quality
+**When**: Writing tests, validating functionality, ensuring quality
+
+**Memory Search Pattern**:
+```bash
+# Search for testing patterns and requirements
+agent-memory_search_memory_nodes --query "test patterns validation" --entity "Procedure"
+agent-memory_search_memory_nodes --query "test requirements" --entity "Requirement"
+```
+
+**Process**:
+1. **Plan test cases** - Cover happy path and edge cases
+2. **Follow test patterns** - Use established test structure
+3. **Validate thoroughly** - Run full test suite
+4. **Document results** - Record test outcomes
+
+### **🏗️ Implementation Mode** - Building Features
+**When**: Developing new features, extending functionality
+
+**Memory Search Pattern**:
+```bash
+# Search for implementation patterns
+agent-memory_search_memory_nodes --query "agent development" --entity "Procedure"
+```
+
+**Agent Development Process**:
+1. **Extend AutomagikAgent** - Never modify base classes
+2. **Follow patterns** from existing agents in `src/agents/simple/`
+3. **Register tools** - Use `tool_registry.register_default_tools()`
+4. **Test integration** - Verify agent works end-to-end
+
+**Git Workflow for Agent Development**:
+```python
+# 1. Initial scaffold commit using MCP tools
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/agents/simple/<agent_name>/"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(agent): scaffold new agent structure"
+)
+
+# 2. Implementation commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs", 
+    files=["src/agents/simple/<agent_name>/agent.py"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(agent): implement core agent logic and prompts"
+)
+
+# 3. Tool registration commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/agents/simple/<agent_name>/tools.py"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(agent): register tools and enable auto-discovery"
+)
+```
+
+**Store Pattern**:
+```bash
+# Store successful agent patterns
+agent-memory_add_memory --name "Agent Pattern: [Name]" --episode_body "pattern details" --source "text"
+mcp_git_git_add(repo_path="/root/prod/am-agents-labs", files=[".cursor/rules/"])
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="docs: document new agent pattern")
+```
+
+### **🔧 Tool Development Mode** - Building Integrations
+**When**: Creating tools, external service integrations
+
+**Memory Search Pattern**:
+```bash
+# Search for tool development patterns
+agent-memory_search_memory_nodes --query "tool development integration" --entity "Procedure"
+```
+
+**Tool Development Process with Git**:
+```python
+# 1. Schema definition commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/tools/<service>/schema.py"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(tool): define input/output schemas"
+)
+
+# 2. Implementation commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/tools/<service>/tool.py"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(tool): implement core business logic"
+)
+
+# 3. Registration commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/tools/<service>/__init__.py"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(tool): register tool globally"
+)
+
+# 4. Testing commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["tests/tools/<service>/"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="test(tool): add unit and integration tests"
+)
+```
+
+### **🌐 API Development Mode** - Endpoint Creation
+**When**: Creating/extending FastAPI endpoints
+
+**Memory Search Pattern**:
+```bash
+# Search for API security and authentication patterns
+agent-memory_search_memory_nodes --query "API endpoint security" --entity "Requirement"
+```
+
+**API Development Process with Git**:
+```python
+# 1. Model definition commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/api/models/"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(api): define endpoint models"
+)
+
+# 2. Implementation commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["src/api/routes/"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="feat(api): implement endpoint logic"
+)
+
+# 3. Testing commit
+mcp_git_git_add(
+    repo_path="/root/prod/am-agents-labs",
+    files=["tests/api/"]
+)
+mcp_git_git_commit(
+    repo_path="/root/prod/am-agents-labs",
+    message="test(api): add endpoint tests"
+)
+```
+
+## 📂 Codebase Navigation
+
+### **Core Components**
+```bash
+src/
+├── agents/
+│   ├── common/          # Shared agent utilities
+│   └── simple/          # Agent implementations
+│       ├── discord/     # Discord integration agent
+│       ├── sofia/       # Sofia main agent
+│       └── stan/        # Stan assistant agent
+├── api/
+│   ├── controllers/     # Business logic
+│   └── routes/          # FastAPI route definitions
+├── tools/
+│   ├── discord/         # Discord tool implementations
+│   ├── gmail/           # Gmail integration tools
+│   ├── notion/          # Notion API tools
+│   └── memory/          # Memory/knowledge graph tools
+└── db/
+    ├── migrations/      # Database schema changes
+    └── repository/      # Data access layer
+```
+
+### **Testing Structure**
+```bash
+tests/
+├── agents/              # Agent-specific tests
+│   ├── simple/          # Simple agent tests
+│   └── sofia/           # Sofia agent tests
+├── api/                 # API endpoint tests
+├── tools/               # Tool integration tests
+├── integration/         # End-to-end tests
+└── unit/                # Unit tests
+```
+
+### **Configuration Files**
+```bash
+├── .env                 # Environment variables
+├── pyproject.toml       # Python project configuration
+├── pytest.ini          # Test configuration
+└── Makefile            # Build and run scripts
+```
+
+## 🎯 Quality Standards
+
+### **Code Quality Checklist**
+- [ ] **Follow patterns** from memory searches
+- [ ] **Extend, don't modify** base classes
+- [ ] **Use type hints** throughout
+- [ ] **Handle errors** gracefully
+- [ ] **Add tests** for new functionality
+- [ ] **Document APIs** with clear examples
+- [ ] **Respect preferences** found in memory
+- [ ] **Use MCP git tools** for version control operations
+
+### **Security Requirements**
+- [ ] **API authentication** on all `/api/v1/` endpoints
+- [ ] **Input validation** with Pydantic models
+- [ ] **Error handling** without exposing internals
+- [ ] **Environment variables** for secrets
+
+### **Performance Standards**
+- [ ] **Async operations** for I/O
+- [ ] **Proper connection pooling** for databases
+- [ ] **Caching** where appropriate
+- [ ] **Resource cleanup** in finally blocks
+
+## 🔄 Development Cycle
+
+### **1. Research Phase** 🔍
+```bash
+# Search memory for established patterns
+agent-memory_search_memory_nodes --query "implementation pattern" --entity "Procedure"
+```
+
+**Store Discoveries**:
+```bash
+agent-memory_add_memory \
+  --name "Pattern Discovery: [Component]" \
+  --episode_body "Discovered pattern for [component] implementation: [details]" \
+  --source "text"
+
+# Commit discovery using MCP tools
+mcp_git_git_add(repo_path="/root/prod/am-agents-labs", files=["docs/patterns.md"])
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="feat: implement discovered pattern")
+```
+
+### **2. Implementation Phase** 🏗️
+**Store Successful Patterns**:
+```bash
+agent-memory_add_memory \
+  --name "Implementation Success: [Feature]" \
+  --episode_body "Successfully implemented [feature] using [approach]. Key insights: [details]" \
+  --source "text"
+```
+
+### **3. Testing Phase** 🧪
+- **Unit tests** for individual functions
+- **Integration tests** for API endpoints
+- **End-to-end tests** for user workflows
+
+### **4. Documentation Phase** 📝
+- **Code comments** for complex logic
+- **API documentation** with examples
+- **Pattern documentation** in memory
+
+## 📊 Development Statistics & Goals
+
+### **Daily Goals**
+- **Memory searches**: 5+ before starting work
+- **Patterns stored**: 2+ successful implementations
+- **Tests written**: 100% coverage for new code
+- **Documentation**: All public APIs documented
+
+### **Weekly Review**
+- **Pattern consistency**: Are we following established patterns?
+- **Memory utilization**: Are we storing and reusing knowledge?
+- **Code quality**: Are standards being maintained?
+- **Test coverage**: Are critical paths tested?
 
 ## 🔀 Git Commit Practices
 
-### **Commit Message Format**
-```bash
-# Semantic commit format
-type(scope): subject
+**Use MCP Tools for Version Control** - See [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md)
 
-# Types: feat, fix, docs, style, refactor, test, chore
-# Scope: agent, tool, api, memory, auth, db
-
-# Examples:
-git commit -m "feat(agent): add Discord integration"
-git commit -m "fix(memory): handle empty search results"
-git commit -m "docs: update setup instructions"
-git commit -m "test(api): add auth middleware tests"
-```
-
-### **Commit Frequency**
-- **Logical Units**: Each commit = one logical change
-- **Size Limit**: Keep commits < 200 lines changed
-- **Milestone Markers**: Tag significant completions
-- **Progress Tracking**: Commit at least once per subtask
-
-### **Branch Strategy**
-```bash
-# Feature branches from Linear IDs
-git checkout -b NMSTX-XX-feature-description
-
-# Regular rebasing to stay current
-git fetch origin && git rebase origin/main
-
-# Clean history before merging
-git rebase -i origin/main
-```
-
----
-
-**Remember**: Always search memory first, respect discovered knowledge, follow established procedures, and capture new patterns. **Commit early and often** - each logical change should be its own commit. Use semantic commit messages tied to Linear issues.
-
-### **Good Naming**
+### **Semantic Commit Format**
 ```python
-# ✅ DO: Descriptive names
-debug_mcp_connection_issue.py
-test_agent_memory_integration.py
-temp_api_check.py
+# Examples using MCP tools
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="feat(agent): add Discord integration")
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="fix(memory): handle empty search results")
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="docs: update setup instructions")
+mcp_git_git_commit(repo_path="/root/prod/am-agents-labs", message="test(api): add auth middleware tests")
+```
 
-# ✅ DO: Add purpose comment
-"""
-Debug script for NMSTX-123 memory integration issue
-Created: 2025-01-26
-"""
+### **Incremental Development Workflow**
+```python
+# Check current status first
+mcp_git_git_status(repo_path="/root/prod/am-agents-labs")
+
+# Create feature branch
+mcp_git_git_create_branch(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-feature-description",
+    base_branch="main"
+)
+
+# Switch to feature branch
+mcp_git_git_checkout(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-feature-description"
+)
+
+# Make incremental commits as work progresses
+# Each commit should be atomic and well-described
+```
+
+## 🚀 Quick Development Scripts
+
+### **Agent Development**
+```bash
+# Create new agent structure (store as procedure in memory)
+mkdir -p src/agents/simple/my_agent
+touch src/agents/simple/my_agent/{__init__.py,agent.py,prompts.py}
+```
+
+### **Tool Development** 
+```bash
+# Create new tool structure
+mkdir -p src/tools/my_tool
+touch src/tools/my_tool/{__init__.py,tool.py}
+```
+
+### **Test Development**
+```bash
+# Create test structure
+mkdir -p tests/agents/my_agent
+touch tests/agents/my_agent/{__init__.py,test_agent.py}
+```
+
+### **API Development**
+```bash
+# Create API structure
+mkdir -p src/api/routes/my_route
+touch src/api/routes/my_route/{__init__.py,routes.py}
+```
+
+## 🐛 Common Development Issues
+
+### **Import Issues**
+```bash
+# Verify virtual environment
+which python  # Should show .venv/bin/python
+source .venv/bin/activate
+
+# Check dependencies
+uv sync
+```
+
+### **Database Connection Issues**
+```bash
+# Check PostgreSQL status
+sudo systemctl status postgresql
+echo $DATABASE_URL
+```
+
+### **Agent Loading Issues**
+```bash
+# Test agent import
+python -c "from src.agents.simple.my_agent.agent import MyAgent"
+```
+
+### **Debugging Script Organization**
+- **Development scripts**: Always put in `dev/` folder
+- **Temporary scripts**: Use `dev/temp/` (auto-deleted after 30 days)
+- **Production utilities**: Only reviewed scripts go in `scripts/`
+
+**Example debugging scripts**:
+```bash
+# ✅ DO: Put in dev/ folder
+dev/debug_mcp_connection_issue.py
+dev/test_agent_memory_integration.py
+dev/temp_api_check.py
 ```
 
 ## 🚨 **CRITICAL: Linear-First Branch Naming** 
 
 ### **Mandatory Workflow** ✅ **REQUIRED**
-```bash
+```python
 # NEVER start development without Linear task
-1. Create Linear task FIRST → Get NMSTX-XX
-2. Create branch: git checkout -b NMSTX-XX-description  
-3. Work with Linear ID in ALL commits
-4. Push using standardized branch name
+# 1. Create Linear task FIRST → Get NMSTX-XX
+# 2. Create branch using MCP tools
+mcp_git_git_create_branch(
+    repo_path="/root/prod/am-agents-labs",
+    branch_name="NMSTX-XX-description",
+    base_branch="main"
+)
+
+# 3. Work with Linear ID in ALL commits
+# 4. Push using terminal (MCP doesn't support push)
+run_terminal_cmd("git push origin NMSTX-XX-description")
 ```
 
 ### **Branch Name Standards** 🚨 **ENFORCED**
@@ -413,12 +505,16 @@ Created: 2025-01-26
 - ❌ **FORBIDDEN**: Pushing non-standard branch names
 
 ### **Standardization Enforcement**
-```bash
-# If you have non-standard branch name:
-git branch -m old-name NMSTX-XX-corrected-name
-git push origin NMSTX-XX-corrected-name
-git push origin --delete old-name  # Clean up
+```python
+# If you have non-standard branch name, use terminal to rename:
+run_terminal_cmd("git branch -m old-name NMSTX-XX-corrected-name")
+run_terminal_cmd("git push origin NMSTX-XX-corrected-name")
+run_terminal_cmd("git push origin --delete old-name")  # Clean up
 
 # Before any remote push, verify naming:
-git branch --show-current  # Must start with NMSTX-XX
+run_terminal_cmd("git branch --show-current")  # Must start with NMSTX-XX
 ```
+
+---
+
+**Remember**: Always search memory first for patterns and preferences. Store successful implementations for future reuse. Follow established patterns and extend rather than modify base classes. Use the knowledge graph as your source of truth for procedures and preferences. **Use MCP git tools** for local operations, terminal for push/pull.
