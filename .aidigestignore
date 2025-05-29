@@ -5,7 +5,6 @@ __pycache__/
 
 # C extensions
 *.so
-*.py
 *.yaml
 *.json
 *.sql
@@ -13,6 +12,15 @@ __pycache__/
 mem0/
 .cursor/
 .roo/
+tests/
+scripts/
+projects
+dev
+data/
+.venv
+.github
+.cursorignore
+.windsurfrules
 # Distribution / packaging
 .Python
 build/
