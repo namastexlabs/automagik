@@ -125,7 +125,7 @@ pip list | grep pydantic-ai      # Verify installation
 # Linear: linear_create_issue --title "Issue Title" --teamId "<team-id>"
 # Memory Search: agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
 # Memory Store: agent-memory_add_memory --name "Pattern" --episode_body "content" --source "text"
-# Git: git checkout -b NMSTX-XX-feature && git commit -m "feat(scope): message"
+# Git: Use MCP tools - See [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md)
 ```
 
 ## 🎯 Quality Gates

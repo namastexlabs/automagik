@@ -226,6 +226,8 @@ git add .cursor/rules/ && git commit -m "docs(NMSTX-XX): capture Linear workflow
 
 ## 🔀 **Git Integration with Linear**
 
+**Use MCP Git Tools** - See [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md) for complete workflows\n
+
 ### **Branch Naming**
 ```bash
 # Always use Linear issue ID in branch name
