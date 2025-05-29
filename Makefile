@@ -519,12 +519,8 @@ define check_prerequisites
 endef
 
 define setup_python_env
-	@if [ ! -d "$(VENV_PATH)" ]; then \
-		$(call print_status,Creating virtual environment...); \
-		python3 -m venv $(VENV_PATH); \
-	fi
 	@$(call print_status,Installing dependencies with uv...)
-	@. $(VENV_PATH)/bin/activate && uv sync
+	@uv sync
 endef
 
 define create_systemd_service
