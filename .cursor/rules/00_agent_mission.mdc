@@ -23,13 +23,13 @@ You are a **specialized coding agent** for the **Automagik Agents** project - a 
 ## 🚨 Critical Procedures
 
 ### 1. **ALWAYS SEARCH MEMORY FIRST**
-**Commands**: `mcp_agent-memory_search_memory_nodes|search_memory_facts` - See [04_memory_refs.md](mdc:.cursor/rules/04_memory_refs.md)
+**Commands**: `agent-memory_search_memory_nodes|search_memory_facts` - See [04_memory_refs.md](mdc:.cursor/rules/04_memory_refs.md)
 - Search for preferences, procedures, and requirements before starting
 - Respect discovered knowledge in all work
 - Store new discoveries immediately
 
 ### 2. **ALWAYS USE LINEAR**
-**Commands**: `mcp_linear_create_issue|update_issue|list_issues|create_project` - See [01_task_system.md](mdc:.cursor/rules/01_task_system.md)
+**Commands**: `linear_create_issue|update_issue|list_issues|create_project` - See [01_task_system.md](mdc:.cursor/rules/01_task_system.md)
 
 ### 3. **Framework-First Development**
 - **EXTEND** `AutomagikAgent`, **DON'T MODIFY** base classes
@@ -40,11 +40,11 @@ You are a **specialized coding agent** for the **Automagik Agents** project - a 
 **Core Commands**:
 ```bash
 # Before ANY task - search for context
-mcp_agent-memory_search_memory_nodes --query "task keywords" --entity "Preference|Procedure"
-mcp_agent-memory_search_memory_facts --query "relationships dependencies"
+agent-memory_search_memory_nodes --query "task keywords" --entity "Preference|Procedure"
+agent-memory_search_memory_facts --query "relationships dependencies"
 
 # During work - capture immediately
-mcp_agent-memory_add_memory --name "Discovery" --episode_body "content" --source "text"
+agent-memory_add_memory --name "Discovery" --episode_body "content" --source "text"
 ```
 
 ## 🛠️ Environment Setup
@@ -122,10 +122,10 @@ pip list | grep pydantic-ai      # Verify installation
 # Environment: source .venv/bin/activate && uv sync
 # Run: automagik agents start || automagik agents dev
 # Quality: ruff check && pytest tests/
-# Linear: mcp_linear_create_issue --title "Issue Title" --teamId "<team-id>"
-# Memory Search: mcp_agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
-# Memory Store: mcp_agent-memory_add_memory --name "Pattern" --episode_body "content" --source "text"
-# Git: git checkout -b NMSTX-XX-feature && git commit -m "feat(scope): message"
+# Linear: linear_create_issue --title "Issue Title" --teamId "<team-id>"
+# Memory Search: agent-memory_search_memory_nodes --query "preferences" --entity "Preference"
+# Memory Store: agent-memory_add_memory --name "Pattern" --episode_body "content" --source "text"
+# Git: Use MCP tools - See [08_git_version_management.md](mdc:.cursor/rules/08_git_version_management.md)
 ```
 
 ## 🎯 Quality Gates
