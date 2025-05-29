@@ -1,0 +1,81 @@
+---
+description: Simple development script organization to prevent script folder graveyards
+globs: **/*
+alwaysApply: true
+---
+# Simple Script Organization
+
+## 🎯 Mission
+Keep development scripts out of the production `scripts/` folder while maintaining developer productivity.
+
+## 📁 **Two Simple Zones**
+
+### ✅ **Development Scripts** → `dev/`
+- **Purpose**: ALL development work - experiments, debugging, testing, tools
+- **Requirements**: None - just put it here
+- **Examples**: Agent testing, API experiments, debugging utilities, development tools
+
+### ✅ **Very Temporary** → `dev/temp/`
+- **Purpose**: Quick experiments, one-off scripts
+- **Lifecycle**: **AUTO-DELETE after 30 days**
+- **Warning**: Files automatically removed, no recovery
+
+### ✅ **Production Scripts** → `scripts/` (PROTECTED)
+- **Purpose**: Reviewed, documented production utilities only
+- **Requirements**: Code review, documentation, used by multiple people
+- **Examples**: `check_connection_status.py`, `create_user_and_db.sql`, setup scripts
+
+## 🚫 **Simple Rules**
+
+### ❌ **NEVER put in `scripts/`**
+- Test scripts, debugging utilities, experiments
+- One-off tasks, temporary fixes
+- Anything that's not production-ready
+
+### ✅ **Always put in `dev/`**
+- Any development-related script
+- Start in `dev/temp/` if very temporary
+- Move to `dev/` if you want to keep it
+
+## 📝 **When Creating Scripts**
+
+### **Quick Decision Tree**
+1. **Very temporary (< 30 days)?** → `dev/temp/`
+2. **Development work?** → `dev/`
+3. **Production utility?** → Review for `scripts/`
+
+### **Good Naming**
+```python
+# ✅ DO: Descriptive names
+debug_connection_issue.py
+test_agent_memory_integration.py
+temp_api_check.py
+
+# ✅ DO: Add purpose comment
+"""
+Debug script for NMSTX-123 memory integration issue
+Created: 2025-01-26
+"""
+```
+
+## 🔧 **Auto-Cleanup**
+- **Script**: `scripts/cleanup_dev_temp.py`
+- **Command**: `python scripts/cleanup_dev_temp.py --dry-run` (preview)
+- **Execute**: `python scripts/cleanup_dev_temp.py`
+
+## 🛡️ **Quality Gates**
+
+### **Before creating scripts**
+- [ ] Choose `dev/` or `dev/temp/` based on lifetime
+- [ ] Use descriptive filename
+- [ ] Add purpose comment
+
+### **Before promoting to `scripts/`**
+- [ ] Code review completed
+- [ ] Documentation written
+- [ ] Used by multiple team members
+- [ ] Production-ready quality
+
+---
+
+**Remember**: When in doubt, use `dev/` for development work, `scripts/` for production utilities. 
