@@ -271,8 +271,8 @@ dev: ## 🛠️ Start development mode
 		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
 		exit 1; \
 	fi
-	@$(call print_status,Activating virtual environment and starting...)
-	@. $(VENV_PATH)/bin/activate && AM_FORCE_DEV_ENV=1 python -m src
+	@$(call print_status,Starting with uv run...)
+	@AM_FORCE_DEV_ENV=1 uv run python -m src
 
 docker: ## 🐳 Start Docker development stack
 	@$(call print_status,Starting Docker development stack...)
@@ -420,13 +420,12 @@ clean: ## 🧹 Clean temporary files
 
 test: ## 🧪 Run test suite
 	$(call print_status,Running tests...)
-	@if [ -d "$(VENV_PATH)" ]; then \
-		. $(VENV_PATH)/bin/activate && python -m pytest; \
-	else \
+	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_error,Virtual environment not found); \
 		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
 		exit 1; \
 	fi
+	@uv run python -m pytest
 
 # ===========================================
 # 🔧 Helper Functions
