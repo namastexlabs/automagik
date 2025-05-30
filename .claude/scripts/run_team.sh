@@ -257,9 +257,12 @@ start_all_agents() {
     print_status "$BLUE" "SYSTEM" "Starting all agents..."
     
     # Alpha starts with epic context
-    local epic_context=$(cat "$SESSIONS_DIR/epic_context.txt")
+
+
+    # To (making it a single line):
+    local epic_context=$(cat "$SESSIONS_DIR/epic_context.txt" | tr '\n' ' ')
     start_agent "alpha" "$PURPLE" "$BASE_REPO_DIR" \
-        "Analyze this epic and coordinate the team: $epic_context"
+        "Analyze this epic and coordinate the team: $epic_context"  
     
     # Wait for Alpha to create initial plan
     print_status "$BLUE" "SYSTEM" "Waiting for Alpha to initialize..."
