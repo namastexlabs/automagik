@@ -1,0 +1,1 @@
+"""AI Framework adapters for AutomagikAgent."""

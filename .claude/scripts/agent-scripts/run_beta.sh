@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_beta.sh - Run Beta (Core Builder) with WhatsApp notifications
+# run_beta.sh - Run Beta (Core Builder) with WhatsApp notifications and tmux session management
 
 set -euo pipefail
 
@@ -32,6 +32,10 @@ TASK_MSG="${1:-}"
 MAX_TURNS="${MAX_TURNS:-20}"
 RESUME_SESSION="${RESUME_SESSION:-}"
 
+# TMux session management
+TMUX_SESSION_NAME="agent-${AGENT_NAME}"
+FORCE_NEW_SESSION="${FORCE_NEW_SESSION:-false}"
+
 # WhatsApp configuration
 WHATSAPP_URL="http://192.168.112.142:8080/message/sendText/SofIA"
 WHATSAPP_GROUP="120363404050997890@g.us"
@@ -42,6 +46,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
 NC='\033[0m'
 
 # Load allowed tools from file
@@ -61,7 +66,7 @@ send_whatsapp() {
     # Create proper JSON payload without over-escaping
     local json_payload=$(jq -n --arg text "$message" --arg number "$WHATSAPP_GROUP" '{number: $number, text: $text}')
     
-    echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." | tee -a "$LOG_FILE"
+    echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." >&2
     
     local response=$(curl -s -X POST "$WHATSAPP_URL" \
         -H "Content-Type: application/json" \
@@ -71,9 +76,55 @@ send_whatsapp() {
     local exit_code=$?
     
     if [[ $exit_code -eq 0 ]] && [[ "$response" == *"PENDING"* || "$response" == *"SUCCESS"* ]]; then
-        echo -e "${GREEN}[WHATSAPP]${NC} Message sent successfully" | tee -a "$LOG_FILE"
+        echo -e "${GREEN}[WHATSAPP]${NC} Message sent successfully" >&2
     else
-        echo -e "${RED}[WHATSAPP]${NC} Failed to send message. Response: $response" | tee -a "$LOG_FILE"
+        echo -e "${RED}[WHATSAPP]${NC} Failed to send message. Response: $response" >&2
+    fi
+}
+
+# Function to check if we're already inside tmux
+is_in_tmux() {
+    [[ -n "${TMUX:-}" ]]
+}
+
+# Function to check if tmux session exists
+tmux_session_exists() {
+    tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null
+}
+
+# Function to create or reattach to tmux session
+ensure_tmux_session() {
+    if is_in_tmux; then
+        # Already in tmux, check if it's the correct session
+        local current_session=$(tmux display-message -p '#S' 2>/dev/null || echo "")
+        if [[ "$current_session" == "$TMUX_SESSION_NAME" ]]; then
+            echo -e "${GREEN}[TMUX]${NC} Already in correct tmux session: $TMUX_SESSION_NAME" >&2
+            return 0
+        else
+            echo -e "${YELLOW}[TMUX]${NC} In different tmux session: $current_session, staying here" >&2
+            return 0
+        fi
+    fi
+    
+    # Not in tmux, need to create or attach to session
+    if tmux_session_exists && [[ "$FORCE_NEW_SESSION" != "true" ]]; then
+        echo -e "${YELLOW}[TMUX]${NC} Session $TMUX_SESSION_NAME exists, attaching..." >&2
+        # Save session info
+        echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${AGENT_NAME}_tmux.txt"
+        # Re-exec this script inside the existing tmux session
+        exec tmux send-keys -t "$TMUX_SESSION_NAME" "cd '$(pwd)' && '$0' '$TASK_MSG'" Enter
+    else
+        # Kill existing session if force new session
+        if [[ "$FORCE_NEW_SESSION" == "true" ]] && tmux_session_exists; then
+            echo -e "${YELLOW}[TMUX]${NC} Force new session: killing existing $TMUX_SESSION_NAME" >&2
+            tmux kill-session -t "$TMUX_SESSION_NAME"
+        fi
+        
+        # Create new tmux session
+        echo -e "${GREEN}[TMUX]${NC} Creating new tmux session: $TMUX_SESSION_NAME" >&2
+        echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${AGENT_NAME}_tmux.txt"
+        # Re-exec this script inside new tmux session
+        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$(pwd)" \; send-keys "'$0' '$TASK_MSG'" Enter \; attach-session
     fi
 }
 
@@ -81,15 +132,23 @@ send_whatsapp() {
 if [[ -z "$TASK_MSG" ]] && [[ -z "$RESUME_SESSION" ]]; then
     echo "Usage: $0 <task_message>"
     echo "   or: RESUME_SESSION=<session_id> $0"
+    echo "   or: FORCE_NEW_SESSION=true $0 <task_message>"
     exit 1
 fi
 
-# Setup
+# Setup directories
 mkdir -p "$LOGS_DIR" "$SESSIONS_DIR"
+
+# Ensure we're running in tmux (this will re-exec if not)
+ensure_tmux_session
+
+# If we get here, we're definitely in tmux
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="$LOGS_DIR/${AGENT_NAME}_${TIMESTAMP}.log"
 SESSION_FILE="$SESSIONS_DIR/${AGENT_NAME}_session.txt"
 OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
+
+echo -e "${GREEN}[BETA]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Send start notification
 if [[ -n "$TASK_MSG" ]]; then
@@ -98,6 +157,7 @@ if [[ -n "$TASK_MSG" ]]; then
 📋 Task: $TASK_MSG
 📁 Workspace: am-agents-core
 ⏰ Time: $(date)
+🖥️  TMux: $TMUX_SESSION_NAME
 💾 Session: Starting new...
 
 _Beta will implement core features._"
@@ -106,6 +166,7 @@ else
 
 💾 Session: $RESUME_SESSION
 📁 Workspace: am-agents-core
+🖥️  TMux: $TMUX_SESSION_NAME
 ⏰ Time: $(date)
 
 _Continuing core implementation..._"
@@ -113,9 +174,10 @@ fi
 send_whatsapp "$START_MSG"
 
 echo -e "${GREEN}[BETA]${NC} Starting core builder..."
-echo "Task: ${TASK_MSG:-Resuming session}"
-echo "Workspace: $WORK_DIR"
-echo "Log: $LOG_FILE"
+echo "Task: ${TASK_MSG:-Resuming session}" | tee -a "$LOG_FILE"
+echo "Workspace: $WORK_DIR" | tee -a "$LOG_FILE"
+echo "Log: $LOG_FILE" | tee -a "$LOG_FILE"
+echo "TMux Session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Run Beta
 echo -e "${GREEN}[BETA]${NC} Changing to workspace for context: $WORK_DIR" | tee -a "$LOG_FILE"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_alpha.sh - Run Alpha orchestrator with WhatsApp notifications
+# run_alpha.sh - Run Alpha orchestrator with WhatsApp notifications and tmux session management
 
 set -euo pipefail
 
@@ -32,6 +32,10 @@ TASK_MSG="${1:-}"
 MAX_TURNS="${MAX_TURNS:-30}"
 RESUME_SESSION="${RESUME_SESSION:-}"
 
+# TMux session management
+TMUX_SESSION_NAME="agent-${AGENT_NAME}"
+FORCE_NEW_SESSION="${FORCE_NEW_SESSION:-false}"
+
 # WhatsApp configuration
 WHATSAPP_URL="http://192.168.112.142:8080/message/sendText/SofIA"
 WHATSAPP_GROUP="120363404050997890@g.us"
@@ -56,20 +60,13 @@ load_allowed_tools() {
     fi
 }
 
-# Setup directories and files early
-mkdir -p "$LOGS_DIR" "$SESSIONS_DIR"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="$LOGS_DIR/${AGENT_NAME}_${TIMESTAMP}.log"
-SESSION_FILE="$SESSIONS_DIR/${AGENT_NAME}_session.txt"
-OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
-
 # Function to send WhatsApp message
 send_whatsapp() {
     local message="$1"
     # Create proper JSON payload without over-escaping
     local json_payload=$(jq -n --arg text "$message" --arg number "$WHATSAPP_GROUP" '{number: $number, text: $text}')
     
-    echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." | tee -a "$LOG_FILE"
+    echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." >&2
     
     local response=$(curl -s -X POST "$WHATSAPP_URL" \
         -H "Content-Type: application/json" \
@@ -79,11 +76,57 @@ send_whatsapp() {
     local exit_code=$?
     
     if [[ $exit_code -eq 0 ]] && [[ "$response" == *"PENDING"* || "$response" == *"SUCCESS"* ]]; then
-        echo -e "${GREEN}[WHATSAPP]${NC} Message sent successfully" | tee -a "$LOG_FILE"
+        echo -e "${GREEN}[WHATSAPP]${NC} Message sent successfully" >&2
     else
-        echo -e "${YELLOW}[WHATSAPP]${NC} Warning: Message may have failed" | tee -a "$LOG_FILE"
-        echo -e "${YELLOW}[WHATSAPP]${NC} Response: $response" | tee -a "$LOG_FILE"
-        echo -e "${YELLOW}[WHATSAPP]${NC} Exit code: $exit_code" | tee -a "$LOG_FILE"
+        echo -e "${YELLOW}[WHATSAPP]${NC} Warning: Message may have failed" >&2
+        echo -e "${YELLOW}[WHATSAPP]${NC} Response: $response" >&2
+        echo -e "${YELLOW}[WHATSAPP]${NC} Exit code: $exit_code" >&2
+    fi
+}
+
+# Function to check if we're already inside tmux
+is_in_tmux() {
+    [[ -n "${TMUX:-}" ]]
+}
+
+# Function to check if tmux session exists
+tmux_session_exists() {
+    tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null
+}
+
+# Function to create or reattach to tmux session
+ensure_tmux_session() {
+    if is_in_tmux; then
+        # Already in tmux, check if it's the correct session
+        local current_session=$(tmux display-message -p '#S' 2>/dev/null || echo "")
+        if [[ "$current_session" == "$TMUX_SESSION_NAME" ]]; then
+            echo -e "${GREEN}[TMUX]${NC} Already in correct tmux session: $TMUX_SESSION_NAME" >&2
+            return 0
+        else
+            echo -e "${YELLOW}[TMUX]${NC} In different tmux session: $current_session, staying here" >&2
+            return 0
+        fi
+    fi
+    
+    # Not in tmux, need to create or attach to session
+    if tmux_session_exists && [[ "$FORCE_NEW_SESSION" != "true" ]]; then
+        echo -e "${YELLOW}[TMUX]${NC} Session $TMUX_SESSION_NAME exists, attaching..." >&2
+        # Save session info
+        echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${AGENT_NAME}_tmux.txt"
+        # Re-exec this script inside the existing tmux session
+        exec tmux send-keys -t "$TMUX_SESSION_NAME" "cd '$(pwd)' && '$0' '$TASK_MSG'" Enter
+    else
+        # Kill existing session if force new session
+        if [[ "$FORCE_NEW_SESSION" == "true" ]] && tmux_session_exists; then
+            echo -e "${YELLOW}[TMUX]${NC} Force new session: killing existing $TMUX_SESSION_NAME" >&2
+            tmux kill-session -t "$TMUX_SESSION_NAME"
+        fi
+        
+        # Create new tmux session
+        echo -e "${GREEN}[TMUX]${NC} Creating new tmux session: $TMUX_SESSION_NAME" >&2
+        echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${AGENT_NAME}_tmux.txt"
+        # Re-exec this script inside new tmux session
+        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$(pwd)" \; send-keys "'$0' '$TASK_MSG'" Enter \; attach-session
     fi
 }
 
@@ -91,8 +134,23 @@ send_whatsapp() {
 if [[ -z "$TASK_MSG" ]] && [[ -z "$RESUME_SESSION" ]]; then
     echo "Usage: $0 <task_message>"
     echo "   or: RESUME_SESSION=<session_id> $0"
+    echo "   or: FORCE_NEW_SESSION=true $0 <task_message>"
     exit 1
 fi
+
+# Setup directories and files early
+mkdir -p "$LOGS_DIR" "$SESSIONS_DIR"
+
+# Ensure we're running in tmux (this will re-exec if not)
+ensure_tmux_session
+
+# If we get here, we're definitely in tmux
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="$LOGS_DIR/${AGENT_NAME}_${TIMESTAMP}.log"
+SESSION_FILE="$SESSIONS_DIR/${AGENT_NAME}_session.txt"
+OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
+
+echo -e "${PURPLE}[ALPHA]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Check if claude is available
 if ! command -v claude &> /dev/null; then

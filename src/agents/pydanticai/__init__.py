@@ -1,6 +1,7 @@
-"""Simple agents type package.
+"""PydanticAI agents package.
 
-This package contains agents with basic functionality.
+This package contains agents built with PydanticAI framework.
+(Previously located at src.agents.simple)
 """
 
 import os
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Discover agents in subfolders
 def discover_agents():
-    """Discover agent modules in the simple agent type directory."""
+    """Discover agent modules in the pydanticai agent type directory."""
     agents = {}
     current_dir = Path(__file__).parent
     
@@ -21,7 +22,7 @@ def discover_agents():
         if item.is_dir() and not item.name.startswith('__'):
             try:
                 # Try to import the module
-                module_name = f"src.agents.simple.{item.name}"
+                module_name = f"src.agents.pydanticai.{item.name}"
                 module = importlib.import_module(module_name)
                 
                 # Check if the module has a create_agent function
@@ -67,7 +68,7 @@ def create_agent(agent_name=None):
     
     # Direct import approach if agent wasn't discovered
     try:
-        module_path = f"src.agents.simple.{base_name}"
+        module_path = f"src.agents.pydanticai.{base_name}"
         module = importlib.import_module(module_path)
         
         if hasattr(module, "create_agent"):
