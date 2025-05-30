@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROMPTS_DIR="${SCRIPT_DIR}/../agents_prompts"
+PROMPTS_DIR="${SCRIPT_DIR}/../agents-prompts"
 LOGS_DIR="${SCRIPT_DIR}/../logs"
 SESSIONS_DIR="${SCRIPT_DIR}/../sessions"
 BASE_REPO_DIR="/root/workspace/am-agents-labs"
