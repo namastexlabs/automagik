@@ -83,6 +83,9 @@ else
     # Start new session
     SYSTEM_PROMPT=$(cat "$PROMPTS_DIR/beta_prompt.md")
     
+    # Debug
+    echo -e "${GREEN}[BETA]${NC} Starting Claude with task..." | tee -a "$LOG_FILE"
+    
     CLAUDE_OUTPUT=$(claude -p "$TASK_MSG" \
         --append-system-prompt "$SYSTEM_PROMPT" \
         --max-turns "$MAX_TURNS" \

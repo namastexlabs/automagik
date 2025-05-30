@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_team.sh - Start Alpha orchestrator who manages the team via individual scripts
+# run_team.sh - Start Alpha orchestrator who manages the team
 
 set -euo pipefail
 
@@ -13,7 +13,6 @@ NC='\033[0m' # No Color
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AGENT_SCRIPTS_DIR="${SCRIPT_DIR}/agent-scripts"
 PROMPTS_DIR="${SCRIPT_DIR}/../agents-prompts"
 LOGS_DIR="${SCRIPT_DIR}/../logs"
 SESSIONS_DIR="${SCRIPT_DIR}/../sessions"
@@ -23,10 +22,11 @@ BASE_REPO_DIR="/root/workspace/am-agents-labs"
 EPIC_NAME="${1:-}"
 EPIC_ID="${2:-}"
 MAX_TURNS="${MAX_TURNS:-30}"
-REUSE_BRANCHES="${REUSE_BRANCHES:-false}"
+AGENT_TIMEOUT="${AGENT_TIMEOUT:-7200}" # 2 hours default
+REUSE_BRANCHES="${REUSE_BRANCHES:-false}" # Default to creating fresh branches
 
 # Ensure required directories exist
-mkdir -p "$LOGS_DIR" "$SESSIONS_DIR" "$AGENT_SCRIPTS_DIR"
+mkdir -p "$LOGS_DIR" "$SESSIONS_DIR"
 
 # Function to print colored output
 print_status() {
@@ -40,52 +40,40 @@ print_status() {
 validate_environment() {
     print_status "$BLUE" "SYSTEM" "Validating environment..."
     
-    # Check if alpha prompt exists
+    # Check if alpha prompt exists (only alpha needed initially)
     if [[ ! -f "$PROMPTS_DIR/alpha_prompt.md" ]]; then
         print_status "$RED" "ERROR" "Missing prompt file: alpha_prompt.md"
         exit 1
     fi
     
+    # Check if base repo exists
+    if [[ ! -d "$BASE_REPO_DIR" ]]; then
+        print_status "$RED" "ERROR" "Base repository not found: $BASE_REPO_DIR"
+        exit 1
+    fi
+    
     # Check if required commands are available
-    for cmd in claude tmux jq git curl; do
+    for cmd in claude tmux jq git; do
         if ! command -v $cmd &> /dev/null; then
             print_status "$RED" "ERROR" "$cmd not found in PATH"
             exit 1
         fi
     done
     
-    # Check if agent scripts exist
-    if [[ ! -f "$AGENT_SCRIPTS_DIR/agent-scripts/run_alpha.sh" ]]; then
-        print_status "$YELLOW" "SETUP" "Agent scripts not found. Creating them..."
-        create_agent_scripts
-    fi
-    
     print_status "$GREEN" "SYSTEM" "Environment validation complete"
-}
-
-# Function to create agent scripts if they don't exist
-create_agent_scripts() {
-    print_status "$BLUE" "SETUP" "Creating agent runner scripts..."
-    
-    # Create agent-scripts directory
-    mkdir -p "$AGENT_SCRIPTS_DIR"
-    
-    # Copy the individual run scripts to agent-scripts
-    # In a real scenario, these would be the scripts from the artifacts
-    print_status "$GREEN" "SETUP" "Agent scripts created in $AGENT_SCRIPTS_DIR"
-    print_status "$YELLOW" "SETUP" "Please ensure all run_*.sh scripts are in agent-scripts/"
 }
 
 # Function to setup worktrees
 setup_worktrees() {
-    print_status "$BLUE" "SYSTEM" "Setting up parallel development workspaces..."
+    print_status "$BLUE" "SYSTEM" "Setting up worktrees for parallel development..."
     
     cd "$BASE_REPO_DIR"
     
     # Fetch latest
+    print_status "$BLUE" "SYSTEM" "Fetching latest from origin..."
     git fetch origin --prune
     
-    # Setup worktrees
+    # Setup worktrees for each agent
     local worktrees=(
         "core:/root/workspace/am-agents-core"
         "api:/root/workspace/am-agents-api"
@@ -97,126 +85,243 @@ setup_worktrees() {
         IFS=':' read -r component path <<< "$worktree_info"
         local branch_name="NMSTX-${EPIC_ID}-${component}"
         
+        print_status "$BLUE" "SETUP" "Creating workspace for $component development..."
+        
+        # Remove existing worktree if present
         if [[ -d "$path" ]]; then
-            if [[ "$REUSE_BRANCHES" == "true" ]]; then
-                print_status "$BLUE" "SETUP" "Reusing workspace at $path"
-                continue
-            else
-                print_status "$YELLOW" "SETUP" "Removing existing workspace at $path"
-                git worktree remove "$path" --force 2>/dev/null || true
-            fi
+            print_status "$YELLOW" "SETUP" "Removing existing worktree at $path"
+            git worktree remove "$path" --force 2>/dev/null || true
         fi
         
-        # Create new worktree
-        print_status "$GREEN" "SETUP" "Creating $component workspace"
-        git worktree add "$path" -b "$branch_name" 2>/dev/null || \
-        git worktree add "$path" "$branch_name"
+        # Handle existing branches
+        if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+            if [[ "$REUSE_BRANCHES" == "true" ]]; then
+                print_status "$BLUE" "SETUP" "Reusing existing branch $branch_name"
+                git worktree add "$path" "$branch_name"
+            else
+                print_status "$YELLOW" "SETUP" "Removing existing branch $branch_name"
+                git branch -D "$branch_name" 2>/dev/null || true
+                git worktree add "$path" -b "$branch_name"
+            fi
+        else
+            print_status "$GREEN" "SETUP" "Creating new branch $branch_name"
+            git worktree add "$path" -b "$branch_name"
+        fi
     done
     
-    print_status "$GREEN" "SYSTEM" "Workspaces ready for parallel development"
+    print_status "$GREEN" "SYSTEM" "Worktrees ready for parallel development!"
 }
 
-# Function to create orchestration context
-create_orchestration_context() {
+# Function to create orchestration instructions
+create_orchestration_instructions() {
+    cat > "$SESSIONS_DIR/orchestration_guide.txt" << 'EOF'
+ORCHESTRATION GUIDE FOR ALPHA
+
+You are the orchestrator. The team members are NOT running yet - you will start them as needed.
+
+## Your Tools
+- Script location: /root/workspace/am-agents-labs/.claude/scripts/
+- Start an agent: ./run_agent.sh <agent> <workspace> "instructions"
+- Check status: ./monitor_agents.sh
+- Communicate: ./agent_communicate.sh alpha <agent> "message"
+
+## Team Workspaces
+- Beta (Core): /root/workspace/am-agents-core
+- Delta (API): /root/workspace/am-agents-api  
+- Epsilon (Tools): /root/workspace/am-agents-tools
+- Gamma (Tests): /root/workspace/am-agents-tests
+
+## How to Start Agents
+When you need Beta to work on core features:
+```bash
+cd /root/workspace/am-agents-labs/.claude/scripts
+./run_agent.sh beta /root/workspace/am-agents-core "Implement the user authentication module"
+```
+
+## How to Check Progress
+```bash
+cd /root/workspace/am-agents-labs/.claude/scripts
+./monitor_agents.sh
+```
+
+## How to Continue Agents
+When an agent hits max turns:
+```bash
+cd /root/workspace/am-agents-labs/.claude/scripts
+./run_agent.sh beta --continue
+```
+
+## Workflow
+1. Analyze the epic and break it down
+2. Start agents with specific tasks
+3. Monitor their progress
+4. Use agent_communicate.sh to coordinate
+5. Continue agents when they hit turn limits
+6. Merge work when complete
+
+Remember: You control when and how agents start. This gives you full visibility and control.
+EOF
+}
+
+# Function to create epic context
+create_epic_context() {
     cat > "$SESSIONS_DIR/epic_context.txt" << EOF
 Epic: $EPIC_NAME
 Linear ID: NMSTX-${EPIC_ID}
 Start Time: $(date)
-Mode: Orchestrator-Controlled Execution
+Mode: Orchestrator-controlled execution
 
-You are Alpha, the orchestrator. Your team members will be started on-demand using:
-- $AGENT_SCRIPTS_DIR/run_beta.sh "task"
-- $AGENT_SCRIPTS_DIR/run_delta.sh "task"  
-- $AGENT_SCRIPTS_DIR/run_epsilon.sh "task"
-- $AGENT_SCRIPTS_DIR/run_gamma.sh "task"
+Your Role: You are Alpha, the orchestrator. You will:
+1. Analyze this epic
+2. Break it into tasks
+3. Start other agents as needed using the provided scripts
+4. Monitor and coordinate their work
+5. Ensure delivery within 24 hours
 
-Use send_whatsapp_message frequently to keep the technical team updated.
+The other agents (Beta, Delta, Epsilon, Gamma) are NOT running yet.
+You will start them individually with specific tasks.
+
+See orchestration_guide.txt for detailed instructions.
 EOF
 }
 
-# Function to start alpha only
+# Function to start alpha orchestrator
 start_alpha_orchestrator() {
     print_status "$PURPLE" "ALPHA" "Starting orchestrator..."
     
-    # Check if already running
+    local prompt_file="$PROMPTS_DIR/alpha_prompt.md"
+    local log_file="$LOGS_DIR/alpha_$(date +%Y%m%d_%H%M%S).log"
+    local session_file="$SESSIONS_DIR/alpha_session.txt"
+    
+    # Kill existing session if present
     if tmux has-session -t "agent-alpha" 2>/dev/null; then
-        print_status "$YELLOW" "ALPHA" "Already running. Attaching..."
-        tmux attach -t agent-alpha
-        return
+        print_status "$YELLOW" "ALPHA" "Killing existing session..."
+        tmux kill-session -t "agent-alpha"
+        sleep 2
     fi
     
-    # Start Alpha using the run script
-    cd "$AGENT_SCRIPTS_DIR"
-    pwd
-    ./run_alpha.sh "$(cat $SESSIONS_DIR/epic_context.txt)"
+    # Read the context files
+    local epic_context=$(cat "$SESSIONS_DIR/epic_context.txt")
+    local orchestration_guide=$(cat "$SESSIONS_DIR/orchestration_guide.txt")
+    
+    # Create startup script
+    cat > "$SESSIONS_DIR/start_alpha.sh" << EOF
+#!/bin/bash
+cd "$BASE_REPO_DIR"
+export AGENT_NAME="alpha"
+export EPIC_NAME="$EPIC_NAME"
+export EPIC_ID="$EPIC_ID"
+export SCRIPT_DIR="$SCRIPT_DIR"
+
+# Read system prompt
+SYSTEM_PROMPT=\$(cat "$prompt_file")
+
+# Add orchestration context to system prompt
+ENHANCED_PROMPT="\$SYSTEM_PROMPT
+
+IMPORTANT ORCHESTRATION CONTEXT:
+$orchestration_guide"
+
+# Start Claude with combined prompt
+claude -p "$epic_context" \\
+       --append-system-prompt "\$ENHANCED_PROMPT" \\
+       --max-turns $MAX_TURNS \\
+       --output-format json \\
+       2>&1 | tee "$log_file" | \\
+       jq -r '.session_id // empty' > "$session_file" || true
+
+# Keep session open
+echo ""
+echo "Alpha session completed. Max turns: $MAX_TURNS"
+echo "To continue: $SCRIPT_DIR/run_agent.sh alpha --continue"
+read -p "Press enter to close..."
+EOF
+    
+    chmod +x "$SESSIONS_DIR/start_alpha.sh"
+    
+    # Start in tmux
+    tmux new-session -d -s "agent-alpha" "$SESSIONS_DIR/start_alpha.sh"
+    
+    print_status "$GREEN" "ALPHA" "Orchestrator started in tmux session: agent-alpha"
 }
 
-# Function to show final instructions
-show_instructions() {
-    clear
-    print_status "$GREEN" "SYSTEM" "=== ORCHESTRATOR MODE ACTIVE ==="
+# Function to show status
+show_status() {
+    echo ""
+    print_status "$BLUE" "SYSTEM" "=== ORCHESTRATION STATUS ==="
     echo ""
     echo "Epic: $EPIC_NAME (NMSTX-${EPIC_ID})"
-    echo "Strategy: Alpha orchestrates, agents start on-demand"
+    echo "Mode: Orchestrator-Controlled Execution"
+    echo ""
+    echo "Alpha Status:"
+    if tmux has-session -t "agent-alpha" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} Running as orchestrator"
+    else
+        echo -e "  ${RED}✗${NC} Not running"
+    fi
     echo ""
     echo "Workspaces Created:"
-    echo "  • Main:  /root/workspace/am-agents-labs    (Alpha)"
-    echo "  • Core:  /root/workspace/am-agents-core    (Beta)"
-    echo "  • API:   /root/workspace/am-agents-api     (Delta)"
-    echo "  • Tools: /root/workspace/am-agents-tools   (Epsilon)"
-    echo "  • Tests: /root/workspace/am-agents-tests   (Gamma)"
+    echo "  • Core:  /root/workspace/am-agents-core  (Beta's workspace)"
+    echo "  • API:   /root/workspace/am-agents-api   (Delta's workspace)"
+    echo "  • Tools: /root/workspace/am-agents-tools (Epsilon's workspace)"
+    echo "  • Tests: /root/workspace/am-agents-tests (Gamma's workspace)"
     echo ""
-    echo "Monitor Commands:"
-    echo "  • Watch Alpha:     tmux attach -t agent-alpha"
-    echo "  • Monitor all:     $SCRIPT_DIR/monitor_agents.sh"
-    echo "  • View WhatsApp:   Check your WhatsApp group"
+    echo "Available Commands:"
+    echo "  • Watch Alpha:    tmux attach -t agent-alpha"
+    echo "  • Monitor all:    $SCRIPT_DIR/monitor_agents.sh"
+    echo "  • Continue Alpha: $SCRIPT_DIR/run_agent.sh alpha --continue"
     echo ""
-    echo "Alpha Control Commands:"
-    echo "  • Start Beta:      $AGENT_SCRIPTS_DIR/run_beta.sh \"task\""
-    echo "  • Start Delta:     $AGENT_SCRIPTS_DIR/run_delta.sh \"task\""
-    echo "  • Start Epsilon:   $AGENT_SCRIPTS_DIR/run_epsilon.sh \"task\""
-    echo "  • Start Gamma:     $AGENT_SCRIPTS_DIR/run_gamma.sh \"task\""
+    echo "Alpha will start other agents as needed using:"
+    echo "  $SCRIPT_DIR/run_agent.sh <agent> <workspace> \"task\""
     echo ""
-    echo "Continue Commands (run by human when needed):"
-    echo "  • Continue Alpha:  RESUME_SESSION=<id> $AGENT_SCRIPTS_DIR/run_alpha.sh"
-    echo "  • Continue Beta:   RESUME_SESSION=<id> $AGENT_SCRIPTS_DIR/run_beta.sh"
-    echo "  • Continue Delta:  RESUME_SESSION=<id> $AGENT_SCRIPTS_DIR/run_delta.sh"
-    echo "  • Continue others similarly..."
+    print_status "$GREEN" "SYSTEM" "=== READY FOR ORCHESTRATION ==="
+}
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 <epic_name> <epic_id>"
     echo ""
-    print_status "$BLUE" "SYSTEM" "Alpha is now running. Check WhatsApp for updates!"
+    echo "This script starts ONLY the Alpha orchestrator."
+    echo "Alpha will then start other agents as needed."
+    echo ""
+    echo "Examples:"
+    echo "  $0 'User Authentication' 127"
+    echo "  $0 'API Rate Limiting' 128"
+    echo ""
+    echo "Options:"
+    echo "  REUSE_BRANCHES=true  - Reuse existing branches"
+    echo "  MAX_TURNS=50        - Set orchestrator max turns"
+    echo ""
+    echo "Example with options:"
+    echo "  REUSE_BRANCHES=true $0 'Continue Epic' 127"
 }
 
 # Main execution
 main() {
     if [[ -z "$EPIC_NAME" ]] || [[ -z "$EPIC_ID" ]]; then
-        echo "Usage: $0 <epic_name> <epic_id>"
-        echo ""
-        echo "This starts ONLY Alpha as orchestrator."
-        echo "Alpha will start other agents as needed."
-        echo ""
-        echo "Example: $0 'User Authentication' 164"
+        show_usage
         exit 1
     fi
     
-    print_status "$PURPLE" "SYSTEM" "=== ORCHESTRATOR MODE SETUP ==="
+    print_status "$PURPLE" "SYSTEM" "=== ORCHESTRATOR MODE ==="
+    echo ""
+    echo "Epic: $EPIC_NAME"
+    echo "ID: NMSTX-${EPIC_ID}"
+    echo "Strategy: Alpha orchestrates, others start on demand"
     echo ""
     
     validate_environment
     setup_worktrees
-    create_orchestration_context
-    
-    # Show instructions before starting
-    show_instructions
-    
-    echo ""
-    read -p "Press Enter to start Alpha orchestrator..."
-    
-    # Start Alpha
+    create_orchestration_instructions
+    create_epic_context
     start_alpha_orchestrator
+    
+    sleep 3
+    show_status
 }
 
 # Handle interrupts
-trap 'print_status "$YELLOW" "SYSTEM" "Setup interrupted. Workspaces remain available."; exit 130' INT TERM
+trap 'print_status "$YELLOW" "SYSTEM" "Interrupted. Alpha remains in tmux."; exit 130' INT TERM
 
 # Run main
 main "$@"
