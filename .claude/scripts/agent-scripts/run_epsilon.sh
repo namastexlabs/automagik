@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_epsilon.sh - Run Epsilon (Tool Builder) with WhatsApp notifications
+# run_epsilon.sh - Run epsilon with WhatsApp notifications and tmux session management
 
 set -euo pipefail
 
@@ -9,13 +9,32 @@ BASE_DIR="$(dirname "$SCRIPT_DIR")"
 PROMPTS_DIR="${BASE_DIR}/agents-prompts"
 LOGS_DIR="${BASE_DIR}/logs"
 SESSIONS_DIR="${BASE_DIR}/sessions"
+
+# Find the actual project root (where pyproject.toml exists)
+PROJECT_ROOT="/root/workspace/am-agents-labs"
+if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+    # Try to find project root by looking for pyproject.toml
+    CURRENT_DIR="$(pwd)"
+    while [[ "$CURRENT_DIR" != "/" ]]; do
+        if [[ -f "$CURRENT_DIR/pyproject.toml" ]]; then
+            PROJECT_ROOT="$CURRENT_DIR"
+            break
+        fi
+        CURRENT_DIR="$(dirname "$CURRENT_DIR")"
+    done
+fi
+
 WORK_DIR="/root/workspace/am-agents-tools"
 
 # Agent configuration
-AGENT_NAME="epsilon"
+epsilon="epsilon"
 TASK_MSG="${1:-}"
 MAX_TURNS="${MAX_TURNS:-20}"
 RESUME_SESSION="${RESUME_SESSION:-}"
+
+# TMux session management
+TMUX_SESSION_NAME="agent-${epsilon}"
+FORCE_NEW_SESSION="${FORCE_NEW_SESSION:-false}"
 
 # WhatsApp configuration
 WHATSAPP_URL="http://192.168.112.142:8080/message/sendText/SofIA"
@@ -27,6 +46,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
 NC='\033[0m'
 
 # Load allowed tools from file
@@ -46,7 +66,7 @@ send_whatsapp() {
     # Create proper JSON payload without over-escaping
     local json_payload=$(jq -n --arg text "$message" --arg number "$WHATSAPP_GROUP" '{number: $number, text: $text}')
     
-    echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." | tee -a "$LOG_FILE"
+    echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." >&2
     
     local response=$(curl -s -X POST "$WHATSAPP_URL" \
         -H "Content-Type: application/json" \
@@ -56,9 +76,55 @@ send_whatsapp() {
     local exit_code=$?
     
     if [[ $exit_code -eq 0 ]] && [[ "$response" == *"PENDING"* || "$response" == *"SUCCESS"* ]]; then
-        echo -e "${GREEN}[WHATSAPP]${NC} Message sent successfully" | tee -a "$LOG_FILE"
+        echo -e "${GREEN}[WHATSAPP]${NC} Message sent successfully" >&2
     else
-        echo -e "${RED}[WHATSAPP]${NC} Failed to send message. Response: $response" | tee -a "$LOG_FILE"
+        echo -e "${RED}[WHATSAPP]${NC} Failed to send message. Response: $response" >&2
+    fi
+}
+
+# Function to check if we're already inside tmux
+is_in_tmux() {
+    [[ -n "${TMUX:-}" ]]
+}
+
+# Function to check if tmux session exists
+tmux_session_exists() {
+    tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null
+}
+
+# Function to create or reattach to tmux session
+ensure_tmux_session() {
+    if is_in_tmux; then
+        # Already in tmux, check if it's the correct session
+        local current_session=$(tmux display-message -p '#S' 2>/dev/null || echo "")
+        if [[ "$current_session" == "$TMUX_SESSION_NAME" ]]; then
+            echo -e "${GREEN}[TMUX]${NC} Already in correct tmux session: $TMUX_SESSION_NAME" >&2
+            return 0
+        else
+            echo -e "${YELLOW}[TMUX]${NC} In different tmux session: $current_session, staying here" >&2
+            return 0
+        fi
+    fi
+    
+    # Not in tmux, need to create or attach to session
+    if tmux_session_exists && [[ "$FORCE_NEW_SESSION" != "true" ]]; then
+        echo -e "${YELLOW}[TMUX]${NC} Session $TMUX_SESSION_NAME exists, attaching..." >&2
+        # Save session info
+        echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${epsilon}_tmux.txt"
+        # Re-exec this script inside the existing tmux session
+        exec tmux send-keys -t "$TMUX_SESSION_NAME" "cd '$(pwd)' && '$0' '$TASK_MSG'" Enter
+    else
+        # Kill existing session if force new session
+        if [[ "$FORCE_NEW_SESSION" == "true" ]] && tmux_session_exists; then
+            echo -e "${YELLOW}[TMUX]${NC} Force new session: killing existing $TMUX_SESSION_NAME" >&2
+            tmux kill-session -t "$TMUX_SESSION_NAME"
+        fi
+        
+        # Create new tmux session
+        echo -e "${GREEN}[TMUX]${NC} Creating new tmux session: $TMUX_SESSION_NAME" >&2
+        echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${epsilon}_tmux.txt"
+        # Re-exec this script inside new tmux session
+        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$(pwd)" \; send-keys "'$0' '$TASK_MSG'" Enter \; attach-session
     fi
 }
 
@@ -66,15 +132,23 @@ send_whatsapp() {
 if [[ -z "$TASK_MSG" ]] && [[ -z "$RESUME_SESSION" ]]; then
     echo "Usage: $0 <task_message>"
     echo "   or: RESUME_SESSION=<session_id> $0"
+    echo "   or: FORCE_NEW_SESSION=true $0 <task_message>"
     exit 1
 fi
 
-# Setup
+# Setup directories
 mkdir -p "$LOGS_DIR" "$SESSIONS_DIR"
+
+# Ensure we're running in tmux (this will re-exec if not)
+ensure_tmux_session
+
+# If we get here, we're definitely in tmux
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="$LOGS_DIR/${AGENT_NAME}_${TIMESTAMP}.log"
-SESSION_FILE="$SESSIONS_DIR/${AGENT_NAME}_session.txt"
-OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
+LOG_FILE="$LOGS_DIR/${epsilon}_${TIMESTAMP}.log"
+SESSION_FILE="$SESSIONS_DIR/${epsilon}_session.txt"
+OUTPUT_FILE="$SESSIONS_DIR/${epsilon}_output_${TIMESTAMP}.json"
+
+echo -e "${GREEN}[epsilon_UPPER]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Send start notification
 if [[ -n "$TASK_MSG" ]]; then
@@ -83,57 +157,68 @@ if [[ -n "$TASK_MSG" ]]; then
 📋 Task: $TASK_MSG
 📁 Workspace: am-agents-tools
 ⏰ Time: $(date)
+🖥️  TMux: $TMUX_SESSION_NAME
 💾 Session: Starting new...
 
-_Epsilon will create tool integrations._"
+_Epsilon will create and maintain development tools._"
 else
     START_MSG="🔄 *Epsilon Tool Builder Resumed*
 
 💾 Session: $RESUME_SESSION
 📁 Workspace: am-agents-tools
+🖥️  TMux: $TMUX_SESSION_NAME
 ⏰ Time: $(date)
 
 _Continuing tool development..._"
 fi
 send_whatsapp "$START_MSG"
 
-echo -e "${YELLOW}[EPSILON]${NC} Starting tool builder..."
-echo "Task: ${TASK_MSG:-Resuming session}"
-echo "Workspace: $WORK_DIR"
-echo "Log: $LOG_FILE"
+echo -e "${GREEN}[epsilon_UPPER]${NC} Starting tool development..."
+echo "Task: ${TASK_MSG:-Resuming session}" | tee -a "$LOG_FILE"
+echo "Workspace: $WORK_DIR" | tee -a "$LOG_FILE"
+echo "Log: $LOG_FILE" | tee -a "$LOG_FILE"
+echo "TMux Session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
-# Run Epsilon
-echo -e "${YELLOW}[EPSILON]${NC} Changing to work directory: $WORK_DIR" | tee -a "$LOG_FILE"
-cd "$WORK_DIR"
+# Run Agent
+echo -e "${GREEN}[epsilon_UPPER]${NC} Changing to workspace for context: $WORK_DIR" | tee -a "$LOG_FILE"
 
-# Verify we're in the right place
-echo -e "${YELLOW}[EPSILON]${NC} Current directory: $(pwd)" | tee -a "$LOG_FILE"
-echo -e "${YELLOW}[EPSILON]${NC} Checking workspace..." | tee -a "$LOG_FILE"
-
-# Check if this workspace has pyproject.toml (should be a valid project)
-if [[ ! -f "pyproject.toml" ]]; then
-    echo -e "${RED}[EPSILON]${NC} Error: No pyproject.toml found in workspace" | tee -a "$LOG_FILE"
-    send_whatsapp "❌ Epsilon failed: Invalid workspace at $WORK_DIR"
+# Verify workspace exists and is valid
+if [[ ! -d "$WORK_DIR" ]]; then
+    echo -e "${RED}[epsilon_UPPER]${NC} Error: Workspace directory not found: $WORK_DIR" | tee -a "$LOG_FILE"
+    send_whatsapp "❌ Epsilon Tool Builder failed: Workspace not found at $WORK_DIR"
     exit 1
 fi
 
-# Check git status in this workspace
-GIT_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-echo -e "${YELLOW}[EPSILON]${NC} Git branch: $GIT_BRANCH" | tee -a "$LOG_FILE"
+# Check if workspace has pyproject.toml (should be a valid project)
+if [[ ! -f "$WORK_DIR/pyproject.toml" ]]; then
+    echo -e "${RED}[epsilon_UPPER]${NC} Error: No pyproject.toml found in workspace" | tee -a "$LOG_FILE"
+    send_whatsapp "❌ Epsilon Tool Builder failed: Invalid workspace at $WORK_DIR"
+    exit 1
+fi
 
-# Try to check MCP tools from this directory
-echo -e "${YELLOW}[EPSILON]${NC} Checking MCP tools from workspace..." | tee -a "$LOG_FILE"
+# Get workspace context but execute Claude from project root for MCP access
+echo -e "${GREEN}[epsilon_UPPER]${NC} Workspace directory: $WORK_DIR" | tee -a "$LOG_FILE"
+echo -e "${GREEN}[epsilon_UPPER]${NC} Executing Claude from project root for MCP access: $PROJECT_ROOT" | tee -a "$LOG_FILE"
+
+# Change to project root for Claude execution (MCP tools need this)
+cd "$PROJECT_ROOT"
+
+# Verify we're in the right place and MCP tools are available
+echo -e "${GREEN}[epsilon_UPPER]${NC} Current directory: $(pwd)" | tee -a "$LOG_FILE"
+echo -e "${GREEN}[epsilon_UPPER]${NC} Checking MCP tools..." | tee -a "$LOG_FILE"
+
+# Check if send_whatsapp_message tool is available
 MCP_CHECK=$(claude mcp list 2>/dev/null | grep "send_whatsapp_message" || echo "")
 if [[ -n "$MCP_CHECK" ]]; then
-    echo -e "${GREEN}[EPSILON]${NC} WhatsApp MCP tool available: $MCP_CHECK" | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[epsilon_UPPER]${NC} WhatsApp MCP tool available: $MCP_CHECK" | tee -a "$LOG_FILE"
 else
-    echo -e "${YELLOW}[EPSILON]${NC} Warning: send_whatsapp_message MCP tool not found in this workspace" | tee -a "$LOG_FILE"
-    echo -e "${YELLOW}[EPSILON]${NC} Claude will run from here anyway for proper context" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}[epsilon_UPPER]${NC} Warning: send_whatsapp_message MCP tool not found" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}[epsilon_UPPER]${NC} Claude will use script-level notifications only" | tee -a "$LOG_FILE"
 fi
 
 if [[ -n "$RESUME_SESSION" ]]; then
-    # Resume existing session - run from current workspace
-    echo -e "${YELLOW}[EPSILON]${NC} Resuming session from workspace..." | tee -a "$LOG_FILE"
+    # Resume existing session
+    echo -e "${PURPLE}[epsilon_UPPER]${NC} Resuming session..." | tee -a "$LOG_FILE"
     CLAUDE_OUTPUT=$(claude --continue \
         --mcp-config "/root/workspace/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
@@ -150,9 +235,9 @@ else
     FULL_TASK_MSG="$WORKSPACE_CONTEXT - $SAFE_TASK_MSG"
     
     # Debug
-    echo -e "${GREEN}[EPSILON]${NC} Starting Claude from project root..." | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[epsilon_UPPER]${NC} Starting Claude from project root..." | tee -a "$LOG_FILE"
     echo "Task message: $FULL_TASK_MSG" | tee -a "$LOG_FILE"
-    echo -e "${GREEN}[EPSILON]${NC} Using system prompt from: $PROMPTS_DIR/epsilon_prompt.md" | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[epsilon_UPPER]${NC} Using system prompt from: $PROMPTS_DIR/epsilon_prompt.md" | tee -a "$LOG_FILE"
     
     CLAUDE_OUTPUT=$(claude -p "$SAFE_TASK_MSG" \
         --append-system-prompt "$SYSTEM_PROMPT" \
@@ -170,9 +255,9 @@ echo "$CLAUDE_OUTPUT" > "$OUTPUT_FILE"
 SESSION_ID=$(echo "$CLAUDE_OUTPUT" | jq -r '.session_id // empty' 2>/dev/null | grep -v '^$' | tail -1)
 if [[ -n "$SESSION_ID" && "$SESSION_ID" != "null" && "$SESSION_ID" != "empty" ]]; then
     echo "$SESSION_ID" > "$SESSION_FILE"
-    echo -e "${GREEN}[EPSILON]${NC} Session ID saved: $SESSION_ID" | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[epsilon_UPPER]${NC} Session ID saved: $SESSION_ID" | tee -a "$LOG_FILE"
 else
-    echo -e "${YELLOW}[EPSILON]${NC} Warning: Could not extract session ID from Claude output" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}[epsilon_UPPER]${NC} Warning: Could not extract session ID from Claude output" | tee -a "$LOG_FILE"
     SESSION_ID="unknown"
 fi
 
@@ -210,6 +295,6 @@ _Check logs at: ${LOG_FILE}_"
 # Send completion notification
 send_whatsapp "$COMPLETION_MSG"
 
-echo -e "${GREEN}[EPSILON]${NC} Tool development complete!"
+echo -e "${GREEN}[epsilon_UPPER]${NC} tool development complete!"
 echo "Session ID: ${SESSION_ID:-Not found}"
 echo "To continue: RESUME_SESSION=$SESSION_ID $0"
