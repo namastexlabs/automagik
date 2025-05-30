@@ -236,9 +236,15 @@ fi
 
 if [[ -n "$RESUME_SESSION" ]]; then
     # Resume existing session
-    echo -e "${PURPLE}[gamma_UPPER]${NC} Resuming session..." | tee -a "$LOG_FILE"
+    echo -e "${PURPLE}[GAMMA]${NC} Resuming session..." | tee -a "$LOG_FILE"
+    
+    # Create continuation message
+    CONTINUATION_MSG="Continue with the task: ${TASK_MSG:-Continue previous quality engineering work}"
+    SAFE_CONTINUATION_MSG=$(echo "$CONTINUATION_MSG" | tr '\n' ' ' | sed 's/"/\\"/g')
+    
     CLAUDE_OUTPUT=$(claude \
         --resume "$RESUME_SESSION" \
+        -p "$SAFE_CONTINUATION_MSG" \
         --mcp-config "/root/workspace/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
         --max-turns "$MAX_TURNS" \

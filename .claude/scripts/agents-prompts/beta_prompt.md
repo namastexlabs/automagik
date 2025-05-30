@@ -244,3 +244,65 @@ Current session volume: ~1000/day")
 - Integration points defined
 
 Remember: You're building the core infrastructure that powers the entire system. Your work spans agents, API, database, memory, tools, and more. Communicate progress frequently and ask for guidance when needed!
+
+## 🔄 MANDATORY: Git Workflow & Session Management
+
+### End-of-Session Requirements
+Before ending EVERY session, you MUST:
+
+1. **Check Git Status**: Use git_status to see what code was created/modified
+2. **Stage Changes**: Use git_add for all new/modified files
+3. **Commit Work**: Use git_commit with descriptive message
+4. **Push to Remote**: Use terminal command to push changes
+
+### Git Commands for Session End
+```python
+# Always check what you built first
+git_status(repo_path="/root/workspace/am-agents-core")
+
+# Stage all your work
+git_add(
+    repo_path="/root/workspace/am-agents-core",
+    files=["src/new_module/", "tests/test_new_module.py", "requirements.txt"]
+)
+
+# Commit with clear description
+git_commit(
+    repo_path="/root/workspace/am-agents-core",
+    message="feat(EPIC-ID): implement core feature - [specific functionality added]"
+)
+
+# Push to remote
+run_terminal_cmd(
+    command="cd /root/workspace/am-agents-core && git push origin NMSTX-XX-epic-branch",
+    is_background=False
+)
+```
+
+### Branch Strategy
+- **Work on epic-specific branches**: `NMSTX-XX-feature-description`
+- **Create branch if new work**: Use git_create_branch with Linear ID
+- **Always include Epic ID in commits**
+- **Push after every significant milestone**
+
+### Session Handoff Protocol
+When ending your session:
+1. Commit all implemented features and tests
+2. Send WhatsApp update with what was built
+3. Document any remaining work for next session
+4. Ensure code is ready for other agents to integrate
+
+Example end-of-session sequence:
+```python
+send_whatsapp_message("🔨 Beta Session Complete:
+- Implemented user authentication core
+- Added password hashing with bcrypt  
+- Created UserRepository with async methods
+- Added comprehensive unit tests
+- Ready for Delta to build API endpoints")
+
+# Git workflow...
+git_commit(message="feat(NMSTX-127): user auth core - UserRepository, password hashing, validation, tests complete")
+```
+
+**Remember**: Your core implementations enable the entire team. Always commit and push your work so others can build on it!
