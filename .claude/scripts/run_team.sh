@@ -55,7 +55,7 @@ validate_environment() {
     done
     
     # Check if agent scripts exist
-    if [[ ! -f "$AGENT_SCRIPTS_DIR/run_alpha.sh" ]]; then
+    if [[ ! -f "$AGENT_SCRIPTS_DIR/agent-scripts/run_alpha.sh" ]]; then
         print_status "$YELLOW" "SETUP" "Agent scripts not found. Creating them..."
         create_agent_scripts
     fi
@@ -147,7 +147,7 @@ start_alpha_orchestrator() {
     
     # Start Alpha using the run script
     cd "$AGENT_SCRIPTS_DIR"
-    ./run_alpha.sh "$(cat $SESSIONS_DIR/epic_context.txt)"
+    ./agent-scripts/run_alpha.sh "$(cat $SESSIONS_DIR/epic_context.txt)"
 }
 
 # Function to show final instructions
