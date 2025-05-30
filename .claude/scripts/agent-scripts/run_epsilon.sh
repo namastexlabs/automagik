@@ -157,7 +157,16 @@ OUTPUT_FILE="$SESSIONS_DIR/${epsilon}_output_${TIMESTAMP}.json"
 echo -e "${GREEN}[epsilon_UPPER]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Send start notification
-if [[ -n "$TASK_MSG" ]]; then
+if [[ -n "$RESUME_SESSION" ]]; then
+    START_MSG="🔄 *Epsilon Tool Builder Resumed*
+
+💾 Session: $RESUME_SESSION
+📁 Workspace: am-agents-tools
+🖥️  TMux: $TMUX_SESSION_NAME
+⏰ Time: $(date)
+
+_Continuing tool development..._"
+else
     START_MSG="🔧 *Epsilon Tool Builder Started*
 
 📋 Task: $TASK_MSG
@@ -167,15 +176,6 @@ if [[ -n "$TASK_MSG" ]]; then
 💾 Session: Starting new...
 
 _Epsilon will create and maintain development tools._"
-else
-    START_MSG="🔄 *Epsilon Tool Builder Resumed*
-
-💾 Session: $RESUME_SESSION
-📁 Workspace: am-agents-tools
-🖥️  TMux: $TMUX_SESSION_NAME
-⏰ Time: $(date)
-
-_Continuing tool development..._"
 fi
 send_whatsapp "$START_MSG"
 

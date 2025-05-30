@@ -169,7 +169,16 @@ OUTPUT_FILE="$SESSIONS_DIR/${gamma}_output_${TIMESTAMP}.json"
 echo -e "${GREEN}[gamma_UPPER]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Send start notification
-if [[ -n "$TASK_MSG" ]]; then
+if [[ -n "$RESUME_SESSION" ]]; then
+    START_MSG="🔄 *Gamma Quality Engineer Resumed*
+
+💾 Session: $RESUME_SESSION
+📁 Workspace: am-agents-tests
+🖥️  TMux: $TMUX_SESSION_NAME
+⏰ Time: $(date)
+
+_Continuing quality assurance..._"
+else
     START_MSG="🧪 *Gamma Quality Engineer Started*
 
 📋 Task: $TASK_MSG
@@ -179,15 +188,6 @@ if [[ -n "$TASK_MSG" ]]; then
 💾 Session: Starting new...
 
 _Gamma will ensure quality through testing._"
-else
-    START_MSG="🔄 *Gamma Quality Engineer Resumed*
-
-💾 Session: $RESUME_SESSION
-📁 Workspace: am-agents-tests
-🖥️  TMux: $TMUX_SESSION_NAME
-⏰ Time: $(date)
-
-_Continuing quality assurance..._"
 fi
 send_whatsapp "$START_MSG"
 
