@@ -169,7 +169,16 @@ OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
 echo -e "${GREEN}[BETA]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Send start notification
-if [[ -n "$TASK_MSG" ]]; then
+if [[ -n "$RESUME_SESSION" ]]; then
+    START_MSG="🔄 *Beta Core Builder Resumed*
+
+💾 Session: $RESUME_SESSION
+📁 Workspace: am-agents-core
+🖥️  TMux: $TMUX_SESSION_NAME
+⏰ Time: $(date)
+
+_Continuing core implementation..._"
+else
     START_MSG="🔨 *Beta Core Builder Started*
 
 📋 Task: $TASK_MSG
@@ -179,15 +188,6 @@ if [[ -n "$TASK_MSG" ]]; then
 💾 Session: Starting new...
 
 _Beta will implement core features._"
-else
-    START_MSG="🔄 *Beta Core Builder Resumed*
-
-💾 Session: $RESUME_SESSION
-📁 Workspace: am-agents-core
-🖥️  TMux: $TMUX_SESSION_NAME
-⏰ Time: $(date)
-
-_Continuing core implementation..._"
 fi
 send_whatsapp "$START_MSG"
 

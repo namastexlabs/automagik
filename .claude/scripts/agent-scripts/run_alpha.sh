@@ -171,7 +171,14 @@ OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
 echo -e "${PURPLE}[ALPHA]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Send start notification
-if [[ -n "$TASK_MSG" ]]; then
+if [[ -n "$RESUME_SESSION" ]]; then
+    START_MSG="🔄 *Alpha Orchestrator Resumed*
+
+💾 Session: $RESUME_SESSION
+⏰ Time: $(date)
+
+_Continuing previous orchestration..._"
+else
     START_MSG="🎯 *Alpha Orchestrator Started*
 
 📋 Task: $TASK_MSG
@@ -179,13 +186,6 @@ if [[ -n "$TASK_MSG" ]]; then
 💾 Session: Starting new...
 
 _Alpha will coordinate the team to complete this epic._"
-else
-    START_MSG="🔄 *Alpha Orchestrator Resumed*
-
-💾 Session: $RESUME_SESSION
-⏰ Time: $(date)
-
-_Continuing previous orchestration..._"
 fi
 send_whatsapp "$START_MSG"
 
