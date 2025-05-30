@@ -92,7 +92,7 @@ tmux_session_exists() {
     tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null
 }
 
-# Function to create or reattach to tmux session
+# Function to create or reattach to tmux session - SIMPLIFIED VERSION
 ensure_tmux_session() {
     if is_in_tmux; then
         # Already in tmux, check if it's the correct session
@@ -111,8 +111,17 @@ ensure_tmux_session() {
         echo -e "${YELLOW}[TMUX]${NC} Session $TMUX_SESSION_NAME exists, attaching..." >&2
         # Save session info
         echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${delta}_tmux.txt"
-        # Re-exec this script inside the existing tmux session
-        exec tmux send-keys -t "$TMUX_SESSION_NAME" "cd '$(pwd)' && '$0' '$TASK_MSG'" Enter
+        
+        # Create a proper command with all environment variables
+        local tmux_cmd="cd '$WORK_DIR'"
+        [[ -n "$RESUME_SESSION" ]] && tmux_cmd="$tmux_cmd && export RESUME_SESSION='$RESUME_SESSION'"
+        [[ -n "$MAX_TURNS" ]] && tmux_cmd="$tmux_cmd && export MAX_TURNS='$MAX_TURNS'"
+        [[ -n "$FORCE_NEW_SESSION" ]] && tmux_cmd="$tmux_cmd && export FORCE_NEW_SESSION='$FORCE_NEW_SESSION'"
+        tmux_cmd="$tmux_cmd && '$0'"
+        [[ -n "$TASK_MSG" ]] && tmux_cmd="$tmux_cmd '$TASK_MSG'"
+        
+        # Send the command to tmux session
+        exec tmux send-keys -t "$TMUX_SESSION_NAME" "$tmux_cmd" Enter
     else
         # Kill existing session if force new session
         if [[ "$FORCE_NEW_SESSION" == "true" ]] && tmux_session_exists; then
@@ -123,8 +132,17 @@ ensure_tmux_session() {
         # Create new tmux session
         echo -e "${GREEN}[TMUX]${NC} Creating new tmux session: $TMUX_SESSION_NAME" >&2
         echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${delta}_tmux.txt"
-        # Re-exec this script inside new tmux session
-        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$(pwd)" \; send-keys "'$0' '$TASK_MSG'" Enter \; attach-session
+        
+        # Create a proper command with all environment variables
+        local tmux_cmd="cd '$WORK_DIR'"
+        [[ -n "$RESUME_SESSION" ]] && tmux_cmd="$tmux_cmd && export RESUME_SESSION='$RESUME_SESSION'"
+        [[ -n "$MAX_TURNS" ]] && tmux_cmd="$tmux_cmd && export MAX_TURNS='$MAX_TURNS'"
+        [[ -n "$FORCE_NEW_SESSION" ]] && tmux_cmd="$tmux_cmd && export FORCE_NEW_SESSION='$FORCE_NEW_SESSION'"
+        tmux_cmd="$tmux_cmd && '$0'"
+        [[ -n "$TASK_MSG" ]] && tmux_cmd="$tmux_cmd '$TASK_MSG'"
+        
+        # Create new session and attach
+        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$WORK_DIR" \; send-keys "$tmux_cmd" Enter \; attach-session
     fi
 }
 
@@ -219,7 +237,8 @@ fi
 if [[ -n "$RESUME_SESSION" ]]; then
     # Resume existing session
     echo -e "${PURPLE}[delta_UPPER]${NC} Resuming session..." | tee -a "$LOG_FILE"
-    CLAUDE_OUTPUT=$(claude --continue \
+    CLAUDE_OUTPUT=$(claude \
+        --resume "$RESUME_SESSION" \
         --mcp-config "/root/workspace/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
         --max-turns "$MAX_TURNS" \

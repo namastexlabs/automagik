@@ -94,7 +94,7 @@ tmux_session_exists() {
     tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null
 }
 
-# Function to create or reattach to tmux session
+# Function to create or reattach to tmux session - SIMPLIFIED VERSION
 ensure_tmux_session() {
     if is_in_tmux; then
         # Already in tmux, check if it's the correct session
@@ -113,8 +113,17 @@ ensure_tmux_session() {
         echo -e "${YELLOW}[TMUX]${NC} Session $TMUX_SESSION_NAME exists, attaching..." >&2
         # Save session info
         echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${AGENT_NAME}_tmux.txt"
-        # Re-exec this script inside the existing tmux session
-        exec tmux send-keys -t "$TMUX_SESSION_NAME" "cd '$(pwd)' && '$0' '$TASK_MSG'" Enter
+        
+        # Create a proper command with all environment variables
+        local tmux_cmd="cd '$WORK_DIR'"
+        [[ -n "$RESUME_SESSION" ]] && tmux_cmd="$tmux_cmd && export RESUME_SESSION='$RESUME_SESSION'"
+        [[ -n "$MAX_TURNS" ]] && tmux_cmd="$tmux_cmd && export MAX_TURNS='$MAX_TURNS'"
+        [[ -n "$FORCE_NEW_SESSION" ]] && tmux_cmd="$tmux_cmd && export FORCE_NEW_SESSION='$FORCE_NEW_SESSION'"
+        tmux_cmd="$tmux_cmd && '$0'"
+        [[ -n "$TASK_MSG" ]] && tmux_cmd="$tmux_cmd '$TASK_MSG'"
+        
+        # Send the command to tmux session
+        exec tmux send-keys -t "$TMUX_SESSION_NAME" "$tmux_cmd" Enter
     else
         # Kill existing session if force new session
         if [[ "$FORCE_NEW_SESSION" == "true" ]] && tmux_session_exists; then
@@ -125,8 +134,17 @@ ensure_tmux_session() {
         # Create new tmux session
         echo -e "${GREEN}[TMUX]${NC} Creating new tmux session: $TMUX_SESSION_NAME" >&2
         echo "$TMUX_SESSION_NAME" > "$SESSIONS_DIR/${AGENT_NAME}_tmux.txt"
-        # Re-exec this script inside new tmux session
-        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$(pwd)" \; send-keys "'$0' '$TASK_MSG'" Enter \; attach-session
+        
+        # Create a proper command with all environment variables
+        local tmux_cmd="cd '$WORK_DIR'"
+        [[ -n "$RESUME_SESSION" ]] && tmux_cmd="$tmux_cmd && export RESUME_SESSION='$RESUME_SESSION'"
+        [[ -n "$MAX_TURNS" ]] && tmux_cmd="$tmux_cmd && export MAX_TURNS='$MAX_TURNS'"
+        [[ -n "$FORCE_NEW_SESSION" ]] && tmux_cmd="$tmux_cmd && export FORCE_NEW_SESSION='$FORCE_NEW_SESSION'"
+        tmux_cmd="$tmux_cmd && '$0'"
+        [[ -n "$TASK_MSG" ]] && tmux_cmd="$tmux_cmd '$TASK_MSG'"
+        
+        # Create new session and attach
+        exec tmux new-session -d -s "$TMUX_SESSION_NAME" -c "$WORK_DIR" \; send-keys "$tmux_cmd" Enter \; attach-session
     fi
 }
 
@@ -151,41 +169,6 @@ SESSION_FILE="$SESSIONS_DIR/${AGENT_NAME}_session.txt"
 OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
 
 echo -e "${PURPLE}[ALPHA]${NC} Running in tmux session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
-
-# Check if claude is available
-if ! command -v claude &> /dev/null; then
-    echo -e "${RED}Error: claude command not found in PATH${NC}"
-    send_whatsapp "❌ Alpha failed: claude CLI not found"
-    exit 1
-fi
-
-# Test claude with a simple command
-echo -e "${PURPLE}[ALPHA]${NC} Testing claude CLI..." | tee -a "$LOG_FILE"
-TEST_OUTPUT=$(claude -p "Say 'ready'" --output-format json 2>&1 || true)
-
-# Check if we got a valid JSON response with success
-if [[ -z "$TEST_OUTPUT" ]]; then
-    echo -e "${RED}Error: Claude CLI produced no output${NC}" | tee -a "$LOG_FILE"
-    send_whatsapp "❌ Alpha failed: Claude CLI not responding"
-    exit 1
-elif echo "$TEST_OUTPUT" | jq -e '.result == "ready"' > /dev/null 2>&1; then
-    echo -e "${GREEN}[ALPHA]${NC} Claude CLI test passed" | tee -a "$LOG_FILE"
-elif echo "$TEST_OUTPUT" | jq -e '.is_error == true' > /dev/null 2>&1; then
-    echo -e "${RED}Error: Claude CLI returned an error${NC}" | tee -a "$LOG_FILE"
-    echo "Test output: $TEST_OUTPUT" | tee -a "$LOG_FILE"
-    send_whatsapp "❌ Alpha failed: Claude CLI returned error"
-    exit 1
-else
-    # Check for non-JSON error output (command not found, etc.)
-    if [[ "$TEST_OUTPUT" == *"command not found"* ]] || [[ "$TEST_OUTPUT" == *"No such file"* ]]; then
-        echo -e "${RED}Error: Claude CLI test failed${NC}" | tee -a "$LOG_FILE"
-        echo "Test output: $TEST_OUTPUT" | tee -a "$LOG_FILE"
-        send_whatsapp "❌ Alpha failed: Claude CLI not responding correctly"
-        exit 1
-    else
-        echo -e "${GREEN}[ALPHA]${NC} Claude CLI test passed (unexpected format but no errors)" | tee -a "$LOG_FILE"
-    fi
-fi
 
 # Send start notification
 if [[ -n "$TASK_MSG" ]]; then
@@ -218,7 +201,7 @@ cd "$WORK_DIR"
 echo -e "${PURPLE}[ALPHA]${NC} Current directory: $(pwd)" | tee -a "$LOG_FILE"
 echo -e "${PURPLE}[ALPHA]${NC} Checking MCP tools..." | tee -a "$LOG_FILE"
 
-# Check if send_whatsapp_message tool is available
+# Check if send_whatsapp_message tool is available (lightweight check)
 MCP_CHECK=$(claude mcp list 2>/dev/null | grep "send_whatsapp_message" || echo "")
 if [[ -n "$MCP_CHECK" ]]; then
     echo -e "${GREEN}[ALPHA]${NC} WhatsApp MCP tool available: $MCP_CHECK" | tee -a "$LOG_FILE"
@@ -230,7 +213,7 @@ fi
 if [[ -n "$RESUME_SESSION" ]]; then
     # Resume existing session
     echo -e "${PURPLE}[ALPHA]${NC} Resuming session..." | tee -a "$LOG_FILE"
-    CLAUDE_OUTPUT=$(claude --continue \
+    CLAUDE_OUTPUT=$(claude --resume "$RESUME_SESSION" \
         --mcp-config "/root/workspace/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
         --max-turns "$MAX_TURNS" \
