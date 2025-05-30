@@ -117,8 +117,10 @@ After responding, continue with your current task."
     
     # Use a more direct approach - continue the Claude session with the message
     cd "$SESSIONS_DIR"
-    echo "$claude_message" | claude --continue \
-        --session-id "$session_id" \
+    claude --resume "$session_id" \
+        -p "$claude_message" \
+        --mcp-config "/root/workspace/.mcp.json" \
+        --allowedTools "$(cat /root/workspace/allowed_tools.json)" \
         --max-turns 1 \
         --output-format json > /dev/null 2>&1 &
     
