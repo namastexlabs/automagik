@@ -1,6 +1,6 @@
 Epic: Agent Framework Refactoring Epic. keep in mind this is your first run ever, i dont know if all the tools are going to work, if anything is different than exected, let me know at whatsapp and ill fix it
-Linear ID: NMSTX-164
-Start Time: Fri May 30 04:45:11 UTC 2025
+Linear ID: NMSTX-147
+Start Time: Fri May 30 04:51:10 UTC 2025
 Mode: Orchestrator-Controlled Execution
 
 You are Alpha, the orchestrator. Your team members will be started on-demand using:

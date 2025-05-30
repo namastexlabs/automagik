@@ -1,3 +1,6 @@
+# run_alpha.sh
+
+```bash
 #!/bin/bash
 # run_alpha.sh - Run Alpha orchestrator with WhatsApp notifications
 
@@ -31,15 +34,15 @@ NC='\033[0m'
 # Function to send WhatsApp message
 send_whatsapp() {
     local message="$1"
+    # Escape the message for JSON
+    local escaped_msg=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    
     curl -s -X POST "$WHATSAPP_URL" \
         -H "Content-Type: application/json" \
         -H "apikey: $WHATSAPP_KEY" \
-        -d "{\"number\": \"$WHATSAPP_GROUP\", \"text\": \"$message\"}" > /dev/null
-}
-
-# Function to escape JSON
-escape_json() {
-    echo "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g; s/\r/\\r/g; s/\t/\\t/g'
+        -d "{\"number\": \"$WHATSAPP_GROUP\", \"text\": \"$escaped_msg\"}" > /dev/null || {
+        echo -e "${YELLOW}Warning: WhatsApp message failed${NC}"
+    }
 }
 
 # Validate input
@@ -48,6 +51,24 @@ if [[ -z "$TASK_MSG" ]] && [[ -z "$RESUME_SESSION" ]]; then
     echo "   or: RESUME_SESSION=<session_id> $0"
     exit 1
 fi
+
+# Check if claude is available
+if ! command -v claude &> /dev/null; then
+    echo -e "${RED}Error: claude command not found in PATH${NC}"
+    send_whatsapp "❌ Alpha failed: claude CLI not found"
+    exit 1
+fi
+
+# Test claude with a simple command
+echo -e "${PURPLE}[ALPHA]${NC} Testing claude CLI..." | tee -a "$LOG_FILE"
+TEST_OUTPUT=$(claude -p "Say 'ready'" --output-format json 2>&1 || true)
+if [[ -z "$TEST_OUTPUT" ]] || [[ "$TEST_OUTPUT" == *"error"* ]]; then
+    echo -e "${RED}Error: Claude CLI test failed${NC}" | tee -a "$LOG_FILE"
+    echo "Test output: $TEST_OUTPUT" | tee -a "$LOG_FILE"
+    send_whatsapp "❌ Alpha failed: Claude CLI not responding correctly"
+    exit 1
+fi
+echo -e "${GREEN}[ALPHA]${NC} Claude CLI test passed" | tee -a "$LOG_FILE"
 
 # Setup
 mkdir -p "$LOGS_DIR" "$SESSIONS_DIR"
@@ -65,7 +86,7 @@ fi
 send_whatsapp "$START_MSG"
 
 echo -e "${PURPLE}[ALPHA]${NC} Starting orchestrator..."
-echo "Task: ${TASK_MSG:-Resuming session}"
+echo "Work directory: $WORK_DIR"
 echo "Log: $LOG_FILE"
 
 # Run Alpha
@@ -73,6 +94,7 @@ cd "$WORK_DIR"
 
 if [[ -n "$RESUME_SESSION" ]]; then
     # Resume existing session
+    echo -e "${PURPLE}[ALPHA]${NC} Resuming session..." | tee -a "$LOG_FILE"
     CLAUDE_OUTPUT=$(claude --continue \
         --max-turns "$MAX_TURNS" \
         --output-format json \
@@ -83,6 +105,7 @@ else
     
     # Add orchestration context
     ORCHESTRATION_CONTEXT="
+
 IMPORTANT: You have access to these scripts to manage your team:
 - $SCRIPT_DIR/run_beta.sh \"task\" - Start Beta on core development
 - $SCRIPT_DIR/run_delta.sh \"task\" - Start Delta on API development  
@@ -92,8 +115,19 @@ IMPORTANT: You have access to these scripts to manage your team:
 Use send_whatsapp_message frequently to report progress and ask questions to the technical team.
 "
     
-    CLAUDE_OUTPUT=$(claude -p "$TASK_MSG" \
-        --append-system-prompt "$SYSTEM_PROMPT$ORCHESTRATION_CONTEXT" \
+    # Combine prompts
+    FULL_SYSTEM_PROMPT="${SYSTEM_PROMPT}${ORCHESTRATION_CONTEXT}"
+    
+    # Simplify task message to avoid command issues
+    SAFE_TASK_MSG=$(echo "$TASK_MSG" | tr '\n' ' ' | sed 's/"/\\"/g')
+    
+    # Debug: Show that we're about to start
+    echo -e "${PURPLE}[ALPHA]${NC} Executing Claude..." | tee -a "$LOG_FILE"
+    echo "Task message: $SAFE_TASK_MSG" | tee -a "$LOG_FILE"
+    
+    # Execute claude and capture output
+    CLAUDE_OUTPUT=$(claude -p "$SAFE_TASK_MSG" \
+        --append-system-prompt "$FULL_SYSTEM_PROMPT" \
         --max-turns "$MAX_TURNS" \
         --output-format json \
         2>&1 | tee "$LOG_FILE")
@@ -101,6 +135,14 @@ fi
 
 # Save output
 echo "$CLAUDE_OUTPUT" > "$OUTPUT_FILE"
+
+# Check if Claude actually produced output
+if [[ -z "$CLAUDE_OUTPUT" ]] || [[ ! -s "$OUTPUT_FILE" ]]; then
+    echo -e "${RED}[ALPHA]${NC} Error: Claude did not produce any output" | tee -a "$LOG_FILE"
+    echo "Check if claude CLI is working: claude -p 'test'" | tee -a "$LOG_FILE"
+    send_whatsapp "❌ Alpha failed to get response from Claude. Check logs at: $LOG_FILE"
+    exit 1
+fi
 
 # Extract session ID
 SESSION_ID=$(echo "$CLAUDE_OUTPUT" | jq -r '.session_id // empty' | tail -1)
@@ -129,3 +171,4 @@ send_whatsapp "$COMPLETION_MSG"
 echo -e "${GREEN}[ALPHA]${NC} Orchestration complete!"
 echo "Session ID: ${SESSION_ID:-Not found}"
 echo "To continue: RESUME_SESSION=$SESSION_ID $0"
+```

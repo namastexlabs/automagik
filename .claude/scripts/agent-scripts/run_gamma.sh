@@ -31,10 +31,15 @@ NC='\033[0m'
 # Function to send WhatsApp message
 send_whatsapp() {
     local message="$1"
+    # Escape the message for JSON
+    local escaped_msg=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    
     curl -s -X POST "$WHATSAPP_URL" \
         -H "Content-Type: application/json" \
         -H "apikey: $WHATSAPP_KEY" \
-        -d "{\"number\": \"$WHATSAPP_GROUP\", \"text\": \"$message\"}" > /dev/null
+        -d "{\"number\": \"$WHATSAPP_GROUP\", \"text\": \"$escaped_msg\"}" > /dev/null || {
+        echo -e "${YELLOW}Warning: WhatsApp message failed${NC}"
+    }
 }
 
 # Validate input
@@ -76,6 +81,7 @@ cd "$WORK_DIR"
 
 if [[ -n "$RESUME_SESSION" ]]; then
     # Resume existing session
+    echo -e "${RED}[GAMMA]${NC} Resuming session..." | tee -a "$LOG_FILE"
     CLAUDE_OUTPUT=$(claude --continue \
         --max-turns "$MAX_TURNS" \
         --output-format json \
@@ -84,7 +90,12 @@ else
     # Start new session
     SYSTEM_PROMPT=$(cat "$PROMPTS_DIR/gamma_prompt.md")
     
-    CLAUDE_OUTPUT=$(claude -p "$TASK_MSG" \
+    # Simplify task message to avoid command issues
+    SAFE_TASK_MSG=$(echo "$TASK_MSG" | tr '\n' ' ' | sed 's/"/\\"/g')
+    
+    echo -e "${RED}[GAMMA]${NC} Starting Claude with task..." | tee -a "$LOG_FILE"
+    
+    CLAUDE_OUTPUT=$(claude -p "$SAFE_TASK_MSG" \
         --append-system-prompt "$SYSTEM_PROMPT" \
         --max-turns "$MAX_TURNS" \
         --output-format json \
