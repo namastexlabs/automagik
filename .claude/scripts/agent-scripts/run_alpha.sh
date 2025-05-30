@@ -66,15 +66,15 @@ OUTPUT_FILE="$SESSIONS_DIR/${AGENT_NAME}_output_${TIMESTAMP}.json"
 # Function to send WhatsApp message
 send_whatsapp() {
     local message="$1"
-    # Convert actual newlines to \n and escape for JSON
-    local escaped_msg=$(echo "$message" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/\\/\\\\/g; s/"/\\"/g')
+    # Create proper JSON payload without over-escaping
+    local json_payload=$(jq -n --arg text "$message" --arg number "$WHATSAPP_GROUP" '{number: $number, text: $text}')
     
     echo -e "${BLUE}[WHATSAPP]${NC} Sending: ${message:0:100}..." | tee -a "$LOG_FILE"
     
     local response=$(curl -s -X POST "$WHATSAPP_URL" \
         -H "Content-Type: application/json" \
         -H "apikey: $WHATSAPP_KEY" \
-        -d "{\"number\": \"$WHATSAPP_GROUP\", \"text\": \"$escaped_msg\"}" 2>&1)
+        -d "$json_payload" 2>&1)
     
     local exit_code=$?
     
@@ -211,14 +211,21 @@ if [[ -z "$CLAUDE_OUTPUT" ]] || [[ ! -s "$OUTPUT_FILE" ]]; then
     exit 1
 fi
 
-# Extract session ID
-SESSION_ID=$(echo "$CLAUDE_OUTPUT" | jq -r '.session_id // empty' | tail -1)
-if [[ -n "$SESSION_ID" ]]; then
+# Extract session ID from Claude's JSON output (it's all on one line)
+SESSION_ID=$(echo "$CLAUDE_OUTPUT" | jq -r '.session_id // empty' 2>/dev/null | grep -v '^$' | tail -1)
+if [[ -n "$SESSION_ID" && "$SESSION_ID" != "null" && "$SESSION_ID" != "empty" ]]; then
     echo "$SESSION_ID" > "$SESSION_FILE"
+    echo -e "${GREEN}[ALPHA]${NC} Session ID saved: $SESSION_ID" | tee -a "$LOG_FILE"
+else
+    echo -e "${YELLOW}[ALPHA]${NC} Warning: Could not extract session ID from Claude output" | tee -a "$LOG_FILE"
+    SESSION_ID="unknown"
 fi
 
-# Extract final result
-FINAL_RESULT=$(echo "$CLAUDE_OUTPUT" | jq -r '.result // "No result found"' | tail -1)
+# Extract final result from Claude's JSON output
+FINAL_RESULT=$(echo "$CLAUDE_OUTPUT" | jq -r '.result // "No result found"' 2>/dev/null | tail -1)
+if [[ -z "$FINAL_RESULT" || "$FINAL_RESULT" == "null" ]]; then
+    FINAL_RESULT="No result found in Claude output"
+fi
 TRUNCATED_RESULT=$(echo "$FINAL_RESULT" | head -c 1000)
 
 # Prepare completion message with proper formatting
