@@ -34,8 +34,10 @@ else
 fi
 
 # Find local branches
-local_branches=$(git branch | grep "$pattern" | sed 's/^[* ]*//' || true)
-remote_branches=$(git branch -r | grep "origin/$pattern" | sed 's/^[* ]*origin\///' || true)
+# The '+' prefix indicates branches with worktrees
+# We need to strip both '* ' (current branch) and '+ ' (worktree branches)
+local_branches=$(git branch | grep "$pattern" | sed 's/^[*+ ]*//' | grep -v "^$" || true)
+remote_branches=$(git branch -r | grep "origin/$pattern" | sed 's/^[* ]*origin\///' | grep -v "^$" || true)
 
 echo ""
 echo -e "${BLUE}Local branches found:${NC}"
@@ -59,6 +61,25 @@ if [[ -z "$local_branches" ]] && [[ -z "$remote_branches" ]]; then
     exit 0
 fi
 
+# Check for worktrees before offering to delete
+worktree_branches=$(git worktree list --porcelain | grep "^branch " | sed 's/^branch refs\/heads\///' | grep "$pattern" || true)
+if [[ -n "$worktree_branches" ]]; then
+    echo ""
+    echo -e "${YELLOW}WARNING: The following branches have active worktrees:${NC}"
+    echo "$worktree_branches" | sed 's/^/  /'
+    echo ""
+    echo -e "${YELLOW}You should remove worktrees first with:${NC}"
+    echo "  git worktree remove <path>"
+    echo "  OR"
+    echo "  ./shutdown_team.sh"
+    echo ""
+    read -p "Continue anyway? (y/n): " continue_anyway
+    if [[ "$continue_anyway" != "y" ]]; then
+        echo -e "${YELLOW}Cancelled${NC}"
+        exit 0
+    fi
+fi
+
 echo ""
 echo -e "${YELLOW}What would you like to do?${NC}"
 echo "1) Delete local branches only"
@@ -72,19 +93,49 @@ case $option in
         if [[ -n "$local_branches" ]]; then
             echo ""
             echo -e "${RED}Deleting local branches...${NC}"
-            echo "$local_branches" | while read -r branch; do
-                echo "  Deleting: $branch"
-                git branch -D "$branch" 2>/dev/null || echo "    Failed to delete $branch"
+            echo "$local_branches" | while IFS= read -r branch; do
+                # Trim any whitespace
+                branch=$(echo "$branch" | xargs)
+                if [[ -n "$branch" ]]; then
+                    echo "  Deleting: $branch"
+                    if git branch -D "$branch" 2>/dev/null; then
+                        echo -e "    ${GREEN}✓ Deleted successfully${NC}"
+                    else
+                        # If deletion fails, try to remove worktree first
+                        echo -e "    ${YELLOW}Failed - checking for worktree...${NC}"
+                        worktree_path=$(git worktree list | grep "$branch" | awk '{print $1}' || true)
+                        if [[ -n "$worktree_path" ]]; then
+                            echo "    Removing worktree at: $worktree_path"
+                            git worktree remove "$worktree_path" --force 2>/dev/null || true
+                            # Try to delete branch again
+                            if git branch -D "$branch" 2>/dev/null; then
+                                echo -e "    ${GREEN}✓ Deleted after removing worktree${NC}"
+                            else
+                                echo -e "    ${RED}✗ Still failed to delete${NC}"
+                            fi
+                        else
+                            echo -e "    ${RED}✗ Failed to delete (may be checked out)${NC}"
+                        fi
+                    fi
+                fi
             done
         fi
-        ;;&
+        ;;&  # Continue to next case if 3 was selected
     2|3)
         if [[ -n "$remote_branches" ]]; then
             echo ""
             echo -e "${RED}Deleting remote branches...${NC}"
-            echo "$remote_branches" | while read -r branch; do
-                echo "  Deleting: origin/$branch"
-                git push origin --delete "$branch" 2>/dev/null || echo "    Failed to delete origin/$branch"
+            echo "$remote_branches" | while IFS= read -r branch; do
+                # Trim any whitespace
+                branch=$(echo "$branch" | xargs)
+                if [[ -n "$branch" ]]; then
+                    echo "  Deleting: origin/$branch"
+                    if git push origin --delete "$branch" 2>/dev/null; then
+                        echo -e "    ${GREEN}✓ Deleted successfully${NC}"
+                    else
+                        echo -e "    ${RED}✗ Failed to delete${NC}"
+                    fi
+                fi
             done
         fi
         ;;
@@ -105,4 +156,13 @@ echo -e "${GREEN}Branch cleanup complete!${NC}"
 echo -e "${BLUE}Pruning worktree references...${NC}"
 git worktree prune
 
+# Show remaining branches
+remaining_local=$(git branch | grep "$pattern" | sed 's/^[*+ ]*//' || true)
+if [[ -n "$remaining_local" ]]; then
+    echo ""
+    echo -e "${YELLOW}Remaining local branches:${NC}"
+    echo "$remaining_local" | sed 's/^/  /'
+fi
+
+echo ""
 echo -e "${GREEN}Done!${NC}"
