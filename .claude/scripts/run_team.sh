@@ -147,7 +147,8 @@ start_alpha_orchestrator() {
     
     # Start Alpha using the run script
     cd "$AGENT_SCRIPTS_DIR"
-    ./agent-scripts/run_alpha.sh "$(cat $SESSIONS_DIR/epic_context.txt)"
+    pwd
+    ./run_alpha.sh "$(cat $SESSIONS_DIR/epic_context.txt)"
 }
 
 # Function to show final instructions
