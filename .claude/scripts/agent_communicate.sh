@@ -18,6 +18,13 @@ WHATSAPP_URL="http://192.168.112.142:8080/message/sendText/SofIA"
 WHATSAPP_GROUP="120363404050997890@g.us"
 WHATSAPP_KEY="namastex888"
 
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 # Function to send WhatsApp message
 send_whatsapp() {
     local message="$1"
@@ -25,6 +32,17 @@ send_whatsapp() {
         -H "Content-Type: application/json" \
         -H "apikey: $WHATSAPP_KEY" \
         -d "{\"number\": \"$WHATSAPP_GROUP\", \"text\": \"$message\"}" > /dev/null
+}
+
+# Load allowed tools from file
+load_allowed_tools() {
+    local tools_file="/root/workspace/allowed_tools.json"
+    if [[ -f "$tools_file" ]]; then
+        # Convert JSON array to comma-separated string
+        jq -r '.[]' "$tools_file" | tr '\n' ',' | sed 's/,$//'
+    else
+        echo "mcp__postgres_automagik_agents__query,mcp__agent-memory__search_memory_nodes,mcp__agent-memory__search_memory_facts,mcp__agent-memory__add_memory"
+    fi
 }
 
 if [[ -z "$FROM_AGENT" ]] || [[ -z "$TO_AGENT" ]] || [[ -z "$MESSAGE" ]]; then
@@ -82,6 +100,8 @@ echo "---" | tee -a "$COMM_LOG"
 # Send message to target agent by continuing their session
 cd "$SESSIONS_DIR"  # claude will run from here
 RESPONSE=$(claude --continue "$COMM_MESSAGE" \
+       --mcp-config "/root/workspace/.mcp.json" \
+       --allowedTools "$(load_allowed_tools)" \
        --max-turns "$MAX_TURNS" \
        --output-format json 2>&1 | tee -a "$COMM_LOG")
 
