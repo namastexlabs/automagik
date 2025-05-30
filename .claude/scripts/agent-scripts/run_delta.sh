@@ -198,40 +198,20 @@ echo "Log: $LOG_FILE" | tee -a "$LOG_FILE"
 echo "TMux Session: $TMUX_SESSION_NAME" | tee -a "$LOG_FILE"
 
 # Run Agent
-echo -e "${GREEN}[delta_UPPER]${NC} Changing to workspace for context: $WORK_DIR" | tee -a "$LOG_FILE"
-
-# Verify workspace exists and is valid
-if [[ ! -d "$WORK_DIR" ]]; then
-    echo -e "${RED}[delta_UPPER]${NC} Error: Workspace directory not found: $WORK_DIR" | tee -a "$LOG_FILE"
-    send_whatsapp "❌ Delta API Builder failed: Workspace not found at $WORK_DIR"
-    exit 1
-fi
-
-# Check if workspace has pyproject.toml (should be a valid project)
-if [[ ! -f "$WORK_DIR/pyproject.toml" ]]; then
-    echo -e "${RED}[delta_UPPER]${NC} Error: No pyproject.toml found in workspace" | tee -a "$LOG_FILE"
-    send_whatsapp "❌ Delta API Builder failed: Invalid workspace at $WORK_DIR"
-    exit 1
-fi
-
-# Get workspace context but execute Claude from project root for MCP access
-echo -e "${GREEN}[delta_UPPER]${NC} Workspace directory: $WORK_DIR" | tee -a "$LOG_FILE"
-echo -e "${GREEN}[delta_UPPER]${NC} Executing Claude from project root for MCP access: $PROJECT_ROOT" | tee -a "$LOG_FILE"
-
-# Change to project root for Claude execution (MCP tools need this)
-cd "$PROJECT_ROOT"
+echo -e "${GREEN}[DELTA]${NC} Changing to work directory: $WORK_DIR" | tee -a "$LOG_FILE"
+cd "$WORK_DIR"
 
 # Verify we're in the right place and MCP tools are available
-echo -e "${GREEN}[delta_UPPER]${NC} Current directory: $(pwd)" | tee -a "$LOG_FILE"
-echo -e "${GREEN}[delta_UPPER]${NC} Checking MCP tools..." | tee -a "$LOG_FILE"
+echo -e "${GREEN}[DELTA]${NC} Current directory: $(pwd)" | tee -a "$LOG_FILE"
+echo -e "${GREEN}[DELTA]${NC} Checking MCP tools..." | tee -a "$LOG_FILE"
 
-# Check if send_whatsapp_message tool is available
+# Check if send_whatsapp_message tool is available (lightweight check)
 MCP_CHECK=$(claude mcp list 2>/dev/null | grep "send_whatsapp_message" || echo "")
 if [[ -n "$MCP_CHECK" ]]; then
-    echo -e "${GREEN}[delta_UPPER]${NC} WhatsApp MCP tool available: $MCP_CHECK" | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[DELTA]${NC} WhatsApp MCP tool available: $MCP_CHECK" | tee -a "$LOG_FILE"
 else
-    echo -e "${YELLOW}[delta_UPPER]${NC} Warning: send_whatsapp_message MCP tool not found" | tee -a "$LOG_FILE"
-    echo -e "${YELLOW}[delta_UPPER]${NC} Claude will use script-level notifications only" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}[DELTA]${NC} Warning: send_whatsapp_message MCP tool not found" | tee -a "$LOG_FILE"
+    echo -e "${YELLOW}[DELTA]${NC} Claude will use script-level notifications only" | tee -a "$LOG_FILE"
 fi
 
 if [[ -n "$RESUME_SESSION" ]]; then
@@ -242,8 +222,7 @@ if [[ -n "$RESUME_SESSION" ]]; then
     CONTINUATION_MSG="Continue with the task: ${TASK_MSG:-Continue previous API development work}"
     SAFE_CONTINUATION_MSG=$(echo "$CONTINUATION_MSG" | tr '\n' ' ' | sed 's/"/\\"/g')
     
-    CLAUDE_OUTPUT=$(claude \
-        --resume "$RESUME_SESSION" \
+    CLAUDE_OUTPUT=$(claude --resume "$RESUME_SESSION" \
         -p "$SAFE_CONTINUATION_MSG" \
         --mcp-config "/root/workspace/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
@@ -251,19 +230,18 @@ if [[ -n "$RESUME_SESSION" ]]; then
         --output-format json \
         2>&1 | tee "$LOG_FILE")
 else
-    # Start new session - run from project root with workspace context
+    # Start new session
     SYSTEM_PROMPT=$(cat "$PROMPTS_DIR/delta_prompt.md")
     
-    # Add workspace context to the task message
-    WORKSPACE_CONTEXT="Working in: $WORK_DIR (am-agents-api workspace)"
+    # Simplify task message to avoid command issues
     SAFE_TASK_MSG=$(echo "$TASK_MSG" | tr '\n' ' ' | sed 's/"/\\"/g')
-    FULL_TASK_MSG="$WORKSPACE_CONTEXT - $SAFE_TASK_MSG"
     
-    # Debug
-    echo -e "${GREEN}[delta_UPPER]${NC} Starting Claude from project root..." | tee -a "$LOG_FILE"
-    echo "Task message: $FULL_TASK_MSG" | tee -a "$LOG_FILE"
-    echo -e "${GREEN}[delta_UPPER]${NC} Using system prompt from: $PROMPTS_DIR/delta_prompt.md" | tee -a "$LOG_FILE"
+    # Debug: Show that we're about to start
+    echo -e "${GREEN}[DELTA]${NC} Executing Claude..." | tee -a "$LOG_FILE"
+    echo "Task message: $SAFE_TASK_MSG" | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[DELTA]${NC} Using system prompt from: $PROMPTS_DIR/delta_prompt.md" | tee -a "$LOG_FILE"
     
+    # Execute claude and capture output
     CLAUDE_OUTPUT=$(claude -p "$SAFE_TASK_MSG" \
         --append-system-prompt "$SYSTEM_PROMPT" \
         --mcp-config "/root/workspace/.mcp.json" \
@@ -275,6 +253,14 @@ fi
 
 # Save output
 echo "$CLAUDE_OUTPUT" > "$OUTPUT_FILE"
+
+# Check if Claude actually produced output
+if [[ -z "$CLAUDE_OUTPUT" ]] || [[ ! -s "$OUTPUT_FILE" ]]; then
+    echo -e "${RED}[DELTA]${NC} Error: Claude did not produce any output" | tee -a "$LOG_FILE"
+    echo "Check if claude CLI is working: claude -p 'test'" | tee -a "$LOG_FILE"
+    send_whatsapp "❌ Delta failed to get response from Claude. Check logs at: $LOG_FILE"
+    exit 1
+fi
 
 # Extract session ID from Claude's JSON output (it's all on one line)
 SESSION_ID=$(echo "$CLAUDE_OUTPUT" | jq -r '.session_id // empty' 2>/dev/null | grep -v '^$' | tail -1)
