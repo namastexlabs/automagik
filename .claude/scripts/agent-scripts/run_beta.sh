@@ -214,16 +214,12 @@ if [[ ! -f "$WORK_DIR/pyproject.toml" ]]; then
     exit 1
 fi
 
-# Get workspace context but execute Claude from project root for MCP access
-echo -e "${GREEN}[BETA]${NC} Workspace directory: $WORK_DIR" | tee -a "$LOG_FILE"
-echo -e "${GREEN}[BETA]${NC} Executing Claude from project root for MCP access: $PROJECT_ROOT" | tee -a "$LOG_FILE"
-
-# Change to project root for Claude execution (MCP tools need this)
-cd "$PROJECT_ROOT"
+# Change to actual workspace for Claude execution
+cd "$WORK_DIR"
 
 # Verify we're in the right place and MCP tools are available
 echo -e "${GREEN}[BETA]${NC} Current directory: $(pwd)" | tee -a "$LOG_FILE"
-echo -e "${GREEN}[BETA]${NC} Checking MCP tools..." | tee -a "$LOG_FILE"
+echo -e "${GREEN}[BETA]${NC} Working in Beta's workspace: $WORK_DIR" | tee -a "$LOG_FILE"
 
 # Check if send_whatsapp_message tool is available
 MCP_CHECK=$(claude mcp list 2>/dev/null | grep "send_whatsapp_message" || echo "")
@@ -245,7 +241,7 @@ if [[ -n "$RESUME_SESSION" ]]; then
     CLAUDE_OUTPUT=$(claude \
         --resume "$RESUME_SESSION" \
         -p "$SAFE_CONTINUATION_MSG" \
-        --mcp-config "/root/workspace/.mcp.json" \
+        --mcp-config "$PROJECT_ROOT/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
         --max-turns "$MAX_TURNS" \
         --output-format json \
@@ -260,13 +256,13 @@ else
     FULL_TASK_MSG="$WORKSPACE_CONTEXT - $SAFE_TASK_MSG"
     
     # Debug
-    echo -e "${GREEN}[BETA]${NC} Starting Claude from project root..." | tee -a "$LOG_FILE"
+    echo -e "${GREEN}[BETA]${NC} Starting Claude from workspace..." | tee -a "$LOG_FILE"
     echo "Task message: $FULL_TASK_MSG" | tee -a "$LOG_FILE"
     echo -e "${GREEN}[BETA]${NC} Using system prompt from: $PROMPTS_DIR/beta_prompt.md" | tee -a "$LOG_FILE"
     
     CLAUDE_OUTPUT=$(claude -p "$SAFE_TASK_MSG" \
         --append-system-prompt "$SYSTEM_PROMPT" \
-        --mcp-config "/root/workspace/.mcp.json" \
+        --mcp-config "$PROJECT_ROOT/.mcp.json" \
         --allowedTools "$(load_allowed_tools)" \
         --max-turns "$MAX_TURNS" \
         --output-format json \
