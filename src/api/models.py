@@ -99,6 +99,14 @@ class AgentRunRequest(BaseResponseModel):
     system_prompt: Optional[str] = None  # Optional system prompt override
     user: Optional[UserCreate] = None  # Optional user data for creation/update
     
+    # LangGraph Orchestration Parameters
+    orchestration_config: Optional[Dict[str, Any]] = None  # Orchestration settings
+    target_agents: Optional[List[str]] = None  # Agents to coordinate with
+    workspace_paths: Optional[Dict[str, str]] = None  # Agent-specific workspace paths  
+    max_rounds: int = 3  # Maximum orchestration rounds
+    enable_rollback: bool = True  # Git rollback capability
+    enable_realtime: bool = False  # Real-time streaming updates
+    
     model_config = ConfigDict(
         exclude_none=True,
         json_schema_extra={
@@ -176,11 +184,37 @@ class AgentRunRequest(BaseResponseModel):
         }
     )
 
+class OrchestrationStatus(BaseResponseModel):
+    """Status information for LangGraph orchestration."""
+    is_orchestrated: bool = False
+    phase: Optional[str] = None  # current, completed, failed, aborted
+    round_number: Optional[int] = None
+    current_agent: Optional[str] = None
+    workflow_state: Optional[Dict[str, Any]] = None
+    total_agents: Optional[int] = None
+    completed_agents: Optional[List[str]] = None
+    failed_agents: Optional[List[str]] = None
+    rollback_available: bool = False
+    last_checkpoint: Optional[str] = None  # Git commit SHA
+    
 class AgentInfo(BaseResponseModel):
     """Information about an available agent."""
     id: int
     name: str
     description: Optional[str] = None
+
+class AgentRunResponse(BaseResponseModel):
+    """Response model for agent execution."""
+    status: str = "success"
+    message: str
+    session_id: Optional[str] = None
+    agent_name: str
+    execution_time: Optional[float] = None
+    # Orchestration status (only populated for LangGraph agents)
+    orchestration: Optional[OrchestrationStatus] = None
+    # Additional response data
+    data: Optional[Dict[str, Any]] = None
+    errors: Optional[List[str]] = None
 
 class HealthResponse(BaseResponseModel):
     """Response model for health check endpoint."""

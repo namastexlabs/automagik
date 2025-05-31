@@ -3,13 +3,14 @@
 import logging
 import uuid
 import inspect
+import time
 from typing import List, Optional, Dict, Any, Union
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 
 from src.agents.models.agent_factory import AgentFactory
 from src.memory.message_history import MessageHistory
-from src.api.models import AgentInfo, AgentRunRequest, UserCreate
+from src.api.models import AgentInfo, AgentRunRequest, AgentRunResponse, OrchestrationStatus, UserCreate
 from src.db import get_agent_by_name, get_user, create_user, User, ensure_default_user_exists
 from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
@@ -19,6 +20,105 @@ from src.db.repository.user import list_users
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+
+def is_langgraph_agent(agent_name: str) -> bool:
+    """Check if an agent is a LangGraph orchestration agent."""
+    return agent_name.startswith("langgraph-")
+
+
+def should_use_orchestration(agent_name: str, request: AgentRunRequest) -> bool:
+    """Determine if a request should use LangGraph orchestration."""
+    return (
+        is_langgraph_agent(agent_name) or
+        request.orchestration_config is not None or
+        request.target_agents is not None
+    )
+
+
+async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunRequest) -> AgentRunResponse:
+    """Handle LangGraph orchestrated agent execution."""
+    start_time = time.time()
+    
+    try:
+        # Import orchestration components
+        from src.agents.langgraph.shared.orchestrator import LangGraphOrchestrator
+        from src.agents.langgraph.shared.state_store import OrchestrationStateStore
+        
+        logger.info(f"Starting orchestrated execution for agent: {agent_name}")
+        
+        # Initialize orchestrator
+        orchestrator = LangGraphOrchestrator()
+        state_store = OrchestrationStateStore()
+        
+        # Generate session ID if not provided
+        session_id = request.session_id or str(uuid.uuid4())
+        
+        # Build orchestration config
+        orchestration_config = request.orchestration_config or {}
+        orchestration_config.update({
+            "target_agents": request.target_agents or ["beta", "gamma", "delta"],
+            "workspace_paths": request.workspace_paths or {},
+            "max_rounds": request.max_rounds,
+            "enable_rollback": request.enable_rollback,
+            "enable_realtime": request.enable_realtime
+        })
+        
+        # Initialize orchestration session
+        session_uuid = uuid.UUID(session_id) if isinstance(session_id, str) else session_id
+        initial_state = await orchestrator._initialize_state(
+            session_id=session_uuid,
+            agent_name=agent_name.replace("langgraph-", ""),  # Remove prefix for actual agent
+            task_message=request.message_content,
+            orchestration_config=orchestration_config
+        )
+        
+        # Store initial state
+        await state_store.save_state(session_uuid, initial_state)
+        
+        # Build orchestration status
+        orchestration_status = OrchestrationStatus(
+            is_orchestrated=True,
+            phase="initialized",
+            round_number=0,
+            current_agent=agent_name.replace("langgraph-", ""),
+            workflow_state=initial_state,
+            total_agents=len(orchestration_config["target_agents"]),
+            completed_agents=[],
+            failed_agents=[],
+            rollback_available=request.enable_rollback,
+            last_checkpoint=None
+        )
+        
+        execution_time = time.time() - start_time
+        
+        return AgentRunResponse(
+            status="success",
+            message=f"Orchestration session initialized for {agent_name}",
+            session_id=session_id,
+            agent_name=agent_name,
+            execution_time=execution_time,
+            orchestration=orchestration_status,
+            data={
+                "initial_state": initial_state,
+                "config": orchestration_config
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Orchestration failed for {agent_name}: {str(e)}", exc_info=True)
+        execution_time = time.time() - start_time
+        
+        return AgentRunResponse(
+            status="error",
+            message=f"Orchestration failed: {str(e)}",
+            session_id=request.session_id,
+            agent_name=agent_name,
+            execution_time=execution_time,
+            orchestration=OrchestrationStatus(is_orchestrated=True, phase="failed"),
+            errors=[str(e)]
+        )
+
 
 async def list_registered_agents() -> List[AgentInfo]:
     """
@@ -175,6 +275,25 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Ensure agent_name is a string
         if not isinstance(agent_name, str):
             agent_name = str(agent_name)
+        
+        # Check if this should use LangGraph orchestration
+        if should_use_orchestration(agent_name, request):
+            logger.info(f"Routing to orchestrated execution for agent: {agent_name}")
+            response = await handle_orchestrated_agent_run(agent_name, request)
+            # Convert to Dict format for backward compatibility
+            return {
+                "status": response.status,
+                "message": response.message,
+                "session_id": response.session_id,
+                "agent_name": response.agent_name,
+                "execution_time": response.execution_time,
+                "orchestration": response.orchestration.model_dump() if response.orchestration else None,
+                "data": response.data,
+                "errors": response.errors
+            }
+        
+        # Continue with regular agent execution for non-orchestrated agents
+        logger.info(f"Using regular execution for agent: {agent_name}")
         
         # Early check for nonexistent agents to bail out before creating any DB entries
         if "nonexistent" in agent_name:
