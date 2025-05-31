@@ -118,35 +118,52 @@ class AgentFactory:
         
     @classmethod
     def discover_agents(cls) -> None:
-        """Discover available agents in the simple folder.
+        """Discover available agents in the simple and langgraph folders.
         
-        This method automatically scans the src/agents/simple directory for agent modules
-        and registers them with the factory.
+        This method automatically scans the src/agents/simple and src/agents/langgraph 
+        directories for agent modules and registers them with the factory.
         """
-        logger.info("Discovering agents in simple folder")
+        logger.info("Discovering agents in simple and langgraph folders")
         
-        # Path to the simple agents directory
-        simple_dir = Path(os.path.dirname(os.path.dirname(__file__))) / "simple"
+        # Discover simple agents
+        cls._discover_agents_in_directory("simple")
         
-        if not simple_dir.exists():
-            logger.warning(f"Simple agents directory not found: {simple_dir}")
+        # Discover langgraph agents
+        cls._discover_agents_in_directory("langgraph")
+    
+    @classmethod
+    def _discover_agents_in_directory(cls, directory_name: str) -> None:
+        """Discover agents in a specific directory.
+        
+        Args:
+            directory_name: Name of the directory to scan (e.g., 'simple', 'langgraph')
+        """
+        logger.info(f"Discovering agents in {directory_name} folder")
+        
+        # Path to the agents directory
+        agents_dir = Path(os.path.dirname(os.path.dirname(__file__))) / directory_name
+        
+        if not agents_dir.exists():
+            logger.warning(f"{directory_name.title()} agents directory not found: {agents_dir}")
             return
             
         # Scan for agent directories
-        for item in simple_dir.iterdir():
-            if item.is_dir() and not item.name.startswith('__'):
+        for item in agents_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('__') and item.name != 'shared':
                 try:
                     # Try to import the module
-                    module_name = f"src.agents.simple.{item.name}"
+                    module_name = f"src.agents.{directory_name}.{item.name}"
                     module = importlib.import_module(module_name)
                     
                     # Check if the module has a create_agent function
                     if hasattr(module, "create_agent") and callable(module.create_agent):
                         # Use agent name as-is, no normalization
-                        cls.register_agent_creator(item.name, module.create_agent)
-                        logger.debug(f"Discovered and registered agent: {item.name}")
+                        # For langgraph agents, prefix with 'langgraph-' for disambiguation
+                        agent_name = f"langgraph-{item.name}" if directory_name == "langgraph" else item.name
+                        cls.register_agent_creator(agent_name, module.create_agent)
+                        logger.debug(f"Discovered and registered {directory_name} agent: {agent_name}")
                 except Exception as e:
-                    logger.error(f"Error importing agent from {item.name}: {str(e)}")
+                    logger.error(f"Error importing {directory_name} agent from {item.name}: {str(e)}")
     
     @classmethod
     def list_available_agents(cls) -> List[str]:
