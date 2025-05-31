@@ -11,7 +11,7 @@ LOGS_DIR="${BASE_DIR}/logs"
 SESSIONS_DIR="${BASE_DIR}/sessions"
 
 # Find the actual project root (where pyproject.toml exists)
-PROJECT_ROOT="/root/workspace/am-agents-labs"
+PROJECT_ROOT="/root/prod/am-agents-labs"
 if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]]; then
     # Try to find project root by looking for pyproject.toml
     CURRENT_DIR="$(pwd)"
@@ -24,12 +24,12 @@ if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]]; then
     done
 fi
 
-WORK_DIR="/root/workspace/am-agents-tests"
+WORK_DIR="/root/prod/am-agents-labs"
 
 # Agent configuration
 gamma="gamma"
 TASK_MSG="${1:-}"
-MAX_TURNS="${MAX_TURNS:-20}"
+MAX_TURNS="${MAX_TURNS:-200}"
 RESUME_SESSION="${RESUME_SESSION:-}"
 
 # TMux session management
