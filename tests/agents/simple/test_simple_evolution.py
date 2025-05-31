@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.simple.simple.agent import SimpleAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent
 from src.agents.common.evolution import EvolutionMessagePayload
 
 
@@ -68,9 +68,9 @@ class TestSimpleAgentEvolution:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await simple_agent.run(
                                                 "Test message",
@@ -185,9 +185,9 @@ class TestSimpleAgentEvolution:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             await simple_agent.run(
                                                 "Test group message",

@@ -1,6 +1,6 @@
-"""SummaryAgentAgent implementation.
+"""SummaryAgent implementation.
 
-This module provides the SummaryAgentAgent implementation that uses the common utilities
+This module provides the SummaryAgent implementation that uses the common utilities
 for message parsing, session management, and tool handling.
 """
 
@@ -9,32 +9,35 @@ import os
 import logging
 import traceback
 
-from src.agents.simple.summary.prompts.prompt import AGENT_PROMPT
-
 # Setup logging first
 logger = logging.getLogger(__name__)
 
 
 try:
-    from src.agents.simple.summary.agent import SummaryAgentAgent
+    from .agent import SummaryAgent
     from src.agents.models.placeholder import PlaceholderAgent
     
     # Standardized create_agent function
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
-        """Create a SummaryAgentAgent instance.
+        """Create a SummaryAgent instance.
         
         Args:
             config: Optional configuration dictionary
             
         Returns:
-            SummaryAgentAgent instance
+            SummaryAgent instance
         """
         if config is None:
             config = {}
         
-        return SummaryAgentAgent(config)
+        return SummaryAgent(config)
     
 except Exception as e:
-    logger.error(f"Failed to initialize SummaryAgentAgent module: {str(e)}")
+    logger.error(f"Failed to initialize SummaryAgent module: {str(e)}")
     logger.error(f"Traceback: {traceback.format_exc()}")
+    
+    # Create a placeholder function that returns an error agent
+    def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
+        """Create a placeholder agent due to initialization error."""
+        return PlaceholderAgent({"name": "summary_agent_error", "error": str(e)})
     

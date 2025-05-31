@@ -95,8 +95,8 @@ class AgentFactory:
         
         # Try dynamic import for agent types not explicitly registered
         try:
-            # Try to import from simple agents folder
-            module_path = f"src.agents.simple.{agent_type}"
+            # Try to import from pydanticai agents folder
+            module_path = f"src.agents.pydanticai.{agent_type}"
             module = importlib.import_module(module_path)
             
             if hasattr(module, "create_agent"):
