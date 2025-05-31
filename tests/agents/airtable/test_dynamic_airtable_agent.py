@@ -13,7 +13,7 @@ Usage:
 import asyncio
 import logging
 import time
-from src.agents.simple.sofia.specialized.airtable import (
+from src.agents.pydanticai.sofia.specialized.airtable import (
     fetch_airtable_schema, 
     build_dynamic_system_prompt,
     get_airtable_assistant,
