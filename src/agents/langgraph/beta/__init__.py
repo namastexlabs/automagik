@@ -16,3 +16,4 @@ def create_agent(config: Dict[str, str]) -> BetaAgent:
     Returns:
         BetaAgent instance
     """ 
+    return BetaAgent(config) 

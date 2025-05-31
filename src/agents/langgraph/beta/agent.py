@@ -32,8 +32,11 @@ class BetaAgent(AutomagikAgent):
         
         # Initialize dependencies
         self.dependencies = AutomagikAgentsDependencies(
-            tools=config.get("tools", "").split(",") if config.get("tools") else [],
-            config=config
+            user_id=config.get("user_id"),
+            session_id=config.get("session_id"),
+            api_keys=config.get("api_keys", {}),
+            model_name=config.get("model_name", "claude-3-5-sonnet-20241022"),
+            test_mode=config.get("test_mode", False)
         )
         
         # Register default tools
