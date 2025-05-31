@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.simple.simple.agent import SimpleAgent
-from src.agents.simple.sofia.agent import SofiaAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent
+from src.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestAgentParity:
@@ -97,9 +97,9 @@ class TestAgentParity:
                                 mock_simple.run = AsyncMock(return_value=mock_simple_result)
                                 
                                 # Mock extract functions for Simple
-                                with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             simple_result = await simple_agent.run(test_input)
         
@@ -114,11 +114,11 @@ class TestAgentParity:
                                 mock_sofia.run = AsyncMock(return_value=mock_sofia_result)
                                 
                                 # Mock extract functions for Sofia
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
                                             # Mock semaphore for Sofia
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
