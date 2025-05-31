@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Dict, Any
 import json  # Add json import
 import re  # Move re import here
 from fastapi import APIRouter, HTTPException, Request, Body
@@ -214,21 +214,46 @@ async def list_agents():
     """
     return await list_registered_agents()
 
-@agent_router.post("/agent/{agent_name}/run", tags=["Agents"],
-            summary="Run Agent",
-            description="Execute an agent with the specified name. Optionally provide a session ID or name to maintain conversation context.")
+@agent_router.post("/agent/{agent_name}/run", response_model=Dict[str, Any], tags=["Agents"],
+            summary="Run Agent with Optional LangGraph Orchestration",
+            description="Execute an agent with the specified name. Supports both simple agent execution and LangGraph orchestration for collaborative multi-agent workflows.")
 async def run_agent(
     agent_name: str,
-    agent_request: AgentRunRequest = Body(..., description="Agent request parameters")
+    agent_request: AgentRunRequest = Body(..., description="Agent request parameters with optional orchestration settings")
 ):
     """
     Run an agent with the specified parameters
 
+    **Basic Agent Execution:**
     - **message_content**: Text message to send to the agent (required)
     - **session_id**: Optional ID to maintain conversation context
     - **session_name**: Optional name for the session (creates a persistent session)
     - **message_type**: Optional message type identifier
     - **user_id**: Optional user ID to associate with the request
+    
+    **LangGraph Orchestration (activated automatically for langgraph-* agents):**
+    - **orchestration_config**: Orchestration settings and parameters
+    - **target_agents**: List of agents to coordinate with (e.g., ["beta", "gamma", "delta"])
+    - **workspace_paths**: Agent-specific workspace paths for isolated work
+    - **max_rounds**: Maximum orchestration rounds (default: 3)
+    - **enable_rollback**: Enable git rollback capabilities (default: true)
+    - **enable_realtime**: Enable real-time progress streaming (default: false)
+    
+    **Examples:**
+    ```
+    # Simple agent
+    POST /agent/simple/run
+    {"message_content": "Hello world"}
+    
+    # LangGraph orchestrated workflow
+    POST /agent/langgraph-alpha/run  
+    {
+      "message_content": "Implement user authentication API",
+      "target_agents": ["beta", "gamma", "delta"],
+      "max_rounds": 5,
+      "enable_rollback": true
+    }
+    ```
     """
     try:
         # Use session queue to ensure ordered processing per session
