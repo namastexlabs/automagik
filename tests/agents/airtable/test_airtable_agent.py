@@ -4,7 +4,7 @@ from typing import List
 import pytest
 import pytest_asyncio
 
-from src.agents.simple.sofia.specialized.airtable import get_airtable_assistant
+from src.agents.pydanticai.sofia.specialized.airtable import get_airtable_assistant
 from src.config import settings
 
 
