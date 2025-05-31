@@ -457,7 +457,7 @@ def verify_db_read_write():
                 INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
                 VALUES (%s, %s, %s, %s, %s)
                 """,
-                (safe_uuid(test_session_id), test_user_id, "verification_test", datetime.now(), datetime.now())
+                (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now())
             )
             
             # Insert test message
@@ -470,7 +470,7 @@ def verify_db_read_write():
                 (
                     safe_uuid(test_message_id),
                     safe_uuid(test_session_id),
-                    test_user_id,
+                    safe_uuid(test_user_id),
                     "user",
                     "Test database connection",
                     json.dumps({"content": "Test database connection"}),

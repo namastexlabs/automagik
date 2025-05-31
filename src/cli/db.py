@@ -26,8 +26,8 @@ def apply_migrations(cursor, logger=None):
         )
     """)
     
-    # Define migrations
-    migrations = [
+    # Define in-code migrations (legacy)
+    in_code_migrations = [
         ("add_user_data_column", """
             ALTER TABLE users 
             ADD COLUMN IF NOT EXISTS user_data JSONB;
@@ -59,11 +59,11 @@ def apply_migrations(cursor, logger=None):
         """),
     ]
     
-    # Apply migrations
+    # Apply in-code migrations first
     migration_success_count = 0
     migration_error_count = 0
     
-    for migration_name, migration_sql in migrations:
+    for migration_name, migration_sql in in_code_migrations:
         try:
             # Check if migration has already been applied
             cursor.execute(
@@ -91,6 +91,52 @@ def apply_migrations(cursor, logger=None):
             logger.error(f"❌ Failed to apply migration '{migration_name}': {e}")
             # Continue with other migrations
             continue
+    
+    # Apply file-based migrations from src/db/migrations/
+    try:
+        migrations_dir = Path("src/db/migrations")
+        if migrations_dir.exists():
+            # Get all SQL files and sort them by name (which includes timestamp)
+            migration_files = sorted(migrations_dir.glob("*.sql"))
+            
+            for migration_file in migration_files:
+                migration_name = migration_file.name
+                
+                try:
+                    # Check if migration has already been applied
+                    cursor.execute(
+                        "SELECT 1 FROM migrations WHERE name = %s",
+                        (migration_name,)
+                    )
+                    if cursor.fetchone():
+                        logger.info(f"Migration '{migration_name}' already applied, skipping.")
+                        continue
+                    
+                    # Read and apply migration
+                    logger.info(f"Applying file migration: {migration_name}")
+                    with open(migration_file, 'r') as f:
+                        migration_sql = f.read()
+                    
+                    cursor.execute(migration_sql)
+                    
+                    # Record migration
+                    cursor.execute(
+                        "INSERT INTO migrations (name) VALUES (%s)",
+                        (migration_name,)
+                    )
+                    migration_success_count += 1
+                    logger.info(f"✅ File migration '{migration_name}' applied successfully")
+                    
+                except Exception as e:
+                    migration_error_count += 1
+                    logger.error(f"❌ Failed to apply file migration '{migration_name}': {e}")
+                    # Continue with other migrations
+                    continue
+        else:
+            logger.warning("No migrations directory found at src/db/migrations/")
+    except Exception as e:
+        logger.error(f"❌ Error processing file migrations: {e}")
+        migration_error_count += 1
     
     if migration_error_count == 0:
         logger.info(f"✅ All {migration_success_count} migrations completed successfully")
@@ -276,7 +322,7 @@ def create_required_tables(
         table_exists = cursor.fetchone()[0]
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 email TEXT,
                 phone_number VARCHAR(50),
                 user_data JSONB,
@@ -295,7 +341,7 @@ def create_required_tables(
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id INTEGER REFERENCES users(id),
+                user_id UUID REFERENCES users(id),
                 agent_id INTEGER REFERENCES agents(id),
                 name VARCHAR(255),
                 platform VARCHAR(50),
@@ -317,7 +363,7 @@ def create_required_tables(
             CREATE TABLE IF NOT EXISTS messages (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 session_id UUID REFERENCES sessions(id),
-                user_id INTEGER REFERENCES users(id),
+                user_id UUID REFERENCES users(id),
                 agent_id INTEGER REFERENCES agents(id),
                 role VARCHAR(20) NOT NULL,
                 text_content TEXT,
@@ -331,6 +377,7 @@ def create_required_tables(
                 user_feedback TEXT,
                 flagged TEXT,
                 context JSONB,
+                channel_payload JSONB,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
@@ -350,7 +397,7 @@ def create_required_tables(
                 description TEXT,
                 content TEXT,
                 session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id UUID REFERENCES users(id) ON DELETE SET NULL,
                 agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
                 read_mode VARCHAR(50),
                 access VARCHAR(20),
