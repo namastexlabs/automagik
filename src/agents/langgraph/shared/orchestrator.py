@@ -246,8 +246,19 @@ class LangGraphOrchestrator:
         Returns:
             Initialized orchestration state
         """
-        # Create group chat session
-        group_chat_id = await self.messenger.create_group_chat_session(session_id)
+        # Extract agent IDs from orchestration config
+        target_agents = orchestration_config.get("target_agents", [agent_name])
+        # Map agent names to IDs (simplified approach - use index + 1)
+        agent_ids = [i + 1 for i in range(len(target_agents))]
+        
+        # Create group chat session with correct parameters
+        group_chat_success = self.messenger.create_group_chat_session(
+            orchestration_session_id=session_id,
+            agent_ids=agent_ids
+        )
+        
+        # Use session_id as group_chat_id if creation succeeded
+        group_chat_id = str(session_id) if group_chat_success else None
         
         # Get workspace paths from config
         workspace_paths = orchestration_config.get("workspace_paths", {})
@@ -260,7 +271,7 @@ class LangGraphOrchestrator:
             "session_id": uuid.uuid4(),  # Individual workflow session
             "orchestration_session_id": session_id,  # Parent orchestration session
             "current_agent": agent_name,
-            "target_agents": orchestration_config.get("target_agents", [agent_name]),
+            "target_agents": target_agents,
             "phase": OrchestrationPhase.INITIALIZATION.value,
             "round_number": 0,
             "max_rounds": orchestration_config.get("max_rounds", 3),
@@ -270,7 +281,7 @@ class LangGraphOrchestrator:
             "claude_session_id": None,
             "process_pid": None,
             "process_status": None,
-            "group_chat_id": str(group_chat_id) if group_chat_id else None,
+            "group_chat_id": group_chat_id,
             "task_message": task_message,
             "breakpoint_requested": False,
             "rollback_requested": False,

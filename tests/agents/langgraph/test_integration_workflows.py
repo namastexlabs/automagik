@@ -6,6 +6,7 @@ validating end-to-end workflows, multi-agent coordination, and system reliabilit
 
 import asyncio
 import pytest
+import subprocess
 import uuid
 import tempfile
 import shutil
