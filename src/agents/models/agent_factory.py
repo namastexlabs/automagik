@@ -95,8 +95,8 @@ class AgentFactory:
         
         # Try dynamic import for agent types not explicitly registered
         try:
-            # Try to import from simple agents folder
-            module_path = f"src.agents.simple.{agent_type}"
+            # Try to import from pydanticai agents folder
+            module_path = f"src.agents.pydanticai.{agent_type}"
             module = importlib.import_module(module_path)
             
             if hasattr(module, "create_agent"):
@@ -118,26 +118,26 @@ class AgentFactory:
         
     @classmethod
     def discover_agents(cls) -> None:
-        """Discover available agents in the simple folder.
+        """Discover available agents in the pydanticai folder.
         
-        This method automatically scans the src/agents/simple directory for agent modules
+        This method automatically scans the src/agents/pydanticai directory for agent modules
         and registers them with the factory.
         """
-        logger.info("Discovering agents in simple folder")
+        logger.info("Discovering agents in pydanticai folder")
         
-        # Path to the simple agents directory
-        simple_dir = Path(os.path.dirname(os.path.dirname(__file__))) / "simple"
+        # Path to the pydanticai agents directory
+        pydanticai_dir = Path(os.path.dirname(os.path.dirname(__file__))) / "pydanticai"
         
-        if not simple_dir.exists():
-            logger.warning(f"Simple agents directory not found: {simple_dir}")
+        if not pydanticai_dir.exists():
+            logger.warning(f"PydanticAI agents directory not found: {pydanticai_dir}")
             return
             
         # Scan for agent directories
-        for item in simple_dir.iterdir():
+        for item in pydanticai_dir.iterdir():
             if item.is_dir() and not item.name.startswith('__'):
                 try:
                     # Try to import the module
-                    module_name = f"src.agents.simple.{item.name}"
+                    module_name = f"src.agents.pydanticai.{item.name}"
                     module = importlib.import_module(module_name)
                     
                     # Check if the module has a create_agent function
@@ -147,6 +147,7 @@ class AgentFactory:
                         logger.debug(f"Discovered and registered agent: {item.name}")
                 except Exception as e:
                     logger.error(f"Error importing agent from {item.name}: {str(e)}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
     
     @classmethod
     def list_available_agents(cls) -> List[str]:
