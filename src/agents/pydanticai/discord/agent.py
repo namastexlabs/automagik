@@ -51,7 +51,8 @@ class DiscordAgent(AutomagikAgent):
         Args:
             config: Dictionary with configuration options
         """
-        from src.agents.simple.discord.prompts.prompt import AGENT_PROMPT
+        # Load and register the code-defined prompt
+        from .prompts.prompt import AGENT_PROMPT
         
         # Initialize the base agent
         super().__init__(config)

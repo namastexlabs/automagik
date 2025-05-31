@@ -1,7 +1,7 @@
 """Test Sofia Agent basic functionality."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from src.agents.simple.sofia.agent import SofiaAgent
+from src.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestSofiaAgent:

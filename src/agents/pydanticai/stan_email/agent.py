@@ -13,8 +13,7 @@ from pydantic_ai import Agent
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
-from src.agents.simple.stan_email.prompts.prompt import AGENT_PROMPT
-from src.agents.simple.stan_email.specialized import aproval_status_message_generator
+from .specialized import aproval_status_message_generator
 from src.db.repository import create_memory, list_messages, list_sessions, update_user
 from src.db.repository.user import get_user, update_user_data
 from src.memory.message_history import MessageHistory
@@ -49,7 +48,7 @@ class StanEmailAgent(AutomagikAgent):
         Args:
             config: Dictionary with configuration options
         """
-        from src.agents.simple.stan_email.prompts.prompt import AGENT_PROMPT
+        from .prompts.prompt import AGENT_PROMPT
         
         # Initialize the base agent
         super().__init__(config)
