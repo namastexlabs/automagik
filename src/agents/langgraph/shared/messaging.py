@@ -330,3 +330,80 @@ class OrchestrationMessenger:
         except Exception as e:
             logger.error(f"Error injecting chat context: {str(e)}")
             return base_prompt  # Return original prompt on error 
+
+    @staticmethod
+    async def send_group_message(
+        group_session_id: str,
+        from_agent_name: str,
+        message: str
+    ) -> bool:
+        """Send message to group chat from an agent.
+        
+        Args:
+            group_session_id: Group chat session ID (UUID as string)
+            from_agent_name: Name of the sending agent
+            message: Message content
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Convert group_session_id to UUID
+            session_uuid = uuid.UUID(group_session_id)
+            
+            # Use agent ID 1 as default system messenger
+            # In future, this could map agent names to IDs
+            system_messenger = AgentMessenger(session_uuid, agent_id=1)
+            
+            # Format message with sender information
+            formatted_message = f"[{from_agent_name}] {message}"
+            
+            # Send as broadcast message
+            message_id = system_messenger.send_message(
+                formatted_message,
+                target_agent_id=None,  # Broadcast to all
+                message_type="orchestration"
+            )
+            
+            if message_id:
+                logger.info(f"Group message sent from {from_agent_name}: {message[:50]}...")
+                return True
+            else:
+                logger.error(f"Failed to send group message from {from_agent_name}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending group message from {from_agent_name}: {str(e)}")
+            return False
+
+    @staticmethod
+    async def prepare_chat_context(group_chat_id: str) -> str:
+        """Prepare chat context for agent prompts.
+        
+        Args:
+            group_chat_id: Group chat session ID (UUID as string)
+            
+        Returns:
+            Formatted chat context string
+        """
+        try:
+            # Convert group_chat_id to UUID
+            session_uuid = uuid.UUID(group_chat_id)
+            
+            # Use system messenger to get chat history
+            system_messenger = AgentMessenger(session_uuid, agent_id=1)
+            
+            # Get recent chat history
+            chat_history = system_messenger.get_chat_history(limit=10)
+            
+            # Add context header
+            context = f"\n\n=== TEAM COORDINATION CONTEXT ===\n"
+            context += "Recent inter-agent communications:\n\n"
+            context += chat_history
+            context += "\n=== END CONTEXT ===\n"
+            
+            return context
+            
+        except Exception as e:
+            logger.error(f"Error preparing chat context: {str(e)}")
+            return "\n\n=== TEAM COORDINATION CONTEXT ===\n(Error loading chat context)\n=== END CONTEXT ===\n" 
