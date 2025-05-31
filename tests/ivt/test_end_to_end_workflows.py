@@ -8,9 +8,8 @@ import pytest
 import asyncio
 from typing import Dict, Any
 from unittest.mock import patch, AsyncMock, MagicMock
-
-from src.agents.simple.simple.agent import SimpleAgent
-from src.agents.simple.sofia.agent import SofiaAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent
+from src.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestEndToEndWorkflows:
@@ -87,9 +86,9 @@ class TestEndToEndWorkflows:
             mock_agent.run.return_value.data = "I'll remember your preference for detailed technical explanations."
             
             # Mock extract functions
-            with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]), \
-                 patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=[]), \
-                 patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
+            with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                 
                 # Execute workflow
                 response = await simple_agent.run(
@@ -134,9 +133,9 @@ class TestEndToEndWorkflows:
             # Create mock messages for the agent to process
             mock_messages = [{'type': 'assistant', 'content': 'mock message'}]
             
-            with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=mock_messages), \
-                 patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=mock_tool_calls), \
-                 patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
+            with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=mock_messages), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=mock_tool_calls), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                 
                 # Execute multimodal workflow
                 response = await simple_agent.run(
@@ -190,10 +189,10 @@ class TestEndToEndWorkflows:
             # Create mock messages for the agent to process
             mock_messages = [{'type': 'assistant', 'content': 'mock message'}]
             
-            with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=mock_messages), \
-                 patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=mock_tool_calls), \
-                 patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]), \
-                 patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+            with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=mock_messages), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=mock_tool_calls), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]), \
+                 patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                 
                 mock_sem = AsyncMock()
                 mock_semaphore.return_value = mock_sem
@@ -264,13 +263,13 @@ class TestEndToEndWorkflows:
             sofia_mock.run = AsyncMock(return_value=type('obj', (object,), {'data': 'Sofia agent processed request'}))
             
             # Mock extract functions for both
-            with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]), \
-                 patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=[]), \
-                 patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]), \
-                 patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]), \
-                 patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]), \
-                 patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]), \
-                 patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+            with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]), \
+                 patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                 
                 mock_sem = AsyncMock()
                 mock_semaphore.return_value = mock_sem
@@ -319,9 +318,9 @@ class TestEndToEndWorkflows:
             mock_agent.run.return_value.data = "Based on your preference for detailed technical explanations, here's the comprehensive analysis..."
             
             # Mock extract functions
-            with patch('src.agents.simple.simple.agent.extract_all_messages', return_value=[]), \
-                 patch('src.agents.simple.simple.agent.extract_tool_calls', return_value=[]), \
-                 patch('src.agents.simple.simple.agent.extract_tool_outputs', return_value=[]):
+            with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]), \
+                 patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                 
                 # Execute memory template workflow
                 response = await simple_agent.run(user_input)
@@ -366,10 +365,10 @@ class TestEndToEndWorkflows:
             # Create mock messages for the agent to process
             mock_messages = [{'type': 'assistant', 'content': 'mock message'}]
             
-            with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=mock_messages), \
-                 patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=mock_tool_calls), \
-                 patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]), \
-                 patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+            with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=mock_messages), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=mock_tool_calls), \
+                 patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]), \
+                 patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                 
                 mock_sem = AsyncMock()
                 mock_semaphore.return_value = mock_sem
