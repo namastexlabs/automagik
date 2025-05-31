@@ -21,7 +21,7 @@ from __future__ import annotations
 # Re-export the model from its original location.  Keeping a local alias makes
 # the public symbol independent of the original module path, so callers only
 # ever need to import *here*.
-from src.agents.simple.stan.models import (
+from src.agents.pydanticai.stan.models import (
     EvolutionMessagePayload as _EvolutionMessagePayload,
 )
 
