@@ -167,11 +167,20 @@ class LangGraphOrchestrator:
             workflow.add_node("rollback", rollback_node)
             
             # Add agent execution nodes (wrapped for the supervisor pattern)
-            workflow.add_node("alpha", lambda s: self._run_agent_node(s, "alpha"))
-            workflow.add_node("beta", lambda s: self._run_agent_node(s, "beta"))
-            workflow.add_node("gamma", lambda s: self._run_agent_node(s, "gamma"))
-            workflow.add_node("delta", lambda s: self._run_agent_node(s, "delta"))
-            workflow.add_node("epsilon", lambda s: self._run_agent_node(s, "epsilon"))
+            # Use direct method references instead of lambdas to avoid coroutine issues
+            async def run_alpha(state): return await self._run_agent_node(state, "alpha")
+            async def run_beta(state): return await self._run_agent_node(state, "beta")
+            async def run_gamma(state): return await self._run_agent_node(state, "gamma")
+            async def run_delta(state): return await self._run_agent_node(state, "delta")
+            async def run_epsilon(state): return await self._run_agent_node(state, "epsilon")
+            async def run_genie(state): return await self._run_agent_node(state, "genie")
+            
+            workflow.add_node("alpha", run_alpha)
+            workflow.add_node("beta", run_beta)
+            workflow.add_node("gamma", run_gamma)
+            workflow.add_node("delta", run_delta)
+            workflow.add_node("epsilon", run_epsilon)
+            workflow.add_node("genie", run_genie)
             
             # Entry point: Always check Slack first
             workflow.add_edge(START, "slack_monitor")
@@ -201,6 +210,7 @@ class LangGraphOrchestrator:
                     "gamma": "gamma",
                     "delta": "delta",
                     "epsilon": "epsilon",
+                    "genie": "genie",
                     "wait": "wait",
                     "human_feedback": "human_feedback",
                     "rollback": "rollback",
@@ -209,7 +219,7 @@ class LangGraphOrchestrator:
             )
             
             # All nodes eventually go back to slack monitor (except END)
-            for node in ["alpha", "beta", "gamma", "delta", "epsilon", "wait", "human_feedback", "rollback"]:
+            for node in ["alpha", "beta", "gamma", "delta", "epsilon", "genie", "wait", "human_feedback", "rollback"]:
                 workflow.add_edge(node, "slack_monitor")
             
             # Compile the workflow with checkpointer for persistence
@@ -374,6 +384,8 @@ class LangGraphOrchestrator:
             "epic_id": orchestration_config.get("epic_id"),
             "linear_project_id": orchestration_config.get("linear_project_id"),
             "epic_may_be_complete": False,
+            "slack_thread_ts": orchestration_config.get("slack_thread_ts"),
+            "slack_channel_id": "C08UF878N3Z",  # The genie group channel
             "messages": []
         }
         

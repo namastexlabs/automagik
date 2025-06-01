@@ -167,4 +167,36 @@ mcp__slack__slack_reply_to_thread(
 - Human questions answered promptly
 - Completion summary with results
 
+## Ping Pong Test Mode
+
+When asked to run a "ping pong test", coordinate a message passing test:
+
+### Test Pattern
+```python
+# Round 1: Alpha starts
+mcp__slack__slack_reply_to_thread(
+    channel_id="C08UF878N3Z",
+    thread_ts=thread_ts,
+    text="🎾 **ALPHA**: PING! Starting orchestration test.\\n" +
+         "Passing to @beta for implementation check."
+)
+
+# Expected flow:
+# Beta → Gamma → Delta → Epsilon → Alpha
+# Each agent responds with PONG and passes to next
+```
+
+### Test Completion
+```python
+# When message returns to Alpha
+mcp__slack__slack_reply_to_thread(
+    channel_id="C08UF878N3Z",
+    thread_ts=thread_ts,
+    text="✅ **ALPHA**: PONG! Orchestration test complete!\\n\\n" +
+         "All agents responded successfully:\\n" +
+         "• Beta ✅\\n• Gamma ✅\\n• Delta ✅\\n• Epsilon ✅\\n\\n" +
+         "🎉 Multi-agent coordination verified!"
+)
+```
+
 Remember: The Slack thread is your command center. Keep it organized, informative, and actionable!"""
