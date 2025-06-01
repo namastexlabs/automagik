@@ -282,16 +282,21 @@ def mark_complete(
 async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
     """Enhanced supervisor using MCP tools with GPT-4.1."""
     
-    # Post initial message to Slack if this is the first round
-    if state["round_number"] == 0:
-        if state.get("slack_thread_ts"):
-            await MCPToolExecutor.execute_mcp_tool(
-                "mcp__slack__slack_post_message",
-                {
-                    "channel_id": "C08UF878N3Z",
-                    "text": f"🚀 Starting orchestration for epic {state.get('epic_id', 'Unknown')}\nTask: {state.get('task_message', 'No task specified')}"
-                }
-            )
+    # Create Slack thread on first round if Slack is enabled
+    if state["round_number"] == 0 and state["orchestration_config"].get("slack_notifications"):
+        # Post initial message to create thread
+        slack_result = await MCPToolExecutor.execute_mcp_tool(
+            "mcp__slack__slack_post_message",
+            {
+                "channel_id": state.get("slack_channel_id", "C08UF878N3Z"),
+                "text": f"🚀 Starting orchestration for epic {state.get('epic_id', 'Unknown')}\nTask: {state.get('task_message', 'No task specified')}\n\n_All updates will be posted in this thread_"
+            }
+        )
+        
+        # Extract thread timestamp from response
+        if slack_result and isinstance(slack_result, dict) and slack_result.get("ts"):
+            state["slack_thread_ts"] = slack_result["ts"]
+            logger.info(f"Created Slack thread: {state['slack_thread_ts']}")
         
         # Send WhatsApp notification to group if configured
         if state["orchestration_config"].get("whatsapp_notifications"):
@@ -446,7 +451,7 @@ Task: {
                     await MCPToolExecutor.execute_mcp_tool(
                         "mcp__slack__slack_reply_to_thread",
                         {
-                            "channel_id": "C08UF878N3Z",
+                            "channel_id": state.get("slack_channel_id", "C08UF878N3Z"),
                             "thread_ts": state["slack_thread_ts"],
                             "text": f"🔄 Routing to {agent}: {tool_call['args']['reason']}"
                         }
@@ -467,7 +472,7 @@ Task: {
                     await MCPToolExecutor.execute_mcp_tool(
                         "mcp__slack__slack_reply_to_thread",
                         {
-                            "channel_id": "C08UF878N3Z",
+                            "channel_id": state.get("slack_channel_id", "C08UF878N3Z"),
                             "thread_ts": state["slack_thread_ts"],
                             "text": f"✅ Epic complete: {tool_call['args']['summary']}"
                         }

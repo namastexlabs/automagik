@@ -1,0 +1,43 @@
+{
+  "agentName": "genie",
+  "description": "General purpose agent with full capabilities",
+  "permissions": {
+    "allow": [
+      "Task",
+      "Bash(*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "NotebookRead",
+      "NotebookEdit",
+      "WebFetch",
+      "TodoRead",
+      "TodoWrite",
+      "WebSearch",
+      "mcp__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf /)",
+      "Bash(> /dev/sda*)",
+      "Bash(dd if=/dev/zero*)",
+      "Bash(:(){ :|:& };:)"
+    ]
+  },
+  "focusAreas": {
+    "directories": [
+      "*"
+    ],
+    "responsibilities": [
+      "General development tasks",
+      "Cross-component work",
+      "Initial epic creation",
+      "Exploratory development",
+      "Full system access"
+    ]
+  }
+}
