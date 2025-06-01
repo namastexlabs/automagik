@@ -42,12 +42,18 @@ Routing guidelines:
 4. Send WhatsApp alerts when human input is urgently needed
 5. Post status updates to Slack when switching agents
 
+Special handling for ping-pong tests:
+If the task mentions "ping pong test", route agents in this order:
+alpha → beta → gamma → delta → epsilon → alpha (and repeat if more rounds)
+Each agent should receive context about the ping pong test.
+
 Available agents:
 - alpha: Orchestrator and project manager
 - beta: Core implementation 
 - gamma: Quality assurance and testing
 - delta: API development
 - epsilon: Tools and integrations
+- genie: Meta-orchestrator for complex workflows
 
 Make informed routing decisions based on actual project state, not assumptions.
 """
@@ -93,26 +99,91 @@ def create_handoff_tools():
     """Create tools for handing off to each agent."""
     tools = []
     
-    for agent_name in ["alpha", "beta", "gamma", "delta", "epsilon"]:
-        @tool(name=f"transfer_to_{agent_name}")
-        def handoff_tool(
-            reason: str = Field(description=f"Reason for transferring to {agent_name}"),
-            context: str = Field(description="Context to pass to the agent")
-        ) -> Dict[str, Any]:
-            f"""Transfer control to {agent_name} agent."""
-            return {
-                "agent": agent_name,
-                "reason": reason,
-                "context": context
-            }
-        
-        tools.append(handoff_tool)
+    # Create transfer to alpha
+    @tool
+    def transfer_to_alpha(
+        reason: str = Field(description="Reason for transferring to alpha"),
+        context: str = Field(description="Context to pass to the agent")
+    ) -> Dict[str, Any]:
+        """Transfer control to alpha agent."""
+        return {
+            "agent": "alpha",
+            "reason": reason,
+            "context": context
+        }
+    
+    # Create transfer to beta
+    @tool
+    def transfer_to_beta(
+        reason: str = Field(description="Reason for transferring to beta"),
+        context: str = Field(description="Context to pass to the agent")
+    ) -> Dict[str, Any]:
+        """Transfer control to beta agent."""
+        return {
+            "agent": "beta",
+            "reason": reason,
+            "context": context
+        }
+    
+    # Create transfer to gamma
+    @tool
+    def transfer_to_gamma(
+        reason: str = Field(description="Reason for transferring to gamma"),
+        context: str = Field(description="Context to pass to the agent")
+    ) -> Dict[str, Any]:
+        """Transfer control to gamma agent."""
+        return {
+            "agent": "gamma",
+            "reason": reason,
+            "context": context
+        }
+    
+    # Create transfer to delta
+    @tool
+    def transfer_to_delta(
+        reason: str = Field(description="Reason for transferring to delta"),
+        context: str = Field(description="Context to pass to the agent")
+    ) -> Dict[str, Any]:
+        """Transfer control to delta agent."""
+        return {
+            "agent": "delta",
+            "reason": reason,
+            "context": context
+        }
+    
+    # Create transfer to epsilon
+    @tool
+    def transfer_to_epsilon(
+        reason: str = Field(description="Reason for transferring to epsilon"),
+        context: str = Field(description="Context to pass to the agent")
+    ) -> Dict[str, Any]:
+        """Transfer control to epsilon agent."""
+        return {
+            "agent": "epsilon",
+            "reason": reason,
+            "context": context
+        }
+    
+    # Create transfer to genie
+    @tool
+    def transfer_to_genie(
+        reason: str = Field(description="Reason for transferring to genie"),
+        context: str = Field(description="Context to pass to the agent")
+    ) -> Dict[str, Any]:
+        """Transfer control to genie agent."""
+        return {
+            "agent": "genie",
+            "reason": reason,
+            "context": context
+        }
+    
+    tools = [transfer_to_alpha, transfer_to_beta, transfer_to_gamma, transfer_to_delta, transfer_to_epsilon, transfer_to_genie]
     
     return tools
 
 
 # MCP tool wrappers
-@tool(name="check_slack_thread")
+@tool
 async def check_slack_thread(
     thread_ts: str = Field(description="Slack thread timestamp"),
     channel_id: str = Field(description="Slack channel ID")
@@ -125,7 +196,7 @@ async def check_slack_thread(
     return result
 
 
-@tool(name="post_to_slack")
+@tool
 async def post_to_slack(
     message: str = Field(description="Message to post"),
     thread_ts: str = Field(description="Thread to post in"),
@@ -139,7 +210,7 @@ async def post_to_slack(
     return result
 
 
-@tool(name="check_linear_tasks")
+@tool
 async def check_linear_tasks(
     project_id: str = Field(description="Linear project ID")
 ) -> Dict[str, Any]:
@@ -151,7 +222,7 @@ async def check_linear_tasks(
     return result
 
 
-@tool(name="send_whatsapp_alert")
+@tool
 async def send_whatsapp_alert(
     message: str = Field(description="Alert message"),
     phone_number: Optional[str] = Field(None, description="Phone number")
@@ -164,7 +235,7 @@ async def send_whatsapp_alert(
     return result
 
 
-@tool(name="wait_for_human")
+@tool
 def wait_for_human(
     context: str = Field(description="What we're waiting for")
 ) -> Dict[str, Any]:
@@ -175,7 +246,7 @@ def wait_for_human(
     }
 
 
-@tool(name="mark_complete")
+@tool
 def mark_complete(
     summary: str = Field(description="Summary of completed work")
 ) -> Dict[str, Any]:
@@ -234,10 +305,14 @@ async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
     if state["stall_counter"] > 0:
         context_parts.append(f"Warning: No progress for {state['stall_counter'] * 30} minutes")
     
+    # Add task message if no Slack thread
+    if not state.get('slack_thread_ts') and state.get('task_message'):
+        context_parts.insert(0, f"Task: {state['task_message']}")
+    
     context_message = f"""
 Current State:
 - Epic: {state.get('epic_id', 'Unknown')}
-- Slack Thread: {state.get('slack_thread_ts', 'Unknown')}  
+- Slack Thread: {state.get('slack_thread_ts', 'None')}  
 - Current Agent: {state.get('current_agent', 'None')}
 - Round: {state['round_number']}/{state['max_rounds']}
 - Agents Run: {', '.join(state['agent_handoffs'])}
@@ -246,7 +321,7 @@ Context:
 {chr(10).join(context_parts)}
 
 Task: Analyze the current state and decide the next action. 
-Use tools to check Slack and Linear before making routing decisions.
+{"Use tools to check Slack and Linear before making routing decisions." if state.get('slack_thread_ts') else "Route to appropriate agent based on the task."}
 """
     
     # Get supervisor response
@@ -268,12 +343,16 @@ Use tools to check Slack and Linear before making routing decisions.
                 state["agent_context"] = tool_call["args"]["context"]
                 state["agent_handoffs"].append(agent)
                 
-                # Log to Slack
-                await post_to_slack(
-                    message=f"🔄 Routing to {agent}: {tool_call['args']['reason']}",
-                    thread_ts=state.get("slack_thread_ts", ""),
-                    channel_id=state.get("slack_channel_id", "")
-                )
+                # Log to Slack (skip if no thread)
+                if state.get("slack_thread_ts"):
+                    await MCPToolExecutor.execute_mcp_tool(
+                        "mcp__slack__slack_reply_to_thread",
+                        {
+                            "channel_id": "C08UF878N3Z",
+                            "thread_ts": state["slack_thread_ts"],
+                            "text": f"🔄 Routing to {agent}: {tool_call['args']['reason']}"
+                        }
+                    )
                 
                 return state
             
@@ -286,11 +365,15 @@ Use tools to check Slack and Linear before making routing decisions.
             
             # Handle completion
             elif tool_name == "mark_complete":
-                await post_to_slack(
-                    message=f"✅ Epic complete: {tool_call['args']['summary']}",
-                    thread_ts=state.get("slack_thread_ts", ""),
-                    channel_id=state.get("slack_channel_id", "")
-                )
+                if state.get("slack_thread_ts"):
+                    await MCPToolExecutor.execute_mcp_tool(
+                        "mcp__slack__slack_reply_to_thread",
+                        {
+                            "channel_id": "C08UF878N3Z",
+                            "thread_ts": state["slack_thread_ts"],
+                            "text": f"✅ Epic complete: {tool_call['args']['summary']}"
+                        }
+                    )
                 state["next_agent"] = END
                 return state
     
@@ -303,7 +386,7 @@ async def slack_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
     """Monitor Slack for new messages and commands."""
     
     if not state.get("slack_thread_ts"):
-        logger.warning("No Slack thread configured, skipping monitor")
+        logger.debug("No Slack thread configured, skipping monitor")
         return state
     
     try:
@@ -311,7 +394,7 @@ async def slack_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
         result = await MCPToolExecutor.execute_mcp_tool(
             "mcp__slack__slack_get_thread_replies",
             {
-                "channel_id": state.get("slack_channel_id", "C08UF878N3Z"),
+                "channel_id": "C08UF878N3Z",  # The genie group channel
                 "thread_ts": state["slack_thread_ts"]
             }
         )
@@ -347,11 +430,15 @@ async def slack_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
                         force=True
                     )
                     if killed:
-                        await post_to_slack(
-                            message="🛑 Killed active Claude process",
-                            thread_ts=state["slack_thread_ts"],
-                            channel_id=state["slack_channel_id"]
-                        )
+                        if state.get("slack_thread_ts"):
+                            await MCPToolExecutor.execute_mcp_tool(
+                                "mcp__slack__slack_reply_to_thread",
+                                {
+                                    "channel_id": "C08UF878N3Z",
+                                    "thread_ts": state["slack_thread_ts"],
+                                    "text": "🛑 Killed active Claude process"
+                                }
+                            )
             
             # Rollback commands
             elif any(cmd in text for cmd in ["revert", "rollback", "undo"]):
@@ -421,11 +508,15 @@ async def progress_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
             
             if not open_issues and issues:
                 state["epic_may_be_complete"] = True
-                await post_to_slack(
-                    message="✅ All Linear tasks complete. Should we close this epic?",
-                    thread_ts=state.get("slack_thread_ts", ""),
-                    channel_id=state.get("slack_channel_id", "")
-                )
+                if state.get("slack_thread_ts"):
+                    await MCPToolExecutor.execute_mcp_tool(
+                        "mcp__slack__slack_reply_to_thread",
+                        {
+                            "channel_id": "C08UF878N3Z",
+                            "thread_ts": state["slack_thread_ts"],
+                            "text": "✅ All Linear tasks complete. Should we close this epic?"
+                        }
+                    )
     
     except Exception as e:
         logger.error(f"Progress monitor error: {e}")
@@ -439,11 +530,15 @@ async def human_feedback_node(state: OrchestrationState) -> Dict[str, Any]:
     if not state["awaiting_human_feedback"]:
         # Post to Slack
         context = state.get("human_feedback_context", "Human input needed")
-        await post_to_slack(
-            message=f"🤖 {context}. Please respond in this thread.",
-            thread_ts=state.get("slack_thread_ts", ""),
-            channel_id=state.get("slack_channel_id", "")
-        )
+        if state.get("slack_thread_ts"):
+            await MCPToolExecutor.execute_mcp_tool(
+                "mcp__slack__slack_reply_to_thread",
+                {
+                    "channel_id": "C08UF878N3Z",
+                    "thread_ts": state["slack_thread_ts"],
+                    "text": f"🤖 {context}. Please respond in this thread."
+                }
+            )
         
         # Send WhatsApp if not already sent
         if not state.get("whatsapp_alert_sent") and state.get("human_phone_number"):
@@ -491,20 +586,28 @@ async def rollback_node(state: OrchestrationState) -> Dict[str, Any]:
             )
             
             if success:
-                await post_to_slack(
-                    message=f"✅ Rolled back to {rollback_sha[:8]}",
-                    thread_ts=state.get("slack_thread_ts", ""),
-                    channel_id=state.get("slack_channel_id", "")
-                )
+                if state.get("slack_thread_ts"):
+                    await MCPToolExecutor.execute_mcp_tool(
+                        "mcp__slack__slack_reply_to_thread",
+                        {
+                            "channel_id": "C08UF878N3Z",
+                            "thread_ts": state["slack_thread_ts"],
+                            "text": f"✅ Rolled back to {rollback_sha[:8]}"
+                        }
+                    )
                 # Remove last run
                 if state["completed_runs"]:
                     state["completed_runs"].pop()
             else:
-                await post_to_slack(
-                    message=f"❌ Failed to rollback to {rollback_sha[:8]}",
-                    thread_ts=state.get("slack_thread_ts", ""),
-                    channel_id=state.get("slack_channel_id", "")
-                )
+                if state.get("slack_thread_ts"):
+                    await MCPToolExecutor.execute_mcp_tool(
+                        "mcp__slack__slack_reply_to_thread",
+                        {
+                            "channel_id": "C08UF878N3Z",
+                            "thread_ts": state["slack_thread_ts"],
+                            "text": f"❌ Failed to rollback to {rollback_sha[:8]}"
+                        }
+                    )
     
     state["rollback_requested"] = False
     state["rollback_to_sha"] = None

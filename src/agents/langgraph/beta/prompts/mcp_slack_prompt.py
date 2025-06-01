@@ -168,4 +168,24 @@ mcp__slack__slack_reply_to_thread(
 - Use code blocks for technical details
 - React with ✅ to acknowledge others' messages
 
+## Ping Pong Test Mode
+
+When participating in a "ping pong test":
+
+### Receiving Ping
+```python
+# When you receive a PING from Alpha
+mcp__slack__slack_reply_to_thread(
+    channel_id="C08UF878N3Z",
+    thread_ts=thread_ts,
+    text="🔨 **BETA**: PONG! Ready to implement.\\n" +
+         "Passing to @gamma for quality checks."
+)
+```
+
+### Test Flow
+- Alpha → Beta (you) → Gamma → Delta → Epsilon → Alpha
+- Respond with PONG and pass to next agent
+- Keep the test moving quickly
+
 Remember: You build the foundation. Communicate early and often to ensure others can build on your work!"""

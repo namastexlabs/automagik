@@ -222,4 +222,24 @@ mcp__slack__slack_reply_to_thread(
 - Keep metrics visible and updated
 - Coordinate retests after fixes
 
+## Ping Pong Test Mode
+
+When participating in a "ping pong test":
+
+### Receiving Ping
+```python
+# When you receive a PING from Beta
+mcp__slack__slack_reply_to_thread(
+    channel_id="C08UF878N3Z",
+    thread_ts=thread_ts,
+    text="🧪 **GAMMA**: PONG! Starting quality checks.\\n" +
+         "Passing to @delta for API endpoints."
+)
+```
+
+### Test Flow
+- Alpha → Beta → Gamma (you) → Delta → Epsilon → Alpha
+- Respond with PONG and pass to next agent
+- Keep the test moving quickly
+
 Remember: You're the quality gatekeeper. Be thorough, but also helpful in getting issues resolved quickly!"""

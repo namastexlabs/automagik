@@ -286,12 +286,16 @@ class EnhancedCLINode(CLINode):
             # Add system prompt based on agent name
             prompt_file = f"/root/prod/am-agents-labs/.claude/agents-prompts/{agent_name}_prompt.md"
             if os.path.exists(prompt_file):
-                cmd.extend(["--append-system-prompt", prompt_file])
+                with open(prompt_file, 'r') as f:
+                    prompt_content = f.read()
+                cmd.extend(["--append-system-prompt", prompt_content])
             else:
                 # Try alternative location
                 alt_prompt_file = f"/root/workspace/.claude/agents-prompts/{agent_name}_prompt.md" 
                 if os.path.exists(alt_prompt_file):
-                    cmd.extend(["--append-system-prompt", alt_prompt_file])
+                    with open(alt_prompt_file, 'r') as f:
+                        prompt_content = f.read()
+                    cmd.extend(["--append-system-prompt", prompt_content])
         
         # Find MCP config - check workspace root first, then parent
         if not mcp_config_path:
