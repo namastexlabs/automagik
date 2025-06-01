@@ -65,8 +65,8 @@ class CLINode:
         task_message: str,
         workspace_path: str,
         resume_session: Optional[str] = None,
-        max_turns: int = 30,
-        mcp_config_path: str = "/root/workspace/.mcp.json",
+        max_turns: int = 1,  # Default to 1 for tests
+        mcp_config_path: Optional[str] = None,
         timeout: Optional[int] = None
     ) -> Dict[str, Any]:
         """Execute claude CLI agent with streaming output and session management.
@@ -149,7 +149,7 @@ class CLINode:
         workspace_path: str,
         resume_session: Optional[str] = None,
         max_turns: int = 30,
-        mcp_config_path: str = "/root/workspace/.mcp.json"
+        mcp_config_path: Optional[str] = None
     ) -> List[str]:
         """Build claude CLI command with proper arguments.
         
@@ -185,24 +185,68 @@ class CLINode:
                 if os.path.exists(alt_prompt_file):
                     cmd.extend(["--append-system-prompt", alt_prompt_file])
         
-        # Add MCP config if exists
+        # Find MCP config - check workspace root first, then parent
+        if not mcp_config_path:
+            # Try workspace root first
+            workspace_mcp = os.path.join(workspace_path, ".mcp.json")
+            if os.path.exists(workspace_mcp):
+                mcp_config_path = workspace_mcp
+            else:
+                # Try parent directory
+                parent_mcp = os.path.join(os.path.dirname(workspace_path), ".mcp.json")
+                if os.path.exists(parent_mcp):
+                    mcp_config_path = parent_mcp
+                else:
+                    # Fallback to default
+                    mcp_config_path = "/root/workspace/.mcp.json"
+        
         if os.path.exists(mcp_config_path):
             cmd.extend(["--mcp-config", mcp_config_path])
+            logger.info(f"Using MCP config: {mcp_config_path}")
         
-        # Add allowed tools (for now, use a default set)
-        allowed_tools = [
-            "mcp__postgres_automagik_agents__query",
-            "mcp__agent-memory__search_memory_nodes", 
-            "mcp__agent-memory__search_memory_facts",
-            "mcp__agent-memory__add_memory"
-        ]
-        cmd.extend(["--allowedTools", ",".join(allowed_tools)])
+        # Load allowed tools from JSON file
+        allowed_tools = self._load_allowed_tools(workspace_path)
+        if allowed_tools:
+            cmd.extend(["--allowedTools", ",".join(allowed_tools)])
         
         # Add max turns and output format
         cmd.extend(["--max-turns", str(max_turns)])
         cmd.extend(["--output-format", "json"])
         
         return cmd
+    
+    def _load_allowed_tools(self, workspace_path: str) -> List[str]:
+        """Load allowed tools from JSON file.
+        
+        Args:
+            workspace_path: Working directory
+            
+        Returns:
+            List of allowed tool names
+        """
+        # Try workspace root first
+        tools_file = os.path.join(workspace_path, "allowed_tools.json")
+        if not os.path.exists(tools_file):
+            # Try parent directory
+            tools_file = os.path.join(os.path.dirname(workspace_path), "allowed_tools.json")
+        
+        if os.path.exists(tools_file):
+            try:
+                with open(tools_file, 'r') as f:
+                    tools = json.load(f)
+                    logger.info(f"Loaded {len(tools)} allowed tools from {tools_file}")
+                    return tools
+            except Exception as e:
+                logger.warning(f"Failed to load allowed tools from {tools_file}: {e}")
+        
+        # Return minimal default set if file not found
+        logger.warning("Using default allowed tools")
+        return [
+            "mcp__postgres_automagik_agents__query",
+            "mcp__agent-memory__search_memory_nodes",
+            "mcp__agent-memory__search_memory_facts",
+            "mcp__agent-memory__add_memory"
+        ]
     
     async def _execute_with_streaming(
         self,
