@@ -67,7 +67,8 @@ class CLINode:
         resume_session: Optional[str] = None,
         max_turns: int = 1,  # Default to 1 for tests
         mcp_config_path: Optional[str] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        orchestration_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute claude CLI agent with streaming output and session management.
         
@@ -103,6 +104,17 @@ class CLINode:
             # Capture git SHA before execution
             git_sha_start = await self._get_git_sha(workspace_path)
             
+            # Override parameters from orchestration config
+            config = orchestration_config or {}
+            
+            # Use orchestration config values if provided
+            if config.get("resume_session"):
+                resume_session = config["resume_session"]
+            if config.get("max_turns") is not None:
+                max_turns = config["max_turns"]
+            if config.get("mcp_config_path"):
+                mcp_config_path = config["mcp_config_path"]
+            
             # Build claude command
             cmd = self._build_claude_command(
                 agent_name=agent_name,
@@ -110,7 +122,8 @@ class CLINode:
                 workspace_path=str(workspace_path),
                 resume_session=resume_session,
                 max_turns=max_turns,
-                mcp_config_path=mcp_config_path
+                mcp_config_path=mcp_config_path,
+                orchestration_config=config
             )
             
             logger.info(f"Executing claude command: {' '.join(cmd)}")
@@ -149,7 +162,8 @@ class CLINode:
         workspace_path: str,
         resume_session: Optional[str] = None,
         max_turns: int = 30,
-        mcp_config_path: Optional[str] = None
+        mcp_config_path: Optional[str] = None,
+        orchestration_config: Optional[Dict[str, Any]] = None
     ) -> List[str]:
         """Build claude CLI command with proper arguments.
         
@@ -204,8 +218,16 @@ class CLINode:
             cmd.extend(["--mcp-config", mcp_config_path])
             logger.info(f"Using MCP config: {mcp_config_path}")
         
-        # Load allowed tools from JSON file
-        allowed_tools = self._load_allowed_tools(workspace_path)
+        # Load allowed tools from JSON file or use custom path
+        config = orchestration_config or {}
+        if config.get("allowed_tools_file"):
+            # Use custom allowed tools file
+            allowed_tools_file = config["allowed_tools_file"]
+        else:
+            # Use default search
+            allowed_tools_file = None
+        
+        allowed_tools = self._load_allowed_tools(workspace_path, allowed_tools_file)
         if allowed_tools:
             cmd.extend(["--allowedTools", ",".join(allowed_tools)])
         
@@ -215,7 +237,7 @@ class CLINode:
         
         return cmd
     
-    def _load_allowed_tools(self, workspace_path: str) -> List[str]:
+    def _load_allowed_tools(self, workspace_path: str, custom_file: Optional[str] = None) -> List[str]:
         """Load allowed tools from JSON file.
         
         Args:
@@ -224,11 +246,15 @@ class CLINode:
         Returns:
             List of allowed tool names
         """
-        # Try workspace root first
-        tools_file = os.path.join(workspace_path, "allowed_tools.json")
-        if not os.path.exists(tools_file):
-            # Try parent directory
-            tools_file = os.path.join(os.path.dirname(workspace_path), "allowed_tools.json")
+        # Use custom file if provided
+        if custom_file and os.path.exists(custom_file):
+            tools_file = custom_file
+        else:
+            # Try workspace root first
+            tools_file = os.path.join(workspace_path, "allowed_tools.json")
+            if not os.path.exists(tools_file):
+                # Try parent directory
+                tools_file = os.path.join(os.path.dirname(workspace_path), "allowed_tools.json")
         
         if os.path.exists(tools_file):
             try:

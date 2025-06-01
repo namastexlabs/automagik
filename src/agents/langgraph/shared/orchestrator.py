@@ -470,7 +470,8 @@ class LangGraphOrchestrator:
                 task_message=enhanced_message,
                 workspace_path=workspace_path,
                 resume_session=state["claude_session_id"],
-                max_turns=state["orchestration_config"].get("max_turns", 1)  # Default to 1 for tests
+                max_turns=state["orchestration_config"].get("max_turns", 1),  # Default to 1 for tests
+                orchestration_config=state["orchestration_config"]
             )
             
             # Update state with results
