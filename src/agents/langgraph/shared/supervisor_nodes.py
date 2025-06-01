@@ -73,8 +73,9 @@ class MCPToolExecutor:
         logger.info(f"Executing MCP tool: {tool_name} with args: {args}")
         
         try:
-            # Get the MCP client manager from the main app
-            from src.main import mcp_client_manager
+            # Get the MCP client manager
+            from src.mcp.client import get_mcp_client_manager
+            mcp_client_manager = await get_mcp_client_manager()
             
             if mcp_client_manager:
                 # Extract server name and tool name
