@@ -48,6 +48,11 @@ class MCPClientManager:
             # Load server configurations from database
             await self._load_server_configurations()
             
+            # Import configurations from .mcp.json if no servers loaded from database
+            if not self._servers:
+                logger.info("No MCP servers in database, attempting to import from .mcp.json")
+                await self.import_from_mcp_json()
+            
             # Start auto-start servers
             await self._start_auto_start_servers()
             
@@ -487,6 +492,137 @@ class MCPClientManager:
             await server.start()
         except Exception as e:
             logger.error(f"Failed to auto-start MCP server {server.name}: {str(e)}")
+    
+    async def import_from_mcp_json(self, filepath: str = ".mcp.json") -> Dict[str, bool]:
+        """Import MCP server configurations from a .mcp.json file.
+        
+        Args:
+            filepath: Path to the .mcp.json file (default: ".mcp.json" in current directory)
+            
+        Returns:
+            Dict mapping server names to import success status
+        """
+        import json
+        from pathlib import Path
+        
+        results = {}
+        filepath = Path(filepath)
+        
+        if not filepath.exists():
+            logger.warning(f"MCP configuration file not found: {filepath}")
+            return results
+            
+        try:
+            logger.info(f"Loading MCP configurations from {filepath}")
+            
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            # Handle mcpServers section
+            mcp_servers = data.get('mcpServers', {})
+            
+            for server_name, server_config in mcp_servers.items():
+                try:
+                    # Determine server type based on config
+                    if 'type' in server_config and server_config['type'] == 'sse':
+                        # SSE/HTTP server
+                        config = MCPServerConfig(
+                            name=server_name,
+                            server_type=MCPServerType.HTTP,
+                            description=f"Imported from {filepath}",
+                            http_url=server_config.get('url'),
+                            agent_names=[],  # Don't assign to agents by default
+                            auto_start=True,  # Auto-start servers
+                            timeout_seconds=90  # Much longer timeout for remote HTTP/SSE servers
+                        )
+                    else:
+                        # STDIO server
+                        command_parts = []
+                        if 'command' in server_config:
+                            command_parts.append(server_config['command'])
+                        if 'args' in server_config:
+                            command_parts.extend(server_config['args'])
+                        
+                        # Determine timeout based on command type
+                        timeout = 30  # Default timeout
+                        if command_parts and command_parts[0] == 'docker':
+                            timeout = 90  # Much longer timeout for Docker commands
+                        elif command_parts and command_parts[0] == 'npx':
+                            timeout = 60  # Longer timeout for NPX commands
+                            
+                        config = MCPServerConfig(
+                            name=server_name,
+                            server_type=MCPServerType.STDIO,
+                            description=f"Imported from {filepath}",
+                            command=command_parts,
+                            env=server_config.get('env', {}),
+                            agent_names=[],  # Don't assign to agents by default
+                            auto_start=True,  # Auto-start servers
+                            timeout_seconds=timeout
+                        )
+                    
+                    # Check if server already exists
+                    if server_name in self._servers:
+                        logger.info(f"Server '{server_name}' already loaded, skipping import")
+                        results[server_name] = True
+                    else:
+                        logger.info(f"Adding new server: {server_name}")
+                        await self.add_server(config)
+                        results[server_name] = True
+                    
+                except Exception as e:
+                    logger.error(f"Failed to import server '{server_name}': {str(e)}")
+                    results[server_name] = False
+            
+            # Handle other standalone tools (like send_whatsapp_message in the example)
+            for key, value in data.items():
+                if key != 'mcpServers' and isinstance(value, dict) and 'command' in value:
+                    try:
+                        # This is likely a standalone MCP tool configuration
+                        server_name = key
+                        
+                        command_parts = []
+                        if 'command' in value:
+                            command_parts.append(value['command'])
+                        if 'args' in value:
+                            command_parts.extend(value['args'])
+                        
+                        # Determine timeout based on command type
+                        timeout = 30  # Default timeout
+                        if command_parts and command_parts[0] == 'docker':
+                            timeout = 90  # Much longer timeout for Docker commands
+                        elif command_parts and command_parts[0] == 'npx':
+                            timeout = 60  # Longer timeout for NPX commands
+                            
+                        config = MCPServerConfig(
+                            name=server_name,
+                            server_type=MCPServerType.STDIO,
+                            description=f"Imported standalone tool from {filepath}",
+                            command=command_parts,
+                            env=value.get('env', {}),
+                            agent_names=[],  # Don't assign to agents by default
+                            auto_start=True,  # Auto-start servers
+                            timeout_seconds=timeout
+                        )
+                        
+                        if server_name in self._servers:
+                            logger.info(f"Server '{server_name}' already loaded, skipping import")
+                            results[server_name] = True
+                        else:
+                            logger.info(f"Adding new server: {server_name}")
+                            await self.add_server(config)
+                            results[server_name] = True
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to import standalone tool '{key}': {str(e)}")
+                        results[key] = False
+                        
+            logger.info(f"MCP import completed. Success: {sum(results.values())}/{len(results)}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to load MCP configuration file: {str(e)}")
+            return results
     
     async def _health_check_loop(self) -> None:
         """Background task for periodic health checks."""

@@ -1,0 +1,57 @@
+{
+  "agentName": "epsilon",
+  "description": "Tool Builder - External integrations, tool development",
+  "permissions": {
+    "allow": [
+      "Task",
+      "Bash(source*)",
+      "Bash(uv*)",
+      "Bash(python*)",
+      "Bash(pytest tests/tools/*)",
+      "Bash(curl*)",
+      "Bash(git*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "TodoRead",
+      "TodoWrite",
+      "WebFetch",
+      "WebSearch",
+      "mcp__deepwiki__*",
+      "mcp__git__*",
+      "mcp__linear__linear_updateIssue",
+      "mcp__linear__linear_createComment",
+      "mcp__slack__slack_reply_to_thread",
+      "mcp__agent-memory__add_memory",
+      "mcp__agent-memory__search_memory_nodes"
+    ],
+    "deny": [
+      "Write(src/agents/*)",
+      "Write(src/api/*)",
+      "Edit(src/agents/models/*)",
+      "Edit(src/api/*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+  "workspacePath": "../am-agents-tools",
+  "focusAreas": {
+    "directories": [
+      "src/tools/",
+      "src/mcp/",
+      "src/tools/*/interface.py",
+      "src/tools/*/schema.py",
+      "src/tools/*/tool.py"
+    ],
+    "responsibilities": [
+      "External service integrations",
+      "Tool interface development",
+      "MCP server integration",
+      "API client implementations",
+      "Tool schema definitions"
+    ]
+  }
+}
