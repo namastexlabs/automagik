@@ -81,7 +81,12 @@ async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunReques
             "mcp_config_path": request.mcp_config_path,
             "system_prompt_file": request.system_prompt_file,
             "whatsapp_notifications": request.whatsapp_notifications,
-            "slack_thread_ts": request.slack_thread_ts
+            "slack_thread_ts": request.slack_thread_ts,
+            # Enhanced orchestration parameters
+            "epic_id": request.epic_id,
+            "linear_project_id": request.linear_project_id,
+            "slack_channel_id": request.slack_channel_id or "C08UF878N3Z",
+            "human_phone_number": request.human_phone_number
         })
         
         # Log the configuration for debugging

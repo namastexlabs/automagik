@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import subprocess
 import uuid
 from typing import Dict, Any, Optional, List, Tuple
@@ -58,6 +59,99 @@ class CLINode:
     def __init__(self):
         """Initialize CLI node."""
         self.active_processes: Dict[str, subprocess.Popen] = {}
+
+
+class EnhancedCLINode(CLINode):
+    """Extended CLI node with process management capabilities."""
+    
+    async def kill_active_process(self, pid: int, force: bool = False) -> bool:
+        """Kill a running Claude process.
+        
+        Args:
+            pid: Process ID to kill
+            force: Use SIGKILL instead of SIGTERM
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Check if process exists first
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                logger.warning(f"Process {pid} does not exist")
+                return True  # Already dead
+            
+            # First try graceful termination
+            logger.info(f"Sending SIGTERM to process {pid}")
+            os.kill(pid, signal.SIGTERM)
+            
+            # Wait up to 5 seconds for graceful shutdown
+            for _ in range(5):
+                await asyncio.sleep(1)
+                try:
+                    os.kill(pid, 0)  # Check if still alive
+                except ProcessLookupError:
+                    logger.info(f"Process {pid} terminated gracefully")
+                    return True
+            
+            # Still running, force kill if requested
+            if force:
+                logger.warning(f"Force killing process {pid} with SIGKILL")
+                os.kill(pid, signal.SIGKILL)
+                await asyncio.sleep(1)
+                
+                # Verify it's dead
+                try:
+                    os.kill(pid, 0)
+                    logger.error(f"Process {pid} survived SIGKILL!")
+                    return False
+                except ProcessLookupError:
+                    logger.info(f"Process {pid} force killed successfully")
+                    return True
+            else:
+                logger.warning(f"Process {pid} did not terminate gracefully, use force=True to kill")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to kill process {pid}: {str(e)}")
+            return False
+    
+    async def get_process_info(self, pid: int) -> Optional[Dict[str, Any]]:
+        """Get information about a process.
+        
+        Args:
+            pid: Process ID
+            
+        Returns:
+            Process info dict or None if not found
+        """
+        try:
+            # Check if process exists
+            os.kill(pid, 0)
+            
+            # Get process info using ps command
+            cmd = ["ps", "-p", str(pid), "-o", "pid,ppid,state,cmd", "--no-headers"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout:
+                parts = result.stdout.strip().split(None, 3)
+                if len(parts) >= 4:
+                    return {
+                        "pid": int(parts[0]),
+                        "ppid": int(parts[1]),
+                        "state": parts[2],
+                        "command": parts[3],
+                        "exists": True
+                    }
+            
+            return {"pid": pid, "exists": True, "info": "Limited info available"}
+            
+        except ProcessLookupError:
+            return {"pid": pid, "exists": False}
+        except Exception as e:
+            logger.error(f"Error getting process info for {pid}: {e}")
+            return None
         
     async def run_claude_agent(
         self,
