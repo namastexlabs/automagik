@@ -431,8 +431,10 @@ class LangGraphOrchestrator:
             logger.info(f"Executing LangGraph workflow with effective max rounds: {effective_max_rounds}")
             
             # Execute the workflow
+            # Get recursion limit from orchestration config, default to 50
+            recursion_limit = state["orchestration_config"].get("recursion_limit", 50)
             config = {
-                "recursion_limit": 50,
+                "recursion_limit": recursion_limit,
                 "configurable": {
                     "thread_id": str(state["orchestration_session_id"])
                 }

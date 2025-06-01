@@ -351,10 +351,15 @@ async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
     if not state.get('slack_thread_ts') and state.get('task_message'):
         context_parts.insert(0, f"Task: {state['task_message']}")
     
-    # Check for ping-pong test mode
+    # Check for test modes
     is_ping_pong = (
         "ping pong" in state.get('task_message', '').lower() or
         state.get('orchestration_config', {}).get('test_mode_settings', {}).get('test_mode') == 'ping_pong'
+    )
+    
+    is_epic_simulation = (
+        "epic simulation" in state.get('task_message', '').lower() or
+        state.get('orchestration_config', {}).get('test_mode_settings', {}).get('test_mode') == 'epic_simulation'
     )
     
     if is_ping_pong:
@@ -368,6 +373,30 @@ async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
             context_parts.append(f"PING PONG MODE: Route from {current} to {next_agent}")
         except ValueError:
             next_agent = "alpha"  # Default if current agent not in sequence
+    elif is_epic_simulation:
+        # Epic simulation mode - route based on workflow stage
+        current = state.get('current_agent', 'genie')
+        workflow_stage = len(state.get('agent_handoffs', []))
+        
+        # Define epic simulation workflow
+        epic_workflow = [
+            "genie",    # Create epic and announce
+            "alpha",    # Break down into tasks
+            "beta",     # Core implementation planning
+            "gamma",    # Test planning
+            "delta",    # API planning
+            "epsilon"   # Tool planning
+        ]
+        
+        if workflow_stage < len(epic_workflow):
+            next_agent = epic_workflow[workflow_stage]
+            context_parts.append(f"EPIC SIMULATION MODE: Stage {workflow_stage + 1} - Route to {next_agent}")
+        else:
+            next_agent = "complete"
+            context_parts.append("EPIC SIMULATION MODE: All stages completed")
+    
+    # Determine test mode display
+    test_mode = "PING PONG" if is_ping_pong else "EPIC SIMULATION" if is_epic_simulation else "Normal"
     
     context_message = f"""
 Current State:
@@ -376,13 +405,21 @@ Current State:
 - Current Agent: {state.get('current_agent', 'None')}
 - Round: {state['round_number']}/{state['max_rounds']}
 - Agents Run: {', '.join(state['agent_handoffs'])}
-- Test Mode: {'PING PONG' if is_ping_pong else 'Normal'}
+- Test Mode: {test_mode}
 
 Context:
 {chr(10).join(context_parts)}
 
-Task: {"Route to " + next_agent + " for ping pong test continuation." if is_ping_pong else "Analyze the current state and decide the next action."}
-{"" if is_ping_pong else "Use tools to check Slack and Linear before making routing decisions." if state.get('slack_thread_ts') else "Route to appropriate agent based on the task."}
+Task: {
+    f"Route to {next_agent} for ping pong test continuation." if is_ping_pong else
+    f"Route to {next_agent} for epic simulation stage." if is_epic_simulation and 'next_agent' in locals() else
+    "Analyze the current state and decide the next action."
+}
+{
+    "" if (is_ping_pong or is_epic_simulation) else
+    "Use tools to check Slack and Linear before making routing decisions." if state.get('slack_thread_ts') else 
+    "Route to appropriate agent based on the task."
+}
 """
     
     # Get supervisor response
