@@ -2,25 +2,34 @@
   "permissions": {
     "allow": [
       "Task",
-      "Bash(*)",
       "Glob",
       "Grep",
       "LS",
       "Read",
       "Edit",
       "MultiEdit",
-      "Write",
       "WebFetch",
       "TodoRead",
       "TodoWrite",
       "WebSearch",
-      "mcp__*"
+      "mcp__git__git_status",
+      "mcp__git__git_log",
+      "mcp__git__git_diff",
+      "mcp__agent-memory__search_memory_nodes",
+      "mcp__agent-memory__search_memory_facts",
+      "mcp__linear__linear_getIssues",
+      "mcp__linear__linear_getProjects",
+      "mcp__slack__slack_get_channel_history"
     ],
     "deny": [
-      "Bash(rm -rf *)",
-      "Bash(sudo rm *)",
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf /)",
       "Bash(> /dev/sda*)",
-      "Bash(dd if=/dev/zero*)"
+      "Bash(dd if=/dev/zero*)",
+      "Bash(:(){ :|:& };:)",
+      "Write(/etc/*)",
+      "Write(/bin/*)",
+      "Write(/usr/bin/*)"
     ]
   },
   "enableAllProjectMcpServers": true,
@@ -34,52 +43,75 @@
     "deepwiki",
     "slack"
   ],
-  "agentSpecificSettings": {
+  "agentProfiles": {
     "alpha": {
       "description": "Orchestrator - Epic coordination, task distribution, integration",
-      "additionalAllowedTools": [
-        "mcp__linear__*",
-        "mcp__slack__*",
-        "mcp__agent-memory__*"
+      "permissionsFile": ".claude/agents-prompts/alpha-permissions.json",
+      "workspacePath": "/root/prod/am-agents-labs",
+      "allowedCommands": [
+        "git status",
+        "git log",
+        "git branch",
+        "make status"
       ]
     },
     "beta": {
       "description": "Core Builder - Core framework, agents, memory system",
+      "permissionsFile": ".claude/agents-prompts/beta-permissions.json",
       "workspacePath": "../am-agents-core",
-      "additionalAllowedTools": [
-        "mcp__agent-memory__*",
-        "mcp__postgres_automagik_agents__query"
-      ],
-      "focusPaths": ["src/agents/", "src/memory/"]
+      "allowedCommands": [
+        "source .venv/bin/activate",
+        "uv sync",
+        "uv add",
+        "pytest tests/agents/",
+        "ruff check"
+      ]
     },
     "delta": {
       "description": "API Builder - FastAPI endpoints, authentication, middleware",
+      "permissionsFile": ".claude/agents-prompts/delta-permissions.json",
       "workspacePath": "../am-agents-api",
-      "additionalAllowedTools": [
-        "mcp__postgres_automagik_agents__query"
-      ],
-      "focusPaths": ["src/api/"]
+      "allowedCommands": [
+        "source .venv/bin/activate",
+        "uv sync",
+        "pytest tests/api/",
+        "curl",
+        "http"
+      ]
     },
     "epsilon": {
       "description": "Tool Builder - External integrations, tool development",
+      "permissionsFile": ".claude/agents-prompts/epsilon-permissions.json",
       "workspacePath": "../am-agents-tools",
-      "additionalAllowedTools": [
-        "mcp__deepwiki__*"
-      ],
-      "focusPaths": ["src/tools/"]
+      "allowedCommands": [
+        "source .venv/bin/activate",
+        "uv sync",
+        "pytest tests/tools/",
+        "curl"
+      ]
     },
     "gamma": {
       "description": "Quality Engineer - Testing, quality assurance, documentation",
+      "permissionsFile": ".claude/agents-prompts/gamma-permissions.json",
       "workspacePath": "../am-agents-tests",
-      "additionalAllowedTools": [
-        "Bash(pytest*)",
-        "Bash(ruff*)"
-      ],
-      "focusPaths": ["tests/", "docs/"]
+      "allowedCommands": [
+        "source .venv/bin/activate",
+        "pytest",
+        "ruff check",
+        "coverage run",
+        "make test"
+      ]
     },
     "genie": {
       "description": "General purpose agent with full capabilities",
-      "additionalAllowedTools": []
+      "permissionsFile": ".claude/agents-prompts/genie-permissions.json",
+      "workspacePath": "/root/prod/am-agents-labs",
+      "allowedCommands": ["*"]
     }
+  },
+  "securityNotes": {
+    "purpose": "These permissions ensure agents operate within their designated boundaries",
+    "enforcement": "Each agent profile restricts tools based on their specialization",
+    "worktreeIsolation": "Agents work in separate git worktrees to prevent conflicts"
   }
 }

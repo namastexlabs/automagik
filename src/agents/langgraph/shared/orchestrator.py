@@ -392,7 +392,7 @@ class LangGraphOrchestrator:
             "linear_project_id": orchestration_config.get("linear_project_id"),
             "epic_may_be_complete": False,
             "slack_thread_ts": orchestration_config.get("slack_thread_ts"),
-            "slack_channel_id": "C08UF878N3Z",  # The genie group channel
+            "slack_channel_id": orchestration_config.get("slack_channel_id", "C08UF878N3Z"),  # Default to genie group channel
             "messages": []
         }
         

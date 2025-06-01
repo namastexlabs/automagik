@@ -1,0 +1,55 @@
+{
+  "agentName": "gamma",
+  "description": "Quality Engineer - Testing, quality assurance, documentation",
+  "permissions": {
+    "allow": [
+      "Task",
+      "Bash(source*)",
+      "Bash(uv*)",
+      "Bash(python*)",
+      "Bash(pytest*)",
+      "Bash(ruff*)",
+      "Bash(coverage*)",
+      "Bash(git*)",
+      "Bash(make test*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "TodoRead",
+      "TodoWrite",
+      "mcp__git__*",
+      "mcp__linear__linear_updateIssue",
+      "mcp__linear__linear_createComment",
+      "mcp__slack__slack_reply_to_thread",
+      "mcp__agent-memory__add_memory",
+      "mcp__agent-memory__search_memory_nodes"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Write(src/*/)",
+      "Edit(src/*/__init__.py)",
+      "Bash(pip*)"
+    ]
+  },
+  "workspacePath": "../am-agents-tests",
+  "focusAreas": {
+    "directories": [
+      "tests/",
+      "docs/",
+      "pytest.ini",
+      "pyproject.toml",
+      ".github/workflows/"
+    ],
+    "responsibilities": [
+      "Test suite development",
+      "Integration testing",
+      "Performance benchmarking",
+      "Documentation updates",
+      "Quality gates enforcement"
+    ]
+  }
+}

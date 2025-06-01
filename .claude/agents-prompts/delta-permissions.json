@@ -1,0 +1,55 @@
+{
+  "agentName": "delta",
+  "description": "API Builder - FastAPI endpoints, authentication, middleware",
+  "permissions": {
+    "allow": [
+      "Task",
+      "Bash(source*)",
+      "Bash(uv*)",
+      "Bash(python*)",
+      "Bash(pytest tests/api/*)",
+      "Bash(curl*)",
+      "Bash(http*)",
+      "Bash(git*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "TodoRead",
+      "TodoWrite",
+      "WebFetch",
+      "mcp__postgres_automagik_agents__query",
+      "mcp__git__*",
+      "mcp__linear__linear_updateIssue",
+      "mcp__linear__linear_createComment",
+      "mcp__slack__slack_reply_to_thread"
+    ],
+    "deny": [
+      "Write(src/agents/*)",
+      "Write(src/tools/*)",
+      "Edit(src/agents/models/*)",
+      "Edit(src/tools/*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+  "workspacePath": "../am-agents-api",
+  "focusAreas": {
+    "directories": [
+      "src/api/",
+      "src/auth.py",
+      "src/main.py",
+      "src/api/routes/",
+      "src/api/controllers/"
+    ],
+    "responsibilities": [
+      "REST API endpoints",
+      "Authentication middleware",
+      "Request validation",
+      "Response models",
+      "API documentation"
+    ]
+  }
+}
