@@ -7,6 +7,7 @@ state management, control flow, breakpoints, and rollback functionality.
 import asyncio
 import logging
 import uuid
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Literal, Annotated
@@ -27,7 +28,7 @@ except ImportError:
     MemorySaver = None
     LANGGRAPH_AVAILABLE = False
 
-from .cli_node import CLINode, CLIExecutionError
+from .cli_node import EnhancedCLINode, CLIExecutionError
 from .git_manager import GitManager, GitOperationError
 from .process_manager import ProcessManager, ProcessStatus
 from .state_store import OrchestrationStateStore, OrchestrationState as StateStoreOrchestrationState
@@ -48,7 +49,7 @@ class OrchestrationPhase(Enum):
     ERROR = "error"
 
 class OrchestrationState(TypedDict):
-    """State for the LangGraph orchestration workflow using TypedDict."""
+    """Enhanced state for LangGraph orchestration with kill switch and monitoring."""
     # Core identifiers
     session_id: uuid.UUID
     orchestration_session_id: uuid.UUID
@@ -69,24 +70,51 @@ class OrchestrationState(TypedDict):
     claude_session_id: Optional[str]
     process_pid: Optional[int]
     process_status: Optional[str]  # ProcessStatus value
+    active_process_pid: Optional[int]  # Currently running Claude process
+    kill_requested: bool  # Kill switch for active process
     
     # Communication
     group_chat_id: Optional[str]  # Changed to str for UUID serialization
     task_message: str
+    slack_thread_ts: Optional[str]  # Slack thread timestamp
+    slack_channel_id: str  # Slack channel ID
     
     # Control flow
     breakpoint_requested: bool
     rollback_requested: bool
     rollback_reason: str
+    rollback_to_sha: Optional[str]  # Specific SHA to rollback to
     continue_requested: bool
     
     # Results
     execution_result: Optional[Dict[str, Any]]
     error_message: Optional[str]
+    completed_runs: List[Dict[str, Any]]  # All Claude session results
+    agent_handoffs: List[str]  # History of agent transitions
     
     # Configuration
     orchestration_config: Dict[str, Any]
     metadata: Dict[str, Any]
+    
+    # Supervisor decision
+    next_agent: Optional[str]
+    routing_reason: str
+    agent_context: str  # Context to pass to next agent
+    
+    # Human-in-the-loop
+    awaiting_human_feedback: bool
+    human_feedback_context: Optional[str]
+    whatsapp_alert_sent: bool
+    human_phone_number: Optional[str]
+    
+    # Monitoring
+    recent_slack_messages: List[Dict[str, Any]]
+    last_slack_check: Optional[float]
+    stall_counter: int  # Track how long we've been waiting
+    last_progress_timestamp: float  # Last time we saw real progress
+    epic_id: Optional[str]  # Linear epic ID
+    linear_project_id: Optional[str]  # Linear project ID
+    epic_may_be_complete: bool  # Flag when all tasks done
     
     # History tracking for LangGraph
     messages: Annotated[List[Dict[str, Any]], add]
@@ -96,7 +124,7 @@ class LangGraphOrchestrator:
     
     def __init__(self):
         """Initialize the orchestrator with all required components."""
-        self.cli_node = CLINode()
+        self.cli_node = EnhancedCLINode()
         self.git_manager = GitManager()
         self.process_manager = ProcessManager()
         self.state_store = OrchestrationStateStore()
@@ -111,7 +139,7 @@ class LangGraphOrchestrator:
         logger.info(f"LangGraph orchestrator initialized (LangGraph available: {LANGGRAPH_AVAILABLE})")
     
     def _build_workflow(self) -> Optional[StateGraph]:
-        """Build the LangGraph workflow for orchestration.
+        """Build the enhanced LangGraph workflow with supervisor pattern.
         
         Returns:
             Compiled LangGraph workflow
@@ -121,68 +149,95 @@ class LangGraphOrchestrator:
             return None
         
         try:
+            # Import supervisor nodes
+            from .supervisor_nodes import (
+                supervisor_node, slack_monitor_node, progress_monitor_node,
+                human_feedback_node, wait_node, rollback_node
+            )
+            
             # Create the state graph with proper TypedDict state
             workflow = StateGraph(OrchestrationState)
             
-            # Add nodes for each workflow step
-            workflow.add_node("start_round", self._start_round)
-            workflow.add_node("git_snapshot", self._git_snapshot)
-            workflow.add_node("run_agent", self._run_agent)
-            workflow.add_node("monitor_process", self._monitor_process)
-            workflow.add_node("decision", self._decision)
-            workflow.add_node("breakpoint", self._breakpoint)
-            workflow.add_node("rollback", self._rollback)
-            workflow.add_node("end_round", self._end_round)
-            workflow.add_node("error_handler", self._error_handler)
+            # Add supervisor and monitoring nodes
+            workflow.add_node("supervisor", supervisor_node)
+            workflow.add_node("slack_monitor", slack_monitor_node)
+            workflow.add_node("progress_monitor", progress_monitor_node)
+            workflow.add_node("human_feedback", human_feedback_node)
+            workflow.add_node("wait", wait_node)
+            workflow.add_node("rollback", rollback_node)
             
-            # Set entry point using START node
-            workflow.add_edge(START, "start_round")
+            # Add agent execution nodes (wrapped for the supervisor pattern)
+            workflow.add_node("alpha", lambda s: self._run_agent_node(s, "alpha"))
+            workflow.add_node("beta", lambda s: self._run_agent_node(s, "beta"))
+            workflow.add_node("gamma", lambda s: self._run_agent_node(s, "gamma"))
+            workflow.add_node("delta", lambda s: self._run_agent_node(s, "delta"))
+            workflow.add_node("epsilon", lambda s: self._run_agent_node(s, "epsilon"))
             
-            # Add sequential edges for the main workflow
-            workflow.add_edge("start_round", "git_snapshot")
-            workflow.add_edge("git_snapshot", "run_agent")
-            workflow.add_edge("run_agent", "monitor_process")
-            workflow.add_edge("monitor_process", "decision")
+            # Entry point: Always check Slack first
+            workflow.add_edge(START, "slack_monitor")
             
-            # Conditional edges from decision node
+            # Main flow: Slack → Progress → Supervisor
+            workflow.add_edge("slack_monitor", "progress_monitor")
+            workflow.add_edge("progress_monitor", "supervisor")
+            
+            # Supervisor can route to any agent, wait, feedback, or rollback
             workflow.add_conditional_edges(
-                "decision",
-                self._decision_router,
+                "supervisor",
+                lambda x: x.get("next_agent") or ("human_feedback" if x.get("awaiting_human_feedback") else "wait"),
                 {
-                    "continue": "end_round",
-                    "breakpoint": "breakpoint",
+                    "alpha": "alpha",
+                    "beta": "beta",
+                    "gamma": "gamma",
+                    "delta": "delta",
+                    "epsilon": "epsilon",
+                    "wait": "wait",
+                    "human_feedback": "human_feedback",
                     "rollback": "rollback",
-                    "error": "error_handler"
+                    END: END  # For completion
                 }
             )
             
-            # Handle breakpoint paths
-            workflow.add_conditional_edges(
-                "breakpoint",
-                self._breakpoint_router,
-                {
-                    "continue": "end_round",
-                    "rollback": "rollback"
-                }
-            )
-            
-            # Handle rollback - goes back to git_snapshot for retry
-            workflow.add_edge("rollback", "git_snapshot")
-            
-            # Terminal states
-            workflow.add_edge("end_round", END)  # Normal completion
-            workflow.add_edge("error_handler", END)  # Error termination
+            # All nodes eventually go back to slack monitor (except END)
+            for node in ["alpha", "beta", "gamma", "delta", "epsilon", "wait", "human_feedback", "rollback"]:
+                workflow.add_edge(node, "slack_monitor")
             
             # Compile the workflow with checkpointer for persistence
             checkpointer = MemorySaver() if MemorySaver else None
             app = workflow.compile(checkpointer=checkpointer)
             
-            logger.info("LangGraph workflow compiled successfully")
+            logger.info("Enhanced LangGraph workflow with supervisor compiled successfully")
             return app
             
         except Exception as e:
-            logger.error(f"Failed to build LangGraph workflow: {str(e)}")
+            logger.error(f"Failed to build enhanced LangGraph workflow: {str(e)}")
             return None
+    
+    async def _run_agent_node(self, state: OrchestrationState, agent_name: str) -> OrchestrationState:
+        """Wrapper for running an agent within the supervisor pattern.
+        
+        Args:
+            state: Current orchestration state
+            agent_name: Name of agent to run
+            
+        Returns:
+            Updated state
+        """
+        # Update current agent
+        state["current_agent"] = agent_name
+        
+        # Use the agent context provided by supervisor
+        if state.get("agent_context"):
+            state["task_message"] = state["agent_context"]
+        
+        # Run the standard agent execution flow
+        state = await self._git_snapshot(state)
+        state = await self._run_agent(state)
+        
+        # Clear routing info for next iteration
+        state["next_agent"] = None
+        state["agent_context"] = ""
+        
+        return state
     
     async def execute_orchestration(
         self,
@@ -277,16 +332,37 @@ class LangGraphOrchestrator:
             "claude_session_id": None,
             "process_pid": None,
             "process_status": None,
+            "active_process_pid": None,
+            "kill_requested": False,
             "group_chat_id": group_chat_id,
             "task_message": task_message,
+            "slack_thread_ts": orchestration_config.get("slack_thread_ts"),
+            "slack_channel_id": orchestration_config.get("slack_channel_id", "C08UF878N3Z"),
             "breakpoint_requested": False,
             "rollback_requested": False,
             "rollback_reason": "",
+            "rollback_to_sha": None,
             "continue_requested": True,
             "execution_result": None,
             "error_message": None,
+            "completed_runs": [],
+            "agent_handoffs": [],
             "orchestration_config": orchestration_config,
             "metadata": {},
+            "next_agent": None,
+            "routing_reason": "",
+            "agent_context": "",
+            "awaiting_human_feedback": False,
+            "human_feedback_context": None,
+            "whatsapp_alert_sent": False,
+            "human_phone_number": orchestration_config.get("human_phone_number"),
+            "recent_slack_messages": [],
+            "last_slack_check": None,
+            "stall_counter": 0,
+            "last_progress_timestamp": time.time(),
+            "epic_id": orchestration_config.get("epic_id"),
+            "linear_project_id": orchestration_config.get("linear_project_id"),
+            "epic_may_be_complete": False,
             "messages": []
         }
         
@@ -353,54 +429,29 @@ class LangGraphOrchestrator:
     async def _execute_fallback_workflow(self, state: OrchestrationState) -> Dict[str, Any]:
         """Execute workflow without LangGraph as fallback.
         
+        For enhanced orchestration, this should not be used in production.
+        The supervisor pattern requires LangGraph.
+        
         Args:
             state: Initial orchestration state
             
         Returns:
             Execution results
         """
+        logger.warning("Fallback workflow does not support enhanced supervisor pattern")
+        logger.info("Executing basic single-agent workflow")
+        
         try:
-            logger.info("Executing fallback orchestration workflow")
-            
-            # Get run_count from orchestration config if available
-            run_count = state["orchestration_config"].get("run_count", state["max_rounds"])
-            effective_max_rounds = min(state["max_rounds"], run_count)
-            
-            logger.info(f"Effective max rounds: {effective_max_rounds} (max_rounds={state['max_rounds']}, run_count={run_count})")
-            
-            while state["continue_requested"] and state["round_number"] < effective_max_rounds:
-                state["round_number"] += 1
-                
-                # Execute workflow steps manually
-                state = await self._start_round(state)
-                state = await self._git_snapshot(state)
-                state = await self._run_agent(state)
-                state = await self._monitor_process(state)
-                state = await self._decision(state)
-                
-                # Handle decision outcomes
-                if state["breakpoint_requested"]:
-                    state = await self._breakpoint(state)
-                
-                if state["rollback_requested"]:
-                    state = await self._rollback(state)
-                    continue  # Retry after rollback
-                
-                if state["error_message"]:
-                    state = await self._error_handler(state)
-                    break
-                
-                state = await self._end_round(state)
-                
-                # Check if workflow should continue
-                if not state["continue_requested"]:
-                    break
+            # Execute single agent run
+            state["round_number"] = 1
+            state = await self._git_snapshot(state)
+            state = await self._run_agent(state)
             
             return {
                 "success": True,
                 "session_id": str(state["orchestration_session_id"]),
-                "final_phase": state["phase"],
-                "rounds_completed": state["round_number"],
+                "final_phase": "completed",
+                "rounds_completed": 1,
                 "execution_result": state["execution_result"],
                 "git_sha_end": state["git_sha_end"]
             }
@@ -477,8 +528,19 @@ class LangGraphOrchestrator:
             # Update state with results
             state["claude_session_id"] = result.get("claude_session_id")
             state["process_pid"] = result.get("pid")
+            state["active_process_pid"] = result.get("pid")  # Track active process
             state["execution_result"] = result
             state["git_sha_end"] = result.get("git_sha_end")
+            
+            # Add to completed runs
+            state["completed_runs"].append({
+                "agent": state["current_agent"],
+                "result": result,
+                "timestamp": time.time()
+            })
+            
+            # Clear active process after completion
+            state["active_process_pid"] = None
             
             logger.info(f"Agent execution completed: {state['current_agent']}")
             

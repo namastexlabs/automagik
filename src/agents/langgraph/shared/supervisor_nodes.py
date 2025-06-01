@@ -1,0 +1,507 @@
+"""Supervisor nodes with MCP tool integration for LangGraph orchestration.
+
+This module implements the supervisor and supporting nodes that use MCP tools
+for intelligent routing, monitoring, and human-in-the-loop coordination.
+"""
+
+import asyncio
+import json
+import logging
+import time
+from typing import Dict, Any, Optional, List, Callable
+from datetime import datetime
+
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from langchain_core.tools import tool
+from pydantic import Field
+from langgraph.graph import END
+from langgraph.prebuilt import ToolNode
+from langgraph.types import Command
+
+from .orchestrator import OrchestrationState, OrchestrationPhase
+
+logger = logging.getLogger(__name__)
+
+# Supervisor prompt
+SUPERVISOR_PROMPT = """
+You are an orchestration supervisor for a team of autonomous Claude Code agents.
+
+Your MCP tools allow you to:
+- Check Slack threads and post updates
+- Monitor Linear tasks and project progress  
+- Send WhatsApp alerts for urgent matters
+- Perform git operations (status, log, rollback)
+- Search and update agent memory
+
+ALWAYS use tools to gather current context before making routing decisions.
+
+Routing guidelines:
+1. Check Linear task status before assigning work
+2. Read recent Slack messages for human feedback
+3. If tasks are stalled >30min, investigate why
+4. Send WhatsApp alerts when human input is urgently needed
+5. Post status updates to Slack when switching agents
+
+Available agents:
+- alpha: Orchestrator and project manager
+- beta: Core implementation 
+- gamma: Quality assurance and testing
+- delta: API development
+- epsilon: Tools and integrations
+
+Make informed routing decisions based on actual project state, not assumptions.
+"""
+
+
+class MCPToolExecutor:
+    """Handles MCP tool execution for the supervisor."""
+    
+    @staticmethod
+    async def execute_mcp_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute an MCP tool by name with given arguments.
+        
+        This is a placeholder that should be replaced with actual MCP execution.
+        In production, this would use the MCP client to execute tools.
+        """
+        logger.info(f"Executing MCP tool: {tool_name} with args: {args}")
+        
+        # Placeholder for MCP tool execution
+        # In real implementation, this would:
+        # 1. Get MCP client instance
+        # 2. Execute the tool through MCP protocol
+        # 3. Return the result
+        
+        # For now, return mock results for testing
+        if tool_name == "mcp__slack__slack_get_thread_replies":
+            return {
+                "messages": [
+                    {"ts": str(time.time()), "text": "Test message", "user": "U123"}
+                ]
+            }
+        elif tool_name == "mcp__linear__linear_getProjectIssues":
+            return {
+                "issues": [
+                    {"id": "123", "state": {"name": "In Progress"}, "updatedAt": datetime.now().isoformat()}
+                ]
+            }
+        
+        return {"success": True, "result": f"Executed {tool_name}"}
+
+
+# Create handoff tools for each agent
+def create_handoff_tools():
+    """Create tools for handing off to each agent."""
+    tools = []
+    
+    for agent_name in ["alpha", "beta", "gamma", "delta", "epsilon"]:
+        @tool(name=f"transfer_to_{agent_name}")
+        def handoff_tool(
+            reason: str = Field(description=f"Reason for transferring to {agent_name}"),
+            context: str = Field(description="Context to pass to the agent")
+        ) -> Dict[str, Any]:
+            f"""Transfer control to {agent_name} agent."""
+            return {
+                "agent": agent_name,
+                "reason": reason,
+                "context": context
+            }
+        
+        tools.append(handoff_tool)
+    
+    return tools
+
+
+# MCP tool wrappers
+@tool(name="check_slack_thread")
+async def check_slack_thread(
+    thread_ts: str = Field(description="Slack thread timestamp"),
+    channel_id: str = Field(description="Slack channel ID")
+) -> Dict[str, Any]:
+    """Check Slack thread for new messages using MCP."""
+    result = await MCPToolExecutor.execute_mcp_tool(
+        "mcp__slack__slack_get_thread_replies",
+        {"channel_id": channel_id, "thread_ts": thread_ts}
+    )
+    return result
+
+
+@tool(name="post_to_slack")
+async def post_to_slack(
+    message: str = Field(description="Message to post"),
+    thread_ts: str = Field(description="Thread to post in"),
+    channel_id: str = Field(description="Channel ID")
+) -> Dict[str, Any]:
+    """Post a message to Slack thread using MCP."""
+    result = await MCPToolExecutor.execute_mcp_tool(
+        "mcp__slack__slack_reply_to_thread",
+        {"channel_id": channel_id, "thread_ts": thread_ts, "text": message}
+    )
+    return result
+
+
+@tool(name="check_linear_tasks")
+async def check_linear_tasks(
+    project_id: str = Field(description="Linear project ID")
+) -> Dict[str, Any]:
+    """Check Linear project tasks using MCP."""
+    result = await MCPToolExecutor.execute_mcp_tool(
+        "mcp__linear__linear_getProjectIssues",
+        {"projectId": project_id}
+    )
+    return result
+
+
+@tool(name="send_whatsapp_alert")
+async def send_whatsapp_alert(
+    message: str = Field(description="Alert message"),
+    phone_number: Optional[str] = Field(None, description="Phone number")
+) -> Dict[str, Any]:
+    """Send WhatsApp alert using MCP."""
+    result = await MCPToolExecutor.execute_mcp_tool(
+        "mcp__send_whatsapp_message__send_text_message",
+        {"number": phone_number, "message": message}
+    )
+    return result
+
+
+@tool(name="wait_for_human")
+def wait_for_human(
+    context: str = Field(description="What we're waiting for")
+) -> Dict[str, Any]:
+    """Signal that we need to wait for human input."""
+    return {
+        "action": "wait",
+        "context": context
+    }
+
+
+@tool(name="mark_complete")
+def mark_complete(
+    summary: str = Field(description="Summary of completed work")
+) -> Dict[str, Any]:
+    """Mark the epic as complete."""
+    return {
+        "action": "complete",
+        "summary": summary
+    }
+
+
+async def supervisor_node(state: OrchestrationState) -> Command:
+    """Enhanced supervisor using MCP tools with GPT-4.1."""
+    
+    # Handle kill request first
+    if state.get("kill_requested"):
+        state["kill_requested"] = False
+        logger.warning("Kill requested, halting orchestration")
+        return Command(goto="wait", update=state)
+    
+    # Handle rollback request
+    if state.get("rollback_requested"):
+        logger.info("Rollback requested, routing to rollback node")
+        return Command(goto="rollback", update=state)
+    
+    # Create supervisor with tools
+    all_tools = (
+        create_handoff_tools() + 
+        [check_slack_thread, post_to_slack, check_linear_tasks, 
+         send_whatsapp_alert, wait_for_human, mark_complete]
+    )
+    
+    supervisor = ChatOpenAI(
+        model="gpt-4-1106-preview",  # Using GPT-4.1
+        temperature=0
+    ).bind_tools(all_tools)
+    
+    # Build context
+    context_parts = []
+    
+    # Add last run info
+    if state["completed_runs"]:
+        last_run = state["completed_runs"][-1]
+        context_parts.append(f"Last run: {last_run['agent']} completed at {last_run['timestamp']}")
+        if "result" in last_run and isinstance(last_run["result"], dict):
+            context_parts.append(f"Result: {last_run['result'].get('output', 'No output')[:200]}...")
+    
+    # Add recent Slack messages
+    if state["recent_slack_messages"]:
+        context_parts.append(f"Recent Slack: {len(state['recent_slack_messages'])} new messages")
+        for msg in state["recent_slack_messages"][-3:]:
+            context_parts.append(f"- {msg.get('text', '')[:100]}")
+    
+    # Add stall status
+    if state["stall_counter"] > 0:
+        context_parts.append(f"Warning: No progress for {state['stall_counter'] * 30} minutes")
+    
+    context_message = f"""
+Current State:
+- Epic: {state.get('epic_id', 'Unknown')}
+- Slack Thread: {state.get('slack_thread_ts', 'Unknown')}  
+- Current Agent: {state.get('current_agent', 'None')}
+- Round: {state['round_number']}/{state['max_rounds']}
+- Agents Run: {', '.join(state['agent_handoffs'])}
+
+Context:
+{chr(10).join(context_parts)}
+
+Task: Analyze the current state and decide the next action. 
+Use tools to check Slack and Linear before making routing decisions.
+"""
+    
+    # Get supervisor response
+    response = await supervisor.ainvoke([
+        SystemMessage(content=SUPERVISOR_PROMPT),
+        HumanMessage(content=context_message)
+    ])
+    
+    # Process tool calls
+    if response.tool_calls:
+        for tool_call in response.tool_calls:
+            tool_name = tool_call["name"]
+            
+            # Handle transfers
+            if tool_name.startswith("transfer_to_"):
+                agent = tool_name.replace("transfer_to_", "")
+                state["next_agent"] = agent
+                state["routing_reason"] = tool_call["args"]["reason"]
+                state["agent_context"] = tool_call["args"]["context"]
+                state["agent_handoffs"].append(agent)
+                
+                # Log to Slack
+                await post_to_slack(
+                    message=f"🔄 Routing to {agent}: {tool_call['args']['reason']}",
+                    thread_ts=state.get("slack_thread_ts", ""),
+                    channel_id=state.get("slack_channel_id", "")
+                )
+                
+                return Command(goto=agent, update=state)
+            
+            # Handle wait
+            elif tool_name == "wait_for_human":
+                state["awaiting_human_feedback"] = True
+                state["human_feedback_context"] = tool_call["args"]["context"]
+                return Command(goto="human_feedback", update=state)
+            
+            # Handle completion
+            elif tool_name == "mark_complete":
+                await post_to_slack(
+                    message=f"✅ Epic complete: {tool_call['args']['summary']}",
+                    thread_ts=state.get("slack_thread_ts", ""),
+                    channel_id=state.get("slack_channel_id", "")
+                )
+                return Command(goto=END, update=state)
+    
+    # Default: wait if no specific action
+    return Command(goto="wait", update=state)
+
+
+async def slack_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
+    """Monitor Slack for new messages and commands."""
+    
+    if not state.get("slack_thread_ts"):
+        logger.warning("No Slack thread configured, skipping monitor")
+        return state
+    
+    try:
+        # Get thread history
+        result = await MCPToolExecutor.execute_mcp_tool(
+            "mcp__slack__slack_get_thread_replies",
+            {
+                "channel_id": state.get("slack_channel_id", "C08UF878N3Z"),
+                "thread_ts": state["slack_thread_ts"]
+            }
+        )
+        
+        messages = result.get("messages", [])
+        
+        # Filter new messages
+        last_check = state.get("last_slack_check", 0)
+        new_messages = [
+            msg for msg in messages
+            if float(msg.get("ts", 0)) > last_check
+        ]
+        
+        state["recent_slack_messages"] = new_messages
+        state["last_slack_check"] = time.time()
+        
+        # Check for commands
+        for msg in new_messages:
+            text = msg.get("text", "").lower()
+            
+            # Kill commands
+            if any(cmd in text for cmd in ["stop", "cancel", "kill", "abort"]):
+                logger.warning(f"Kill command detected: {msg['text']}")
+                state["kill_requested"] = True
+                
+                # Kill active process if any
+                if state.get("active_process_pid"):
+                    # Import here to avoid circular dependency
+                    from .orchestrator import LangGraphOrchestrator
+                    orchestrator = LangGraphOrchestrator()
+                    killed = await orchestrator.cli_node.kill_active_process(
+                        state["active_process_pid"], 
+                        force=True
+                    )
+                    if killed:
+                        await post_to_slack(
+                            message="🛑 Killed active Claude process",
+                            thread_ts=state["slack_thread_ts"],
+                            channel_id=state["slack_channel_id"]
+                        )
+            
+            # Rollback commands
+            elif any(cmd in text for cmd in ["revert", "rollback", "undo"]):
+                state["rollback_requested"] = True
+                # Try to extract SHA from message
+                import re
+                sha_match = re.search(r'[a-f0-9]{7,40}', text)
+                if sha_match:
+                    state["rollback_to_sha"] = sha_match.group()
+            
+            # Human feedback
+            elif not msg.get("bot_id"):  # Human message
+                state["awaiting_human_feedback"] = False
+                state["human_feedback_context"] = msg.get("text", "")
+                state["whatsapp_alert_sent"] = False
+    
+    except Exception as e:
+        logger.error(f"Slack monitor error: {e}")
+    
+    return state
+
+
+async def progress_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
+    """Monitor Linear progress and detect stalls."""
+    
+    if not state.get("linear_project_id"):
+        logger.debug("No Linear project configured, skipping monitor")
+        return state
+    
+    try:
+        # Check Linear tasks
+        result = await MCPToolExecutor.execute_mcp_tool(
+            "mcp__linear__linear_getProjectIssues",
+            {"projectId": state["linear_project_id"]}
+        )
+        
+        issues = result.get("issues", [])
+        
+        if issues:
+            # Check for stalled progress
+            latest_update = max([
+                datetime.fromisoformat(issue["updatedAt"].replace("Z", "+00:00"))
+                for issue in issues
+            ])
+            
+            time_since_update = (datetime.now() - latest_update).seconds
+            
+            if time_since_update > 1800:  # 30 minutes
+                state["stall_counter"] += 1
+                
+                if state["stall_counter"] >= 3 and not state.get("whatsapp_alert_sent"):
+                    # Send WhatsApp alert
+                    await send_whatsapp_alert(
+                        message=f"🚨 Epic {state.get('epic_id', 'unknown')} stalled - no updates in 90min",
+                        phone_number=state.get("human_phone_number")
+                    )
+                    state["whatsapp_alert_sent"] = True
+            else:
+                state["stall_counter"] = 0
+                state["last_progress_timestamp"] = time.time()
+            
+            # Check if all tasks done
+            open_issues = [
+                i for i in issues 
+                if i["state"]["name"] not in ["Done", "Canceled"]
+            ]
+            
+            if not open_issues and issues:
+                state["epic_may_be_complete"] = True
+                await post_to_slack(
+                    message="✅ All Linear tasks complete. Should we close this epic?",
+                    thread_ts=state.get("slack_thread_ts", ""),
+                    channel_id=state.get("slack_channel_id", "")
+                )
+    
+    except Exception as e:
+        logger.error(f"Progress monitor error: {e}")
+    
+    return state
+
+
+async def human_feedback_node(state: OrchestrationState) -> Dict[str, Any]:
+    """Request human feedback with WhatsApp notification."""
+    
+    if not state["awaiting_human_feedback"]:
+        # Post to Slack
+        context = state.get("human_feedback_context", "Human input needed")
+        await post_to_slack(
+            message=f"🤖 {context}. Please respond in this thread.",
+            thread_ts=state.get("slack_thread_ts", ""),
+            channel_id=state.get("slack_channel_id", "")
+        )
+        
+        # Send WhatsApp if not already sent
+        if not state.get("whatsapp_alert_sent") and state.get("human_phone_number"):
+            await send_whatsapp_alert(
+                message=f"🔔 Your input needed on epic {state.get('epic_id', 'unknown')}\n{context}",
+                phone_number=state["human_phone_number"]
+            )
+            state["whatsapp_alert_sent"] = True
+        
+        state["awaiting_human_feedback"] = True
+    
+    # Don't burn cycles - just return
+    await asyncio.sleep(30)
+    return state
+
+
+async def wait_node(state: OrchestrationState) -> Dict[str, Any]:
+    """Simple wait node for pausing execution."""
+    logger.info("In wait state, pausing for 30 seconds")
+    await asyncio.sleep(30)
+    return state
+
+
+async def rollback_node(state: OrchestrationState) -> Dict[str, Any]:
+    """Handle rollback requests."""
+    
+    rollback_sha = state.get("rollback_to_sha")
+    if not rollback_sha and state["completed_runs"]:
+        # Get SHA from last run
+        last_run = state["completed_runs"][-1]
+        rollback_sha = last_run.get("result", {}).get("git_sha_start")
+    
+    if rollback_sha:
+        # Import here to avoid circular dependency
+        from .git_manager import GitManager
+        git_manager = GitManager()
+        
+        # Get workspace for current agent
+        workspace = state["workspace_paths"].get(state["current_agent"])
+        if workspace:
+            success = await git_manager.rollback_workspace(
+                workspace_path=workspace,
+                target_sha=rollback_sha,
+                reason="Human requested rollback via Slack"
+            )
+            
+            if success:
+                await post_to_slack(
+                    message=f"✅ Rolled back to {rollback_sha[:8]}",
+                    thread_ts=state.get("slack_thread_ts", ""),
+                    channel_id=state.get("slack_channel_id", "")
+                )
+                # Remove last run
+                if state["completed_runs"]:
+                    state["completed_runs"].pop()
+            else:
+                await post_to_slack(
+                    message=f"❌ Failed to rollback to {rollback_sha[:8]}",
+                    thread_ts=state.get("slack_thread_ts", ""),
+                    channel_id=state.get("slack_channel_id", "")
+                )
+    
+    state["rollback_requested"] = False
+    state["rollback_to_sha"] = None
+    return state

@@ -118,6 +118,12 @@ class AgentRunRequest(BaseResponseModel):
     whatsapp_notifications: bool = False  # Enable WhatsApp notifications
     slack_thread_ts: Optional[str] = None  # Slack thread timestamp for group chat
     
+    # Enhanced orchestration parameters
+    epic_id: Optional[str] = None  # Linear epic ID
+    linear_project_id: Optional[str] = None  # Linear project ID
+    slack_channel_id: Optional[str] = None  # Slack channel ID
+    human_phone_number: Optional[str] = None  # Phone for WhatsApp alerts
+    
     model_config = ConfigDict(
         exclude_none=True,
         json_schema_extra={
