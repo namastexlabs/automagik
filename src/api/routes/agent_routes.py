@@ -5,22 +5,21 @@ import re  # Move re import here
 import uuid
 import asyncio
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks, Depends
 from starlette.responses import JSONResponse
 from starlette import status
 from pydantic import ValidationError, BaseModel, Field
 from src.api.models import AgentInfo, AgentRunRequest
 from src.api.controllers.agent_controller import list_registered_agents, handle_agent_run
 from src.utils.session_queue import get_session_queue
+from src.db.repository import session as session_repo
+from src.db.repository import user as user_repo
 
 # Create router for agent endpoints
 agent_router = APIRouter()
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
-
-# Store for async run results (in production, use Redis or DB)
-async_runs: Dict[str, Dict[str, Any]] = {}
 
 
 class AsyncRunResponse(BaseModel):
@@ -47,44 +46,55 @@ class RunStatusResponse(BaseModel):
 async def execute_agent_async(
     run_id: str,
     agent_name: str,
-    request: AgentRunRequest
+    request: AgentRunRequest,
+    session_id: str
 ):
     """Execute agent run in background."""
     try:
-        # Update status to running
-        async_runs[run_id]["status"] = "running"
-        async_runs[run_id]["started_at"] = datetime.utcnow().isoformat()
+        # Update session metadata to mark as running
+        metadata = {
+            "run_id": run_id,
+            "run_status": "running",
+            "started_at": datetime.utcnow().isoformat(),
+            "agent_name": agent_name
+        }
+        # Store in session metadata
+        session = session_repo.get_session(uuid.UUID(session_id))
+        if session:
+            updated_metadata = session.metadata or {}
+            updated_metadata.update(metadata)
+            session.metadata = updated_metadata
+            session_repo.update_session(session)
         
         # Execute the agent
         result = await handle_agent_run(agent_name, request)
         
-        # Update with result
-        async_runs[run_id]["status"] = "completed"
-        async_runs[run_id]["completed_at"] = datetime.utcnow().isoformat()
-        async_runs[run_id]["result"] = result
+        # Update session with completion
+        metadata = {
+            "run_id": run_id,
+            "run_status": "completed",
+            "completed_at": datetime.utcnow().isoformat(),
+            "agent_name": agent_name
+        }
+        # Update through repository
         
     except Exception as e:
         # Update with error
-        async_runs[run_id]["status"] = "failed"
-        async_runs[run_id]["completed_at"] = datetime.utcnow().isoformat()
-        async_runs[run_id]["error"] = str(e)
         logger.error(f"Async run {run_id} failed: {e}")
+        try:
+            metadata = {
+                "run_id": run_id,
+                "run_status": "failed",
+                "completed_at": datetime.utcnow().isoformat(),
+                "error": str(e),
+                "agent_name": agent_name
+            }
+            # Update through repository
+        except Exception as update_error:
+            logger.error(f"Failed to update session after error: {update_error}")
 
 
-# Cleanup task to remove old runs
-async def cleanup_old_runs():
-    """Remove completed runs older than 1 hour."""
-    while True:
-        await asyncio.sleep(3600)  # Run every hour
-        cutoff = datetime.utcnow().timestamp() - 3600
-        to_remove = []
-        for run_id, run_data in async_runs.items():
-            if run_data.get("completed_at"):
-                completed = datetime.fromisoformat(run_data["completed_at"]).timestamp()
-                if completed < cutoff:
-                    to_remove.append(run_id)
-        for run_id in to_remove:
-            del async_runs[run_id]
+# Database-based cleanup happens automatically via session expiry
 
 async def clean_and_parse_agent_run_payload(request: Request) -> AgentRunRequest:
     """
@@ -407,26 +417,66 @@ async def run_agent_async(
     # Generate run ID
     run_id = str(uuid.uuid4())
     
-    # Initialize run record
-    async_runs[run_id] = {
-        "run_id": run_id,
-        "status": "pending",
-        "agent_name": agent_name,
-        "created_at": datetime.utcnow().isoformat(),
-        "started_at": None,
-        "completed_at": None,
-        "result": None,
-        "error": None,
-        "request": agent_request.dict()
-    }
-    
-    # Add to background tasks
-    background_tasks.add_task(
-        execute_agent_async,
-        run_id,
-        agent_name,
-        agent_request
-    )
+    # Create session for async run using repositories
+    try:
+        # Ensure user exists
+        user_id = agent_request.user_id
+        if not user_id and agent_request.user:
+            # Create user if needed
+            from src.db.models import User
+            email = agent_request.user.email
+            phone_number = agent_request.user.phone_number
+            user_data = agent_request.user.user_data or {}
+            
+            # Try to find existing user
+            user = None
+            if email:
+                user = user_repo.get_user_by_email(email)
+            
+            # Create new user if not found
+            if not user:
+                new_user = User(
+                    email=email,
+                    phone_number=phone_number,
+                    user_data=user_data
+                )
+                user_id = user_repo.create_user(new_user)
+                user_id = str(user_id) if user_id else None
+            else:
+                user_id = str(user.id)
+        
+        # Create session with async run metadata
+        from src.db.models import Session
+        session = Session(
+            agent_id=None,  # Will be set when agent is loaded
+            name=agent_request.session_name or f"async-run-{run_id}",
+            platform="api",
+            user_id=uuid.UUID(user_id) if user_id else None,
+            metadata={
+                "run_id": run_id,
+                "run_status": "pending",
+                "agent_name": agent_name,
+                "created_at": datetime.utcnow().isoformat(),
+                "request": agent_request.dict()
+            }
+        )
+        session_id = session_repo.create_session(session)
+        
+        # Update the request with the session ID
+        agent_request.session_id = str(session_id)
+        
+        # Add to background tasks
+        background_tasks.add_task(
+            execute_agent_async,
+            run_id,
+            agent_name,
+            agent_request,
+            str(session_id)
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create async run session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create async run: {str(e)}")
     
     return AsyncRunResponse(
         run_id=run_id,
@@ -466,19 +516,53 @@ async def get_run_status(run_id: str):
     }
     ```
     """
-    if run_id not in async_runs:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-    
-    run_data = async_runs[run_id]
-    
-    return RunStatusResponse(
-        run_id=run_id,
-        status=run_data["status"],
-        agent_name=run_data["agent_name"],
-        created_at=run_data["created_at"],
-        started_at=run_data.get("started_at"),
-        completed_at=run_data.get("completed_at"),
-        result=run_data.get("result"),
-        error=run_data.get("error"),
-        progress=run_data.get("progress")
-    ) 
+    try:
+        # Find session by run_id using repository
+        sessions = session_repo.list_sessions()  # Get all sessions
+        
+        # Find session with matching run_id in metadata
+        target_session = None
+        for session in sessions:
+            if session.metadata and session.metadata.get('run_id') == run_id:
+                target_session = session
+                break
+        
+        if not target_session:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        
+        metadata = target_session.metadata or {}
+        
+        # Get messages for the session
+        from src.db.repository.message import MessageRepository
+        message_repo = MessageRepository()
+        messages = message_repo.get_session_messages(target_session.id)
+        
+        # Get the latest assistant message
+        latest_message = None
+        assistant_messages = [msg for msg in messages if msg.role == 'assistant']
+        if assistant_messages:
+            latest = assistant_messages[-1]
+            latest_message = {
+                "content": latest.text_content,
+                "data": latest.raw_payload
+            }
+        
+        return RunStatusResponse(
+            run_id=run_id,
+            status=metadata.get('run_status', 'unknown'),
+            agent_name=metadata.get('agent_name', 'unknown'),
+            created_at=target_session.created_at.isoformat() if target_session.created_at else None,
+            started_at=metadata.get('started_at'),
+            completed_at=metadata.get('completed_at') or (
+                target_session.run_finished_at.isoformat() if target_session.run_finished_at else None
+            ),
+            result=latest_message,
+            error=metadata.get('error'),
+            progress={"message_count": len(messages)}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting run status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get run status: {str(e)}") 
