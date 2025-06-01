@@ -164,22 +164,43 @@ class CLINode:
         Returns:
             List of command arguments
         """
-        cmd = [
-            "claude",
-            "--max-turns", str(max_turns),
-            "--output-format", "json"
-        ]
+        cmd = ["claude"]
+        
+        # Add resume session if provided
+        if resume_session:
+            cmd.extend(["--resume", resume_session])
+            # For resume, add the continuation message with -p
+            cmd.extend(["-p", task_message])
+        else:
+            # For new session, add the task message with -p
+            cmd.extend(["-p", task_message])
+            
+            # Add system prompt based on agent name
+            prompt_file = f"/root/prod/am-agents-labs/.claude/agents-prompts/{agent_name}_prompt.md"
+            if os.path.exists(prompt_file):
+                cmd.extend(["--append-system-prompt", prompt_file])
+            else:
+                # Try alternative location
+                alt_prompt_file = f"/root/workspace/.claude/agents-prompts/{agent_name}_prompt.md" 
+                if os.path.exists(alt_prompt_file):
+                    cmd.extend(["--append-system-prompt", alt_prompt_file])
         
         # Add MCP config if exists
         if os.path.exists(mcp_config_path):
             cmd.extend(["--mcp-config", mcp_config_path])
         
-        # Add resume session if provided
-        if resume_session:
-            cmd.extend(["--resume", resume_session])
+        # Add allowed tools (for now, use a default set)
+        allowed_tools = [
+            "mcp__postgres_automagik_agents__query",
+            "mcp__agent-memory__search_memory_nodes", 
+            "mcp__agent-memory__search_memory_facts",
+            "mcp__agent-memory__add_memory"
+        ]
+        cmd.extend(["--allowedTools", ",".join(allowed_tools)])
         
-        # Add task message
-        cmd.append(task_message)
+        # Add max turns and output format
+        cmd.extend(["--max-turns", str(max_turns)])
+        cmd.extend(["--output-format", "json"])
         
         return cmd
     
