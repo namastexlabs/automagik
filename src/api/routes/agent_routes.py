@@ -236,6 +236,7 @@ async def run_agent(
     - **target_agents**: List of agents to coordinate with (e.g., ["beta", "gamma", "delta"])
     - **workspace_paths**: Agent-specific workspace paths for isolated work
     - **max_rounds**: Maximum orchestration rounds (default: 3)
+    - **run_count**: Number of agent iterations to run (default: 1 for cost control)
     - **enable_rollback**: Enable git rollback capabilities (default: true)
     - **enable_realtime**: Enable real-time progress streaming (default: false)
     
@@ -245,13 +246,22 @@ async def run_agent(
     POST /agent/simple/run
     {"message_content": "Hello world"}
     
-    # LangGraph orchestrated workflow
+    # LangGraph orchestrated workflow with full team
     POST /agent/langgraph-alpha/run  
     {
       "message_content": "Implement user authentication API",
       "target_agents": ["beta", "gamma", "delta"],
       "max_rounds": 5,
+      "run_count": 2,
       "enable_rollback": true
+    }
+    
+    # Single agent orchestration with limited runs
+    POST /agent/langgraph-beta/run
+    {
+      "message_content": "Fix the authentication bug",
+      "run_count": 1,
+      "enable_rollback": false
     }
     ```
     """

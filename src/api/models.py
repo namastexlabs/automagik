@@ -104,6 +104,7 @@ class AgentRunRequest(BaseResponseModel):
     target_agents: Optional[List[str]] = None  # Agents to coordinate with
     workspace_paths: Optional[Dict[str, str]] = None  # Agent-specific workspace paths  
     max_rounds: int = 3  # Maximum orchestration rounds
+    run_count: int = 1  # Number of agent iterations to run (default 1 for cost control)
     enable_rollback: bool = True  # Git rollback capability
     enable_realtime: bool = False  # Real-time streaming updates
     

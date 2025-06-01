@@ -1,0 +1,538 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.10, pytest-8.3.5, pluggy-1.6.0 -- /root/prod/am-agents-labs/.venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.10', 'Platform': 'Linux-6.8.12-9-pve-x86_64-with-glibc2.35', 'Packages': {'pytest': '8.3.5', 'pluggy': '1.6.0'}, 'Plugins': {'langsmith': '0.3.43', 'xdist': '3.7.0', 'mock': '3.14.1', 'logfire': '3.16.1', 'anyio': '4.9.0', 'html': '4.1.1', 'json-report': '1.5.0', 'cov': '6.1.1', 'metadata': '3.1.1', 'asyncio': '1.0.0'}}
+rootdir: /root/prod/am-agents-labs
+configfile: pytest.ini
+plugins: langsmith-0.3.43, xdist-3.7.0, mock-3.14.1, logfire-3.16.1, anyio-4.9.0, html-4.1.1, json-report-1.5.0, cov-6.1.1, metadata-3.1.1, asyncio-1.0.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=module, asyncio_default_test_loop_scope=function
+collecting ... collected 20 items
+
+tests/integration/test_agent_parity.py::TestAgentParity::test_both_agents_extend_automagik_agent PASSED [  5%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_both_agents_have_evolution_support PASSED [ 10%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_both_agents_have_multimodal_support PASSED [ 15%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_sofia_has_additional_features PASSED [ 20%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_consistent_text_processing PASSED [ 25%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_error_handling_consistency PASSED [ 30%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_tool_registry_consistency PASSED [ 35%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_memory_integration_consistency PASSED [ 40%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_configuration_consistency PASSED [ 45%]
+tests/integration/test_discord_agent_api.py::test_discord_agent_run_success FAILED [ 50%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_configure_calculator_server FAILED [ 55%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_lifecycle_operations FAILED [ 60%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_tool_discovery FAILED [ 65%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_agent_mcp_tool_integration FAILED [ 70%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_call_mcp_tool FAILED [ 75%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_mcp_health_check FAILED [ 80%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_bulk_server_configuration FAILED [ 85%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_crud_operations FAILED [ 90%]
+tests/integration/test_mcp_integration.py::test_mcp_system_end_to_end SKIPPEDnality tested by other integration tests) [ 95%]
+tests/integration/test_stan_agent_api.py::test_stan_agent_run_success FAILED [100%]
+
+=================================== FAILURES ===================================
+________________________ test_discord_agent_run_success ________________________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_discord_agent_api.py:57: in test_discord_agent_run_success
+    get_response = await client.get(user_endpoint_get)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+
+During handling of the above exception, another exception occurred:
+tests/integration/test_discord_agent_api.py:82: in test_discord_agent_run_success
+    pytest.fail(f"Setup phase API request failed: {e}")
+E   Failed: Setup phase API request failed: All connection attempts failed
+----------------------------- Captured stderr call -----------------------------
+📝 [92mUsing Discord bot token starting with: MTMxO...[0m
+📝 [92m--- Starting Setup Phase: Ensuring user 'discord-test-user@example.com' exists ---[0m
+📝 [92mAttempting to GET user: http://localhost:8881/api/v1/users/discord-test-user@example.com[0m
+------------------------------ Captured log call -------------------------------
+INFO     test_discord_agent_api:test_discord_agent_api.py:41 📝 [92mUsing Discord bot token starting with: MTMxO...[0m
+INFO     test_discord_agent_api:test_discord_agent_api.py:44 📝 [92m--- Starting Setup Phase: Ensuring user 'discord-test-user@example.com' exists ---[0m
+INFO     test_discord_agent_api:test_discord_agent_api.py:56 📝 [92mAttempting to GET user: http://localhost:8881/api/v1/users/discord-test-user@example.com[0m
+_____________ TestMCPIntegration.test_configure_calculator_server ______________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:53: in test_configure_calculator_server
+    response = await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+_____________ TestMCPIntegration.test_server_lifecycle_operations ______________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:98: in test_server_lifecycle_operations
+    await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+________________ TestMCPIntegration.test_server_tool_discovery _________________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:153: in test_server_tool_discovery
+    await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+______________ TestMCPIntegration.test_agent_mcp_tool_integration ______________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:201: in test_agent_mcp_tool_integration
+    config_response = await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+____________________ TestMCPIntegration.test_call_mcp_tool _____________________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:273: in test_call_mcp_tool
+    await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+___________________ TestMCPIntegration.test_mcp_health_check ___________________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:303: in test_mcp_health_check
+    response = await client.get(f"{base_url}/api/v1/mcp/health")
+.venv/lib/python3.12/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+______________ TestMCPIntegration.test_bulk_server_configuration _______________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:332: in test_bulk_server_configuration
+    response = await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+________________ TestMCPIntegration.test_server_crud_operations ________________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_mcp_integration.py:359: in test_server_crud_operations
+    response = await client.post(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+_________________________ test_stan_agent_run_success __________________________
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:101: in map_httpcore_exceptions
+    yield
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:394: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+.venv/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+.venv/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+.venv/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+.venv/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/integration/test_stan_agent_api.py:58: in test_stan_agent_run_success
+    get_response = await client.get(user_endpoint_get)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1768: in get
+    return await self.request(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv/lib/python3.12/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+.venv/lib/python3.12/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:393: in handle_async_request
+    with map_httpcore_exceptions():
+/usr/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/httpx/_transports/default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+
+During handling of the above exception, another exception occurred:
+tests/integration/test_stan_agent_api.py:83: in test_stan_agent_run_success
+    pytest.fail(f"Setup phase API request failed: {e}")
+E   Failed: Setup phase API request failed: All connection attempts failed
+----------------------------- Captured stderr call -----------------------------
+📝 [92m--- Starting Setup Phase: Ensuring user 'integration-test-user@example.com' exists ---[0m
+📝 [92mAttempting to GET user: http://localhost:8881/api/v1/users/integration-test-user@example.com[0m
+------------------------------ Captured log call -------------------------------
+INFO     test_stan_agent_api:test_stan_agent_api.py:45 📝 [92m--- Starting Setup Phase: Ensuring user 'integration-test-user@example.com' exists ---[0m
+INFO     test_stan_agent_api:test_stan_agent_api.py:57 📝 [92mAttempting to GET user: http://localhost:8881/api/v1/users/integration-test-user@example.com[0m
+=========================== short test summary info ============================
+FAILED tests/integration/test_discord_agent_api.py::test_discord_agent_run_success - Failed: Setup phase API request failed: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_configure_calculator_server - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_lifecycle_operations - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_tool_discovery - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_agent_mcp_tool_integration - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_call_mcp_tool - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_mcp_health_check - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_bulk_server_configuration - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_crud_operations - httpx.ConnectError: All connection attempts failed
+FAILED tests/integration/test_stan_agent_api.py::test_stan_agent_run_success - Failed: Setup phase API request failed: All connection attempts failed
+============= 10 failed, 9 passed, 1 skipped, 12 warnings in 4.73s =============

@@ -1,0 +1,39 @@
+================================================================================
+🚀 CUSTOM PERFORMANCE TEST SUITE
+================================================================================
+
+💾 Initial Memory Usage: 30.94 MB
+
+📊 Agent List Performance:
+   Average Response Time: 42.05ms
+   Min: 16.30ms
+   Max: 46.04ms
+
+📊 Session Management Performance:
+   Create - Avg: 38.69ms
+   Get - Avg: 0.00ms
+
+📊 Concurrent Requests (n=10):
+   Total Time: 0.05s
+   Throughput: 191.27 req/s
+   Success Rate: 100.0%
+   Avg Latency: 46.45ms
+
+📊 Concurrent Requests (n=50):
+   Total Time: 0.26s
+   Throughput: 195.75 req/s
+   Success Rate: 100.0%
+   Avg Latency: 224.31ms
+
+📊 Concurrent Requests (n=100):
+   Total Time: 0.47s
+   Throughput: 214.01 req/s
+   Success Rate: 100.0%
+   Avg Latency: 412.34ms
+
+💾 Final Memory Usage: 39.19 MB
+💾 Memory Growth: 8.25 MB
+
+================================================================================
+✅ PERFORMANCE TEST COMPLETE
+================================================================================

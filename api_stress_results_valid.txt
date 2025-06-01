@@ -1,0 +1,138 @@
+2025-05-31 18:38:56,972 - INFO - Testing agent/simple/run with 100 requests, concurrency 20
+2025-05-31 18:38:57,194 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,200 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,208 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+/root/prod/am-agents-labs/tests/perf/benchmarks/api_stress_test.py:114: DeprecationWarning: connections() is deprecated and will be removed; use net_connections() instead
+  'connections': len(self.process.connections()),
+2025-05-31 18:38:57,228 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,229 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,230 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,232 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,235 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,242 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,250 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,260 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,268 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,299 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,300 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,301 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,302 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,308 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,310 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,314 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,318 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,323 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,329 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,337 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,345 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,352 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,359 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,393 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,394 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,395 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,396 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,397 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,398 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,399 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,404 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,405 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,406 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,408 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,411 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,412 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,416 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,518 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,550 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,551 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,551 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,552 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,552 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,553 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,585 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,651 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,655 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,660 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,666 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,672 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,678 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,684 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,691 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,698 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,705 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,711 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,717 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,722 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,755 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,756 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,757 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,759 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,760 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,761 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,773 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,774 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,776 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,778 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,778 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,781 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,784 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,789 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,796 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,838 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,908 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,912 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,917 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,926 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,930 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,935 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:57,966 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,123 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,127 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,132 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,136 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,139 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,141 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,143 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,145 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,147 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,149 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,152 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,154 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,156 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,158 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:38:58,160 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 500 Internal Server Error"
+2025-05-31 18:39:01,117 - INFO - HTTP Request: POST http://localhost:8881/api/v1/agent/simple/run "HTTP/1.1 200 OK"
+
+================================================================================
+STRESS TEST RESULTS: Agent Run Test
+================================================================================
+
+📊 SUMMARY:
+  Total Requests: 100
+  Successful: 1
+  Failed: 99
+  Error Rate: 99.00%
+  Duration: 4.19 seconds
+  Throughput: 23.85 req/sec
+
+⏱️  LATENCY STATISTICS:
+  Mean: 234.41 ms
+  Median: 178.00 ms
+  95th percentile: 390.79 ms
+  Max: 3228.38 ms
+  Min: 85.77 ms
+
+🖥️  PERFORMANCE MONITORING:
+  Peak Memory: 61.9 MB
+  Memory Growth: 4.1 MB
+  Avg CPU: 64.5%
+  Max Connections: 20
+  Max Open Files: 2
+
+❌ SAMPLE ERRORS (10 shown):
+  1. HTTP 500: {"detail":"Internal server error: No response returned."}
+  2. HTTP 500: {"detail":"Internal server error: No response returned."}
+  3. HTTP 500: {"detail":"Internal server error: No response returned."}
+  4. HTTP 500: {"detail":"Internal server error: No response returned."}
+  5. HTTP 500: {"detail":"Internal server error: No response returned."}
+
+================================================================================

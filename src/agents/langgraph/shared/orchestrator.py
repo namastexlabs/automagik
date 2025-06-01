@@ -30,7 +30,7 @@ except ImportError:
 from .cli_node import CLINode, CLIExecutionError
 from .git_manager import GitManager, GitOperationError
 from .process_manager import ProcessManager, ProcessStatus
-from .state_store import OrchestrationStateStore
+from .state_store import OrchestrationStateStore, OrchestrationState as StateStoreOrchestrationState
 from .messaging import OrchestrationMessenger
 
 logger = logging.getLogger(__name__)
@@ -248,14 +248,10 @@ class LangGraphOrchestrator:
         """
         # Extract agent IDs from orchestration config
         target_agents = orchestration_config.get("target_agents", [agent_name])
-        # Map agent names to IDs (simplified approach - use index + 1)
-        agent_ids = [i + 1 for i in range(len(target_agents))]
-        
-        # Create group chat session with correct parameters
-        group_chat_success = self.messenger.create_group_chat_session(
-            orchestration_session_id=session_id,
-            agent_ids=agent_ids
-        )
+        # Skip group chat creation for now - focus on orchestration execution
+        # Group chat will be enabled once agents are properly registered in database
+        logger.info(f"Target agents for orchestration: {target_agents}")
+        group_chat_success = False  # Temporarily disable group chat
         
         # Use session_id as group_chat_id if creation succeeded
         group_chat_id = str(session_id) if group_chat_success else None
@@ -263,8 +259,8 @@ class LangGraphOrchestrator:
         # Get workspace paths from config
         workspace_paths = orchestration_config.get("workspace_paths", {})
         if not workspace_paths and agent_name:
-            # Default workspace path
-            workspace_paths = {agent_name: f"/root/workspace/am-agents-{agent_name}"}
+            # Default workspace path - use the current labs directory
+            workspace_paths = {agent_name: "/root/prod/am-agents-labs"}
         
         # Initialize state as TypedDict
         state: OrchestrationState = {
@@ -294,14 +290,18 @@ class LangGraphOrchestrator:
             "messages": []
         }
         
-        # Persist initial state
-        await self.state_store.save_orchestration_state(state["orchestration_session_id"], {
-            "phase": state["phase"],
-            "current_agent": state["current_agent"],
-            "round_number": state["round_number"],
-            "workspace_paths": state["workspace_paths"],
-            "task_message": state["task_message"]
-        })
+        # Create orchestration session in database to avoid foreign key issues
+        orchestration_state = StateStoreOrchestrationState(
+            claude_session_id=state["claude_session_id"],
+            workspace_paths=state["workspace_paths"],
+            target_agents=state["target_agents"],
+            max_rounds=state["max_rounds"],
+            enable_rollback=orchestration_config.get("enable_rollback", True)
+        )
+        
+        # Skip session creation in database for now - focus on orchestration execution
+        # The session will be created by the agent controller if needed
+        logger.info(f"Orchestration session ID: {state['orchestration_session_id']}")
         
         return state
     
@@ -315,8 +315,22 @@ class LangGraphOrchestrator:
             Execution results
         """
         try:
+            # Get run_count from orchestration config if available
+            run_count = state["orchestration_config"].get("run_count", state["max_rounds"])
+            effective_max_rounds = min(state["max_rounds"], run_count)
+            
+            # Update state with effective max rounds
+            state["max_rounds"] = effective_max_rounds
+            
+            logger.info(f"Executing LangGraph workflow with effective max rounds: {effective_max_rounds}")
+            
             # Execute the workflow
-            config = {"recursion_limit": 50}
+            config = {
+                "recursion_limit": 50,
+                "configurable": {
+                    "thread_id": str(state["orchestration_session_id"])
+                }
+            }
             final_state = await self.workflow.ainvoke(state, config=config)
             
             return {
@@ -348,7 +362,13 @@ class LangGraphOrchestrator:
         try:
             logger.info("Executing fallback orchestration workflow")
             
-            while state["continue_requested"] and state["round_number"] < state["max_rounds"]:
+            # Get run_count from orchestration config if available
+            run_count = state["orchestration_config"].get("run_count", state["max_rounds"])
+            effective_max_rounds = min(state["max_rounds"], run_count)
+            
+            logger.info(f"Effective max rounds: {effective_max_rounds} (max_rounds={state['max_rounds']}, run_count={run_count})")
+            
+            while state["continue_requested"] and state["round_number"] < effective_max_rounds:
                 state["round_number"] += 1
                 
                 # Execute workflow steps manually

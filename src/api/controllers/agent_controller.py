@@ -54,55 +54,77 @@ async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunReques
         # Generate session ID if not provided
         session_id = request.session_id or str(uuid.uuid4())
         
-        # Build orchestration config
+        # Build orchestration config with run_count limitation
         orchestration_config = request.orchestration_config or {}
+        
+        # Handle individual agent runs vs full team orchestration
+        if request.target_agents:
+            # Full team orchestration
+            target_agents = request.target_agents
+        else:
+            # Single agent run - only run the specified agent
+            base_agent_name = agent_name.replace("langgraph-", "")
+            target_agents = [base_agent_name]
+        
         orchestration_config.update({
-            "target_agents": request.target_agents or ["beta", "gamma", "delta"],
+            "target_agents": target_agents,
             "workspace_paths": request.workspace_paths or {},
-            "max_rounds": request.max_rounds,
+            "max_rounds": min(request.max_rounds, request.run_count),  # Limit by run_count
+            "run_count": request.run_count,  # Pass run_count to orchestrator
             "enable_rollback": request.enable_rollback,
             "enable_realtime": request.enable_realtime
         })
         
+        # Log the configuration for debugging
+        logger.info(f"Orchestration config: target_agents={target_agents}, max_rounds={orchestration_config['max_rounds']}, run_count={request.run_count}")
+        
         # Initialize orchestration session
         session_uuid = uuid.UUID(session_id) if isinstance(session_id, str) else session_id
-        initial_state = await orchestrator._initialize_state(
+        
+        # Actually execute the orchestration instead of just initializing
+        result = await orchestrator.execute_orchestration(
             session_id=session_uuid,
             agent_name=agent_name.replace("langgraph-", ""),  # Remove prefix for actual agent
             task_message=request.message_content,
             orchestration_config=orchestration_config
         )
         
-        # Store initial state
-        await state_store.save_state(session_uuid, initial_state)
-        
-        # Build orchestration status
-        orchestration_status = OrchestrationStatus(
-            is_orchestrated=True,
-            phase="initialized",
-            round_number=0,
-            current_agent=agent_name.replace("langgraph-", ""),
-            workflow_state=initial_state,
-            total_agents=len(orchestration_config["target_agents"]),
-            completed_agents=[],
-            failed_agents=[],
-            rollback_available=request.enable_rollback,
-            last_checkpoint=None
-        )
-        
+        # Extract execution details from result
         execution_time = time.time() - start_time
         
+        # Build orchestration status from execution result
+        orchestration_status = OrchestrationStatus(
+            is_orchestrated=True,
+            phase=result.get("final_phase", "completed"),
+            round_number=result.get("rounds_completed", 0),
+            current_agent=agent_name.replace("langgraph-", ""),
+            workflow_state=result.get("execution_result"),
+            total_agents=len(target_agents),
+            completed_agents=target_agents if result.get("success") else [],
+            failed_agents=[] if result.get("success") else target_agents,
+            rollback_available=request.enable_rollback,
+            last_checkpoint=result.get("git_sha_end")
+        )
+        
+        # Determine success message based on execution
+        if result.get("success"):
+            message = f"Orchestration completed successfully for {agent_name}. Rounds completed: {result.get('rounds_completed', 0)}"
+        else:
+            message = f"Orchestration failed for {agent_name}: {result.get('error', 'Unknown error')}"
+        
         return AgentRunResponse(
-            status="success",
-            message=f"Orchestration session initialized for {agent_name}",
-            session_id=session_id,
+            status="success" if result.get("success") else "error",
+            message=message,
+            session_id=str(session_id),
             agent_name=agent_name,
             execution_time=execution_time,
             orchestration=orchestration_status,
             data={
-                "initial_state": initial_state,
+                "execution_result": result.get("execution_result"),
+                "final_state": result,
                 "config": orchestration_config
-            }
+            },
+            errors=[result.get("error")] if result.get("error") else None
         )
         
     except Exception as e:
