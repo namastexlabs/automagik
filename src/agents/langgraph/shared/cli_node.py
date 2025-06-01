@@ -272,10 +272,15 @@ class EnhancedCLINode(CLINode):
         Returns:
             List of command arguments
         """
-        # Check for ping-pong test mode
+        # Check for test modes
         is_ping_pong = (
             "ping pong" in task_message.lower() or
             (orchestration_config or {}).get('test_mode_settings', {}).get('test_mode') == 'ping_pong'
+        )
+        
+        is_epic_simulation = (
+            "epic simulation" in task_message.lower() or
+            (orchestration_config or {}).get('test_mode_settings', {}).get('test_mode') == 'epic_simulation'
         )
         
         if is_ping_pong:
@@ -283,6 +288,19 @@ class EnhancedCLINode(CLINode):
             task_message = f"[PING PONG TEST MODE] {task_message}\n\nAuto-respond with: '{agent_name} received ping pong, passing to next agent.'"
             # Set max turns to 1 for immediate response
             max_turns = 1
+        elif is_epic_simulation:
+            # In epic simulation mode, provide specific guidance for each agent
+            agent_tasks = {
+                "genie": "Create Linear project/epic and post announcement to Slack",
+                "alpha": "Break down epic into specific Linear issues and assign to team",
+                "beta": "Create implementation tasks with git branches",
+                "gamma": "Create test tasks and link them to implementation tasks",
+                "delta": "Create API endpoint tasks with appropriate labels",
+                "epsilon": "Create tool development tasks and update Slack thread"
+            }
+            
+            agent_task = agent_tasks.get(agent_name, "Participate in epic simulation workflow")
+            task_message = f"[EPIC SIMULATION MODE] {task_message}\n\nYour role: {agent_task}\n\nUse actual MCP tools (Linear, Slack, Git) to demonstrate real workflow capabilities. Mark test items with 'EPIC-SIMULATION-TEST' for cleanup."
         
         cmd = ["claude"]
         
