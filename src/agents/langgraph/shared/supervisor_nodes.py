@@ -43,17 +43,19 @@ Routing guidelines:
 5. Post status updates to Slack when switching agents
 
 Special handling for ping-pong tests:
-If the task mentions "ping pong test", route agents in this order:
-alpha → beta → gamma → delta → epsilon → alpha (and repeat if more rounds)
-Each agent should receive context about the ping pong test.
+If the task mentions "ping pong test" or test_mode is "ping_pong", route agents in this order:
+genie → alpha → beta → gamma → delta → epsilon → genie (and repeat if more rounds)
+Each agent should receive context about the ping pong test and not wait for user input.
 
 Available agents:
-- alpha: Orchestrator and project manager
+- genie: Main orchestrator that coordinates all workflows
+- alpha: Task manager and epic breakdown specialist
 - beta: Core implementation 
 - gamma: Quality assurance and testing
 - delta: API development
 - epsilon: Tools and integrations
-- genie: Meta-orchestrator for complex workflows
+
+Normal flow: genie → alpha → (beta/delta/epsilon based on needs) → gamma
 
 Make informed routing decisions based on actual project state, not assumptions.
 """
@@ -66,32 +68,53 @@ class MCPToolExecutor:
     async def execute_mcp_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """Execute an MCP tool by name with given arguments.
         
-        This is a placeholder that should be replaced with actual MCP execution.
-        In production, this would use the MCP client to execute tools.
+        This uses the actual MCP client to execute tools.
         """
         logger.info(f"Executing MCP tool: {tool_name} with args: {args}")
         
-        # Placeholder for MCP tool execution
-        # In real implementation, this would:
-        # 1. Get MCP client instance
-        # 2. Execute the tool through MCP protocol
-        # 3. Return the result
-        
-        # For now, return mock results for testing
-        if tool_name == "mcp__slack__slack_get_thread_replies":
-            return {
-                "messages": [
-                    {"ts": str(time.time()), "text": "Test message", "user": "U123"}
-                ]
-            }
-        elif tool_name == "mcp__linear__linear_getProjectIssues":
-            return {
-                "issues": [
-                    {"id": "123", "state": {"name": "In Progress"}, "updatedAt": datetime.now().isoformat()}
-                ]
-            }
-        
-        return {"success": True, "result": f"Executed {tool_name}"}
+        try:
+            # Get the MCP client manager from the main app
+            from src.main import mcp_client_manager
+            
+            if mcp_client_manager:
+                # Extract server name and tool name
+                parts = tool_name.split("__")
+                if len(parts) >= 3:
+                    server_name = parts[1]
+                    actual_tool_name = "__".join(parts[2:])
+                    
+                    # Execute the tool
+                    result = await mcp_client_manager.execute_tool(
+                        server_name=server_name,
+                        tool_name=actual_tool_name,
+                        arguments=args
+                    )
+                    
+                    return {"success": True, "result": result}
+                else:
+                    logger.error(f"Invalid MCP tool name format: {tool_name}")
+                    return {"success": False, "error": "Invalid tool name format"}
+            else:
+                logger.warning("MCP client manager not available, returning mock data")
+                # Return mock results for testing
+                if tool_name == "mcp__slack__slack_get_thread_replies":
+                    return {
+                        "messages": [
+                            {"ts": str(time.time()), "text": "Test message", "user": "U123"}
+                        ]
+                    }
+                elif tool_name == "mcp__linear__linear_getProjectIssues":
+                    return {
+                        "issues": [
+                            {"id": "123", "state": {"name": "In Progress"}, "updatedAt": datetime.now().isoformat()}
+                        ]
+                    }
+                
+                return {"success": True, "result": f"Mock execution of {tool_name}"}
+                
+        except Exception as e:
+            logger.error(f"Error executing MCP tool {tool_name}: {e}")
+            return {"success": False, "error": str(e)}
 
 
 # Create handoff tools for each agent
@@ -224,13 +247,12 @@ async def check_linear_tasks(
 
 @tool
 async def send_whatsapp_alert(
-    message: str = Field(description="Alert message"),
-    phone_number: Optional[str] = Field(None, description="Phone number")
+    message: str = Field(description="Alert message")
 ) -> Dict[str, Any]:
-    """Send WhatsApp alert using MCP."""
+    """Send WhatsApp alert to group using MCP."""
     result = await MCPToolExecutor.execute_mcp_tool(
         "mcp__send_whatsapp_message__send_text_message",
-        {"number": phone_number, "message": message}
+        {"message": message}
     )
     return result
 
@@ -259,6 +281,26 @@ def mark_complete(
 
 async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
     """Enhanced supervisor using MCP tools with GPT-4.1."""
+    
+    # Post initial message to Slack if this is the first round
+    if state["round_number"] == 0:
+        if state.get("slack_thread_ts"):
+            await MCPToolExecutor.execute_mcp_tool(
+                "mcp__slack__slack_post_message",
+                {
+                    "channel_id": "C08UF878N3Z",
+                    "text": f"🚀 Starting orchestration for epic {state.get('epic_id', 'Unknown')}\nTask: {state.get('task_message', 'No task specified')}"
+                }
+            )
+        
+        # Send WhatsApp notification to group if configured
+        if state["orchestration_config"].get("whatsapp_notifications"):
+            await MCPToolExecutor.execute_mcp_tool(
+                "mcp__send_whatsapp_message__send_text_message",
+                {
+                    "message": f"🚀 Starting AI orchestration for {state.get('epic_id', 'task')}. I'll notify you if human input is needed."
+                }
+            )
     
     # Handle kill request first
     if state.get("kill_requested"):
@@ -309,6 +351,24 @@ async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
     if not state.get('slack_thread_ts') and state.get('task_message'):
         context_parts.insert(0, f"Task: {state['task_message']}")
     
+    # Check for ping-pong test mode
+    is_ping_pong = (
+        "ping pong" in state.get('task_message', '').lower() or
+        state.get('orchestration_config', {}).get('test_mode_settings', {}).get('test_mode') == 'ping_pong'
+    )
+    
+    if is_ping_pong:
+        # Determine next agent in ping-pong sequence
+        sequence = ["genie", "alpha", "beta", "gamma", "delta", "epsilon"]
+        current = state.get('current_agent', 'genie')
+        try:
+            current_idx = sequence.index(current)
+            next_idx = (current_idx + 1) % len(sequence)
+            next_agent = sequence[next_idx]
+            context_parts.append(f"PING PONG MODE: Route from {current} to {next_agent}")
+        except ValueError:
+            next_agent = "alpha"  # Default if current agent not in sequence
+    
     context_message = f"""
 Current State:
 - Epic: {state.get('epic_id', 'Unknown')}
@@ -316,12 +376,13 @@ Current State:
 - Current Agent: {state.get('current_agent', 'None')}
 - Round: {state['round_number']}/{state['max_rounds']}
 - Agents Run: {', '.join(state['agent_handoffs'])}
+- Test Mode: {'PING PONG' if is_ping_pong else 'Normal'}
 
 Context:
 {chr(10).join(context_parts)}
 
-Task: Analyze the current state and decide the next action. 
-{"Use tools to check Slack and Linear before making routing decisions." if state.get('slack_thread_ts') else "Route to appropriate agent based on the task."}
+Task: {"Route to " + next_agent + " for ping pong test continuation." if is_ping_pong else "Analyze the current state and decide the next action."}
+{"" if is_ping_pong else "Use tools to check Slack and Linear before making routing decisions." if state.get('slack_thread_ts') else "Route to appropriate agent based on the task."}
 """
     
     # Get supervisor response
@@ -490,10 +551,12 @@ async def progress_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
                 state["stall_counter"] += 1
                 
                 if state["stall_counter"] >= 3 and not state.get("whatsapp_alert_sent"):
-                    # Send WhatsApp alert
-                    await send_whatsapp_alert(
-                        message=f"🚨 Epic {state.get('epic_id', 'unknown')} stalled - no updates in 90min",
-                        phone_number=state.get("human_phone_number")
+                    # Send WhatsApp alert to group
+                    await MCPToolExecutor.execute_mcp_tool(
+                        "mcp__send_whatsapp_message__send_text_message",
+                        {
+                            "message": f"🚨 Epic {state.get('epic_id', 'unknown')} stalled - no updates in 90min"
+                        }
                     )
                     state["whatsapp_alert_sent"] = True
             else:
@@ -540,11 +603,13 @@ async def human_feedback_node(state: OrchestrationState) -> Dict[str, Any]:
                 }
             )
         
-        # Send WhatsApp if not already sent
-        if not state.get("whatsapp_alert_sent") and state.get("human_phone_number"):
-            await send_whatsapp_alert(
-                message=f"🔔 Your input needed on epic {state.get('epic_id', 'unknown')}\n{context}",
-                phone_number=state["human_phone_number"]
+        # Send WhatsApp to group if not already sent
+        if not state.get("whatsapp_alert_sent") and state["orchestration_config"].get("whatsapp_notifications"):
+            await MCPToolExecutor.execute_mcp_tool(
+                "mcp__send_whatsapp_message__send_text_message",
+                {
+                    "message": f"🔔 Your input needed on epic {state.get('epic_id', 'unknown')}\n{context}"
+                }
             )
             state["whatsapp_alert_sent"] = True
         
