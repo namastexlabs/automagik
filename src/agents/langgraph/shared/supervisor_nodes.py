@@ -134,18 +134,15 @@ class MCPToolExecutor:
             if mcp_client_manager and server_name in available_servers:
                 # Already extracted above
                 actual_tool_name = "__".join(parts[2:])
-                    
-                    # Execute the tool
-                    result = await mcp_client_manager.call_tool(
-                        server_name=server_name,
-                        tool_name=actual_tool_name,
-                        arguments=args
-                    )
-                    
-                    return {"success": True, "result": result}
-                else:
-                    logger.error(f"Invalid MCP tool name format: {tool_name}")
-                    return {"success": False, "error": "Invalid tool name format"}
+                
+                # Execute the tool
+                result = await mcp_client_manager.call_tool(
+                    server_name=server_name,
+                    tool_name=actual_tool_name,
+                    arguments=args
+                )
+                
+                return {"success": True, "result": result}
             else:
                 logger.warning("MCP client manager not available, returning mock data")
                 # Return mock results for testing

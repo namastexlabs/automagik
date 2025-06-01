@@ -14,6 +14,7 @@ from pathlib import Path
 # Import existing command modules
 from src.cli.db import db_app
 from src.cli.agent import agent_app
+from src.cli.mcp import mcp_app
 
 # Create the agents command group
 agents_app = typer.Typer(
@@ -24,6 +25,7 @@ agents_app = typer.Typer(
 # Add existing subcommands
 agents_app.add_typer(db_app, name="db", help="Database management commands")
 agents_app.add_typer(agent_app, name="agent", help="Agent management and interaction commands")
+agents_app.add_typer(mcp_app, name="mcp", help="MCP server management commands")
 
 # === DEPLOYMENT MODE DETECTION ===
 
