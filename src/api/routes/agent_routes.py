@@ -1,11 +1,14 @@
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json  # Add json import
 import re  # Move re import here
-from fastapi import APIRouter, HTTPException, Request, Body
+import uuid
+import asyncio
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks
 from starlette.responses import JSONResponse
 from starlette import status
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel, Field
 from src.api.models import AgentInfo, AgentRunRequest
 from src.api.controllers.agent_controller import list_registered_agents, handle_agent_run
 from src.utils.session_queue import get_session_queue
@@ -15,6 +18,73 @@ agent_router = APIRouter()
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+# Store for async run results (in production, use Redis or DB)
+async_runs: Dict[str, Dict[str, Any]] = {}
+
+
+class AsyncRunResponse(BaseModel):
+    """Response for async run initiation."""
+    run_id: str = Field(..., description="Unique identifier for the run")
+    status: str = Field(..., description="Current status of the run")
+    message: str = Field(..., description="Status message")
+    agent_name: str = Field(..., description="Name of the agent")
+    
+    
+class RunStatusResponse(BaseModel):
+    """Response for run status check."""
+    run_id: str = Field(..., description="Unique identifier for the run")
+    status: str = Field(..., description="Current status: pending, running, completed, failed")
+    agent_name: str = Field(..., description="Name of the agent")
+    created_at: str = Field(..., description="When the run was created")
+    started_at: Optional[str] = Field(None, description="When the run started")
+    completed_at: Optional[str] = Field(None, description="When the run completed")
+    result: Optional[Dict[str, Any]] = Field(None, description="Run result if completed")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    progress: Optional[Dict[str, Any]] = Field(None, description="Progress information")
+
+
+async def execute_agent_async(
+    run_id: str,
+    agent_name: str,
+    request: AgentRunRequest
+):
+    """Execute agent run in background."""
+    try:
+        # Update status to running
+        async_runs[run_id]["status"] = "running"
+        async_runs[run_id]["started_at"] = datetime.utcnow().isoformat()
+        
+        # Execute the agent
+        result = await handle_agent_run(agent_name, request)
+        
+        # Update with result
+        async_runs[run_id]["status"] = "completed"
+        async_runs[run_id]["completed_at"] = datetime.utcnow().isoformat()
+        async_runs[run_id]["result"] = result
+        
+    except Exception as e:
+        # Update with error
+        async_runs[run_id]["status"] = "failed"
+        async_runs[run_id]["completed_at"] = datetime.utcnow().isoformat()
+        async_runs[run_id]["error"] = str(e)
+        logger.error(f"Async run {run_id} failed: {e}")
+
+
+# Cleanup task to remove old runs
+async def cleanup_old_runs():
+    """Remove completed runs older than 1 hour."""
+    while True:
+        await asyncio.sleep(3600)  # Run every hour
+        cutoff = datetime.utcnow().timestamp() - 3600
+        to_remove = []
+        for run_id, run_data in async_runs.items():
+            if run_data.get("completed_at"):
+                completed = datetime.fromisoformat(run_data["completed_at"]).timestamp()
+                if completed < cutoff:
+                    to_remove.append(run_id)
+        for run_id in to_remove:
+            del async_runs[run_id]
 
 async def clean_and_parse_agent_run_payload(request: Request) -> AgentRunRequest:
     """
@@ -302,4 +372,113 @@ async def run_agent(
         return JSONResponse(
             status_code=500,
             content={"error": f"Error running agent: {str(e)}"}
-        ) 
+        )
+
+
+@agent_router.post("/agent/{agent_name}/run/async", response_model=AsyncRunResponse, tags=["Agents"],
+            summary="Run Agent Asynchronously",
+            description="Start an agent run asynchronously and return immediately with a run ID.")
+async def run_agent_async(
+    agent_name: str,
+    background_tasks: BackgroundTasks,
+    agent_request: AgentRunRequest = Body(..., description="Agent request parameters")
+):
+    """
+    Start an agent run asynchronously.
+    
+    Returns immediately with a run_id that can be used to check status.
+    Useful for long-running operations that might timeout.
+    
+    **Example:**
+    ```
+    # Start async run
+    POST /agent/alpha/run/async
+    {"message_content": "Complex orchestration task"}
+    
+    # Returns:
+    {
+      "run_id": "123e4567-e89b-12d3-a456-426614174000",
+      "status": "pending",
+      "message": "Agent alpha run started",
+      "agent_name": "alpha"
+    }
+    ```
+    """
+    # Generate run ID
+    run_id = str(uuid.uuid4())
+    
+    # Initialize run record
+    async_runs[run_id] = {
+        "run_id": run_id,
+        "status": "pending",
+        "agent_name": agent_name,
+        "created_at": datetime.utcnow().isoformat(),
+        "started_at": None,
+        "completed_at": None,
+        "result": None,
+        "error": None,
+        "request": agent_request.dict()
+    }
+    
+    # Add to background tasks
+    background_tasks.add_task(
+        execute_agent_async,
+        run_id,
+        agent_name,
+        agent_request
+    )
+    
+    return AsyncRunResponse(
+        run_id=run_id,
+        status="pending",
+        message=f"Agent {agent_name} run started",
+        agent_name=agent_name
+    )
+
+
+@agent_router.get("/run/{run_id}/status", response_model=RunStatusResponse, tags=["Agents"],
+           summary="Get Async Run Status",
+           description="Check the status of an asynchronous agent run.")
+async def get_run_status(run_id: str):
+    """
+    Get the status of an async run.
+    
+    **Status values:**
+    - `pending`: Run is queued but not started
+    - `running`: Run is currently executing
+    - `completed`: Run finished successfully
+    - `failed`: Run failed with an error
+    
+    **Example:**
+    ```
+    GET /run/123e4567-e89b-12d3-a456-426614174000/status
+    
+    # Returns:
+    {
+      "run_id": "123e4567-e89b-12d3-a456-426614174000",
+      "status": "completed",
+      "agent_name": "alpha",
+      "created_at": "2024-01-01T00:00:00",
+      "started_at": "2024-01-01T00:00:01",
+      "completed_at": "2024-01-01T00:00:30",
+      "result": {...},
+      "error": null
+    }
+    ```
+    """
+    if run_id not in async_runs:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    
+    run_data = async_runs[run_id]
+    
+    return RunStatusResponse(
+        run_id=run_id,
+        status=run_data["status"],
+        agent_name=run_data["agent_name"],
+        created_at=run_data["created_at"],
+        started_at=run_data.get("started_at"),
+        completed_at=run_data.get("completed_at"),
+        result=run_data.get("result"),
+        error=run_data.get("error"),
+        progress=run_data.get("progress")
+    ) 
