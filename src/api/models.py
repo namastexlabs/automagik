@@ -108,6 +108,16 @@ class AgentRunRequest(BaseResponseModel):
     enable_rollback: bool = True  # Git rollback capability
     enable_realtime: bool = False  # Real-time streaming updates
     
+    # Claude CLI specific parameters
+    max_turns: Optional[int] = None  # Max turns for claude CLI (default 1 for tests, 30 for production)
+    resume_session: Optional[str] = None  # Resume a specific claude session ID
+    force_new_session: bool = False  # Force new session even if one exists
+    allowed_tools_file: Optional[str] = None  # Path to allowed_tools.json
+    mcp_config_path: Optional[str] = None  # Path to .mcp.json
+    system_prompt_file: Optional[str] = None  # Path to system prompt file
+    whatsapp_notifications: bool = False  # Enable WhatsApp notifications
+    slack_thread_ts: Optional[str] = None  # Slack thread timestamp for group chat
+    
     model_config = ConfigDict(
         exclude_none=True,
         json_schema_extra={

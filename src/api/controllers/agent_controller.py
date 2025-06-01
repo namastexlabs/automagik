@@ -72,7 +72,16 @@ async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunReques
             "max_rounds": min(request.max_rounds, request.run_count),  # Limit by run_count
             "run_count": request.run_count,  # Pass run_count to orchestrator
             "enable_rollback": request.enable_rollback,
-            "enable_realtime": request.enable_realtime
+            "enable_realtime": request.enable_realtime,
+            # Claude CLI specific parameters
+            "max_turns": request.max_turns,  # Will use default if None
+            "resume_session": request.resume_session,
+            "force_new_session": request.force_new_session,
+            "allowed_tools_file": request.allowed_tools_file,
+            "mcp_config_path": request.mcp_config_path,
+            "system_prompt_file": request.system_prompt_file,
+            "whatsapp_notifications": request.whatsapp_notifications,
+            "slack_thread_ts": request.slack_thread_ts
         })
         
         # Log the configuration for debugging
