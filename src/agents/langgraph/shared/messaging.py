@@ -250,7 +250,7 @@ class OrchestrationMessenger:
     """High-level messaging interface for orchestration workflows."""
 
     @staticmethod
-    def create_group_chat_session(
+    async def create_group_chat_session(
         orchestration_session_id: uuid.UUID,
         agent_ids: List[int]
     ) -> bool:
@@ -348,6 +348,11 @@ class OrchestrationMessenger:
             True if successful, False otherwise
         """
         try:
+            # Handle None or empty group_session_id
+            if not group_session_id:
+                logger.warning("No group session ID provided for message")
+                return False
+                
             # Convert group_session_id to UUID
             session_uuid = uuid.UUID(group_session_id)
             
@@ -387,6 +392,11 @@ class OrchestrationMessenger:
             Formatted chat context string
         """
         try:
+            # Handle None or empty group_chat_id
+            if not group_chat_id:
+                logger.warning("No group chat ID provided for context")
+                return "\n\n=== TEAM COORDINATION CONTEXT ===\n(No group chat available)\n=== END CONTEXT ===\n"
+                
             # Convert group_chat_id to UUID
             session_uuid = uuid.UUID(group_chat_id)
             

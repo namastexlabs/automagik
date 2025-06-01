@@ -53,8 +53,7 @@ class TestIntegrationWorkflows:
             CLINode=AsyncMock,
             GitManager=AsyncMock,
             ProcessManager=AsyncMock,
-            OrchestrationStateStore=AsyncMock,
-            OrchestrationMessenger=AsyncMock
+            OrchestrationStateStore=AsyncMock
         ) as mocks:
             yield mocks
     
@@ -65,7 +64,10 @@ class TestIntegrationWorkflows:
         return orchestrator
     
     @pytest.mark.asyncio
-    async def test_full_orchestration_workflow(self, orchestrator, temp_workspace):
+    @patch.object(OrchestrationMessenger, 'create_group_chat_session', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'send_group_message', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'prepare_chat_context', new_callable=AsyncMock, return_value="Group chat context")
+    async def test_full_orchestration_workflow(self, mock_prepare, mock_send, mock_create, orchestrator, temp_workspace):
         """Test complete orchestration workflow from start to finish."""
         # Arrange
         session_id = uuid.uuid4()
@@ -102,10 +104,7 @@ class TestIntegrationWorkflows:
         orchestrator.process_manager.start_monitoring = AsyncMock(return_value=True)
         orchestrator.process_manager.get_process_status = AsyncMock(return_value=ProcessStatus.STOPPED)
         
-        # Mock messaging
-        orchestrator.messenger.create_group_chat_session = AsyncMock(return_value=uuid.uuid4())
-        orchestrator.messenger.prepare_chat_context = AsyncMock(return_value="Group chat context")
-        orchestrator.messenger.send_group_message = AsyncMock()
+        # Messaging is mocked via decorators
         
         # Mock state store
         orchestrator.state_store.save_orchestration_state = AsyncMock()
@@ -128,10 +127,13 @@ class TestIntegrationWorkflows:
         orchestrator.cli_node.run_claude_agent.assert_called()
         orchestrator.git_manager.snapshot_workspace.assert_called()
         orchestrator.process_manager.start_monitoring.assert_called()
-        orchestrator.messenger.create_group_chat_session.assert_called_once()
+        mock_create.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_multi_agent_orchestration(self, orchestrator, temp_workspace):
+    @patch.object(OrchestrationMessenger, 'create_group_chat_session', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'send_group_message', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'prepare_chat_context', new_callable=AsyncMock, return_value="Multi-agent chat context")
+    async def test_multi_agent_orchestration(self, mock_prepare, mock_send, mock_create, orchestrator, temp_workspace):
         """Test orchestration with multiple agents."""
         # Arrange
         session_id = uuid.uuid4()
@@ -165,9 +167,7 @@ class TestIntegrationWorkflows:
         orchestrator.git_manager.snapshot_workspace = AsyncMock(return_value="abc123")
         orchestrator.process_manager.start_monitoring = AsyncMock(return_value=True)
         orchestrator.process_manager.get_process_status = AsyncMock(return_value=ProcessStatus.STOPPED)
-        orchestrator.messenger.create_group_chat_session = AsyncMock(return_value=uuid.uuid4())
-        orchestrator.messenger.prepare_chat_context = AsyncMock(return_value="Multi-agent chat context")
-        orchestrator.messenger.send_group_message = AsyncMock()
+        # Messaging is mocked via decorators
         orchestrator.state_store.save_orchestration_state = AsyncMock()
         
         # Act
@@ -183,7 +183,7 @@ class TestIntegrationWorkflows:
         assert result["rounds_completed"] >= 1
         
         # Verify multi-agent setup
-        orchestrator.messenger.prepare_chat_context.assert_called()
+        mock_prepare.assert_called()
         
         # Should have called CLI execution
         orchestrator.cli_node.run_claude_agent.assert_called()
@@ -192,7 +192,10 @@ class TestIntegrationWorkflows:
         assert "Multi-agent chat context" in call_args["task_message"]
     
     @pytest.mark.asyncio
-    async def test_git_rollback_workflow(self, orchestrator, temp_workspace):
+    @patch.object(OrchestrationMessenger, 'create_group_chat_session', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'send_group_message', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'prepare_chat_context', new_callable=AsyncMock, return_value="")
+    async def test_git_rollback_workflow(self, mock_prepare, mock_send, mock_create, orchestrator, temp_workspace):
         """Test git rollback and recovery scenarios."""
         # Arrange
         session_id = uuid.uuid4()
@@ -250,9 +253,9 @@ class TestIntegrationWorkflows:
         
         async def mock_decision(state):
             # Trigger rollback on first round when process fails
-            if state.round_number == 1 and state.process_status == ProcessStatus.FAILED:
-                state.rollback_requested = True
-                state.rollback_reason = "Test failure"
+            if state["round_number"] == 1 and state["process_status"] == ProcessStatus.FAILED:
+                state["rollback_requested"] = True
+                state["rollback_reason"] = "Test failure"
             return await original_decision(state)
         
         orchestrator._decision = mock_decision
@@ -377,8 +380,8 @@ class TestIntegrationWorkflows:
         
         async def mock_decision_with_breakpoint(state):
             # Trigger breakpoint on first decision
-            if state.round_number == 1:
-                state.breakpoint_requested = True
+            if state["round_number"] == 1:
+                state["breakpoint_requested"] = True
             return await original_decision(state)
         
         orchestrator._decision = mock_decision_with_breakpoint
@@ -538,7 +541,10 @@ class TestIntegrationWorkflows:
         # The important thing is that the orchestration failed gracefully
     
     @pytest.mark.asyncio
-    async def test_concurrent_orchestration_sessions(self, orchestrator, temp_workspace):
+    @patch.object(OrchestrationMessenger, 'create_group_chat_session', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'send_group_message', new_callable=AsyncMock, return_value=True)
+    @patch.object(OrchestrationMessenger, 'prepare_chat_context', new_callable=AsyncMock, return_value="")
+    async def test_concurrent_orchestration_sessions(self, mock_prepare, mock_send, mock_create, orchestrator, temp_workspace):
         """Test multiple concurrent orchestration sessions."""
         # Arrange
         num_sessions = 3
@@ -578,9 +584,7 @@ class TestIntegrationWorkflows:
         orchestrator.git_manager.snapshot_workspace = AsyncMock(return_value="abc123")
         orchestrator.process_manager.start_monitoring = AsyncMock(return_value=True)
         orchestrator.process_manager.get_process_status = AsyncMock(return_value=ProcessStatus.STOPPED)
-        orchestrator.messenger.create_group_chat_session = AsyncMock(return_value=uuid.uuid4())
-        orchestrator.messenger.prepare_chat_context = AsyncMock(return_value="")
-        orchestrator.messenger.send_group_message = AsyncMock()
+        # Messaging is mocked via decorators
         orchestrator.state_store.save_orchestration_state = AsyncMock()
         
         # Act - Run orchestrations concurrently
@@ -602,4 +606,4 @@ class TestIntegrationWorkflows:
         
         # Verify each session was executed
         assert orchestrator.cli_node.run_claude_agent.call_count >= num_sessions
-        assert orchestrator.messenger.create_group_chat_session.call_count >= num_sessions 
+        assert mock_create.call_count >= num_sessions 

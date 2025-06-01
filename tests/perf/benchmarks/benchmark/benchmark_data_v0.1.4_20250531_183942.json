@@ -1,0 +1,189 @@
+{
+  "timestamp": "2025-05-31T18:39:42.006901",
+  "project_version": "0.1.4",
+  "base_url": "http://localhost:8881",
+  "total_tests": 6,
+  "successful_tests": 6,
+  "results": [
+    {
+      "name": "Mock_Infrastructure_Baseline",
+      "description": "Infrastructure baseline with mock agents",
+      "status": "success",
+      "duration": 1.634977102279663,
+      "config": {
+        "name": "Mock_Infrastructure_Baseline",
+        "description": "Infrastructure baseline with mock agents",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 20,
+        "requests": 100
+      },
+      "metrics": {
+        "total_requests": 100,
+        "successful_requests": 100,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 255.83,
+        "mean_latency_ms": 0.71,
+        "p95_latency_ms": 0.87,
+        "max_latency_ms": 1.78,
+        "peak_memory_mb": 59.1,
+        "memory_growth_mb": 0.7,
+        "avg_cpu_percent": 87.8,
+        "max_connections": 0,
+        "max_open_files": 0
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 100\n  Successful: 100\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 0.39 seconds\n  Throughput: 255.83 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.71 ms\n  Median: 0.67 ms\n  95th percentile: 0.87 ms\n  Max: 1.78 ms\n  Min: 0.64 ms\n\n\ud83d\udda5\ufe0f  PERFORMANCE MONITORING:\n  Peak Memory: 59.1 MB\n  Memory Growth: 0.7 MB\n  Avg CPU: 87.8%\n  Max Connections: 0\n  Max Open Files: 0\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Medium_Load",
+      "description": "Medium infrastructure load test",
+      "status": "success",
+      "duration": 2.594557046890259,
+      "config": {
+        "name": "Mock_Medium_Load",
+        "description": "Medium infrastructure load test",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 50,
+        "requests": 500
+      },
+      "metrics": {
+        "total_requests": 500,
+        "successful_requests": 500,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 350.43,
+        "mean_latency_ms": 1.02,
+        "p95_latency_ms": 2.4,
+        "max_latency_ms": 5.31,
+        "peak_memory_mb": 59.1,
+        "memory_growth_mb": 0.7,
+        "avg_cpu_percent": 93.9,
+        "max_connections": 0,
+        "max_open_files": 0
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 500\n  Successful: 500\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 1.43 seconds\n  Throughput: 350.43 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 1.02 ms\n  Median: 0.81 ms\n  95th percentile: 2.40 ms\n  Max: 5.31 ms\n  Min: 0.76 ms\n\n\ud83d\udda5\ufe0f  PERFORMANCE MONITORING:\n  Peak Memory: 59.1 MB\n  Memory Growth: 0.7 MB\n  Avg CPU: 93.9%\n  Max Connections: 0\n  Max Open Files: 0\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_High_Concurrency",
+      "description": "High concurrency infrastructure test",
+      "status": "success",
+      "duration": 3.0653953552246094,
+      "config": {
+        "name": "Mock_High_Concurrency",
+        "description": "High concurrency infrastructure test",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 100,
+        "requests": 1000
+      },
+      "metrics": {
+        "total_requests": 1000,
+        "successful_requests": 1000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 521.75,
+        "mean_latency_ms": 0.7,
+        "p95_latency_ms": 1.22,
+        "max_latency_ms": 1.7,
+        "peak_memory_mb": 60.5,
+        "memory_growth_mb": 2.1,
+        "avg_cpu_percent": 95.4,
+        "max_connections": 0,
+        "max_open_files": 0
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 1000\n  Successful: 1000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 1.92 seconds\n  Throughput: 521.75 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.70 ms\n  Median: 0.63 ms\n  95th percentile: 1.22 ms\n  Max: 1.70 ms\n  Min: 0.61 ms\n\n\ud83d\udda5\ufe0f  PERFORMANCE MONITORING:\n  Peak Memory: 60.5 MB\n  Memory Growth: 2.1 MB\n  Avg CPU: 95.4%\n  Max Connections: 0\n  Max Open Files: 0\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Extreme_Load",
+      "description": "Extreme load infrastructure test",
+      "status": "success",
+      "duration": 5.284838676452637,
+      "config": {
+        "name": "Mock_Extreme_Load",
+        "description": "Extreme load infrastructure test",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 200,
+        "requests": 2000
+      },
+      "metrics": {
+        "total_requests": 2000,
+        "successful_requests": 2000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 490.32,
+        "mean_latency_ms": 0.8,
+        "p95_latency_ms": 1.36,
+        "max_latency_ms": 2.89,
+        "peak_memory_mb": 61.2,
+        "memory_growth_mb": 2.8,
+        "avg_cpu_percent": 96.7,
+        "max_connections": 0,
+        "max_open_files": 0
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 2000\n  Successful: 2000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 4.08 seconds\n  Throughput: 490.32 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.80 ms\n  Median: 0.78 ms\n  95th percentile: 1.36 ms\n  Max: 2.89 ms\n  Min: 0.61 ms\n\n\ud83d\udda5\ufe0f  PERFORMANCE MONITORING:\n  Peak Memory: 61.2 MB\n  Memory Growth: 2.8 MB\n  Avg CPU: 96.7%\n  Max Connections: 0\n  Max Open Files: 0\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Stress_Test",
+      "description": "Maximum stress test for infrastructure",
+      "status": "success",
+      "duration": 12.490093231201172,
+      "config": {
+        "name": "Mock_Stress_Test",
+        "description": "Maximum stress test for infrastructure",
+        "mode": "mock",
+        "mock_type": "test",
+        "concurrency": 500,
+        "requests": 5000
+      },
+      "metrics": {
+        "total_requests": 5000,
+        "successful_requests": 5000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 434.91,
+        "mean_latency_ms": 0.94,
+        "p95_latency_ms": 1.48,
+        "max_latency_ms": 3.7,
+        "peak_memory_mb": 64.6,
+        "memory_growth_mb": 6.2,
+        "avg_cpu_percent": 97.8,
+        "max_connections": 0,
+        "max_open_files": 0
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (test)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 5000\n  Successful: 5000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 11.50 seconds\n  Throughput: 434.91 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 0.94 ms\n  Median: 0.81 ms\n  95th percentile: 1.48 ms\n  Max: 3.70 ms\n  Min: 0.62 ms\n\n\ud83d\udda5\ufe0f  PERFORMANCE MONITORING:\n  Peak Memory: 64.6 MB\n  Memory Growth: 6.2 MB\n  Avg CPU: 97.8%\n  Max Connections: 0\n  Max Open Files: 0\n\n================================================================================\n"
+    },
+    {
+      "name": "Mock_Function_Model_Realistic",
+      "description": "Realistic responses with function model",
+      "status": "success",
+      "duration": 5.088401556015015,
+      "config": {
+        "name": "Mock_Function_Model_Realistic",
+        "description": "Realistic responses with function model",
+        "mode": "mock",
+        "mock_type": "function",
+        "concurrency": 100,
+        "requests": 1000
+      },
+      "metrics": {
+        "total_requests": 1000,
+        "successful_requests": 1000,
+        "failed_requests": 0,
+        "error_rate": "0.00%",
+        "throughput_rps": 268.2,
+        "mean_latency_ms": 265.41,
+        "p95_latency_ms": 371.39,
+        "max_latency_ms": 453.37,
+        "peak_memory_mb": 61.2,
+        "memory_growth_mb": 3.4,
+        "avg_cpu_percent": 98.2,
+        "max_connections": 0,
+        "max_open_files": 0
+      },
+      "output": "\n================================================================================\nSTRESS TEST RESULTS: Mocked Agent Test (function)\n================================================================================\n\n\ud83d\udcca SUMMARY:\n  Total Requests: 1000\n  Successful: 1000\n  Failed: 0\n  Error Rate: 0.00%\n  Duration: 3.73 seconds\n  Throughput: 268.20 req/sec\n\n\u23f1\ufe0f  LATENCY STATISTICS:\n  Mean: 265.41 ms\n  Median: 273.36 ms\n  95th percentile: 371.39 ms\n  Max: 453.37 ms\n  Min: 96.17 ms\n\n\ud83d\udda5\ufe0f  PERFORMANCE MONITORING:\n  Peak Memory: 61.2 MB\n  Memory Growth: 3.4 MB\n  Avg CPU: 98.2%\n  Max Connections: 0\n  Max Open Files: 0\n\n================================================================================\n"
+    }
+  ]
+}

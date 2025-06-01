@@ -12,6 +12,39 @@ import subprocess
 import uuid
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
+import sys
+from contextlib import asynccontextmanager
+
+# Python 3.11+ compatibility
+if sys.version_info >= (3, 11):
+    from asyncio import timeout as async_timeout
+else:
+    # For Python < 3.11, use async_timeout package or a simple wrapper
+    @asynccontextmanager
+    async def async_timeout(seconds):
+        """Simple timeout context manager for older Python versions."""
+        if seconds is None:
+            yield
+            return
+            
+        task = asyncio.current_task()
+        if task is None:
+            yield
+            return
+            
+        async def _timeout():
+            await asyncio.sleep(seconds)
+            task.cancel()
+            
+        timeout_task = asyncio.create_task(_timeout())
+        try:
+            yield
+        finally:
+            timeout_task.cancel()
+            try:
+                await timeout_task
+            except asyncio.CancelledError:
+                pass
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +217,7 @@ class CLINode:
             
             try:
                 # Stream output with timeout
-                async with asyncio.timeout(timeout) if timeout else asyncio.nullcontext():
+                async with async_timeout(timeout):
                     async for line in process.stdout:
                         line_str = line.decode('utf-8', errors='replace').rstrip()
                         output_lines.append(line_str)

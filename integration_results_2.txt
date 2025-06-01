@@ -1,0 +1,32 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.10, pytest-8.3.5, pluggy-1.6.0 -- /root/prod/am-agents-labs/.venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.10', 'Platform': 'Linux-6.8.12-9-pve-x86_64-with-glibc2.35', 'Packages': {'pytest': '8.3.5', 'pluggy': '1.6.0'}, 'Plugins': {'langsmith': '0.3.43', 'xdist': '3.7.0', 'mock': '3.14.1', 'logfire': '3.16.1', 'anyio': '4.9.0', 'html': '4.1.1', 'json-report': '1.5.0', 'cov': '6.1.1', 'metadata': '3.1.1', 'asyncio': '1.0.0'}}
+rootdir: /root/prod/am-agents-labs
+configfile: pytest.ini
+plugins: langsmith-0.3.43, xdist-3.7.0, mock-3.14.1, logfire-3.16.1, anyio-4.9.0, html-4.1.1, json-report-1.5.0, cov-6.1.1, metadata-3.1.1, asyncio-1.0.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=module, asyncio_default_test_loop_scope=function
+collecting ... collected 20 items
+
+tests/integration/test_agent_parity.py::TestAgentParity::test_both_agents_extend_automagik_agent PASSED [  5%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_both_agents_have_evolution_support PASSED [ 10%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_both_agents_have_multimodal_support PASSED [ 15%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_sofia_has_additional_features PASSED [ 20%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_consistent_text_processing PASSED [ 25%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_error_handling_consistency PASSED [ 30%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_tool_registry_consistency PASSED [ 35%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_memory_integration_consistency PASSED [ 40%]
+tests/integration/test_agent_parity.py::TestAgentParity::test_configuration_consistency PASSED [ 45%]
+tests/integration/test_discord_agent_api.py::test_discord_agent_run_success PASSED [ 50%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_configure_calculator_server PASSED [ 55%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_lifecycle_operations PASSED [ 60%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_tool_discovery PASSED [ 65%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_agent_mcp_tool_integration PASSED [ 70%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_call_mcp_tool PASSED [ 75%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_mcp_health_check PASSED [ 80%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_bulk_server_configuration PASSED [ 85%]
+tests/integration/test_mcp_integration.py::TestMCPIntegration::test_server_crud_operations PASSED [ 90%]
+tests/integration/test_mcp_integration.py::test_mcp_system_end_to_end SKIPPEDnality tested by other integration tests) [ 95%]
+tests/integration/test_stan_agent_api.py::test_stan_agent_run_success PASSED [100%]
+
+================= 19 passed, 1 skipped, 12 warnings in 38.25s ==================
