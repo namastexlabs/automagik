@@ -493,7 +493,14 @@ class LangGraphOrchestrator:
         state["phase"] = OrchestrationPhase.PROCESS_MONITORING.value
         
         if state["process_pid"]:
-            # Start monitoring
+            # Check if process has already completed (from CLI node execution)
+            if state.get("execution_result") and state["execution_result"].get("exit_code") is not None:
+                # Process already completed during execution
+                logger.info(f"Process {state['process_pid']} already completed with exit code {state['execution_result']['exit_code']}")
+                state["process_status"] = ProcessStatus.STOPPED
+                return state
+            
+            # Start monitoring for long-running processes
             monitor_config = state["orchestration_config"].get("process_monitoring", {})
             check_interval = monitor_config.get("check_interval", 30)
             
