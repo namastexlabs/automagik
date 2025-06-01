@@ -1,0 +1,85 @@
+{
+  "permissions": {
+    "allow": [
+      "Task",
+      "Bash(*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "WebFetch",
+      "TodoRead",
+      "TodoWrite",
+      "WebSearch",
+      "mcp__*"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo rm *)",
+      "Bash(> /dev/sda*)",
+      "Bash(dd if=/dev/zero*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "postgres_automagik_agents",
+    "git",
+    "linear",
+    "agent-memory",
+    "agno_docs",
+    "automagik_docs",
+    "deepwiki",
+    "slack"
+  ],
+  "agentSpecificSettings": {
+    "alpha": {
+      "description": "Orchestrator - Epic coordination, task distribution, integration",
+      "additionalAllowedTools": [
+        "mcp__linear__*",
+        "mcp__slack__*",
+        "mcp__agent-memory__*"
+      ]
+    },
+    "beta": {
+      "description": "Core Builder - Core framework, agents, memory system",
+      "workspacePath": "../am-agents-core",
+      "additionalAllowedTools": [
+        "mcp__agent-memory__*",
+        "mcp__postgres_automagik_agents__query"
+      ],
+      "focusPaths": ["src/agents/", "src/memory/"]
+    },
+    "delta": {
+      "description": "API Builder - FastAPI endpoints, authentication, middleware",
+      "workspacePath": "../am-agents-api",
+      "additionalAllowedTools": [
+        "mcp__postgres_automagik_agents__query"
+      ],
+      "focusPaths": ["src/api/"]
+    },
+    "epsilon": {
+      "description": "Tool Builder - External integrations, tool development",
+      "workspacePath": "../am-agents-tools",
+      "additionalAllowedTools": [
+        "mcp__deepwiki__*"
+      ],
+      "focusPaths": ["src/tools/"]
+    },
+    "gamma": {
+      "description": "Quality Engineer - Testing, quality assurance, documentation",
+      "workspacePath": "../am-agents-tests",
+      "additionalAllowedTools": [
+        "Bash(pytest*)",
+        "Bash(ruff*)"
+      ],
+      "focusPaths": ["tests/", "docs/"]
+    },
+    "genie": {
+      "description": "General purpose agent with full capabilities",
+      "additionalAllowedTools": []
+    }
+  }
+}
