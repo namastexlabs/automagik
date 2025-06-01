@@ -533,9 +533,8 @@ async def get_run_status(run_id: str):
         metadata = target_session.metadata or {}
         
         # Get messages for the session
-        from src.db.repository.message import MessageRepository
-        message_repo = MessageRepository()
-        messages = message_repo.get_session_messages(target_session.id)
+        from src.db.repository import message as message_repo
+        messages = message_repo.list_messages(target_session.id)
         
         # Get the latest assistant message
         latest_message = None
