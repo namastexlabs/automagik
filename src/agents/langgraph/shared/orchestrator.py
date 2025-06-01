@@ -334,9 +334,16 @@ class LangGraphOrchestrator:
         
         # Get workspace paths from config
         workspace_paths = orchestration_config.get("workspace_paths", {})
-        if not workspace_paths and agent_name:
-            # Default workspace path - use the current labs directory
-            workspace_paths = {agent_name: "/root/prod/am-agents-labs"}
+        if not workspace_paths:
+            # Default workspace paths for all agents - use the current labs directory
+            workspace_paths = {
+                "alpha": "/root/prod/am-agents-labs",
+                "beta": "/root/prod/am-agents-labs", 
+                "gamma": "/root/prod/am-agents-labs",
+                "delta": "/root/prod/am-agents-labs",
+                "epsilon": "/root/prod/am-agents-labs",
+                "genie": "/root/prod/am-agents-labs"
+            }
         
         # Initialize state as TypedDict
         state: OrchestrationState = {
