@@ -181,9 +181,20 @@ class LangGraphOrchestrator:
             workflow.add_edge("progress_monitor", "supervisor")
             
             # Supervisor can route to any agent, wait, feedback, or rollback
+            def supervisor_router(state):
+                next_agent = state.get("next_agent")
+                if next_agent == END:
+                    return END
+                elif next_agent:
+                    return next_agent
+                elif state.get("awaiting_human_feedback"):
+                    return "human_feedback"
+                else:
+                    return "wait"
+            
             workflow.add_conditional_edges(
                 "supervisor",
-                lambda x: x.get("next_agent") or ("human_feedback" if x.get("awaiting_human_feedback") else "wait"),
+                supervisor_router,
                 {
                     "alpha": "alpha",
                     "beta": "beta",

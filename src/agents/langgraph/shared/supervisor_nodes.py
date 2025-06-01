@@ -17,7 +17,6 @@ from langchain_core.tools import tool
 from pydantic import Field
 from langgraph.graph import END
 from langgraph.prebuilt import ToolNode
-from langgraph.types import Command
 
 from .orchestrator import OrchestrationState, OrchestrationPhase
 
@@ -187,19 +186,21 @@ def mark_complete(
     }
 
 
-async def supervisor_node(state: OrchestrationState) -> Command:
+async def supervisor_node(state: OrchestrationState) -> OrchestrationState:
     """Enhanced supervisor using MCP tools with GPT-4.1."""
     
     # Handle kill request first
     if state.get("kill_requested"):
         state["kill_requested"] = False
         logger.warning("Kill requested, halting orchestration")
-        return Command(goto="wait", update=state)
+        state["next_agent"] = "wait"
+        return state
     
     # Handle rollback request
     if state.get("rollback_requested"):
         logger.info("Rollback requested, routing to rollback node")
-        return Command(goto="rollback", update=state)
+        state["next_agent"] = "rollback"
+        return state
     
     # Create supervisor with tools
     all_tools = (
@@ -274,13 +275,14 @@ Use tools to check Slack and Linear before making routing decisions.
                     channel_id=state.get("slack_channel_id", "")
                 )
                 
-                return Command(goto=agent, update=state)
+                return state
             
             # Handle wait
             elif tool_name == "wait_for_human":
                 state["awaiting_human_feedback"] = True
                 state["human_feedback_context"] = tool_call["args"]["context"]
-                return Command(goto="human_feedback", update=state)
+                state["next_agent"] = "human_feedback"
+                return state
             
             # Handle completion
             elif tool_name == "mark_complete":
@@ -289,10 +291,12 @@ Use tools to check Slack and Linear before making routing decisions.
                     thread_ts=state.get("slack_thread_ts", ""),
                     channel_id=state.get("slack_channel_id", "")
                 )
-                return Command(goto=END, update=state)
+                state["next_agent"] = END
+                return state
     
     # Default: wait if no specific action
-    return Command(goto="wait", update=state)
+    state["next_agent"] = "wait"
+    return state
 
 
 async def slack_monitor_node(state: OrchestrationState) -> Dict[str, Any]:
