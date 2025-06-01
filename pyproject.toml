@@ -59,6 +59,9 @@ dependencies = [
     "toml>=0.10.2",
     "langgraph>=0.2.0",
     "psutil>=6.0.0",
+    "langchain-openai>=0.3.18",
+    "langchain-core>=0.3.63",
+    "langchain-experimental>=0.3.4",
 ]
 
 [project.urls]
