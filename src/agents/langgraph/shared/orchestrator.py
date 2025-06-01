@@ -383,7 +383,7 @@ class LangGraphOrchestrator:
             "awaiting_human_feedback": False,
             "human_feedback_context": None,
             "whatsapp_alert_sent": False,
-            "human_phone_number": orchestration_config.get("human_phone_number"),
+            "human_phone_number": None,  # Not needed for group messaging
             "recent_slack_messages": [],
             "last_slack_check": None,
             "stall_counter": 0,

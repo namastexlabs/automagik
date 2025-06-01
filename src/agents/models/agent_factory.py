@@ -157,9 +157,8 @@ class AgentFactory:
                     
                     # Check if the module has a create_agent function
                     if hasattr(module, "create_agent") and callable(module.create_agent):
-                        # Use agent name as-is, no normalization
-                        # For langgraph agents, prefix with 'langgraph-' for disambiguation
-                        agent_name = f"langgraph-{item.name}" if directory_name == "langgraph" else item.name
+                        # Use agent name as-is, no prefixes
+                        agent_name = item.name
                         cls.register_agent_creator(agent_name, module.create_agent)
                         logger.debug(f"Discovered and registered {directory_name} agent: {agent_name}")
                 except Exception as e:

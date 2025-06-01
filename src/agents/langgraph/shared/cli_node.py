@@ -272,6 +272,18 @@ class EnhancedCLINode(CLINode):
         Returns:
             List of command arguments
         """
+        # Check for ping-pong test mode
+        is_ping_pong = (
+            "ping pong" in task_message.lower() or
+            (orchestration_config or {}).get('test_mode_settings', {}).get('test_mode') == 'ping_pong'
+        )
+        
+        if is_ping_pong:
+            # In ping pong mode, modify message to indicate auto-response
+            task_message = f"[PING PONG TEST MODE] {task_message}\n\nAuto-respond with: '{agent_name} received ping pong, passing to next agent.'"
+            # Set max turns to 1 for immediate response
+            max_turns = 1
+        
         cmd = ["claude"]
         
         # Add resume session if provided
