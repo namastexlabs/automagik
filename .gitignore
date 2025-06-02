@@ -133,6 +133,7 @@ cython_debug/
 
 !.env.example
 .env.*
+.env
 .venv
 env/
 venv/
