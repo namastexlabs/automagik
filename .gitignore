@@ -131,8 +131,8 @@ cython_debug/
 # Virtual Environments
 ####################
 
-.env
-.env.prod
+!.env.example
+.env.*
 .venv
 env/
 venv/
