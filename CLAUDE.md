@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Automagik Agents is a production-ready AI agent framework built on Pydantic AI that provides:
+Automagik Agents is a production-ready AI agent framework built on Pydantic AI by Namastex Labs that provides:
 - 🤖 Extensible agent system with template-based creation
 - 💾 Persistent memory with PostgreSQL and optional Neo4j/Graphiti knowledge graphs
 - 🔧 Production-ready FastAPI with authentication and health monitoring
 - 🔗 Multi-LLM support (OpenAI, Gemini, Claude, Groq)
 - 📦 Zero-config deployment via Docker or systemd
 - 🛠️ Comprehensive CLI for agent management and interaction
+- 🔌 MCP (Model Context Protocol) integration for tool discovery
 
 ## 🎯 Core Development Principles
 
@@ -97,8 +98,14 @@ pytest -v
 # Run specific test file
 pytest tests/path/to/test_file.py
 
+# Run a single test function
+pytest tests/path/to/test_file.py::TestClass::test_function
+
 # Run tests in parallel
 pytest -n auto             # Uses pytest-xdist for parallel execution
+
+# Run tests with coverage
+pytest --cov=src --cov-report=term-missing
 ```
 
 ### Code Quality
@@ -163,21 +170,25 @@ automagik-agents/
 - Centralized agent discovery and instantiation
 - Template-based agent creation with automatic tool registration
 - Thread-safe agent management with both sync and async locks
+- Supports multiple frameworks: PydanticAI, LangGraph, Simple, Agno
 
 **Memory System** (`src/memory/`, `src/agents/common/memory_handler.py`)
 - Persistent conversation storage in PostgreSQL
 - Dynamic `{{variable}}` templating that auto-injects context
 - Knowledge graph integration via Graphiti/Neo4j for semantic understanding
+- Preference storage system for user-specific settings
 
 **MCP Integration** (`src/mcp/`)
 - Model Context Protocol client and server management
 - Automatic health checking and server lifecycle management
 - Tool discovery and registration from MCP servers
+- Security validation for allowed tools per agent
 
 **API Layer** (`src/api/`, `src/main.py`)
 - FastAPI-based REST API with authentication middleware
 - Async request handling with concurrency limits
 - Comprehensive health monitoring and error handling
+- WebSocket support for real-time agent interactions
 
 ### Agent Structure
 
@@ -186,6 +197,15 @@ Agents follow a template pattern in `src/agents/simple/`:
 - `prompts/` - Pydantic AI prompt definitions with role-based variations
 - `specialized/` - Domain-specific tools and integrations
 - `models.py` - Agent-specific data models (when needed)
+
+### LangGraph Orchestration
+
+The LangGraph agents (`src/agents/langgraph/`) support multi-agent orchestration:
+- **Alpha, Beta, Gamma, Delta, Epsilon** - Specialized agents for different tasks
+- **Orchestrator** - Coordinates multi-agent workflows
+- **Supervisor Nodes** - Handle agent selection and routing
+- **State Management** - Shared state across agent interactions
+- **Slack Integration** - Native Slack channel support
 
 ### Database Architecture
 
@@ -200,6 +220,8 @@ Agents follow a template pattern in `src/agents/simple/`:
 - `messages` - Message history with channel payload support
 - `prompts` - Templated prompts with variable substitution
 - `mcp_servers` - MCP server configurations and status
+- `preferences` - User preferences and system settings
+- `mcp_allowed_tools` - Security mapping of allowed tools per server
 
 ## CLI Usage
 
@@ -255,6 +277,13 @@ All configuration is managed through `src/config.py` using Pydantic Settings:
 - Use `AM_AGENTS_NAMES` to specify which agents to initialize at startup
 - Agents auto-discover and register tools from `src/tools/`
 - Memory templates support `{{variable}}` substitution for dynamic context
+
+### Channel Support
+The framework supports multiple communication channels:
+- **Evolution API** - WhatsApp integration via Evolution API
+- **Discord** - Discord bot integration
+- **Slack** - Slack workspace integration (LangGraph agents)
+- **API** - Direct REST API interaction
 
 ## Development Patterns
 
@@ -542,4 +571,27 @@ agent-memory_add_memory --name "Pattern" --episode_body "content" --source "text
 # Linear
 linear_create_issue --title "Issue Title" --teamId "<team-id>"
 linear_update_issue --issueId "<issue-id>" --status "In Progress"
+
+# MCP Server Management
+automagik mcp list          # List all MCP servers
+automagik mcp start <name>  # Start an MCP server
+automagik mcp stop <name>   # Stop an MCP server
+automagik mcp health        # Check MCP server health
 ```
+
+## Specialized Agents Reference
+
+### PydanticAI Agents
+- **Sofia** - General-purpose assistant with Airtable integration
+- **Stan** - E-commerce order and product management
+- **Discord** - Discord bot functionality
+- **Simple** - Basic template for new agents
+- **Summary** - Text summarization specialist
+
+### LangGraph Agents (Slack-enabled)
+- **Alpha** - Technical analysis and coding
+- **Beta** - Research and documentation
+- **Gamma** - Creative tasks and content
+- **Delta** - Data analysis and processing
+- **Epsilon** - Testing and validation
+- **Genie** - General orchestration
