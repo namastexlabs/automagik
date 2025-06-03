@@ -1,6 +1,6 @@
-"""Claude CLI execution logic for Claude-Code agent.
+"""Docker-based Claude CLI execution for Claude-Code agent.
 
-This module provides the ClaudeExecutor class that handles the execution
+This module provides the DockerExecutor class that handles the execution
 of Claude CLI commands within Docker containers.
 """
 import logging
@@ -11,11 +11,12 @@ from typing import Dict, List, Optional, Any
 
 from .container import ContainerManager
 from .models import ClaudeCodeRunRequest
+from .executor_base import ExecutorBase
 
 logger = logging.getLogger(__name__)
 
-class ClaudeExecutor:
-    """Handles execution of Claude CLI commands in containers."""
+class DockerExecutor(ExecutorBase):
+    """Handles execution of Claude CLI commands in Docker containers."""
     
     def __init__(self, container_manager: ContainerManager):
         """Initialize the Claude executor.
@@ -25,7 +26,7 @@ class ClaudeExecutor:
         """
         self.container_manager = container_manager
         
-        logger.info("ClaudeExecutor initialized")
+        logger.info("DockerExecutor initialized")
     
     async def execute_claude_task(self, request: ClaudeCodeRunRequest, 
                                  agent_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -95,7 +96,8 @@ class ClaudeExecutor:
                 'session_id': session_id,
                 'workflow_name': request.workflow_name,
                 'request_message': request.message,
-                'git_branch': request.git_branch
+                'git_branch': request.git_branch,
+                'container_id': container_id  # Add container ID for Docker mode
             })
             
             logger.info(f"Claude task execution completed for session {session_id}: {result.get('success', False)}")
@@ -326,3 +328,12 @@ class ClaudeExecutor:
         except Exception as e:
             logger.error(f"Error cancelling execution in container {container_id}: {str(e)}")
             return False
+    
+    async def cleanup(self) -> None:
+        """Clean up all resources."""
+        try:
+            if hasattr(self, 'container_manager') and self.container_manager:
+                await self.container_manager.cleanup()
+                logger.info("DockerExecutor cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during DockerExecutor cleanup: {str(e)}")

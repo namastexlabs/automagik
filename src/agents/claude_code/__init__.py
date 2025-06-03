@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 try:
     from .agent import ClaudeCodeAgent
     from .container import ContainerManager
-    from .executor import ClaudeExecutor
+    from .docker_executor import DockerExecutor
     from .models import (
         ClaudeCodeRunRequest,
         ClaudeCodeRunResponse, 
@@ -78,7 +78,7 @@ __all__ = [
     'create_agent',
     'ClaudeCodeAgent',
     'ContainerManager',
-    'ClaudeExecutor',
+    'DockerExecutor',
     'ClaudeCodeRunRequest',
     'ClaudeCodeRunResponse',
     'ClaudeCodeStatusResponse', 
