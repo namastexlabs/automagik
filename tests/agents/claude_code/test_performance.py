@@ -15,7 +15,7 @@ from typing import List, Dict, Any
 
 from src.agents.claude_code.agent import ClaudeCodeAgent
 from src.agents.claude_code.container import ContainerManager
-from src.agents.claude_code.executor import ClaudeExecutor
+from src.agents.claude_code.docker_executor import DockerExecutor
 from src.agents.claude_code.models import ClaudeCodeRunRequest
 
 
@@ -268,7 +268,7 @@ class TestThroughputPerformance:
         for i in range(5):
             agent = ClaudeCodeAgent({})
             agent.container_manager = mock_container_manager
-            agent.executor = ClaudeExecutor(mock_container_manager)
+            agent.executor = DockerExecutor(mock_container_manager)
             agent._validate_workflow = AsyncMock(return_value=True)
             agents.append(agent)
         
@@ -331,7 +331,7 @@ class TestScalabilityPerformance:
     @pytest.mark.asyncio
     async def test_workflow_loading_cache_performance(self):
         """Test workflow configuration loading performance."""
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         # Mock file system
         with patch('os.path.exists', return_value=True):
@@ -370,7 +370,7 @@ class TestLatencyPerformance:
         
         agent = ClaudeCodeAgent({})
         agent.container_manager = mock_container_manager
-        agent.executor = ClaudeExecutor(mock_container_manager)
+        agent.executor = DockerExecutor(mock_container_manager)
         agent._validate_workflow = AsyncMock(return_value=True)
         
         # Measure latencies
