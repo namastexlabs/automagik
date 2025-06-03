@@ -299,9 +299,13 @@ class TestErrorHandlingIntegration:
         mock_container.initialize = AsyncMock(return_value=False)
         mock_container_class.return_value = mock_container
         
-        # Mock executor
+        # Mock executor that returns Docker initialization failure
         mock_executor = Mock()
-        mock_executor.execute_claude_task = AsyncMock()
+        mock_executor.execute_claude_task = AsyncMock(return_value={
+            'success': False,
+            'error': 'Failed to initialize Docker client',
+            'exit_code': -1
+        })
         mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
