@@ -119,6 +119,9 @@ def reset_environment():
     # Store original env
     original_env = os.environ.copy()
     
+    # Set required environment variables for Claude Code tests
+    os.environ['AM_ENABLE_CLAUDE_CODE'] = 'true'
+    
     yield
     
     # Restore original env
