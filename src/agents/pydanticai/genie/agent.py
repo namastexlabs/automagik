@@ -54,6 +54,9 @@ class GenieAgent(AutomagikAgent):
         # Initialize base agent
         super().__init__(config)
         
+        # Store config for later use
+        self.config = config
+        
         # Set the agent prompt
         self._code_prompt_text = AGENT_PROMPT
         
@@ -138,7 +141,11 @@ class GenieAgent(AutomagikAgent):
         }
         
         # Get workflow sequence
-        planned_workflows = self.router.select_workflows(epic_analysis)
+        if self.router:
+            planned_workflows = self.router.select_workflows(epic_analysis)
+        else:
+            # Fallback when router is not available
+            planned_workflows = [WorkflowType.TEST]
         
         # Add required workflows if not present
         if request.require_tests and WorkflowType.TEST not in planned_workflows:
@@ -154,7 +161,10 @@ class GenieAgent(AutomagikAgent):
         # Estimate costs
         total_cost = 0.0
         for workflow in planned_workflows:
-            cost = self.router.estimate_workflow_cost(workflow, epic_analysis["complexity"])
+            if self.router:
+                cost = self.router.estimate_workflow_cost(workflow, epic_analysis["complexity"])
+            else:
+                cost = 10.0  # Fallback cost estimate
             total_cost += cost
             
         # Generate epic title
@@ -213,7 +223,8 @@ class GenieAgent(AutomagikAgent):
             # Cost management
             cost_accumulated=0.0,
             cost_limit=request.budget_limit,
-            cost_estimates={w.value: self.router.estimate_workflow_cost(w, plan.complexity_score) 
+            cost_estimates={w.value: (self.router.estimate_workflow_cost(w, plan.complexity_score) 
+                                    if self.router else 10.0)
                            for w in plan.planned_workflows},
             
             # Approval tracking
@@ -560,6 +571,10 @@ Your epic is now executing! Check the status URL above for progress updates."""
             Epic creation response with ID and plan
         """
         try:
+            # Validate request
+            if not request or not request.strip():
+                raise ValueError("message cannot be empty")
+            
             # Create epic request
             epic_request = EpicRequest(
                 message=request,
@@ -575,6 +590,13 @@ Your epic is now executing! Check the status URL above for progress updates."""
             
             # Analyze and plan the epic
             epic_plan = await self._plan_epic(epic_request)
+            
+            # Check cost limit
+            if hasattr(self, 'config') and self.config.get('max_cost', float('inf')) < epic_plan.estimated_cost:
+                return {
+                    "error": "cost limit exceeded",
+                    "status": "failed"
+                }
             
             # Initialize epic state
             epic_state = self._initialize_epic_state(epic_request, epic_plan)

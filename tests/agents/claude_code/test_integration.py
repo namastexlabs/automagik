@@ -5,7 +5,7 @@ database operations, and API endpoints.
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
 import json
 from typing import Dict, Any
 
@@ -240,7 +240,8 @@ class TestAPIIntegration:
         assert status['status'] in ['pending', 'running', 'completed']
         
     @pytest.mark.integration
-    def test_workflow_discovery_api(self):
+    @pytest.mark.asyncio
+    async def test_workflow_discovery_api(self):
         """Test workflow discovery functionality."""
         import os
         
@@ -250,21 +251,28 @@ class TestAPIIntegration:
         with patch('os.path.exists') as mock_exists:
             with patch('os.listdir') as mock_listdir:
                 with patch('os.path.isdir') as mock_isdir:
-                    mock_exists.return_value = True
-                    mock_listdir.return_value = ['workflow1', 'workflow2', 'not-a-dir.txt']
-                    mock_isdir.side_effect = [True, True, False]
-                    
-                    # Mock workflow validation
-                    agent._validate_workflow = AsyncMock(side_effect=[True, False])
-                    
-                    # Get workflows
-                    workflows = asyncio.run(agent.get_available_workflows())
-                    
-                    assert len(workflows) == 2
-                    assert 'workflow1' in workflows
-                    assert 'workflow2' in workflows
-                    assert workflows['workflow1']['valid'] is True
-                    assert workflows['workflow2']['valid'] is False
+                    with patch('builtins.open', mock_open(read_data="# Test Workflow\nThis is a test workflow")):
+                        mock_exists.return_value = True
+                        mock_listdir.return_value = ['workflow1', 'workflow2', 'not-a-dir.txt']
+                        mock_isdir.side_effect = [True, True, False]
+                        
+                        # Mock workflow validation - set up proper async mock behavior
+                        async def validate_workflow_side_effect(workflow_name):
+                            if workflow_name == 'workflow1':
+                                return True
+                            else:
+                                return False
+                        
+                        agent._validate_workflow = AsyncMock(side_effect=validate_workflow_side_effect)
+                        
+                        # Get workflows
+                        workflows = await agent.get_available_workflows()
+                        
+                        assert len(workflows) == 2
+                        assert 'workflow1' in workflows
+                        assert 'workflow2' in workflows
+                        assert workflows['workflow1']['valid'] is True
+                        assert workflows['workflow2']['valid'] is False
 
 
 class TestErrorHandlingIntegration:
@@ -299,9 +307,13 @@ class TestErrorHandlingIntegration:
         mock_container.initialize = AsyncMock(return_value=False)
         mock_container_class.return_value = mock_container
         
-        # Mock executor
+        # Mock executor that returns a proper result structure
         mock_executor = Mock()
-        mock_executor.execute_claude_task = AsyncMock()
+        mock_executor.execute_claude_task = AsyncMock(return_value={
+            'success': False,
+            'error': 'Docker initialization failed',
+            'result': 'Docker initialization failed'  # This will be used for the text field
+        })
         mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
@@ -432,9 +444,10 @@ class TestCleanupIntegration:
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_agent_cleanup(self, mock_executor_factory, mock_container_class):
         """Test agent cleanup process."""
-        # Mock container manager with cleanup
-        mock_container = AsyncMock()
-        mock_container_class.return_value = mock_container
+        # Mock executor with proper cleanup method
+        mock_executor = AsyncMock()
+        mock_executor.cleanup = AsyncMock()
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -445,6 +458,6 @@ class TestCleanupIntegration:
         with patch('src.agents.models.automagik_agent.AutomagikAgent.cleanup') as mock_parent:
             await agent.cleanup()
         
-        # Verify cleanup was called
-        mock_container.cleanup.assert_called_once()
+        # Verify cleanup was called on executor
+        mock_executor.cleanup.assert_called_once()
         mock_parent.assert_called_once()

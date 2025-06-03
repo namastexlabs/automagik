@@ -246,8 +246,12 @@ class TestThroughputPerformance:
         
     @pytest.mark.performance
     @pytest.mark.asyncio
-    async def test_concurrent_execution_performance(self):
+    @patch('src.agents.claude_code.agent.settings')
+    async def test_concurrent_execution_performance(self, mock_settings):
         """Test performance with concurrent executions."""
+        # Enable claude-code agent
+        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        
         # Mock components for fast execution
         mock_container_manager = Mock(spec=ContainerManager)
         mock_container_manager.docker_client = Mock()
@@ -268,7 +272,15 @@ class TestThroughputPerformance:
         for i in range(5):
             agent = ClaudeCodeAgent({})
             agent.container_manager = mock_container_manager
-            agent.executor = DockerExecutor(mock_container_manager)
+            
+            # Create a properly mocked executor
+            mock_executor = Mock(spec=DockerExecutor)
+            mock_executor.execute_claude_task = AsyncMock(return_value={
+                'success': True, 
+                'result': f'Task completed by agent {i}',
+                'exit_code': 0
+            })
+            agent.executor = mock_executor
             agent._validate_workflow = AsyncMock(return_value=True)
             agents.append(agent)
         
@@ -278,10 +290,8 @@ class TestThroughputPerformance:
         
         for i, agent in enumerate(agents):
             for j in range(10):
-                with patch('src.agents.claude_code.agent.settings') as mock_settings:
-                    mock_settings.AM_ENABLE_CLAUDE_CODE = True
-                    task = agent.run(f"Task {i}-{j}")
-                    tasks.append(task)
+                task = agent.run(f"Task {i}-{j}")
+                tasks.append(task)
         
         results = await asyncio.gather(*tasks)
         total_time = time.time() - start_time

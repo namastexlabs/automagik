@@ -367,20 +367,20 @@ class TestPrepareEnvironment:
     async def test_prepare_environment_with_env_file(self, mock_file_open, mock_exists):
         """Test environment preparation with .env file."""
         mock_exists.return_value = True
-        mock_file_open.return_value.read.return_value = """
-        # Comment
-        KEY1=value1
-        KEY2=value2
-        INVALID_LINE
-        KEY3 = value3
-        """
-        mock_file_open.return_value.__iter__.return_value = [
+        
+        # Setup mock file to properly simulate line iteration
+        env_content = [
             "# Comment\n",
             "KEY1=value1\n",
             "KEY2=value2\n",
             "INVALID_LINE\n",
             "KEY3 = value3\n"
         ]
+        
+        # Create a mock file object that supports iteration
+        mock_file = mock_open(read_data="".join(env_content)).return_value
+        mock_file.__iter__ = lambda self: iter(env_content)
+        mock_file_open.return_value = mock_file
         
         executor = DockerExecutor(Mock())
         
@@ -630,7 +630,11 @@ class TestEdgeCases:
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
         executor = DockerExecutor(mock_container_manager)
-        executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
+        # Include 'path' key in the mock workflow config
+        executor._load_workflow_config = AsyncMock(return_value={
+            'name': 'test',
+            'path': '/test/workflow/path'
+        })
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -652,7 +656,11 @@ class TestEdgeCases:
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
         executor = DockerExecutor(mock_container_manager)
-        executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
+        # Include 'path' key in the mock workflow config
+        executor._load_workflow_config = AsyncMock(return_value={
+            'name': 'test',
+            'path': '/test/workflow/path'
+        })
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
