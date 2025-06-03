@@ -7,7 +7,9 @@ import logging
 import asyncio
 import json
 import os
+import uuid
 from typing import Dict, List, Optional, Any
+from datetime import datetime
 
 from .container import ContainerManager
 from .models import ClaudeCodeRunRequest
@@ -39,8 +41,8 @@ class ClaudeExecutor:
             Dictionary with execution results
         """
         try:
-            # Prepare session ID
-            session_id = request.session_id or f"session_{request.__hash__()}"
+            # Prepare session ID - use UUID instead of unreliable __hash__
+            session_id = request.session_id or f"session_{str(uuid.uuid4())[:8]}"
             
             logger.info(f"Starting Claude task execution for session {session_id}")
             
