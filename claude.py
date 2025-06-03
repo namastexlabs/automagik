@@ -59,6 +59,15 @@ except ImportError:
 
 console = Console()
 
+# Additional imports for interactive session selector
+try:
+    from prompt_toolkit.shortcuts import radiolist_dialog
+    from prompt_toolkit.styles import Style
+except ImportError:
+    # Fallback if these specific imports aren't available
+    radiolist_dialog = None
+    Style = None
+
 class WorkflowLogger:
     """Simple, human-readable logger for workflow activity"""
     
@@ -144,10 +153,7 @@ class ClaudeCommandCompleter(Completer):
         self.chat = chat_instance
         self.commands = {
             '/help': 'Show available commands',
-            '/session': 'Show current session ID',
-            '/sessions': 'List saved sessions',
-            '/save': 'Save current session with name',
-            '/resume': 'Resume a saved session',
+            '/session': 'Select session (interactive)',
             '/history': 'Show conversation history',
             '/clear': 'Clear conversation display',
             '/reset': 'Start new session',
@@ -189,20 +195,7 @@ class ClaudeCommandCompleter(Completer):
                             display=f"{num} turns"
                         )
             
-            # For /resume command, suggest saved session names
-            elif text.startswith('/resume '):
-                session_part = text[len('/resume '):]
-                for session_id, session_data in self.chat.saved_sessions.items():
-                    session_name = session_data.get('name', 'Unnamed')
-                    workflow = session_data.get('workflow', 'unknown')
-                    msg_count = session_data.get('conversation_length', 0)
-                    
-                    if session_name.lower().startswith(session_part.lower()):
-                        yield Completion(
-                            session_name,
-                            start_position=-len(session_part),
-                            display=f"{session_name} ({workflow.upper()}, {msg_count} msgs)"
-                        )
+
             
             # Complete command names
             else:
@@ -238,6 +231,9 @@ class ClaudeStreamingChat:
         # Create sessions directory
         os.makedirs(self.sessions_dir, exist_ok=True)
         
+        # Create logs directory for workflow logging
+        os.makedirs("logs", exist_ok=True)
+        
         # Setup components
         self.check_dependencies()
         self.discover_workflows()
@@ -252,6 +248,9 @@ class ClaudeStreamingChat:
         # Initialize logger
         self.logger = WorkflowLogger(self.current_workflow)
         self.workflow_start_time = None
+        
+        # Auto-load last session
+        self.auto_load_last_session()
     
     def check_dependencies(self):
         """Check if required files exist"""
@@ -273,6 +272,10 @@ class ClaudeStreamingChat:
                 border_style="red"
             ))
             console.print("\n[yellow]Make sure you're running from the project root directory.[/yellow]")
+            console.print("\n[yellow]If files were recently deleted, try:[/yellow]")
+            console.print("  [cyan]git status[/cyan] - Check what was deleted")
+            console.print("  [cyan]git restore <file>[/cyan] - Restore deleted files")
+            console.print("  [cyan]git checkout HEAD -- <file>[/cyan] - Force restore from last commit")
             sys.exit(1)
     
     def discover_workflows(self):
@@ -381,21 +384,33 @@ class ClaudeStreamingChat:
             if len(self.command_history) > 100:
                 self.command_history = self.command_history[-100:]
     
-    def save_current_session(self, session_name: str) -> bool:
-        """Save current session with a custom name"""
+    def auto_save_session(self):
+        """Automatically save current session"""
         if not self.session_id:
-            console.print("[red]❌ No active session to save[/red]")
-            return False
-        
+            return
+            
         try:
+            # Generate session name based on workflow and conversation
+            session_name = f"{self.current_workflow.title()} Session"
+            if self.conversation_history:
+                # Use first user message as hint for name
+                first_message = ""
+                for role, content in self.conversation_history:
+                    if role == "user":
+                        first_message = content[:30].replace('\n', ' ').strip()
+                        break
+                if first_message:
+                    session_name = f"{self.current_workflow.title()}: {first_message}..."
+            
             session_data = {
                 'session_id': self.session_id,
                 'name': session_name,
                 'workflow': self.current_workflow,
                 'max_turns': self.max_turns,
-                'created': datetime.now().isoformat(),
+                'created': self.saved_sessions.get(self.session_id, {}).get('created', datetime.now().isoformat()),
                 'conversation_length': len(self.conversation_history),
-                'last_used': datetime.now().isoformat()
+                'last_used': datetime.now().isoformat(),
+                'last_message_date': datetime.now().isoformat()
             }
             
             # Save session metadata
@@ -414,41 +429,35 @@ class ClaudeStreamingChat:
             
             with open(session_file, 'w') as f:
                 json.dump(conversation_data, f, indent=2)
-            
-            self.logger.config_change("session_saved", "", f"{session_name} ({self.session_id[:8]}...)")
-            console.print(f"[green]✅ Session saved as '{session_name}'[/green]")
-            console.print(f"[dim]Session ID: {self.session_id[:12]}... | Messages: {len(self.conversation_history)}[/dim]")
-            console.print(f"[dim]Conversation saved to: {session_file}[/dim]")
-            return True
-            
+                
         except Exception as e:
-            console.print(f"[red]❌ Could not save session: {e}[/red]")
+            # Don't break the flow if auto-save fails
+            console.print(f"[dim yellow]⚠️ Auto-save failed: {e}[/dim yellow]")
+            
+    def auto_load_last_session(self):
+        """Automatically load the most recently used session"""
+        if not self.saved_sessions:
             return False
+            
+        # Find most recent session
+        most_recent = None
+        most_recent_time = ""
+        
+        for session_id, session_data in self.saved_sessions.items():
+            last_used = session_data.get('last_used', '')
+            if last_used > most_recent_time:
+                most_recent_time = last_used
+                most_recent = session_id
+                
+        if most_recent:
+            return self.resume_session_by_id(most_recent)
+        return False
     
-    def resume_session(self, session_identifier: str) -> bool:
-        """Resume a saved session by name or session ID"""
-        # Try to find session by name first, then by session ID
-        target_session = None
-        session_id = None
-        
-        # Search by name
-        for sid, session_data in self.saved_sessions.items():
-            if session_data.get('name', '').lower() == session_identifier.lower():
-                target_session = session_data
-                session_id = sid
-                break
-        
-        # Search by session ID if not found by name
-        if not target_session:
-            for sid, session_data in self.saved_sessions.items():
-                if sid.startswith(session_identifier) or sid == session_identifier:
-                    target_session = session_data
-                    session_id = sid
-                    break
+    def resume_session_by_id(self, session_id: str) -> bool:
+        """Resume a session by session ID"""
+        target_session = self.saved_sessions.get(session_id)
         
         if not target_session:
-            console.print(f"[red]❌ Session '{session_identifier}' not found[/red]")
-            console.print("[dim]Use /sessions to see available sessions[/dim]")
             return False
         
         try:
@@ -456,9 +465,6 @@ class ClaudeStreamingChat:
             self.session_id = session_id
             
             # Update configuration to match saved session
-            old_workflow = self.current_workflow
-            old_max_turns = self.max_turns
-            
             self.current_workflow = target_session.get('workflow', self.current_workflow)
             self.max_turns = target_session.get('max_turns', self.max_turns)
             
@@ -469,35 +475,25 @@ class ClaudeStreamingChat:
             
             # Reinitialize logger with correct workflow
             self.logger = WorkflowLogger(self.current_workflow)
-            self.logger.config_change("session_resumed", f"{old_workflow}:{old_max_turns}", 
-                                    f"{self.current_workflow}:{self.max_turns}")
             
             # Load conversation history from session file
             session_file = os.path.join(self.sessions_dir, f"{session_id}.json")
-            loaded_messages = 0
             
             if os.path.exists(session_file):
                 try:
                     with open(session_file, 'r') as f:
                         conversation_data = json.load(f)
                         self.conversation_history = conversation_data.get('conversation_history', [])
-                        loaded_messages = len(self.conversation_history)
-                        console.print(f"[dim]Loaded {loaded_messages} messages from conversation history[/dim]")
                 except Exception as e:
-                    console.print(f"[yellow]⚠️ Could not load conversation history: {e}[/yellow]")
+                    console.print(f"[dim yellow]⚠️ Could not load conversation history: {e}[/dim yellow]")
                     self.conversation_history = []
             else:
-                console.print(f"[yellow]⚠️ No conversation file found for session[/yellow]")
                 self.conversation_history = []
-            
-            console.print(f"[green]✅ Resumed session '{target_session['name']}'[/green]")
-            console.print(f"[dim]Session ID: {session_id[:12]}... | Workflow: {self.current_workflow} | Max turns: {self.max_turns}[/dim]")
-            console.print(f"[dim]Created: {target_session.get('created', 'Unknown')} | Messages: {loaded_messages} loaded[/dim]")
             
             return True
             
         except Exception as e:
-            console.print(f"[red]❌ Could not resume session: {e}[/red]")
+            console.print(f"[dim yellow]⚠️ Could not resume session: {e}[/dim yellow]")
             return False
     
     def show_header(self):
@@ -536,14 +532,31 @@ class ClaudeStreamingChat:
         if self.current_workflow in self.available_workflows:
             workflow_prompt = self.available_workflows[self.current_workflow]["path"]
         
+        # Pre-process allowed tools by reading file directly
+        try:
+            with open("allowed_tools.json", "r") as f:
+                tools_data = json.load(f)
+                allowed_tools = ",".join(tools_data) if isinstance(tools_data, list) else ""
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Could not read allowed_tools.json: {e}[/yellow]")
+            allowed_tools = ""
+        
+        # Pre-process system prompt by reading file directly
+        try:
+            with open(workflow_prompt, "r", encoding="utf-8") as f:
+                system_prompt = f.read()
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Could not read workflow prompt: {e}[/yellow]")
+            system_prompt = "You are Claude, a helpful AI assistant."
+        
         cmd.extend([
             "--model", "sonnet",
             "--output-format", "stream-json",
             "--max-turns", str(self.max_turns),
             "--mcp-config", ".mcp.json",
-            "--allowedTools", "$(cat allowed_tools.json | jq -r '.[]' | tr '\\n' ',' | sed 's/,$//')",
+            "--allowedTools", allowed_tools,
             "--verbose",
-            "--system-prompt", f"$(cat {workflow_prompt})",
+            "--system-prompt", system_prompt,
             message
         ])
         
@@ -634,9 +647,6 @@ class ClaudeStreamingChat:
         """Execute Claude command with real-time streaming"""
         cmd = self.build_command(message, resume_session=bool(self.session_id))
         
-        # Build shell command for streaming
-        shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
-        
         # Log user message and start timing
         self.logger.user_message(message)
         if not self.workflow_start_time:
@@ -645,10 +655,9 @@ class ClaudeStreamingChat:
         console.print()
         
         try:
-            # Start process with streaming
+            # Start process with streaming - use list form to avoid shell escaping issues
             process = subprocess.Popen(
-                shell_cmd,
-                shell=True,
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -901,10 +910,7 @@ class ClaudeStreamingChat:
         help_table.add_column(style="white")
         
         help_table.add_row("/help", "Show this help message")
-        help_table.add_row("/session", "Show current session ID")
-        help_table.add_row("/sessions", "List all saved sessions")
-        help_table.add_row("/save <name>", "Save current session with name")
-        help_table.add_row("/resume <name>", "Resume a saved session")
+        help_table.add_row("/session", "Interactive session selector (arrow keys)")
         help_table.add_row("/history", "Show conversation history")
         help_table.add_row("/clear", "Clear conversation display")
         help_table.add_row("/reset", "Start new session")
@@ -934,7 +940,7 @@ class ClaudeStreamingChat:
             "• Use [cyan]Ctrl+R[/cyan] to search command history\n"
             "• Normal mouse selection/copy/scroll works everywhere\n"
             "• Type [cyan]/workflow [/cyan] + [cyan]Tab[/cyan] for workflow options\n"
-            "• Type [cyan]/resume [/cyan] + [cyan]Tab[/cyan] for saved sessions",
+            "• Use [cyan]/session[/cyan] for interactive session picker with arrow keys",
             title="[dim]💡 Pro Tips[/dim]",
             border_style="dim"
         )
@@ -996,69 +1002,116 @@ class ClaudeStreamingChat:
             border_style="cyan"
         ))
     
-    def show_sessions(self):
-        """Show available saved sessions"""
-        if not self.saved_sessions:
-            console.print("[yellow]No saved sessions found[/yellow]")
-            console.print("[dim]Use /save <name> to save current session[/dim]")
-            return
+    def interactive_session_selector(self) -> bool:
+        """Interactive session selector with arrow keys"""
+        if not self.saved_sessions and not self.session_id:
+            console.print("[yellow]No sessions available[/yellow]")
+            return False
         
-        sessions_table = Table.grid(padding=1)
-        sessions_table.add_column(style="bold cyan")
-        sessions_table.add_column(style="white")
-        sessions_table.add_column(style="yellow")
-        sessions_table.add_column(style="dim")
-        sessions_table.add_column(style="green")
+        if radiolist_dialog is None:
+            # Fallback to simple display if radiolist_dialog not available
+            self.show_session_info()
+            return False
         
-        # Sort sessions by last used (most recent first)
+        # Prepare session options
+        values = []
+        
+        # Add current session option if active
+        if self.session_id and self.session_id in self.saved_sessions:
+            current_session = self.saved_sessions[self.session_id]
+            values.append((
+                self.session_id,
+                f"🔸 CURRENT: {current_session.get('name', 'Unnamed')} ({current_session.get('workflow', 'unknown').upper()})"
+            ))
+        
+        # Add "new session" option
+        values.append((
+            "NEW_SESSION",
+            "🆕 Start New Session"
+        ))
+        
+        # Sort other sessions by last used (most recent first)
         sorted_sessions = sorted(
-            self.saved_sessions.items(), 
+            [(sid, data) for sid, data in self.saved_sessions.items() if sid != self.session_id], 
             key=lambda x: x[1].get('last_used', ''), 
             reverse=True
         )
         
+        # Add other sessions
         for session_id, session_data in sorted_sessions:
             name = session_data.get('name', 'Unnamed')
             workflow = session_data.get('workflow', 'unknown')
-            created = session_data.get('created', '')
-            last_used = session_data.get('last_used', '')
             msg_count = session_data.get('conversation_length', 0)
             
-            # Format timestamps
+            # Format last message date
+            last_msg_date = session_data.get('last_message_date', session_data.get('last_used', ''))
             try:
-                if created:
-                    created_dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
-                    created_str = created_dt.strftime("%m/%d %H:%M")
+                if last_msg_date:
+                    dt = datetime.fromisoformat(last_msg_date.replace('Z', '+00:00'))
+                    date_str = dt.strftime("%m/%d %H:%M")
                 else:
-                    created_str = "Unknown"
-                    
-                if last_used:
-                    last_used_dt = datetime.fromisoformat(last_used.replace('Z', '+00:00'))
-                    last_used_str = last_used_dt.strftime("%m/%d %H:%M")
-                else:
-                    last_used_str = "Never"
+                    date_str = "Unknown"
             except:
-                created_str = "Unknown"
-                last_used_str = "Unknown"
+                date_str = "Unknown"
             
-            # Indicator for current session
-            indicator = "👉" if session_id == self.session_id else "  "
+            values.append((
+                session_id,
+                f"💬 {name} ({workflow.upper()}) - {msg_count} msgs - {date_str}"
+            ))
+        
+        # Show interactive dialog
+        try:
+            style = Style.from_dict({
+                'dialog': 'bg:#4444aa',
+                'dialog.body': 'bg:#ffffff #000000',
+                'dialog shadow': 'bg:#003333',
+                'selected': 'bg:#0000aa #ffffff',
+                'unselected': 'bg:#ffffff #000000',
+            }) if Style else None
             
-            sessions_table.add_row(
-                f"{indicator} {name}", 
-                f"{workflow.upper()}", 
-                f"💬 {msg_count}",
-                f"Created: {created_str}",
-                f"Last: {last_used_str}"
-            )
+            result = radiolist_dialog(
+                title="🤖 Claude Session Manager",
+                text="Select a session to continue or start new:",
+                values=values,
+                style=style
+            ).run()
+            
+            if result is None:
+                # User cancelled
+                return False
+            elif result == "NEW_SESSION":
+                # Start new session
+                self.session_id = None
+                self.conversation_history.clear()
+                console.print("[green]✅ Started new session[/green]")
+                return True
+            else:
+                # Resume selected session
+                success = self.resume_session_by_id(result)
+                if success:
+                    session_data = self.saved_sessions.get(result, {})
+                    console.print(f"[green]✅ Resumed session: {session_data.get('name', 'Unnamed')}[/green]")
+                    console.print(f"[dim]Workflow: {self.current_workflow} | Messages: {len(self.conversation_history)}[/dim]")
+                return success
+                
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Session selector error: {e}[/yellow]")
+            # Fallback to info display
+            self.show_session_info()
+            return False
+    
+    def show_session_info(self):
+        """Show current session information"""
+        if self.session_id:
+            session_data = self.saved_sessions.get(self.session_id, {})
+            name = session_data.get('name', 'Unnamed')
+            console.print(f"[cyan]📱 Current session: {name}[/cyan]")
+            console.print(f"[dim]ID: {self.session_id[:12]}... | Workflow: {self.current_workflow} | Messages: {len(self.conversation_history)}[/dim]")
+        else:
+            console.print("[yellow]📱 No active session (next message starts new session)[/yellow]")
         
-        console.print(Panel(
-            sessions_table,
-            title="[bold]💾 Saved Sessions[/bold]",
-            border_style="cyan"
-        ))
-        
-        console.print("[dim]💡 Use /resume <name> to resume a session[/dim]")
+        if self.saved_sessions:
+            console.print(f"[dim]💾 {len(self.saved_sessions)} saved sessions available[/dim]")
     
     def show_conversation_history(self):
         """Show current conversation history"""
@@ -1148,17 +1201,23 @@ class ClaudeStreamingChat:
         saved_count = len(self.saved_sessions)
         sessions_info = f"💾 {saved_count} saved sessions available\n" if saved_count > 0 else ""
         
+        # Update session info display
+        session_display = ""
+        if self.session_id:
+            session_data = self.saved_sessions.get(self.session_id, {})
+            session_name = session_data.get('name', 'Unnamed')
+            session_display = f"📱 **{session_name}** session loaded | "
+        
         console.print(Panel(
             "[bold green]Welcome to Claude Streaming Chat![/bold green]\n\n"
-            f"🎯 Connected to **{self.current_workflow.upper()}** workflow (Max turns: {self.max_turns}){session_info}\n"
-            "💬 Type your message and watch Claude work in real-time\n"
+            f"🎯 Connected to **{self.current_workflow.upper()}** workflow (Max turns: {self.max_turns})\n"
+            f"{session_display}💬 Type your message and watch Claude work in real-time\n"
             "🔧 Tool calls are displayed as they happen\n"
             "✨ Type [cyan]/[/cyan] + [cyan]Tab[/cyan] for smart autocomplete\n"
             "🖱️ Normal mouse selection, copy & scroll work everywhere\n"
-            f"{sessions_info}"
-            "⚙️ Settings auto-save and persist between sessions\n"
+            f"💾 Sessions auto-save | {len(self.saved_sessions)} saved sessions available\n"
             "📝 Activity logged to [cyan]logs/workflow_run.log[/cyan] for monitoring\n\n"
-            "Use [cyan]/help[/cyan] for all commands or [cyan]/quit[/cyan] to exit.",
+            "Use [cyan]/session[/cyan] for session picker | [cyan]/help[/cyan] for all commands | [cyan]/quit[/cyan] to exit.",
             title="[green]🚀 Getting Started[/green]",
             border_style="green"
         ))
@@ -1202,28 +1261,9 @@ class ClaudeStreamingChat:
                         self.show_help()
                         continue
                     elif command == '/session':
-                        if self.session_id:
-                            console.print(f"[cyan]Current session: {self.session_id}[/cyan]")
-                        else:
-                            console.print("[yellow]No active session (will create new)[/yellow]")
-                        continue
-                    elif command == '/sessions':
-                        self.show_sessions()
-                        continue
-                    elif command == '/save':
-                        if args:
-                            success = self.save_current_session(args)
-                        else:
-                            console.print("[red]❌ Please specify a session name: /save <name>[/red]")
-                        continue
-                    elif command == '/resume':
-                        if args:
-                            success = self.resume_session(args)
-                            if success:
-                                self.show_header()  # Refresh header to show new session info
-                        else:
-                            console.print("[red]❌ Please specify a session name: /resume <name>[/red]")
-                            console.print("[dim]Use /sessions to see available sessions[/dim]")
+                        success = self.interactive_session_selector()
+                        if success:
+                            self.show_header()  # Refresh header to show new session info
                         continue
                     elif command == '/history':
                         self.show_conversation_history()
@@ -1281,6 +1321,9 @@ class ClaudeStreamingChat:
                 # Add response to history
                 if response.get("assistant_message"):
                     self.conversation_history.append(("assistant", response["assistant_message"]))
+                    
+                    # Auto-save session after each exchange
+                    self.auto_save_session()
                     
                     # Log workflow completion timing
                     if self.workflow_start_time:

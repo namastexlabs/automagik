@@ -415,7 +415,11 @@ update: ## 🔄 Update and restart services
 
 clean: ## 🧹 Clean temporary files
 	$(call print_status,Cleaning temporary files...)
-	@rm -rf logs/ dev/temp/* __pycache__/ **/__pycache__/ *.pyc **/*.pyc 2>/dev/null || true
+	@rm -rf logs/ 2>/dev/null || true
+	@rm -rf dev/temp/* 2>/dev/null || true
+	@find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+	@find . -name "*.pyc" -type f -delete 2>/dev/null || true
+	@find . -name "*.pyo" -type f -delete 2>/dev/null || true
 	$(call print_success,Cleanup complete!)
 
 test: ## 🧪 Run test suite
