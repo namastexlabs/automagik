@@ -41,9 +41,37 @@ After implementing solutions, store them in memory for future reuse:
 agent-memory_add_memory --name "Pattern: [Name]" --episode_body "pattern details" --source "text"
 ```
 
+#### 4. **CRITICAL: Always Use UV Run**
+This project uses UV as the package manager. **NEVER** use direct Python commands:
+
+❌ **WRONG**:
+```bash
+python -m pytest tests/
+pytest tests/
+ruff check src/
+python script.py
+```
+
+✅ **CORRECT**:
+```bash
+uv run pytest tests/
+uv run ruff check src/
+uv run python script.py
+uv run ruff format src/
+```
+
+**Key UV Commands for this codebase:**
+- Testing: `uv run pytest tests/ -v`
+- Code quality: `uv run ruff check src/ --fix`
+- Formatting: `uv run ruff format src/`
+- Running scripts: `uv run python scripts/script_name.py`
+
+**Fail-safe**: If any Python command fails, immediately retry with `uv run` prefix.
+
 ## Memories
 
 - **learn from your memory add mistake**: Always verify and validate memory entries to prevent errors in documentation and knowledge storage.
+- **CRITICAL WORKFLOW: Always use uv run**: Never use direct python commands in this UV-managed codebase.
 
 ## Quick Start
 
