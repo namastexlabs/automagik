@@ -8,6 +8,7 @@ import traceback
 import uuid
 import asyncio
 import json
+import os
 from typing import Dict, Optional, Any
 from datetime import datetime
 
@@ -19,7 +20,7 @@ from src.memory.message_history import MessageHistory
 
 # Import container and execution components
 from .container import ContainerManager
-from .executor import ClaudeExecutor
+from .executor_factory import ExecutorFactory
 from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
 
 logger = logging.getLogger(__name__)
@@ -70,21 +71,34 @@ class ClaudeCodeAgent(AutomagikAgent):
             "git_branch": config.get("git_branch", "NMSTX-187-langgraph-orchestrator-migration")
         })
         
-        # Initialize container and executor managers
-        self.container_manager = ContainerManager(
-            docker_image=self.config.get("docker_image"),
-            container_timeout=self.config.get("container_timeout"),
-            max_concurrent=self.config.get("max_concurrent_sessions")
-        )
+        # Determine execution mode
+        self.execution_mode = os.environ.get("CLAUDE_CODE_MODE", "docker").lower()
+        logger.info(f"ClaudeCodeAgent initializing in {self.execution_mode} mode")
         
-        self.executor = ClaudeExecutor(
-            container_manager=self.container_manager
-        )
+        # Initialize appropriate executor
+        try:
+            self.executor = ExecutorFactory.create_executor(
+                mode=self.execution_mode,
+                container_manager=self._create_container_manager() if self.execution_mode == "docker" else None,
+                workspace_base=os.environ.get("CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"),
+                cleanup_on_complete=os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
+            )
+        except ValueError as e:
+            logger.error(f"Failed to create executor: {e}")
+            raise
         
         # Register default tools (not applicable for container-based execution)
         # Tools are managed via workflow configurations
         
-        logger.info("ClaudeCodeAgent initialized successfully")
+        logger.info(f"ClaudeCodeAgent initialized successfully in {self.execution_mode} mode")
+    
+    def _create_container_manager(self) -> ContainerManager:
+        """Create container manager for Docker mode."""
+        return ContainerManager(
+            docker_image=self.config.get("docker_image"),
+            container_timeout=self.config.get("container_timeout"),
+            max_concurrent=self.config.get("max_concurrent_sessions")
+        )
     
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj: Optional[MessageHistory] = None,
@@ -418,9 +432,9 @@ class ClaudeCodeAgent(AutomagikAgent):
     async def cleanup(self) -> None:
         """Clean up resources used by the agent."""
         try:
-            # Clean up container manager resources
-            if hasattr(self, 'container_manager'):
-                await self.container_manager.cleanup()
+            # Clean up executor resources
+            if hasattr(self, 'executor') and self.executor:
+                await self.executor.cleanup()
             
             # Call parent cleanup
             await super().cleanup()
