@@ -249,13 +249,25 @@ class ClaudeCodeAgent(AutomagikAgent):
                 logger.warning(f"Workflow directory not found: {workflow_path}")
                 return False
             
-            # Check for required workflow files
+            # Check for required workflow files and validate JSON files
             required_files = ["prompt.md", ".mcp.json", "allowed_tools.json"]
             for required_file in required_files:
                 file_path = os.path.join(workflow_path, required_file)
                 if not os.path.exists(file_path):
                     logger.warning(f"Required workflow file missing: {file_path}")
                     return False
+                
+                # Validate JSON files
+                if required_file.endswith('.json'):
+                    try:
+                        with open(file_path, 'r') as f:
+                            json.load(f)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Invalid JSON in {file_path}: {str(e)}")
+                        return False
+                    except Exception as e:
+                        logger.warning(f"Error reading {file_path}: {str(e)}")
+                        return False
             
             logger.debug(f"Workflow '{workflow_name}' validated successfully")
             return True

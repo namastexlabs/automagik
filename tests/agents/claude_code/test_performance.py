@@ -246,19 +246,21 @@ class TestThroughputPerformance:
         
     @pytest.mark.performance
     @pytest.mark.asyncio
-    async def test_concurrent_execution_performance(self):
+    @patch('src.agents.claude_code.agent.settings')
+    async def test_concurrent_execution_performance(self, mock_settings):
         """Test performance with concurrent executions."""
         # Mock components for fast execution
         mock_container_manager = Mock(spec=ContainerManager)
         mock_container_manager.docker_client = Mock()
         mock_container_manager.create_container = AsyncMock(
-            side_effect=lambda s, w: f"container_{s}"
+            side_effect=lambda *args, **kwargs: f"container_{args[0] if args else 'unknown'}"
         )
         mock_container_manager.start_container = AsyncMock(return_value=True)
         
         # Simulate varying execution times
-        async def mock_wait(container_id):
+        async def mock_wait(*args, **kwargs):
             await asyncio.sleep(0.01)  # 10ms execution
+            container_id = args[0] if args else kwargs.get('container_id', 'unknown')
             return {'success': True, 'result': f'Done {container_id}'}
         
         mock_container_manager.wait_for_completion = mock_wait
@@ -266,9 +268,16 @@ class TestThroughputPerformance:
         # Create multiple agents
         agents = []
         for i in range(5):
-            agent = ClaudeCodeAgent({})
+            agent = ClaudeCodeAgent({"default_workflow": "test-workflow"})
             agent.container_manager = mock_container_manager
-            agent.executor = DockerExecutor(mock_container_manager)
+            executor = DockerExecutor(mock_container_manager)
+            # Mock the workflow loading to avoid file system access
+            executor._load_workflow_config = AsyncMock(return_value={
+                'name': 'test-workflow',
+                'path': '/mock/path',
+                'prompt': 'Test prompt'
+            })
+            agent.executor = executor
             agent._validate_workflow = AsyncMock(return_value=True)
             agents.append(agent)
         
