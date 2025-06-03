@@ -63,6 +63,7 @@ dependencies = [
     "langchain-core>=0.3.63",
     "langchain-experimental>=0.3.4",
     "docker>=7.1.0",
+    "langgraph-checkpoint-postgres>=2.0.21",
 ]
 
 [project.urls]
