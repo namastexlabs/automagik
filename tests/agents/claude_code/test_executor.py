@@ -367,20 +367,16 @@ class TestPrepareEnvironment:
     async def test_prepare_environment_with_env_file(self, mock_file_open, mock_exists):
         """Test environment preparation with .env file."""
         mock_exists.return_value = True
-        mock_file_open.return_value.read.return_value = """
-        # Comment
-        KEY1=value1
-        KEY2=value2
-        INVALID_LINE
-        KEY3 = value3
-        """
-        mock_file_open.return_value.__iter__.return_value = [
+        # Set up the mock to properly iterate over lines
+        mock_file_content = [
             "# Comment\n",
             "KEY1=value1\n",
             "KEY2=value2\n",
             "INVALID_LINE\n",
             "KEY3 = value3\n"
         ]
+        mock_file_open.return_value.__iter__.return_value = iter(mock_file_content)
+        mock_file_open.return_value.__enter__.return_value.__iter__.return_value = iter(mock_file_content)
         
         executor = DockerExecutor(Mock())
         
