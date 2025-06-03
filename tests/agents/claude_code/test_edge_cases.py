@@ -6,6 +6,7 @@ and boundary scenarios for the Claude-Code agent implementation.
 import pytest
 import asyncio
 import uuid
+import json
 from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
 from datetime import datetime, timedelta
 import time
@@ -13,7 +14,7 @@ import os
 
 from src.agents.claude_code.agent import ClaudeCodeAgent
 from src.agents.claude_code.container import ContainerManager
-from src.agents.claude_code.executor import ClaudeExecutor
+from src.agents.claude_code.docker_executor import DockerExecutor
 from src.agents.claude_code.models import (
     ClaudeCodeRunRequest,
     ClaudeCodeRunResponse,
@@ -30,8 +31,8 @@ class TestTimeoutScenarios:
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_container_timeout_handling(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_container_timeout_handling(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test handling of container execution timeout."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -43,7 +44,7 @@ class TestTimeoutScenarios:
             'error': 'Container execution timed out after 7200 seconds',
             'exit_code': -1
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -124,8 +125,8 @@ class TestResourceLimits:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_memory_limit_handling(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_memory_limit_handling(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test handling when container hits memory limits."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -137,7 +138,7 @@ class TestResourceLimits:
             'error': 'Container exceeded memory limit (512MB)',
             'exit_code': 137  # SIGKILL due to OOM
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -150,8 +151,8 @@ class TestResourceLimits:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_disk_space_limit_handling(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_disk_space_limit_handling(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test handling when container runs out of disk space."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -163,7 +164,7 @@ class TestResourceLimits:
             'error': 'No space left on device',
             'exit_code': 1
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -226,8 +227,8 @@ class TestErrorPropagation:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_docker_api_error_propagation(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_docker_api_error_propagation(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test that Docker API errors are properly propagated."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -239,7 +240,7 @@ class TestErrorPropagation:
             'error': 'Docker daemon error: Cannot connect to Docker socket',
             'exit_code': -1
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -252,7 +253,7 @@ class TestErrorPropagation:
     @pytest.mark.asyncio
     async def test_file_system_errors(self):
         """Test handling of file system errors."""
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         # Test workflow loading with permission error
         with patch('os.path.exists', return_value=True):
@@ -277,8 +278,8 @@ class TestAsyncOperations:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_background_task_exception_handling(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_background_task_exception_handling(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test exception handling in background tasks."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -286,7 +287,7 @@ class TestAsyncOperations:
         # Mock executor that will be called by background task
         mock_executor = Mock()
         mock_executor.execute_claude_task = AsyncMock(side_effect=Exception("Background task failure"))
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -641,8 +642,8 @@ class TestConcurrencyLimits:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_max_concurrent_containers_reached(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_max_concurrent_containers_reached(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test behavior when max concurrent containers is reached."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -654,7 +655,7 @@ class TestConcurrencyLimits:
             'error': 'Maximum concurrent containers (10) reached',
             'exit_code': -1
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -671,8 +672,8 @@ class TestNetworkIssues:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_network_connectivity_issues(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_network_connectivity_issues(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test handling of network connectivity issues."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -684,7 +685,7 @@ class TestNetworkIssues:
             'error': 'Network unreachable: Could not connect to external service',
             'exit_code': 1
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -701,8 +702,8 @@ class TestDataCorruption:
     @pytest.mark.asyncio
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_corrupted_container_state(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_corrupted_container_state(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test recovery from corrupted container state."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -714,7 +715,7 @@ class TestDataCorruption:
             'error': 'Container state corrupted, attempting recovery',
             'exit_code': -1
         })
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
