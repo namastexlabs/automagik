@@ -376,6 +376,8 @@ class TestPrepareEnvironment:
             "INVALID_LINE\n",
             "KEY3 = value3\n"
         ]
+        mock_file_open.return_value.__iter__.return_value = iter(mock_file_content)
+        mock_file_open.return_value.__enter__.return_value.__iter__.return_value = iter(mock_file_content)
         
         # Create a mock file object that supports iteration
         mock_file = mock_open(read_data="".join(env_content)).return_value
