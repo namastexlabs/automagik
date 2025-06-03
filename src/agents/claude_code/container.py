@@ -71,6 +71,9 @@ class ContainerManager:
             logger.info("Docker client initialized successfully")
             return True
             
+        except RuntimeError:
+            # Re-raise RuntimeError for missing Dockerfile
+            raise
         except DockerException as e:
             logger.error(f"Failed to initialize Docker client: {str(e)}")
             return False
