@@ -48,8 +48,7 @@ class LocalExecutor(ExecutorBase):
         
         # Initialize CLI components
         self.env_manager = CLIEnvironmentManager(
-            base_path=Path(workspace_base),
-            cleanup_on_error=cleanup_on_complete
+            base_path=Path(workspace_base)
         )
         self.cli_executor = ClaudeCLIExecutor(
             timeout=timeout,
