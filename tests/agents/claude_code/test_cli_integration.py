@@ -7,6 +7,7 @@ import pytest
 import asyncio
 import json
 import tempfile
+import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 
@@ -88,7 +89,8 @@ class TestCLIEnvironmentManager:
             
             assert workspace.exists()
             assert workspace.name == f"claude-code-{run_id}"
-            assert (workspace / "am-agents-labs").exists()
+            # Repository is created by setup_repository, not create_workspace
+            assert workspace.is_dir()
     
     @patch('asyncio.create_subprocess_exec')
     async def test_setup_repository(self, mock_subprocess):
@@ -109,28 +111,32 @@ class TestCLIEnvironmentManager:
             # Verify git clone was called
             assert mock_subprocess.called
             clone_call = mock_subprocess.call_args_list[0]
-            assert "git" in clone_call[0][0]
-            assert "clone" in clone_call[0][0]
+            args = clone_call[0]  # positional arguments
+            assert args[0] == "git"
+            assert args[1] == "clone"
     
     async def test_copy_configs(self):
         """Test configuration copying."""
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = CLIEnvironmentManager(base_path=Path(tmpdir))
             
-            # Create source and destination
-            source = Path(tmpdir) / "source"
-            source.mkdir()
-            (source / "prompt.md").write_text("Test prompt")
-            (source / "allowed_tools.json").write_text('["Task"]')
+            # Create a mock workflow directory
+            workflows_dir = Path(__file__).parent.parent.parent.parent / "src" / "agents" / "claude_code" / "workflows" / "test-workflow"
+            workflows_dir.mkdir(parents=True, exist_ok=True)
+            (workflows_dir / "prompt.md").write_text("Test prompt")
+            (workflows_dir / "allowed_tools.json").write_text('["Task"]')
             
             dest = Path(tmpdir) / "dest"
             dest.mkdir()
             
-            await manager.copy_configs(source, dest)
+            await manager.copy_configs(dest, "test-workflow")
             
             # Verify files were copied
             assert (dest / "workflow" / "prompt.md").exists()
             assert (dest / "workflow" / "allowed_tools.json").exists()
+            
+            # Cleanup
+            shutil.rmtree(workflows_dir.parent)
 
 
 @pytest.mark.asyncio
@@ -164,12 +170,17 @@ class TestClaudeCLIExecutor:
             b'{"type":"result","result":"Done"}\n'
         ]
         
-        async def mock_stdout():
+        async def mock_stdout(self):
             for msg in messages:
                 yield msg
         
         process_mock.stdout.__aiter__ = mock_stdout
-        process_mock.stderr.__aiter__ = lambda: iter([])
+        
+        async def mock_stderr(self):
+            return
+            yield  # Make it an async generator
+        
+        process_mock.stderr.__aiter__ = mock_stderr
         mock_subprocess.return_value = process_mock
         
         executor = ClaudeCLIExecutor(timeout=30)
