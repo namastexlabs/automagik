@@ -4,8 +4,10 @@
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/*
 *.py[cod]
 *$py.class
+*.pyc
 
 # C extensions
 *.so
@@ -245,9 +247,8 @@ docs/qa/
 # Dependencies
 ####################
 
-# UV lock file (keeping it tracked as recommended for this project)
-# uv.lock
+# UV lock file
+uv.lock
 
-# Keep requirements files tracked
-# requirements*.txt
+# Backup files
 *.bak
