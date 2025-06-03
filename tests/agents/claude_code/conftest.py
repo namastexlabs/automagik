@@ -31,11 +31,13 @@ def mock_container_manager():
     manager.docker_client = Mock()
     manager.create_container = AsyncMock(return_value="container_123")
     manager.start_container = AsyncMock(return_value=True)
-    manager.wait_for_completion = AsyncMock(return_value={
+    # Ensure return_value is a concrete dictionary, not containing any AsyncMock objects
+    completion_result = {
         'success': True,
         'exit_code': 0,
         'result': 'Test completed'
-    })
+    }
+    manager.wait_for_completion = AsyncMock(return_value=completion_result)
     manager.active_containers = {}
     return manager
 
@@ -46,12 +48,14 @@ def mock_executor(mock_container_manager):
     from src.agents.claude_code.docker_executor import DockerExecutor
     
     executor = DockerExecutor(mock_container_manager)
-    executor.execute_claude_task = AsyncMock(return_value={
+    # Ensure return_value is a concrete dictionary, not containing any AsyncMock objects
+    execution_result = {
         'success': True,
         'result': 'Task completed',
         'container_id': 'container_123',
         'execution_time': 10.0
-    })
+    }
+    executor.execute_claude_task = AsyncMock(return_value=execution_result)
     return executor
 
 

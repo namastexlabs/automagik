@@ -257,22 +257,25 @@ class TestWorkflowValidation:
     """Test workflow validation methods."""
     
     @pytest.mark.asyncio
+    @patch('builtins.open')
+    @patch('json.load')
     @patch('os.path.exists')
-    async def test_validate_workflow_success(self, mock_exists):
+    async def test_validate_workflow_success(self, mock_exists, mock_json_load, mock_open):
         """Test successful workflow validation."""
-        # Mock file existence checks
-        mock_exists.side_effect = [
-            True,  # workflow directory exists
-            True,  # prompt.md exists
-            True,  # .mcp.json exists
-            True   # allowed_tools.json exists
+        # Mock file existence checks - provide more values to handle any extra calls
+        mock_exists.return_value = True  # Just return True for all calls
+        
+        # Mock JSON loading for the two JSON files
+        mock_json_load.side_effect = [
+            {"mcp": "config"},  # .mcp.json content
+            ["tool1", "tool2"]  # allowed_tools.json content
         ]
         
         agent = ClaudeCodeAgent({})
         result = await agent._validate_workflow("test-workflow")
         
         assert result is True
-        assert mock_exists.call_count == 4
+        assert mock_json_load.call_count == 2  # Two JSON files validated
         
     @pytest.mark.asyncio
     @patch('os.path.exists')

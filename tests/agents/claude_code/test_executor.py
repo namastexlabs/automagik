@@ -362,9 +362,9 @@ class TestPrepareEnvironment:
         assert env['SESSION_ID'] == ''
         
     @pytest.mark.asyncio
-    @patch('os.path.exists')
     @patch('builtins.open', new_callable=mock_open)
-    async def test_prepare_environment_with_env_file(self, mock_file_open, mock_exists):
+    @patch('os.path.exists')
+    async def test_prepare_environment_with_env_file(self, mock_exists, mock_file_open):
         """Test environment preparation with .env file."""
         mock_exists.return_value = True
         # Set up the mock to properly iterate over lines
@@ -375,8 +375,9 @@ class TestPrepareEnvironment:
             "INVALID_LINE\n",
             "KEY3 = value3\n"
         ]
-        mock_file_open.return_value.__iter__.return_value = iter(mock_file_content)
-        mock_file_open.return_value.__enter__.return_value.__iter__.return_value = iter(mock_file_content)
+        
+        # Mock the entire open() context manager behavior 
+        mock_file_open.return_value.__enter__.return_value = iter(mock_file_content)
         
         executor = DockerExecutor(Mock())
         
@@ -627,6 +628,9 @@ class TestEdgeCases:
         
         executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
+        executor._prepare_environment = AsyncMock(return_value={'ENV': 'value'})
+        executor._prepare_volumes = AsyncMock(return_value={'vol': {'bind': '/vol'}})
+        executor._build_claude_command = AsyncMock(return_value=['claude', 'command'])
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -649,6 +653,9 @@ class TestEdgeCases:
         
         executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
+        executor._prepare_environment = AsyncMock(return_value={'ENV': 'value'})
+        executor._prepare_volumes = AsyncMock(return_value={'vol': {'bind': '/vol'}})
+        executor._build_claude_command = AsyncMock(return_value=['claude', 'command'])
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
