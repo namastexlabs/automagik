@@ -118,21 +118,41 @@ class AgentFactory:
         
     @classmethod
     def discover_agents(cls) -> None:
-        """Discover available agents in the simple, langgraph, and claude-code folders.
+        """Discover available agents in the pydanticai, langgraph, and claude_code folders.
         
-        This method automatically scans the src/agents/simple, src/agents/langgraph,
-        and src/agents/claude-code directories for agent modules and registers them with the factory.
+        This method automatically scans the src/agents/pydanticai, src/agents/langgraph,
+        and src/agents/claude_code directories for agent modules and registers them with the factory.
         """
-        logger.info("Discovering agents in simple, langgraph, and claude-code folders")
+        logger.info("Discovering agents in pydanticai, langgraph, and claude_code folders")
         
-        # Discover simple agents
-        cls._discover_agents_in_directory("simple")
+        # Discover pydanticai agents
+        cls._discover_agents_in_directory("pydanticai")
         
         # Discover langgraph agents
         cls._discover_agents_in_directory("langgraph")
         
-        # Discover claude-code agents
-        cls._discover_agents_in_directory("claude-code")
+        # Discover claude_code agent (single module, not directory of agents)
+        cls._discover_single_agent("claude_code")
+    
+    @classmethod
+    def _discover_single_agent(cls, agent_name: str) -> None:
+        """Discover a single agent module.
+        
+        Args:
+            agent_name: Name of the agent module (e.g., 'claude_code')
+        """
+        logger.info(f"Discovering {agent_name} agent")
+        try:
+            # Import the agent module directly
+            module_name = f"src.agents.{agent_name}"
+            module = importlib.import_module(module_name)
+            
+            # Check if the module has a create_agent function
+            if hasattr(module, "create_agent") and callable(module.create_agent):
+                cls.register_agent_creator(agent_name, module.create_agent)
+                logger.debug(f"Discovered and registered {agent_name} agent")
+        except Exception as e:
+            logger.error(f"Error importing {agent_name} agent: {str(e)}")
     
     @classmethod
     def _discover_agents_in_directory(cls, directory_name: str) -> None:
