@@ -42,10 +42,10 @@ def mock_container_manager():
 
 @pytest.fixture
 def mock_executor(mock_container_manager):
-    """Provide a mocked ClaudeExecutor."""
-    from src.agents.claude_code.executor import ClaudeExecutor
+    """Provide a mocked DockerExecutor."""
+    from src.agents.claude_code.docker_executor import DockerExecutor
     
-    executor = ClaudeExecutor(mock_container_manager)
+    executor = DockerExecutor(mock_container_manager)
     executor.execute_claude_task = AsyncMock(return_value={
         'success': True,
         'result': 'Task completed',
@@ -61,7 +61,8 @@ def claude_code_agent(mock_container_manager, mock_executor):
     from src.agents.claude_code.agent import ClaudeCodeAgent
     
     with patch('src.agents.claude_code.agent.ContainerManager', return_value=mock_container_manager):
-        with patch('src.agents.claude_code.agent.ClaudeExecutor', return_value=mock_executor):
+        with patch('src.agents.claude_code.agent.ExecutorFactory') as mock_factory:
+            mock_factory.create_executor.return_value = mock_executor
             agent = ClaudeCodeAgent({})
             agent._validate_workflow = AsyncMock(return_value=True)
             return agent
@@ -110,25 +111,6 @@ async def async_test_timeout():
         return await asyncio.wait_for(coro, timeout=timeout)
     
     return run_with_timeout
-
-
-# Configure pytest-asyncio - handled by top-level pytest.ini asyncio_mode = auto
-
-
-def pytest_configure(config):
-    """Configure custom pytest markers."""
-    config.addinivalue_line(
-        "markers",
-        "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers",
-        "performance: mark test as a performance test"
-    )
-    config.addinivalue_line(
-        "markers",
-        "slow: mark test as slow running"
-    )
 
 
 @pytest.fixture(autouse=True)

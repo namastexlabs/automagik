@@ -7,7 +7,14 @@ from datetime import datetime
 
 from pydantic_ai import Agent
 from pydantic_ai.tools import RunContext
-from langgraph.graph import StateGraph
+
+# Try to import langgraph, but gracefully handle if not available
+try:
+    from langgraph.graph import StateGraph
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    StateGraph = None
 
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
@@ -20,10 +27,13 @@ from .models import (
     EpicRequest, EpicPlan, EpicState, EpicPhase, 
     WorkflowType, EpicSummary
 )
-from .orchestrator import (
-    create_orchestration_graph, WorkflowRouter, 
-    ClaudeCodeClient, ApprovalManager
-)
+
+# Only import orchestrator if langgraph is available
+if LANGGRAPH_AVAILABLE:
+    from .orchestrator import (
+        create_orchestration_graph, WorkflowRouter, 
+        ClaudeCodeClient, ApprovalManager
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -64,25 +74,40 @@ class GenieAgent(AutomagikAgent):
         
         # Note: PydanticAI agent and tool registration will be done lazily in run()
         
-        # Initialize orchestration components
-        self.workflow_graph = self._create_orchestration_graph()
-        self.router = WorkflowRouter()
-        self.claude_client = ClaudeCodeClient(
-            base_url=getattr(settings, 'CLAUDE_CODE_API_URL', "http://localhost:8000")
-        )
-        self.approval_manager = ApprovalManager()
+        # Initialize orchestration components only if LangGraph is available
+        if LANGGRAPH_AVAILABLE:
+            # Initialize orchestration components
+            self.workflow_graph = self._create_orchestration_graph()
+            self.router = WorkflowRouter()
+            self.claude_client = ClaudeCodeClient(
+                base_url=getattr(settings, 'CLAUDE_CODE_API_URL', "http://localhost:8000")
+            )
+            self.approval_manager = ApprovalManager()
+            
+            # Track active epics
+            self.active_epics: Dict[str, EpicState] = {}
+            
+            logger.info("GenieAgent initialized successfully with LangGraph orchestration")
+        else:
+            # Disable orchestration features
+            self.workflow_graph = None
+            self.router = None
+            self.claude_client = None
+            self.approval_manager = None
+            self.active_epics = {}
+            
+            logger.warning("GenieAgent initialized without LangGraph orchestration (dependency not available)")
         
-        # Track active epics
-        self.active_epics: Dict[str, EpicState] = {}
-        
-        logger.info("GenieAgent initialized successfully")
-        
-    def _create_orchestration_graph(self) -> StateGraph:
+    def _create_orchestration_graph(self) -> Optional[StateGraph]:
         """Create the embedded LangGraph orchestration graph.
         
         Returns:
-            Configured StateGraph for workflow orchestration
+            Configured StateGraph for workflow orchestration, or None if LangGraph not available
         """
+        if not LANGGRAPH_AVAILABLE:
+            logger.warning("LangGraph not available, orchestration disabled")
+            return None
+            
         try:
             database_url = settings.DATABASE_URL
             return create_orchestration_graph(
