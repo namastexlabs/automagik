@@ -2,240 +2,385 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## LangGraph Orchestrator for Multi-Agent Coordination
+## LangGraph Orchestrator - Genie Implementation
 
-This directory contains the LangGraph-based orchestration system for coordinating multiple Claude Code agents working on complex epics. The system implements a supervisor pattern with state management, rollback capabilities, and human-in-the-loop coordination.
+This directory contains the Genie orchestrator implementation using LangGraph. Genie coordinates Claude Code workflow containers to execute complex development epics with time machine (checkpointing/rollback) and human-in-the-loop capabilities.
 
 ## Architecture Overview
 
-### Core Orchestration Components
+### System Context
+Genie is part of a larger system where:
+- **Claude Code Agent** (`src/agents/claude_code/`) runs workflow containers (architect, implement, test, etc.)
+- **Genie Orchestrator** (this directory) coordinates these containers using LangGraph
+- **Workflows** execute in Docker containers with specific tools and prompts
+- **Communication** happens via Slack threads and shared memory (agent-memory MCP)
+
+### Core Components
 
 1. **LangGraph Orchestrator** (`shared/orchestrator.py`)
-   - Main orchestration engine using LangGraph StateGraph
-   - Implements supervisor pattern with intelligent routing
-   - Manages state persistence and checkpointing
-   - Handles rollback and error recovery
+   - StateGraph implementation with checkpointing
+   - Controls workflow container execution sequence
+   - Manages state persistence and rollback
+   - Integrates with Claude Code agent for container execution
 
-2. **Supervisor Nodes** (`shared/supervisor_nodes.py`)
-   - Intelligent routing based on MCP tool context
-   - Monitors Slack, Linear, and Git for real-time decisions
-   - Human-in-the-loop coordination with WhatsApp alerts
-   - Automatic stall detection and intervention
+2. **CLI Node** (`shared/cli_node.py`)
+   - Executes Claude Code agent API calls
+   - Monitors container execution status
+   - Extracts results and git commits
+   - Handles container lifecycle events
 
-3. **CLI Node** (`shared/cli_node.py`)
-   - Executes Claude Code agents via subprocess
-   - Streams output with real-time monitoring
-   - Manages Claude session persistence
-   - Process kill switch for emergency stops
+3. **State Management** (`shared/state_store.py`)
+   - PostgreSQL-backed orchestration state
+   - Tracks workflow progression
+   - Stores container execution history
+   - Enables recovery from failures
 
-### Agent Implementations
+4. **Git Manager** (`shared/git_manager.py`)
+   - Creates snapshots before workflow execution
+   - Manages rollback branches
+   - Tracks changes across containers
+   - Enables time travel to previous states
 
-Each agent specializes in specific aspects of development:
-
-- **Alpha**: Epic orchestrator - breaks down tasks and coordinates team
-- **Beta**: Core implementation specialist  
-- **Gamma**: Quality assurance and testing
-- **Delta**: API development and integration
-- **Epsilon**: Tools and external integrations
-- **Genie**: Main orchestrator for complex workflows
-
-### State Management
-
-The system uses `OrchestrationState` TypedDict for comprehensive state tracking:
-- Session and process identifiers
-- Git snapshot tracking for rollback
-- Agent handoffs and routing decisions
-- Slack/Linear integration state
-- Human feedback tracking
+5. **Process Manager** (`shared/process_manager.py`)
+   - Monitors running containers
+   - Implements kill switches
+   - Tracks resource usage
+   - Manages cleanup operations
 
 ## Development Commands
 
-### Running Tests
-
+### Installation
 ```bash
-# Run specific LangGraph orchestration tests
+# Install LangGraph and dependencies
+cd /root/workspace/am-agents-labs
+source .venv/bin/activate
+uv add langgraph langchain-core langgraph-checkpoint-postgres
+
+# Install development dependencies
+uv add --dev pytest pytest-asyncio pytest-mock
+```
+
+### Running Tests
+```bash
+# Run all LangGraph tests
+pytest tests/agents/langgraph/ -v
+
+# Run specific test categories
 pytest tests/agents/langgraph/test_orchestrator.py -v
+pytest tests/agents/langgraph/test_cli_node.py -v
+pytest tests/agents/langgraph/test_state_management.py -v
 
-# Run supervisor node tests
-pytest tests/agents/langgraph/test_supervisor.py -v
-
-# Run integration tests with mock MCP
-pytest tests/agents/langgraph/ -m integration -v
+# Run with coverage
+pytest tests/agents/langgraph/ --cov=src.agents.langgraph --cov-report=term-missing
 ```
 
-### Starting the Orchestrator
+### Local Development
+```bash
+# Start required services (PostgreSQL, Neo4j)
+docker-compose up -d postgres neo4j
 
+# Run orchestration locally
+python -m src.agents.langgraph.genie.agent \
+    --epic "Implement new feature" \
+    --workflows "architect,implement,test"
+```
+
+## Implementation Guide
+
+### Current State
+The orchestrator structure exists but requires implementation of:
+1. LangGraph StateGraph with proper state schema
+2. Integration with Claude Code container execution
+3. Checkpointing and rollback mechanisms
+4. Human-in-the-loop interrupts
+5. MCP tool integration for communication
+
+### Key Integration Points
+
+#### 1. Claude Code Container Execution
 ```python
-from src.agents.langgraph.shared.orchestrator import LangGraphOrchestrator
-
-# Initialize orchestrator
-orchestrator = LangGraphOrchestrator()
-
-# Execute orchestration
-result = await orchestrator.execute_orchestration(
-    session_id=uuid.uuid4(),
-    agent_name="genie",
-    task_message="Implement user authentication system",
-    orchestration_config={
-        "target_agents": ["alpha", "beta", "gamma"],
-        "max_rounds": 3,
-        "enable_rollback": True,
-        "slack_channel_id": "C08UF878N3Z",
-        "linear_project_id": "your-project-id"
-    }
-)
-```
-
-## Key Workflows
-
-### 1. Epic Orchestration Flow
-```
-User Request → Genie → Alpha (task breakdown) → Beta/Delta/Epsilon (parallel work) → Gamma (testing) → Completion
-```
-
-### 2. Supervisor Decision Flow
-```
-Slack Monitor → Progress Monitor → Supervisor → Route to Agent/Wait/Rollback
-```
-
-### 3. Human-in-the-Loop
-- Supervisor monitors for stalls (>30 min no progress)
-- Checks Slack for human feedback
-- Sends WhatsApp alerts for urgent decisions
-- Waits for human input when needed
-
-## MCP Tool Integration
-
-The supervisor uses MCP tools for intelligent context gathering:
-
-### Available MCP Servers
-- `slack`: Monitor threads, post updates
-- `linear`: Check task status, update progress
-- `git`: Status, log, rollback operations
-- `agent-memory`: Store/retrieve patterns
-- `send_whatsapp_message`: Urgent alerts
-
-### Tool Usage in Routing
-```python
-# Supervisor checks Linear before routing
-linear_tasks = await execute_mcp_tool("mcp__linear__linear_searchIssues", {
-    "teamId": "team-id",
-    "states": ["Todo", "In Progress"]
-})
-
-# Post Slack update when switching agents
-await execute_mcp_tool("mcp__slack__slack_post_message", {
-    "channel_id": "C08UF878N3Z",
-    "thread_ts": thread_ts,
-    "text": f"Routing to {next_agent}: {reason}"
-})
-```
-
-## State Store and Messaging
-
-### State Persistence
-- Uses PostgreSQL for orchestration session storage
-- Tracks all state changes and agent handoffs
-- Enables recovery from failures
-
-### Group Chat Messaging
-- Agents communicate via group chat sessions
-- Messages stored with orchestration context
-- Supervisor monitors chat for coordination
-
-## Process Management
-
-### Claude Process Monitoring
-- Tracks PID of running Claude processes
-- Kill switch for emergency stops
-- Automatic cleanup on completion/failure
-
-### Git Integration
-- Automatic snapshots before agent execution
-- Rollback capability to any snapshot
-- Tracks changes across workspace
-
-## Configuration
-
-### Orchestration Config Options
-```python
+# Genie calls Claude Code API to run workflow containers
+POST /api/v1/agent/claude-code/{workflow}/run
 {
-    "target_agents": ["alpha", "beta", "gamma"],  # Agents to coordinate
-    "max_rounds": 3,                              # Max orchestration rounds
-    "enable_rollback": True,                       # Enable git rollback
-    "process_monitoring": {
-        "check_interval": 30,                      # Process check interval
-        "shutdown_timeout": 10                     # Graceful shutdown timeout
-    },
-    "slack_channel_id": "C08UF878N3Z",           # Slack channel for updates
-    "slack_thread_ts": "1234567890.123456",      # Specific thread to monitor
-    "linear_project_id": "project-uuid",          # Linear project ID
-    "recursion_limit": 50                         # LangGraph recursion limit
+    "message": "Task description",
+    "session_id": "epic-session-id",
+    "config": {
+        "max_turns": 30,
+        "git_branch": "genie/epic-id/workflow-name"
+    }
 }
 ```
 
-## Error Handling and Recovery
+#### 2. State Schema
+```python
+class OrchestrationState(TypedDict):
+    # Core identifiers
+    epic_id: str
+    session_id: str
+    thread_id: str
+    
+    # Workflow tracking
+    current_workflow: str
+    completed_workflows: List[str]
+    workflow_results: Dict[str, Any]
+    
+    # Container execution
+    active_container_id: Optional[str]
+    container_history: Annotated[List[Dict], add]
+    
+    # Git state
+    git_snapshots: Dict[str, str]  # workflow -> commit_sha
+    rollback_points: List[Dict]
+    
+    # Human interaction
+    human_feedback: Optional[str]
+    waiting_for_human: bool
+    
+    # Messages and communication
+    messages: Annotated[List[Dict], add]
+    slack_thread_ts: Optional[str]
+```
 
-### Rollback Mechanism
-1. Git snapshot taken before each agent run
-2. On failure, supervisor can initiate rollback
-3. Workspace restored to previous state
-4. Agent retries with rollback context
+#### 3. Workflow Definitions
+Available workflows from Claude Code implementation:
+- **architect**: System design and planning
+- **implement**: Feature implementation
+- **test**: Testing and validation
+- **review**: Code review
+- **fix**: Bug fixing
+- **refactor**: Code improvement
+- **document**: Documentation
+- **pr**: Pull request preparation
 
-### Error States
-- `CLIExecutionError`: Agent execution failed
-- `GitOperationError`: Git operations failed  
-- Process monitoring detects crashes
-- Supervisor handles gracefully
+#### 4. MCP Tool Usage
+```python
+# Check for previous failures
+await mcp__agent_memory__search_memory_nodes(
+    query=f"epic {epic_id} failure",
+    group_ids=["genie_learning"],
+    max_nodes=5
+)
+
+# Post Slack updates
+await mcp__slack__slack_post_message(
+    channel_id="C08UF878N3Z",
+    text=f"Starting {workflow} for epic {epic_id}"
+)
+
+# Update Linear tracking
+await mcp__linear__linear_updateIssue(
+    issueId="NMSTX-XXX",
+    description=f"Workflow {workflow} completed"
+)
+```
+
+## Implementation Patterns
+
+### 1. Basic Graph Structure
+```python
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.postgres import PostgresSaver
+
+# Define the graph
+workflow = StateGraph(OrchestrationState)
+
+# Add nodes
+workflow.add_node("supervisor", supervisor_node)
+workflow.add_node("architect", execute_architect_workflow)
+workflow.add_node("implement", execute_implement_workflow)
+workflow.add_node("test", execute_test_workflow)
+workflow.add_node("human_review", human_review_node)
+
+# Add edges
+workflow.add_edge(START, "supervisor")
+workflow.add_conditional_edges(
+    "supervisor",
+    route_to_workflow,
+    {
+        "architect": "architect",
+        "implement": "implement",
+        "test": "test",
+        "human": "human_review",
+        "end": END
+    }
+)
+
+# Compile with checkpointer
+checkpointer = PostgresSaver(connection_string=DATABASE_URL)
+app = workflow.compile(checkpointer=checkpointer)
+```
+
+### 2. Workflow Execution Node
+```python
+async def execute_architect_workflow(state: OrchestrationState) -> Dict:
+    """Execute architect workflow container via Claude Code API."""
+    # Take git snapshot
+    snapshot = await git_manager.create_snapshot(state["epic_id"])
+    
+    # Call Claude Code API
+    result = await claude_code_client.run_workflow(
+        workflow="architect",
+        message=state["current_task"],
+        session_id=state["session_id"],
+        config={
+            "max_turns": 30,
+            "git_branch": f"genie/{state['epic_id']}/architect"
+        }
+    )
+    
+    # Update state
+    return {
+        "completed_workflows": [*state["completed_workflows"], "architect"],
+        "workflow_results": {**state["workflow_results"], "architect": result},
+        "git_snapshots": {**state["git_snapshots"], "architect": snapshot},
+        "messages": [{"role": "architect", "content": result["summary"]}]
+    }
+```
+
+### 3. Human-in-the-Loop Pattern
+```python
+from langgraph.prebuilt import interrupt
+
+async def human_review_node(state: OrchestrationState) -> Dict:
+    """Wait for human input via Slack."""
+    # Post to Slack
+    await mcp__slack__slack_post_message(
+        channel_id=state["slack_channel_id"],
+        thread_ts=state["slack_thread_ts"],
+        text="🚨 Human review needed for epic"
+    )
+    
+    # Interrupt and wait
+    human_input = interrupt("Waiting for human decision")
+    
+    # Process feedback
+    return {
+        "human_feedback": human_input,
+        "waiting_for_human": False,
+        "messages": [{"role": "human", "content": human_input}]
+    }
+```
+
+### 4. Rollback Implementation
+```python
+async def rollback_to_checkpoint(state: OrchestrationState, checkpoint_id: str) -> Dict:
+    """Rollback to a previous git state."""
+    # Get rollback point
+    rollback_point = next(
+        (p for p in state["rollback_points"] if p["id"] == checkpoint_id),
+        None
+    )
+    
+    if rollback_point:
+        # Perform git rollback
+        await git_manager.rollback_to_commit(rollback_point["commit_sha"])
+        
+        # Store learning
+        await mcp__agent_memory__add_memory(
+            name=f"Rollback: Epic {state['epic_id']}",
+            episode_body=f"Rolled back from {state['current_workflow']} to {rollback_point['workflow']}",
+            group_id="genie_learning"
+        )
+        
+        # Update state
+        return {
+            "current_workflow": rollback_point["workflow"],
+            "messages": [{"role": "system", "content": f"Rolled back to {rollback_point['workflow']}"}]
+        }
+    
+    return {}
+```
 
 ## Testing Strategy
 
 ### Unit Tests
-- Test individual components in isolation
-- Mock MCP tools and external dependencies
-- Verify state transitions
+```python
+# Test state transitions
+async def test_workflow_progression():
+    state = OrchestrationState(
+        epic_id="test-epic",
+        current_workflow="architect",
+        completed_workflows=[]
+    )
+    
+    # Execute workflow
+    result = await execute_architect_workflow(state)
+    
+    # Verify state update
+    assert "architect" in result["completed_workflows"]
+    assert "architect" in result["workflow_results"]
+```
 
 ### Integration Tests
-- Test full orchestration flows
-- Use mock Claude processes
-- Verify supervisor routing logic
-
-### Ping-Pong Test Mode
-Special test mode for verifying agent handoffs:
-```
-genie → alpha → beta → gamma → delta → epsilon → genie (repeat)
-```
-
-## Best Practices
-
-1. **Always use orchestration for multi-agent workflows** - Don't run agents independently
-2. **Monitor Slack threads** - Human feedback is critical for success
-3. **Enable rollback for risky operations** - Git snapshots prevent data loss
-4. **Use appropriate recursion limits** - Prevent infinite loops
-5. **Check Linear task status** - Ensure work aligns with project tracking
-
-## Common Issues and Solutions
-
-### Issue: Agent process hangs
-**Solution**: Use kill switch via supervisor
 ```python
-state["kill_requested"] = True
-state["active_process_pid"] = pid_to_kill
+# Test full orchestration flow
+async def test_epic_orchestration():
+    # Initialize graph
+    app = create_orchestration_graph()
+    
+    # Run epic
+    config = {"configurable": {"thread_id": "test-thread"}}
+    result = await app.ainvoke(
+        {
+            "epic_id": "test-epic",
+            "workflows": ["architect", "implement", "test"]
+        },
+        config
+    )
+    
+    # Verify completion
+    assert len(result["completed_workflows"]) == 3
 ```
 
-### Issue: Orchestration gets stuck
-**Solution**: Check Slack monitoring and stall detection
-- Supervisor will alert after 30 min of no progress
-- Human can intervene via Slack
+## Common Patterns
 
-### Issue: Git conflicts after rollback
-**Solution**: Supervisor includes rollback context
-- Next agent receives information about failed attempt
-- Can resolve conflicts intelligently
+### 1. Checking Previous Attempts
+```python
+# Before starting any workflow
+previous_failures = await mcp__agent_memory__search_memory_nodes(
+    query=f"epic {epic_id} failure {workflow}",
+    group_ids=["genie_learning"]
+)
 
-## Future Enhancements
+if previous_failures:
+    # Enhance prompt with learning
+    enhanced_message = f"{original_message}\n\nPrevious attempt failed: {previous_failures[0]['summary']}"
+```
 
-1. **Dynamic agent selection** - ML-based routing decisions
-2. **Parallel execution** - Run independent agents simultaneously  
-3. **Advanced checkpointing** - Resume from any workflow state
-4. **Performance metrics** - Track orchestration efficiency
+### 2. Workflow Communication
+```python
+# Post workflow handoff
+await mcp__slack__slack_post_message(
+    channel_id=channel_id,
+    thread_ts=thread_ts,
+    text=f"✅ {current_workflow} complete. Starting {next_workflow}"
+)
+```
+
+### 3. Cost Tracking
+```python
+# Track container costs
+total_cost = sum(
+    result.get("cost_usd", 0) 
+    for result in state["workflow_results"].values()
+)
+
+if total_cost > COST_LIMIT:
+    # Trigger human review
+    return "human_review"
+```
+
+## Next Steps
+
+1. **Implement Core StateGraph**: Create the main orchestration graph with proper state management
+2. **Integrate Claude Code API**: Connect to existing Claude Code endpoints for container execution
+3. **Add Checkpointing**: Implement PostgreSQL-based checkpointing for persistence
+4. **Human-in-the-Loop**: Add interrupt points for human decisions
+5. **Testing**: Create comprehensive test suite for orchestration flows
+
+## References
+
+- Claude Code Implementation: `src/agents/claude_code/`
+- LangGraph Docs: https://github.com/langchain-ai/langgraph
+- MCP Tools: Available via `mcp__` prefix in tool calls
+- Database Schema: Uses existing sessions/messages tables with JSONB metadata
