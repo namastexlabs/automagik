@@ -8,10 +8,10 @@ from pydantic import BaseModel, Field
 
 from src.agents.pydanticai.genie.agent import GenieAgent
 from src.agents.pydanticai.genie.models import EpicRequest
-from src.api.middleware import get_current_user
-import src.utils.logging as log
+from src.auth import get_api_key as verify_api_key
+import logging
 
-logger = log.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -76,7 +76,7 @@ class ApprovalRequest(BaseModel):
 async def create_epic(
     request: CreateEpicRequest,
     background_tasks: BackgroundTasks,
-    user_id: str = Depends(get_current_user)
+    api_key: str = Depends(verify_api_key)
 ) -> EpicResponse:
     """Create and execute a new development epic.
     
@@ -89,7 +89,7 @@ async def create_epic(
         # Create the epic request
         epic_request = EpicRequest(
             message=request.message,
-            context={"user_id": user_id},
+            context={"api_key": api_key},
             budget_limit=request.budget_limit,
             require_tests=request.require_tests,
             require_pr=request.require_pr,
@@ -132,7 +132,7 @@ async def create_epic(
 @router.get("/status/{epic_id}", response_model=EpicStatusResponse)
 async def get_epic_status(
     epic_id: str,
-    user_id: str = Depends(get_current_user)
+    api_key: str = Depends(verify_api_key)
 ) -> EpicStatusResponse:
     """Get the current status of an epic."""
     try:
@@ -168,7 +168,7 @@ async def approve_epic_step(
     epic_id: str,
     approval_id: str,
     request: ApprovalRequest,
-    user_id: str = Depends(get_current_user)
+    api_key: str = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """Approve or deny a pending epic approval."""
     try:
@@ -204,7 +204,7 @@ async def approve_epic_step(
 
 @router.get("/list")
 async def list_active_epics(
-    user_id: str = Depends(get_current_user)
+    api_key: str = Depends(verify_api_key)
 ) -> List[Dict[str, Any]]:
     """List all active epics."""
     try:
@@ -229,7 +229,7 @@ async def list_active_epics(
 @router.post("/stop/{epic_id}")
 async def stop_epic(
     epic_id: str,
-    user_id: str = Depends(get_current_user)
+    api_key: str = Depends(verify_api_key)
 ) -> Dict[str, str]:
     """Stop a running epic."""
     try:
