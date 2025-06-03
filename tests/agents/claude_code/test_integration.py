@@ -21,9 +21,9 @@ class TestAgentFactoryIntegration:
     
     @pytest.mark.integration
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
     @patch('src.config.settings')
-    def test_agent_factory_discovery(self, mock_settings, mock_executor_class, mock_container_class):
+    def test_agent_factory_discovery(self, mock_settings, mock_executor_factory, mock_container_class):
         """Test that ClaudeCodeAgent is discoverable by AgentFactory."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -67,8 +67,8 @@ class TestAgentFactoryIntegration:
     @pytest.mark.integration
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_factory_create_agent(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    def test_agent_factory_create_agent(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test creating ClaudeCodeAgent instance via factory."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -85,8 +85,8 @@ class TestAgentFactoryIntegration:
     @pytest.mark.integration
     @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_factory_create_from_config(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    def test_agent_factory_create_from_config(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test creating ClaudeCodeAgent from configuration."""
         # Enable claude-code agent
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
@@ -113,9 +113,9 @@ class TestDatabaseIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
     @patch('src.agents.claude_code.agent.settings')
-    async def test_agent_with_message_history(self, mock_settings, mock_executor_class, mock_container_class):
+    async def test_agent_with_message_history(self, mock_settings, mock_executor_factory, mock_container_class):
         """Test agent execution with message history storage."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
@@ -129,7 +129,7 @@ class TestDatabaseIntegration:
             'exit_code': 0,
             'git_commits': ['abc123']
         }
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         # Mock message history
         from src.memory.message_history import MessageHistory
@@ -204,8 +204,8 @@ class TestAPIIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_async_api_pattern(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_async_api_pattern(self, mock_executor_factory, mock_container_class):
         """Test async API pattern with polling."""
         # Mock executor
         mock_executor = AsyncMock()
@@ -214,7 +214,7 @@ class TestAPIIntegration:
             'result': 'Task completed',
             'container_id': 'container_123'
         }
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -287,9 +287,9 @@ class TestErrorHandlingIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
     @patch('src.agents.claude_code.agent.settings')
-    async def test_docker_initialization_failure(self, mock_settings, mock_executor_class, mock_container_class):
+    async def test_docker_initialization_failure(self, mock_settings, mock_executor_factory, mock_container_class):
         """Test handling Docker initialization failure."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
@@ -302,7 +302,7 @@ class TestErrorHandlingIntegration:
         # Mock executor
         mock_executor = Mock()
         mock_executor.execute_claude_task = AsyncMock()
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -391,8 +391,8 @@ class TestConcurrencyIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_concurrent_runs(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_concurrent_runs(self, mock_executor_factory, mock_container_class):
         """Test handling multiple concurrent runs."""
         # Mock executor that takes time
         async def slow_execute(*args, **kwargs):
@@ -401,7 +401,7 @@ class TestConcurrencyIntegration:
         
         mock_executor = Mock()
         mock_executor.execute_claude_task = slow_execute
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -429,8 +429,8 @@ class TestCleanupIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_agent_cleanup(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_agent_cleanup(self, mock_executor_factory, mock_container_class):
         """Test agent cleanup process."""
         # Mock container manager with cleanup
         mock_container = AsyncMock()
