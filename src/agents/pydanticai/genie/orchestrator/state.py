@@ -4,10 +4,21 @@ from typing import Dict, List, Any, Optional, Annotated, Sequence
 from datetime import datetime
 import uuid
 
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.prebuilt import ToolNode
+# Try to import langgraph components, handle gracefully if not available
+try:
+    from langgraph.graph import StateGraph, START, END
+    from langgraph.graph.message import add_messages
+    from langgraph.checkpoint.postgres import PostgresSaver
+    from langgraph.prebuilt import ToolNode
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    StateGraph = None
+    START = None
+    END = None
+    add_messages = None
+    PostgresSaver = None
+    ToolNode = None
 
 from ..models import EpicState, WorkflowType, EpicPhase
 from .router import WorkflowRouter
@@ -21,7 +32,7 @@ logger = logging.getLogger(__name__)
 def create_orchestration_graph(
     database_url: str,
     claude_code_base_url: str = "http://localhost:8000"
-) -> StateGraph:
+) -> Optional[StateGraph]:
     """Create the LangGraph orchestration graph.
     
     Args:
@@ -29,8 +40,12 @@ def create_orchestration_graph(
         claude_code_base_url: Base URL for Claude Code API
         
     Returns:
-        Compiled StateGraph with checkpointing
+        Compiled StateGraph with checkpointing, or None if LangGraph not available
     """
+    if not LANGGRAPH_AVAILABLE:
+        logger.warning("LangGraph not available, cannot create orchestration graph")
+        return None
+        
     # Initialize components
     router = WorkflowRouter()
     claude_client = ClaudeCodeClient(claude_code_base_url)
