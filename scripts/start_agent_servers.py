@@ -19,8 +19,8 @@ from typing import Dict, List, Optional, Tuple
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.agents.langgraph.shared.port_manager import PortManager
-from src.agents.langgraph.shared.slack_messenger import SlackOrchestrationMessenger
+# Legacy LangGraph implementation removed as part of NMSTX-230 cleanup
+# Port management and Slack integration now handled by PydanticAI Genie implementation
 
 # Agent configuration
 AGENT_CONFIGS = {
@@ -81,16 +81,18 @@ class AgentServerManager:
             return True
         
         try:
-            # Allocate port
-            port = PortManager.allocate_port(agent_name)
-            if not port:
-                print(f"❌ Failed to allocate port for {agent_name}")
-                return False
+            # Simple port allocation (placeholder until NMSTX-230)
+            base_port = 8000
+            port_offset = {"alpha": 0, "beta": 1, "gamma": 2, "delta": 3, "epsilon": 4}.get(agent_name, 5)
+            port = base_port + port_offset
             
             self.ports[agent_name] = port
             
-            # Create agent-specific env file
-            env_file = PortManager.write_agent_env_file(agent_name)
+            # Create simple agent-specific env file (placeholder)
+            env_file = f"/tmp/{agent_name}_env"
+            with open(env_file, 'w') as f:
+                f.write(f"AM_PORT={port}\n")
+                f.write(f"AM_AGENT_NAME={agent_name}\n")
             
             # Add Slack thread to env if available
             if self.slack_thread_ts:
@@ -180,8 +182,9 @@ class AgentServerManager:
             
             del self.processes[agent_name]
             
-            # Release port
-            PortManager.release_port(agent_name)
+            # Release port (placeholder - no-op until NMSTX-230)
+            if agent_name in self.ports:
+                del self.ports[agent_name]
             
             print(f"✅ Stopped {AGENT_CONFIGS[agent_name]['name']}")
             return True
@@ -255,23 +258,10 @@ class AgentServerManager:
             True if successful
         """
         try:
-            import uuid
-            orchestration_id = str(uuid.uuid4())
-            
-            thread_ts = await SlackOrchestrationMessenger.create_orchestration_thread(
-                orchestration_id=orchestration_id,
-                epic_name=epic_name,
-                epic_id=epic_id,
-                agents=agents
-            )
-            
-            if thread_ts:
-                self.slack_thread_ts = thread_ts
-                print(f"✅ Created Slack thread: {thread_ts}")
-                return True
-            else:
-                print("❌ Failed to create Slack thread")
-                return False
+            # Slack integration disabled pending NMSTX-230 implementation
+            print("⚠️  Slack integration disabled - awaiting NMSTX-230 PydanticAI implementation")
+            self.slack_thread_ts = None
+            return False
                 
         except Exception as e:
             print(f"❌ Error creating Slack thread: {str(e)}")

@@ -118,18 +118,18 @@ class AgentFactory:
         
     @classmethod
     def discover_agents(cls) -> None:
-        """Discover available agents in the pydanticai, langgraph, and claude_code folders.
+        """Discover available agents in the pydanticai and claude_code folders.
         
-        This method automatically scans the src/agents/pydanticai, src/agents/langgraph,
-        and src/agents/claude_code directories for agent modules and registers them with the factory.
+        This method automatically scans the src/agents/pydanticai and src/agents/claude_code
+        directories for agent modules and registers them with the factory.
+        
+        Note: As of NMSTX-230, all orchestration is handled by the PydanticAI Genie agent
+        which includes embedded LangGraph functionality for workflow orchestration.
         """
-        logger.info("Discovering agents in pydanticai, langgraph, and claude_code folders")
+        logger.info("Discovering agents in pydanticai and claude_code folders")
         
-        # Discover pydanticai agents
+        # Discover pydanticai agents (includes genie with embedded LangGraph)
         cls._discover_agents_in_directory("pydanticai")
-        
-        # Discover langgraph agents
-        cls._discover_agents_in_directory("langgraph")
         
         # Discover claude_code agent (single module, not directory of agents)
         cls._discover_single_agent("claude_code")
