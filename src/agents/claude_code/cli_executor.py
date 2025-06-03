@@ -174,12 +174,8 @@ class StreamProcessor:
             
             # Extract session ID from init message
             if data.get("type") == "system" and data.get("subtype") == "init":
-                # Try to extract session ID from various possible locations
-                self.session_id = (
-                    data.get("session_id") or
-                    data.get("data", {}).get("session_id") or
-                    data.get("metadata", {}).get("session_id")
-                )
+                # Session ID is directly in the init message
+                self.session_id = data.get("session_id")
                 logger.info(f"Extracted session ID: {self.session_id}")
             
             # Accumulate result text
@@ -242,7 +238,8 @@ class ClaudeCLIExecutor:
         session_id: Optional[str] = None,
         max_turns: int = 2,
         stream_callback: Optional[Callable] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        run_id: Optional[str] = None
     ) -> CLIResult:
         """Execute Claude CLI with streaming output.
         
@@ -261,7 +258,7 @@ class ClaudeCLIExecutor:
         async with self._semaphore:
             return await self._execute_internal(
                 workflow, message, workspace, 
-                session_id, max_turns, stream_callback, timeout
+                session_id, max_turns, stream_callback, timeout, run_id
             )
     
     async def _execute_internal(
@@ -272,7 +269,8 @@ class ClaudeCLIExecutor:
         session_id: Optional[str],
         max_turns: int,
         stream_callback: Optional[Callable],
-        timeout: Optional[int]
+        timeout: Optional[int],
+        run_id: Optional[str]
     ) -> CLIResult:
         """Internal execution method."""
         start_time = time.time()
@@ -296,6 +294,18 @@ class ClaudeCLIExecutor:
         logger.info(f"Executing Claude CLI: {' '.join(cmd[:10])}...")
         
         try:
+            # Create stream callback for WebSocket if run_id provided
+            ws_callback = None
+            if run_id and stream_callback is None:
+                # Try to import WebSocket streaming function
+                try:
+                    from src.api.routes.claude_code_websocket import stream_claude_output
+                    async def ws_callback(msg):
+                        await stream_claude_output(run_id, msg)
+                    stream_callback = ws_callback
+                except ImportError:
+                    logger.warning("WebSocket streaming not available")
+            
             # Execute process
             result = await self._run_process(
                 cmd, workspace, session, stream_callback, timeout
