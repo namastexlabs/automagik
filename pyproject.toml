@@ -62,6 +62,7 @@ dependencies = [
     "langchain-openai>=0.3.18",
     "langchain-core>=0.3.63",
     "langchain-experimental>=0.3.4",
+    "docker>=7.1.0",
 ]
 
 [project.urls]
