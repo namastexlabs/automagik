@@ -4,7 +4,7 @@
 
 This plan outlines the implementation of a new `claude-code` agent type that runs Claude CLI in isolated Docker containers while maintaining full integration with the Automagik Agents framework. The agent will support all Claude CLI parameters, session persistence, and enable agent-to-agent communication.
 
-**Linear Context**: This work is part of NMSTX-187 (langgraph orchestrator migration branch). While the LangGraph orchestration is complete, this expands the agent capabilities by adding Claude-Code as a new agent framework type alongside existing pydanticai and langgraph agents.
+**Linear Context**: This work will be tracked in a new Linear project separate from NMSTX-187. All code and commits will be made to the `NMSTX-187-langgraph-orchestrator-migration` branch. This expands the agent capabilities by adding Claude-Code as a new agent framework type alongside existing pydanticai and langgraph agents.
 
 ### Key Improvements in This Version
 1. **Measurable Tests**: Every implementation step includes specific tests and verification using MCP tools
@@ -289,7 +289,7 @@ class ClaudeCodeRunRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     max_turns: int = Field(default=30, ge=1, le=100)
-    git_branch: str = Field(default="main", description="Branch to work on")
+    git_branch: str = Field(default="NMSTX-187-langgraph-orchestrator-migration", description="Branch to work on")
     timeout: Optional[int] = Field(default=3600, ge=60, le=7200)
     # Note: workflow_name comes from URL path
     
@@ -650,7 +650,7 @@ workflows/code-task/
 ├── allowed_tools.json     # Configurable per task
 ├── task_config.json
 │   {
-│     "default_branch": "main",
+│     "default_branch": "NMSTX-187-langgraph-orchestrator-migration",
 │     "test_command": "pytest",
 │     "lint_command": "ruff check --fix src/ && ruff format src/",
 │     "memory_group_id": "code-patterns"
@@ -708,7 +708,7 @@ source "$WORKFLOW_DIR/.env"
 
 # Clone am-agents-labs repository (private, requires auth)
 cd /workspace
-git clone -b ${GIT_BRANCH:-main} "https://oauth2:${GITHUB_TOKEN}@github.com/namastexlabs/am-agents-labs.git" am-agents-labs
+git clone -b ${GIT_BRANCH:-NMSTX-187-langgraph-orchestrator-migration} "https://oauth2:${GITHUB_TOKEN}@github.com/namastexlabs/am-agents-labs.git" am-agents-labs
 cd am-agents-labs
 git config user.name "Claude Code Agent"
 git config user.email "claude@automagik-agents.ai"
@@ -751,7 +751,7 @@ COMMIT_EXIT_CODE=$?
 COMMIT_RESULT=$(jq -r '.result' /tmp/commit-result.json)
 
 # Push changes
-git push origin ${GIT_BRANCH:-main}
+git push origin ${GIT_BRANCH:-NMSTX-187-langgraph-orchestrator-migration}
 
 # Store result in database (handled by agent.py)
 echo "{\"session_id\": \"$CLAUDE_SESSION_ID\", \"result\": \"$CLAUDE_RESULT\", \"exit_code\": $CLAUDE_EXIT_CODE}"
@@ -905,16 +905,22 @@ Since we're using AI to implement, tasks can be parallelized:
 ## Next Steps
 
 1. Review and approve this plan
-2. Create the folder structure under NMSTX-187 branch
-3. Start parallel implementation tracks
-4. Set up development Docker environment
-5. Begin implementation with AI assistance
+2. Create new Linear project for Claude-Code Agent implementation
+3. Create the folder structure in `NMSTX-187-langgraph-orchestrator-migration` branch
+4. Start parallel implementation tracks
+5. Set up development Docker environment
+6. Begin implementation with AI assistance
 
-## Linear Epic Management
+## Linear Project Management
 
-This implementation extends the NMSTX-187 work by:
-- Adding a third agent framework type (claude-code) alongside pydanticai and langgraph
-- Providing containerized execution for long-running autonomous tasks
-- Enabling true multi-framework agent orchestration capabilities
+This implementation will be managed as follows:
+- **New Linear Project**: Create a dedicated project for Claude-Code Agent implementation
+- **Git Branch**: All commits go to `NMSTX-187-langgraph-orchestrator-migration` branch
+- **Framework Integration**: Adding a third agent framework type (claude-code) alongside pydanticai and langgraph
+- **Capabilities**: Providing containerized execution for long-running autonomous tasks
+- **Orchestration**: Enabling true multi-framework agent orchestration capabilities
 
-All work should be tracked under the NMSTX-187 epic in Linear, with subtasks created for each major implementation component.
+All work should be tracked in the new Linear project, with subtasks created for each major implementation component.
+
+
+ --important, stop and call the human in case any tool call fails, it means your instructions or tools need adjustment before doing actual job. working properly now is MORE IMPORTANT THAN THE TASK ITSELF, IT SHOULD BE PAUSED, IF ANYTHING HAPPENS

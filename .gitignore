@@ -250,3 +250,4 @@ docs/qa/
 
 # Keep requirements files tracked
 # requirements*.txt
+*.bak
