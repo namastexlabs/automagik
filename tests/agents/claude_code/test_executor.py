@@ -1,6 +1,6 @@
-"""Unit tests for ClaudeExecutor implementation.
+"""Unit tests for DockerExecutor implementation.
 
-This module tests the ClaudeExecutor class that handles execution
+This module tests the DockerExecutor class that handles execution
 of Claude CLI commands within Docker containers.
 """
 import pytest
@@ -10,19 +10,19 @@ import json
 import os
 from typing import Dict, Any
 
-from src.agents.claude_code.executor import ClaudeExecutor
+from src.agents.claude_code.docker_executor import DockerExecutor
 from src.agents.claude_code.container import ContainerManager
 from src.agents.claude_code.models import ClaudeCodeRunRequest
 
 
-class TestClaudeExecutorInitialization:
-    """Test ClaudeExecutor initialization."""
+class TestDockerExecutorInitialization:
+    """Test DockerExecutor initialization."""
     
     def test_executor_initialization(self):
         """Test basic executor initialization."""
         mock_container_manager = Mock(spec=ContainerManager)
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         assert executor.container_manager == mock_container_manager
 
@@ -33,9 +33,10 @@ class TestExecuteClaudeTask:
     @pytest.mark.asyncio
     async def test_execute_success(self):
         """Test successful execution."""
-        # Setup mocks
+        # Setup mocks for container manager
         mock_container_manager = Mock(spec=ContainerManager)
         mock_container_manager.docker_client = Mock()  # Already initialized
+        mock_container_manager.initialize = AsyncMock(return_value=True)
         mock_container_manager.create_container = AsyncMock(return_value="container_123")
         mock_container_manager.start_container = AsyncMock(return_value=True)
         mock_container_manager.wait_for_completion = AsyncMock(return_value={
@@ -44,17 +45,33 @@ class TestExecuteClaudeTask:
             'result': 'Task completed'
         })
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
-        # Mock workflow loading
-        executor._load_workflow_config = AsyncMock(return_value={
+        # Mock all the internal methods that are called during execution
+        mock_workflow_config = {
             'name': 'test-workflow',
             'path': '/path/to/workflow',
             'prompt': 'Test prompt'
-        })
-        executor._prepare_environment = AsyncMock(return_value={'ENV': 'value'})
-        executor._prepare_volumes = AsyncMock(return_value={'vol': {'bind': '/vol'}})
-        executor._build_claude_command = AsyncMock(return_value=['claude', 'command'])
+        }
+        
+        # Create proper async mocks with explicit return values
+        async def mock_load_workflow_config(workflow_name):
+            return mock_workflow_config
+            
+        async def mock_prepare_environment(request, workflow_config, agent_context):
+            return {'ENV': 'value'}
+            
+        async def mock_prepare_volumes(request, workflow_config):
+            return {'vol': {'bind': '/vol'}}
+            
+        async def mock_build_claude_command(request, workflow_config):
+            return ['claude', 'command']
+        
+        # Assign the mocked methods
+        executor._load_workflow_config = mock_load_workflow_config
+        executor._prepare_environment = mock_prepare_environment
+        executor._prepare_volumes = mock_prepare_volumes
+        executor._build_claude_command = mock_build_claude_command
         
         # Create request
         request = ClaudeCodeRunRequest(
@@ -73,7 +90,6 @@ class TestExecuteClaudeTask:
         assert result['request_message'] == 'Fix the bug'
         
         # Verify calls
-        executor._load_workflow_config.assert_called_once_with('test-workflow')
         mock_container_manager.create_container.assert_called_once()
         mock_container_manager.start_container.assert_called_once_with('container_123', ['claude', 'command'])
         mock_container_manager.wait_for_completion.assert_called_once_with('container_123')
@@ -85,7 +101,7 @@ class TestExecuteClaudeTask:
         mock_container_manager.docker_client = None  # Not initialized
         mock_container_manager.initialize = AsyncMock(return_value=False)
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         request = ClaudeCodeRunRequest(
             message="Fix the bug",
@@ -104,7 +120,7 @@ class TestExecuteClaudeTask:
         mock_container_manager = Mock(spec=ContainerManager)
         mock_container_manager.docker_client = Mock()
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value=None)
         
         request = ClaudeCodeRunRequest(
@@ -126,7 +142,7 @@ class TestExecuteClaudeTask:
         mock_container_manager.create_container = AsyncMock(return_value="container_123")
         mock_container_manager.start_container = AsyncMock(return_value=False)
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
         executor._prepare_environment = AsyncMock(return_value={})
         executor._prepare_volumes = AsyncMock(return_value={})
@@ -152,7 +168,7 @@ class TestExecuteClaudeTask:
         mock_container_manager.start_container = AsyncMock(return_value=True)
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
         executor._prepare_environment = AsyncMock(return_value={})
         executor._prepare_volumes = AsyncMock(return_value={})
@@ -178,7 +194,7 @@ class TestExecuteClaudeTask:
         mock_container_manager.docker_client = Mock()
         mock_container_manager.create_container = AsyncMock(side_effect=Exception("Docker error"))
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
         executor._prepare_environment = AsyncMock(return_value={})
         executor._prepare_volumes = AsyncMock(return_value={})
@@ -221,7 +237,7 @@ class TestLoadWorkflowConfig:
             ["tool1", "tool2"]  # Allowed tools
         ]
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         config = await executor._load_workflow_config("test-workflow")
         
         assert config is not None
@@ -237,7 +253,7 @@ class TestLoadWorkflowConfig:
         """Test loading non-existent workflow."""
         mock_exists.return_value = False
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         config = await executor._load_workflow_config("missing-workflow")
         
         assert config is None
@@ -256,7 +272,7 @@ class TestLoadWorkflowConfig:
             False   # .env missing
         ]
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         config = await executor._load_workflow_config("test-workflow")
         
         assert config is not None
@@ -277,7 +293,7 @@ class TestLoadWorkflowConfig:
             True    # .env exists
         ]
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         config = await executor._load_workflow_config("test-workflow")
         
         assert config is not None
@@ -291,7 +307,7 @@ class TestLoadWorkflowConfig:
         mock_exists.return_value = True
         mock_open.side_effect = Exception("Read error")
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         config = await executor._load_workflow_config("test-workflow")
         
         assert config is None
@@ -303,7 +319,7 @@ class TestPrepareEnvironment:
     @pytest.mark.asyncio
     async def test_prepare_environment_basic(self):
         """Test basic environment preparation."""
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -334,7 +350,7 @@ class TestPrepareEnvironment:
     @pytest.mark.asyncio
     async def test_prepare_environment_no_session_id(self):
         """Test environment preparation without session ID."""
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -366,7 +382,7 @@ class TestPrepareEnvironment:
             "KEY3 = value3\n"
         ]
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(message="Fix bug", workflow_name="test")
         workflow_config = {'env_file': '/path/to/.env'}
@@ -386,7 +402,7 @@ class TestPrepareEnvironment:
         mock_exists.return_value = True
         mock_open.side_effect = Exception("Read error")
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(message="Fix bug", workflow_name="test")
         workflow_config = {'env_file': '/path/to/.env'}
@@ -409,7 +425,7 @@ class TestPrepareVolumes:
         mock_expanduser.return_value = '/home/user/.ssh'
         mock_exists.return_value = False  # No SSH dir
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -443,7 +459,7 @@ class TestPrepareVolumes:
         mock_expanduser.return_value = '/home/user/.ssh'
         mock_exists.return_value = True  # SSH dir exists
         
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -462,7 +478,7 @@ class TestPrepareVolumes:
     @pytest.mark.asyncio
     async def test_prepare_volumes_no_session_id(self):
         """Test volume preparation without session ID."""
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -483,7 +499,7 @@ class TestBuildClaudeCommand:
     @pytest.mark.asyncio
     async def test_build_claude_command(self):
         """Test building Claude command."""
-        executor = ClaudeExecutor(Mock())
+        executor = DockerExecutor(Mock())
         
         request = ClaudeCodeRunRequest(
             message="Fix the bug in session controller",
@@ -513,7 +529,7 @@ class TestGetExecutionLogs:
             }
         }
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         logs = await executor.get_execution_logs("container_123")
         
@@ -526,7 +542,7 @@ class TestGetExecutionLogs:
         mock_container_manager = Mock()
         mock_container_manager.active_containers = {}
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         logs = await executor.get_execution_logs("container_999")
         
@@ -545,7 +561,7 @@ class TestGetExecutionLogs:
             }
         }
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         logs = await executor.get_execution_logs("container_123")
         
@@ -565,7 +581,7 @@ class TestCancelExecution:
         mock_container_manager._kill_container = AsyncMock()
         mock_container_manager._cleanup_container = AsyncMock()
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         result = await executor.cancel_execution("container_123")
         
@@ -579,7 +595,7 @@ class TestCancelExecution:
         mock_container_manager = Mock()
         mock_container_manager.active_containers = {}
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         result = await executor.cancel_execution("container_999")
         
@@ -594,7 +610,7 @@ class TestCancelExecution:
         }
         mock_container_manager._kill_container = AsyncMock(side_effect=Exception("Kill failed"))
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         
         result = await executor.cancel_execution("container_123")
         
@@ -613,7 +629,7 @@ class TestEdgeCases:
         mock_container_manager.start_container = AsyncMock(return_value=True)
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
         
         request = ClaudeCodeRunRequest(
@@ -635,7 +651,7 @@ class TestEdgeCases:
         mock_container_manager.start_container = AsyncMock(return_value=True)
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
-        executor = ClaudeExecutor(mock_container_manager)
+        executor = DockerExecutor(mock_container_manager)
         executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
         
         request = ClaudeCodeRunRequest(

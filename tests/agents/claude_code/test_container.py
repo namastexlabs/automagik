@@ -418,7 +418,8 @@ class TestContainerWaitForCompletion:
         mock_container.status = 'running'
         mock_container.reload.return_value = None  # Status doesn't change
         
-        manager = ContainerManager(container_timeout=1)  # 1 second timeout
+        # Use a very short timeout for testing
+        manager = ContainerManager(container_timeout=0.1)  # 0.1 second timeout
         manager.active_containers["container_123"] = {
             'container': mock_container,
             'started_at': datetime.utcnow()
@@ -426,11 +427,8 @@ class TestContainerWaitForCompletion:
         manager._kill_container = AsyncMock()
         manager._cleanup_container = AsyncMock()
         
-        # Mock time to simulate timeout
-        with patch('time.time') as mock_time:
-            mock_time.side_effect = [0, 0.5, 1.5]  # Simulate time passing
-            
-            result = await manager.wait_for_completion("container_123")
+        # The timeout will naturally occur due to the short timeout
+        result = await manager.wait_for_completion("container_123")
         
         assert result['success'] is False
         assert "timed out" in result['error']

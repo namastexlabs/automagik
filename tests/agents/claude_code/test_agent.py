@@ -6,7 +6,7 @@ workflow validation, and async execution functionality.
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from src.agents.claude_code.agent import ClaudeCodeAgent
@@ -23,14 +23,14 @@ class TestClaudeCodeAgentInitialization:
     """Test ClaudeCodeAgent initialization."""
     
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_initialization(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    def test_agent_initialization(self, mock_executor_factory, mock_container_class):
         """Test basic agent initialization."""
         # Mock the classes
         mock_container = Mock()
         mock_executor = Mock()
         mock_container_class.return_value = mock_container
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         # Initialize agent
         config = {
@@ -54,13 +54,15 @@ class TestClaudeCodeAgentInitialization:
             container_timeout=3600,
             max_concurrent=5
         )
-        mock_executor_class.assert_called_once_with(
-            container_manager=mock_container
+        mock_executor_factory.create_executor.assert_called_once_with(
+            mode="docker",
+            container_manager=mock_container,
+            workspace_base="/tmp/claude-workspace",
+            cleanup_on_complete=True
         )
         
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_default_values(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    def test_agent_default_values(self, mock_executor_factory):
         """Test agent initialization with default values."""
         agent = ClaudeCodeAgent({})
         
@@ -71,9 +73,8 @@ class TestClaudeCodeAgentInitialization:
         assert agent.config.get("default_workflow") == "bug-fixer"
         assert agent.config.get("git_branch") == "NMSTX-187-langgraph-orchestrator-migration"
         
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_dependencies(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    def test_agent_dependencies(self, mock_executor_factory):
         """Test agent dependencies setup."""
         agent = ClaudeCodeAgent({})
         
@@ -100,9 +101,8 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_run_invalid_workflow(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_run_invalid_workflow(self, mock_executor_factory, mock_settings):
         """Test running with invalid workflow."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
@@ -118,8 +118,8 @@ class TestClaudeCodeAgentRun:
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_run_successful_execution(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_run_successful_execution(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test successful execution."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
@@ -134,7 +134,7 @@ class TestClaudeCodeAgentRun:
             "git_commits": ["abc123"]
         }
         mock_executor.execute_claude_task.return_value = mock_execution_result
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -152,9 +152,8 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_run_failed_execution(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_run_failed_execution(self, mock_executor_factory, mock_settings):
         """Test failed execution."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
@@ -168,7 +167,7 @@ class TestClaudeCodeAgentRun:
             "exit_code": 1
         }
         mock_executor.execute_claude_task.return_value = mock_execution_result
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -182,8 +181,8 @@ class TestClaudeCodeAgentRun:
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_run_with_message_history(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_run_with_message_history(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test run with message history storage."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
@@ -198,7 +197,7 @@ class TestClaudeCodeAgentRun:
             "git_commits": ["abc123"]
         }
         mock_executor.execute_claude_task.return_value = mock_execution_result
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         # Mock message history
         mock_history = Mock(spec=MessageHistory)
@@ -234,16 +233,15 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_run_exception_handling(self, mock_executor_class, mock_container_class, mock_settings):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_run_exception_handling(self, mock_executor_factory, mock_settings):
         """Test exception handling during run."""
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
         # Mock executor to raise exception
         mock_executor = AsyncMock()
         mock_executor.execute_claude_task.side_effect = Exception("Unexpected error")
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -358,9 +356,8 @@ class TestAsyncExecution:
     """Test async execution methods."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_create_async_run(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_create_async_run(self, mock_executor_factory):
         """Test creating async run."""
         agent = ClaudeCodeAgent({})
         
@@ -382,9 +379,8 @@ class TestAsyncExecution:
         mock_create_task.assert_called_once()
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_execute_async_run_success(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_execute_async_run_success(self, mock_executor_factory):
         """Test executing async run successfully."""
         # Mock executor
         mock_executor = AsyncMock()
@@ -393,7 +389,7 @@ class TestAsyncExecution:
             "result": "Task completed"
         }
         mock_executor.execute_claude_task.return_value = mock_result
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -406,8 +402,8 @@ class TestAsyncExecution:
         # Set up context entry (normally done by create_async_run)
         agent.context["run_run_123"] = {
             "status": "pending",
-            "request": request.dict(),
-            "started_at": datetime.utcnow().isoformat(),
+            "request": request.model_dump(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "workflow_name": "fix"
         }
         
@@ -419,14 +415,13 @@ class TestAsyncExecution:
         assert agent.context["run_run_123"]["result"] == mock_result
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_execute_async_run_failure(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_execute_async_run_failure(self, mock_executor_factory):
         """Test executing async run with failure."""
         # Mock executor to raise exception
         mock_executor = AsyncMock()
         mock_executor.execute_claude_task.side_effect = Exception("Execution failed")
-        mock_executor_class.return_value = mock_executor
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -439,8 +434,8 @@ class TestAsyncExecution:
         # Set up context entry (normally done by create_async_run)
         agent.context["run_run_123"] = {
             "status": "pending",
-            "request": request.dict(),
-            "started_at": datetime.utcnow().isoformat(),
+            "request": request.model_dump(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "workflow_name": "fix"
         }
         
@@ -484,13 +479,12 @@ class TestCleanup:
     """Test cleanup methods."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_cleanup(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_cleanup(self, mock_executor_factory):
         """Test agent cleanup."""
-        # Mock container manager with cleanup method
-        mock_container = AsyncMock()
-        mock_container_class.return_value = mock_container
+        # Mock executor with cleanup method
+        mock_executor = AsyncMock()
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -500,18 +494,17 @@ class TestCleanup:
             await agent.cleanup()
         
         # Verify cleanup was called
-        mock_container.cleanup.assert_called_once()
+        mock_executor.cleanup.assert_called_once()
         mock_parent_cleanup.assert_called_once()
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    async def test_cleanup_exception(self, mock_executor_class, mock_container_class):
+    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    async def test_cleanup_exception(self, mock_executor_factory):
         """Test cleanup with exception."""
-        # Mock container manager that raises exception
-        mock_container = AsyncMock()
-        mock_container.cleanup.side_effect = Exception("Cleanup failed")
-        mock_container_class.return_value = mock_container
+        # Mock executor that raises exception
+        mock_executor = AsyncMock()
+        mock_executor.cleanup.side_effect = Exception("Cleanup failed")
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -545,6 +538,9 @@ class TestEdgeCases:
         
         assert response.success is True
         
+        # Verify the call was made correctly
+        agent.executor.execute_claude_task.assert_called_once()
+        
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
     async def test_run_with_custom_workflow_context(self, mock_settings):
@@ -561,6 +557,8 @@ class TestEdgeCases:
         }
         
         response = await agent.run("Fix bug")
+        
+        assert response.success is True
         
         # Verify custom workflow was used
         call_args = agent.executor.execute_claude_task.call_args[1]
