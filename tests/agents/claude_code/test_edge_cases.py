@@ -123,7 +123,7 @@ class TestResourceLimits:
     """Test resource limitation handling."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_memory_limit_handling(self, mock_executor_factory, mock_container_class, mock_settings):
@@ -149,7 +149,7 @@ class TestResourceLimits:
         assert "memory" in response.text.lower()
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_disk_space_limit_handling(self, mock_executor_factory, mock_container_class, mock_settings):
@@ -225,7 +225,7 @@ class TestErrorPropagation:
     """Test error propagation through the system."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_docker_api_error_propagation(self, mock_executor_factory, mock_container_class, mock_settings):
@@ -394,7 +394,7 @@ class TestInputValidation:
     """Test input validation edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     async def test_empty_message_handling(self, mock_settings):
         """Test handling of empty messages."""
         # Enable claude-code agent
@@ -514,7 +514,7 @@ class TestWorkflowEdgeCases:
     """Test workflow-specific edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     async def test_malformed_workflow_files(self, mock_settings):
         """Test handling of malformed workflow files."""
         # Enable claude-code agent
@@ -522,18 +522,25 @@ class TestWorkflowEdgeCases:
         
         agent = ClaudeCodeAgent({})
         
-        # Mock file system to simulate malformed workflow files
-        with patch('os.path.exists', return_value=True):
-            with patch('os.path.join', return_value='/fake/path'):
-                with patch('builtins.open', mock_open(read_data='invalid json')):
-                    with patch('json.loads', side_effect=json.JSONDecodeError("Invalid JSON", "", 0)):
-                        
-                        result = await agent._validate_workflow("malformed-workflow")
-                        
-                        assert result is False
+        # Mock file system to simulate missing workflow files
+        def mock_exists(path):
+            # Workflow directory exists, but some required files don't
+            if path.endswith("malformed-workflow"):
+                return True
+            elif path.endswith("prompt.md"):
+                return True
+            elif path.endswith(".mcp.json"):
+                return False  # Missing required file
+            elif path.endswith("allowed_tools.json"):
+                return True
+            return False
+        
+        with patch('os.path.exists', side_effect=mock_exists):
+            result = await agent._validate_workflow("malformed-workflow")
+            assert result is False
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     async def test_circular_workflow_dependencies(self, mock_settings):
         """Test detection of circular workflow dependencies."""
         # Enable claude-code agent
@@ -640,7 +647,7 @@ class TestConcurrencyLimits:
     """Test concurrency limit scenarios."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_max_concurrent_containers_reached(self, mock_executor_factory, mock_container_class, mock_settings):
@@ -670,7 +677,7 @@ class TestNetworkIssues:
     """Test network-related edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_network_connectivity_issues(self, mock_executor_factory, mock_container_class, mock_settings):
@@ -700,7 +707,7 @@ class TestDataCorruption:
     """Test data corruption scenarios."""
     
     @pytest.mark.asyncio
-    @patch('src.config.settings')
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     async def test_corrupted_container_state(self, mock_executor_factory, mock_container_class, mock_settings):

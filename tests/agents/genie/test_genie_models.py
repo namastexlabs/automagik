@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))
 # Test the models directly without importing the full agent
 from src.agents.pydanticai.genie.models import (
     WorkflowType, EpicPhase, EpicRequest, EpicPlan, EpicState,
-    WorkflowResult, ApprovalPoint, ApprovalStatus, RollbackPoint
+    WorkflowResult, ApprovalPoint, ApprovalStatus, ApprovalTriggerType, RollbackPoint
 )
 
 
@@ -304,6 +304,7 @@ class TestApprovalPoint:
         approval = ApprovalPoint(
             id="approval-123",
             workflow=WorkflowType.IMPLEMENT,
+            trigger_type=ApprovalTriggerType.HIGH_COST,
             reason="Cost exceeds threshold of $50",
             description="High cost workflow requires approval",
             requested_at=datetime.now()
@@ -319,6 +320,7 @@ class TestApprovalPoint:
         approval = ApprovalPoint(
             id="approval-123",
             workflow=WorkflowType.IMPLEMENT,
+            trigger_type=ApprovalTriggerType.EXTERNAL_DEPENDENCIES,
             reason="Security-related changes detected",
             description="Authentication module changes require review",
             requested_at=datetime.now()
