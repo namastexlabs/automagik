@@ -112,26 +112,6 @@ async def async_test_timeout():
     return run_with_timeout
 
 
-# Configure pytest-asyncio
-pytest_plugins = ('pytest_asyncio',)
-
-
-def pytest_configure(config):
-    """Configure custom pytest markers."""
-    config.addinivalue_line(
-        "markers",
-        "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers",
-        "performance: mark test as a performance test"
-    )
-    config.addinivalue_line(
-        "markers",
-        "slow: mark test as slow running"
-    )
-
-
 @pytest.fixture(autouse=True)
 def reset_environment():
     """Reset environment between tests."""

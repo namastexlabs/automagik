@@ -6,6 +6,9 @@ import pytest
 from unittest.mock import Mock, AsyncMock
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 
+# Configure pytest-asyncio
+pytest_plugins = ('pytest_asyncio',)
+
 # Get the project root directory
 project_root = Path(__file__).parent.parent
 
@@ -16,6 +19,21 @@ load_dotenv(env_path)
 # Verify OMIE credentials are loaded
 if not os.getenv("OMIE_APP_KEY") or not os.getenv("OMIE_APP_SECRET"):
     print("Warning: OMIE credentials not found in .env file")
+
+def pytest_configure(config):
+    """Configure custom pytest markers."""
+    config.addinivalue_line(
+        "markers",
+        "integration: mark test as an integration test"
+    )
+    config.addinivalue_line(
+        "markers",
+        "performance: mark test as a performance test"
+    )
+    config.addinivalue_line(
+        "markers",
+        "slow: mark test as slow running"
+    )
 
 @pytest.fixture
 def optimized_test_dependencies():

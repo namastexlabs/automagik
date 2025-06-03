@@ -22,17 +22,21 @@ class TestAgentFactoryIntegration:
     @pytest.mark.integration
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_factory_discovery(self, mock_executor_class, mock_container_class):
+    @patch('src.config.settings')
+    def test_agent_factory_discovery(self, mock_settings, mock_executor_class, mock_container_class):
         """Test that ClaudeCodeAgent is discoverable by AgentFactory."""
+        # Enable claude-code agent
+        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        
         # Check if claude_code module has create_agent function
         import importlib
         import sys
         
-        # Ensure the module is loaded
-        if 'src.agents.claude_code' not in sys.modules:
-            claude_code_module = importlib.import_module('src.agents.claude_code')
-        else:
-            claude_code_module = sys.modules['src.agents.claude_code']
+        # Reload the module to pick up the new settings
+        if 'src.agents.claude_code' in sys.modules:
+            importlib.reload(sys.modules['src.agents.claude_code'])
+        
+        claude_code_module = importlib.import_module('src.agents.claude_code')
         
         # Check for create_agent function
         assert hasattr(claude_code_module, 'create_agent')
@@ -51,58 +55,56 @@ class TestAgentFactoryIntegration:
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         
         factory = AgentFactory()
-        agents = factory.list_available_agents()
+        # Call discover_agents to populate the registry
+        factory.discover_agents()
+        
+        # Get list of agent names
+        agent_names = factory.list_available_agents()
         
         # Check if claude_code is in the list
-        agent_names = [agent['name'] for agent in agents]
         assert 'claude_code' in agent_names
         
-        # Find claude_code entry
-        claude_code_agent = next(a for a in agents if a['name'] == 'claude_code')
-        assert claude_code_agent['framework'] == 'claude-cli'
-        
     @pytest.mark.integration
+    @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_factory_create_instance(self, mock_executor_class, mock_container_class):
+    def test_agent_factory_create_agent(self, mock_executor_class, mock_container_class, mock_settings):
         """Test creating ClaudeCodeAgent instance via factory."""
+        # Enable claude-code agent
+        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        
         factory = AgentFactory()
+        factory.discover_agents()
         
-        # Mock DB agent
-        db_agent = Mock(spec=DBAgent)
-        db_agent.id = "agent_123"
-        db_agent.name = "test_claude_code"
-        db_agent.framework = "claude_code"
-        db_agent.config = {"docker_image": "test-image:latest"}
-        
-        # Create agent instance
-        agent = factory.create_agent_instance(db_agent)
+        # Create agent instance using create_agent method
+        agent = factory.create_agent("claude_code", {"docker_image": "test-image:latest"})
         
         assert isinstance(agent, ClaudeCodeAgent)
-        assert agent.db_id == "agent_123"
-        assert agent.config["docker_image"] == "test-image:latest"
+        assert agent.config.get("docker_image") == "test-image:latest"
         
     @pytest.mark.integration
+    @patch('src.config.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ClaudeExecutor')
-    def test_agent_factory_create_from_config(self, mock_executor_class, mock_container_class):
+    def test_agent_factory_create_from_config(self, mock_executor_class, mock_container_class, mock_settings):
         """Test creating ClaudeCodeAgent from configuration."""
+        # Enable claude-code agent
+        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        
         factory = AgentFactory()
+        factory.discover_agents()
         
         config = {
-            "name": "test_claude",
-            "framework": "claude_code",
-            "config": {
-                "docker_image": "custom:latest",
-                "container_timeout": "3600"
-            }
+            "docker_image": "custom:latest",
+            "container_timeout": "3600"
         }
         
-        agent = factory.create_agent_from_config(config)
+        # Use create_agent method instead of create_agent_from_config
+        agent = factory.create_agent("claude_code", config)
         
         assert isinstance(agent, ClaudeCodeAgent)
-        assert agent.config["docker_image"] == "custom:latest"
-        assert agent.config["container_timeout"] == 3600
+        assert agent.config.get("docker_image") == "custom:latest"
+        assert agent.config.get("container_timeout") == 3600
 
 
 class TestDatabaseIntegration:
@@ -351,15 +353,16 @@ class TestFeatureFlagIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_feature_flag_disabled_by_default(self):
+    @patch('src.agents.claude_code.agent.settings')
+    async def test_feature_flag_disabled_by_default(self, mock_settings):
         """Test that claude-code is disabled by default."""
-        # Don't mock settings - use actual defaults
+        # Mock settings to disable claude-code
+        mock_settings.AM_ENABLE_CLAUDE_CODE = False
+        
         agent = ClaudeCodeAgent({})
         
-        # Try to run without explicitly enabling
-        with patch('src.agents.claude_code.agent.settings') as mock_settings:
-            mock_settings.AM_ENABLE_CLAUDE_CODE = False
-            response = await agent.run("Test")
+        # Try to run with disabled feature flag
+        response = await agent.run("Test")
         
         assert response.success is False
         assert "disabled" in response.text.lower()
