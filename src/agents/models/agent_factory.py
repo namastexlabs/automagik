@@ -118,18 +118,21 @@ class AgentFactory:
         
     @classmethod
     def discover_agents(cls) -> None:
-        """Discover available agents in the simple and langgraph folders.
+        """Discover available agents in the simple, langgraph, and claude-code folders.
         
-        This method automatically scans the src/agents/simple and src/agents/langgraph 
-        directories for agent modules and registers them with the factory.
+        This method automatically scans the src/agents/simple, src/agents/langgraph,
+        and src/agents/claude-code directories for agent modules and registers them with the factory.
         """
-        logger.info("Discovering agents in simple and langgraph folders")
+        logger.info("Discovering agents in simple, langgraph, and claude-code folders")
         
         # Discover simple agents
         cls._discover_agents_in_directory("simple")
         
         # Discover langgraph agents
         cls._discover_agents_in_directory("langgraph")
+        
+        # Discover claude-code agents
+        cls._discover_agents_in_directory("claude-code")
     
     @classmethod
     def _discover_agents_in_directory(cls, directory_name: str) -> None:
