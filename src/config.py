@@ -168,6 +168,10 @@ class Settings(BaseSettings):
         default=None,
         description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple,stan')"
     )
+    AM_ENABLE_CLAUDE_CODE: bool = Field(
+        default=False,
+        description="Enable Claude-Code agent (experimental containerized Claude CLI execution)"
+    )
 
     # Supabase
     SUPABASE_URL: Optional[str] = Field(None, description="Supabase project URL")

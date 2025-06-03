@@ -1,0 +1,431 @@
+"""ClaudeCodeAgent implementation.
+
+This module provides a ClaudeCodeAgent class that runs Claude CLI in isolated 
+Docker containers while maintaining full integration with the Automagik Agents framework.
+"""
+import logging
+import traceback
+import uuid
+import asyncio
+import json
+from typing import Dict, Optional, Any
+from datetime import datetime
+
+from src.config import settings
+from src.agents.models.automagik_agent import AutomagikAgent
+from src.agents.models.dependencies import AutomagikAgentsDependencies
+from src.agents.models.response import AgentResponse
+from src.memory.message_history import MessageHistory
+
+# Import container and execution components
+from .container import ContainerManager
+from .executor import ClaudeExecutor
+from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
+
+logger = logging.getLogger(__name__)
+
+class ClaudeCodeAgent(AutomagikAgent):
+    """ClaudeCodeAgent implementation using Docker containers.
+    
+    This agent runs Claude CLI in isolated Docker containers to enable
+    long-running, autonomous AI workflows with state persistence and git integration.
+    """
+    
+    def __init__(self, config: Dict[str, str]) -> None:
+        """Initialize the ClaudeCodeAgent.
+        
+        Args:
+            config: Dictionary with configuration options
+        """
+        # First initialize the base agent
+        super().__init__(config)
+        
+        # Set description for this agent type
+        self.description = "Containerized Claude CLI agent for autonomous code tasks"
+        
+        # Load and register the code-defined prompt from workflows
+        # This will be loaded from the workflow configuration
+        self._prompt_registered = False
+        self._code_prompt_text = None  # Will be loaded from workflow
+        
+        # Configure dependencies for claude-code agent
+        self.dependencies = AutomagikAgentsDependencies(
+            model_name="claude-3-5-sonnet-20241022",  # Default model for Claude Code
+            model_settings={}
+        )
+        
+        # Set agent_id if available
+        if self.db_id:
+            self.dependencies.set_agent_id(self.db_id)
+        
+        # Claude-code specific configuration
+        self.config.update({
+            "agent_type": "claude-code",
+            "framework": "claude-cli",
+            "docker_image": config.get("docker_image", "claude-code-agent:latest"),
+            "container_timeout": int(config.get("container_timeout", "7200")),  # 2 hours default
+            "max_concurrent_sessions": int(config.get("max_concurrent_sessions", "10")),
+            "workspace_volume_prefix": config.get("workspace_volume_prefix", "claude-code-workspace"),
+            "default_workflow": config.get("default_workflow", "bug-fixer"),
+            "git_branch": config.get("git_branch", "NMSTX-187-langgraph-orchestrator-migration")
+        })
+        
+        # Initialize container and executor managers
+        self.container_manager = ContainerManager(
+            docker_image=self.config.get("docker_image"),
+            container_timeout=self.config.get("container_timeout"),
+            max_concurrent=self.config.get("max_concurrent_sessions")
+        )
+        
+        self.executor = ClaudeExecutor(
+            container_manager=self.container_manager
+        )
+        
+        # Register default tools (not applicable for container-based execution)
+        # Tools are managed via workflow configurations
+        
+        logger.info("ClaudeCodeAgent initialized successfully")
+    
+    async def run(self, input_text: str, *, multimodal_content=None, 
+                 system_message=None, message_history_obj: Optional[MessageHistory] = None,
+                 channel_payload: Optional[Dict] = None,
+                 message_limit: Optional[int] = None) -> AgentResponse:
+        """Run the agent with the given input.
+        
+        Args:
+            input_text: Text input for the agent (the task to execute)
+            multimodal_content: Optional multimodal content (not used in claude-code)
+            system_message: Optional system message (ignored - uses workflow prompts)
+            message_history_obj: Optional MessageHistory instance for DB storage
+            channel_payload: Optional channel payload dictionary
+            message_limit: Optional message limit (not used in claude-code)
+            
+        Returns:
+            AgentResponse object with result and metadata
+        """
+        # Check if claude-code is enabled
+        if not settings.config.get("AM_ENABLE_CLAUDE_CODE", False):
+            return AgentResponse(
+                text="Claude-Code agent is disabled. Set AM_ENABLE_CLAUDE_CODE=true to enable.",
+                success=False,
+                error_message="Agent disabled via feature flag"
+            )
+        
+        try:
+            # Get workflow from context or use default
+            workflow_name = self.context.get("workflow_name", self.config.get("default_workflow"))
+            
+            # Validate workflow exists
+            if not await self._validate_workflow(workflow_name):
+                return AgentResponse(
+                    text=f"Workflow '{workflow_name}' not found or invalid",
+                    success=False,
+                    error_message=f"Invalid workflow: {workflow_name}"
+                )
+            
+            # Create execution request
+            request = ClaudeCodeRunRequest(
+                message=input_text,
+                session_id=self.context.get("session_id"),
+                workflow_name=workflow_name,
+                max_turns=int(self.config.get("max_turns", "30")),
+                git_branch=self.config.get("git_branch"),
+                timeout=self.config.get("container_timeout")
+            )
+            
+            # Store session metadata in database
+            session_metadata = {
+                "agent_type": "claude-code",
+                "workflow_name": workflow_name,
+                "git_branch": request.git_branch,
+                "container_timeout": request.timeout,
+                "started_at": datetime.utcnow().isoformat()
+            }
+            
+            # Update context with metadata
+            self.context.update(session_metadata)
+            
+            # For async execution, we would normally return a run_id immediately
+            # and let the client poll for status. For now, we'll run synchronously
+            # to maintain compatibility with the existing agent interface.
+            
+            logger.info(f"Starting Claude CLI execution for workflow '{workflow_name}'")
+            
+            # Execute Claude CLI in container
+            execution_result = await self.executor.execute_claude_task(
+                request=request,
+                agent_context=self.context
+            )
+            
+            # Store execution results in message history if provided
+            if message_history_obj:
+                # Store user message
+                user_message = {
+                    "role": "user",
+                    "content": input_text,
+                    "agent_id": self.db_id,
+                    "channel_payload": channel_payload
+                }
+                message_history_obj.add_message(user_message)
+                
+                # Store agent response with execution metadata
+                agent_message = {
+                    "role": "assistant",
+                    "content": execution_result.get("result", "Task completed"),
+                    "agent_id": self.db_id,
+                    "raw_payload": {
+                        "execution": execution_result,
+                        "workflow": workflow_name,
+                        "request": request.dict()
+                    },
+                    "context": {
+                        "container_id": execution_result.get("container_id"),
+                        "execution_time": execution_result.get("execution_time"),
+                        "exit_code": execution_result.get("exit_code"),
+                        "git_commits": execution_result.get("git_commits", [])
+                    }
+                }
+                message_history_obj.add_message(agent_message)
+            
+            # Create response based on execution result
+            if execution_result.get("success", False):
+                return AgentResponse(
+                    text=execution_result.get("result", "Task completed successfully"),
+                    success=True,
+                    raw_message=execution_result,
+                    tool_calls=[],  # Claude CLI handles its own tools
+                    tool_outputs=[]
+                )
+            else:
+                return AgentResponse(
+                    text=f"Task failed: {execution_result.get('error', 'Unknown error')}",
+                    success=False,
+                    error_message=execution_result.get("error"),
+                    raw_message=execution_result
+                )
+                
+        except Exception as e:
+            logger.error(f"Error running ClaudeCodeAgent: {str(e)}")
+            logger.error(traceback.format_exc())
+            return AgentResponse(
+                text=f"Error executing Claude task: {str(e)}",
+                success=False,
+                error_message=str(e)
+            )
+    
+    async def _validate_workflow(self, workflow_name: str) -> bool:
+        """Validate that a workflow configuration exists.
+        
+        Args:
+            workflow_name: Name of the workflow to validate
+            
+        Returns:
+            True if workflow is valid, False otherwise
+        """
+        try:
+            # Check if workflow directory exists
+            import os
+            workflow_path = os.path.join(
+                os.path.dirname(__file__), 
+                "workflows", 
+                workflow_name
+            )
+            
+            if not os.path.exists(workflow_path):
+                logger.warning(f"Workflow directory not found: {workflow_path}")
+                return False
+            
+            # Check for required workflow files
+            required_files = ["prompt.md", ".mcp.json", "allowed_tools.json"]
+            for required_file in required_files:
+                file_path = os.path.join(workflow_path, required_file)
+                if not os.path.exists(file_path):
+                    logger.warning(f"Required workflow file missing: {file_path}")
+                    return False
+            
+            logger.debug(f"Workflow '{workflow_name}' validated successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating workflow '{workflow_name}': {str(e)}")
+            return False
+    
+    async def get_available_workflows(self) -> Dict[str, Dict[str, Any]]:
+        """Get list of available workflows with their configurations.
+        
+        Returns:
+            Dictionary of workflow names to their metadata
+        """
+        workflows = {}
+        
+        try:
+            import os
+            workflows_dir = os.path.join(os.path.dirname(__file__), "workflows")
+            
+            if not os.path.exists(workflows_dir):
+                return workflows
+            
+            for item in os.listdir(workflows_dir):
+                workflow_path = os.path.join(workflows_dir, item)
+                if os.path.isdir(workflow_path):
+                    # Try to load workflow metadata
+                    try:
+                        prompt_file = os.path.join(workflow_path, "prompt.md")
+                        description = "No description available"
+                        
+                        if os.path.exists(prompt_file):
+                            with open(prompt_file, 'r') as f:
+                                lines = f.readlines()
+                                # Extract first line as description
+                                if lines:
+                                    description = lines[0].strip("# \n")
+                        
+                        workflows[item] = {
+                            "name": item,
+                            "description": description,
+                            "path": workflow_path,
+                            "valid": await self._validate_workflow(item)
+                        }
+                        
+                    except Exception as e:
+                        logger.warning(f"Error loading workflow metadata for '{item}': {str(e)}")
+                        workflows[item] = {
+                            "name": item,
+                            "description": "Error loading metadata",
+                            "path": workflow_path,
+                            "valid": False
+                        }
+            
+            logger.info(f"Found {len(workflows)} workflows")
+            return workflows
+            
+        except Exception as e:
+            logger.error(f"Error getting available workflows: {str(e)}")
+            return workflows
+    
+    async def create_async_run(self, input_text: str, workflow_name: str, 
+                              **kwargs) -> ClaudeCodeRunResponse:
+        """Create an async run and return immediately with run_id.
+        
+        This method implements the async API pattern described in the architecture.
+        
+        Args:
+            input_text: Text input for the agent
+            workflow_name: Name of the workflow to execute
+            **kwargs: Additional execution parameters
+            
+        Returns:
+            ClaudeCodeRunResponse with run_id and initial status
+        """
+        try:
+            # Generate unique run ID
+            run_id = f"run_{uuid.uuid4().hex[:12]}"
+            
+            # Create execution request
+            request = ClaudeCodeRunRequest(
+                message=input_text,
+                session_id=kwargs.get("session_id"),
+                workflow_name=workflow_name,
+                max_turns=kwargs.get("max_turns", 30),
+                git_branch=kwargs.get("git_branch", self.config.get("git_branch")),
+                timeout=kwargs.get("timeout", self.config.get("container_timeout"))
+            )
+            
+            # Store run metadata in database for status tracking
+            # This would normally go in a runs table, but for now we'll use the context
+            self.context[f"run_{run_id}"] = {
+                "status": "pending",
+                "request": request.dict(),
+                "started_at": datetime.utcnow().isoformat(),
+                "workflow_name": workflow_name
+            }
+            
+            # Start background execution
+            asyncio.create_task(
+                self._execute_async_run(run_id, request)
+            )
+            
+            # Return immediate response
+            return ClaudeCodeRunResponse(
+                run_id=run_id,
+                status="pending",
+                message="Container deployment initiated",
+                session_id=request.session_id or str(uuid.uuid4()),
+                started_at=datetime.utcnow()
+            )
+            
+        except Exception as e:
+            logger.error(f"Error creating async run: {str(e)}")
+            raise
+    
+    async def _execute_async_run(self, run_id: str, request: ClaudeCodeRunRequest) -> None:
+        """Execute a Claude task in the background.
+        
+        Args:
+            run_id: Unique run identifier
+            request: Execution request
+        """
+        try:
+            # Update status to running
+            self.context[f"run_{run_id}"]["status"] = "running"
+            self.context[f"run_{run_id}"]["updated_at"] = datetime.utcnow().isoformat()
+            
+            # Execute the task
+            result = await self.executor.execute_claude_task(
+                request=request,
+                agent_context=self.context
+            )
+            
+            # Update status with results
+            self.context[f"run_{run_id}"].update({
+                "status": "completed" if result.get("success") else "failed",
+                "result": result,
+                "completed_at": datetime.utcnow().isoformat()
+            })
+            
+            logger.info(f"Async run {run_id} completed with status: {result.get('success', 'unknown')}")
+            
+        except Exception as e:
+            logger.error(f"Error in async run {run_id}: {str(e)}")
+            self.context[f"run_{run_id}"].update({
+                "status": "failed",
+                "error": str(e),
+                "completed_at": datetime.utcnow().isoformat()
+            })
+    
+    async def get_run_status(self, run_id: str) -> Dict[str, Any]:
+        """Get the status of an async run.
+        
+        Args:
+            run_id: Unique run identifier
+            
+        Returns:
+            Dictionary with run status and results
+        """
+        run_key = f"run_{run_id}"
+        if run_key not in self.context:
+            return {
+                "run_id": run_id,
+                "status": "not_found",
+                "error": f"Run {run_id} not found"
+            }
+        
+        return {
+            "run_id": run_id,
+            **self.context[run_key]
+        }
+    
+    async def cleanup(self) -> None:
+        """Clean up resources used by the agent."""
+        try:
+            # Clean up container manager resources
+            if hasattr(self, 'container_manager'):
+                await self.container_manager.cleanup()
+            
+            # Call parent cleanup
+            await super().cleanup()
+            
+        except Exception as e:
+            logger.error(f"Error during ClaudeCodeAgent cleanup: {str(e)}")
+        
+        logger.info("ClaudeCodeAgent cleanup completed")
