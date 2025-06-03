@@ -112,8 +112,7 @@ async def async_test_timeout():
     return run_with_timeout
 
 
-# Configure pytest-asyncio
-pytest_plugins = ('pytest_asyncio',)
+# Configure pytest-asyncio - handled by top-level pytest.ini asyncio_mode = auto
 
 
 def pytest_configure(config):
