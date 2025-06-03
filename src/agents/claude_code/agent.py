@@ -118,7 +118,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             AgentResponse object with result and metadata
         """
         # Check if claude-code is enabled
-        if not os.environ.get("AM_ENABLE_CLAUDE_CODE", "false").lower() == "true":
+        if not settings.AM_ENABLE_CLAUDE_CODE:
             return AgentResponse(
                 text="Claude-Code agent is disabled. Set AM_ENABLE_CLAUDE_CODE=true to enable.",
                 success=False,

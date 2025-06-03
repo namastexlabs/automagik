@@ -37,6 +37,14 @@ class ApprovalStatus(str, Enum):
     TIMEOUT = "timeout"
 
 
+class ApprovalTriggerType(str, Enum):
+    """Approval trigger reasons."""
+    HIGH_COST = "high_cost"
+    DESTRUCTIVE_CHANGES = "destructive_changes"
+    EXTERNAL_DEPENDENCIES = "external_dependencies"
+    MANUAL_OVERRIDE = "manual_override"
+
+
 class WorkflowResult(BaseModel):
     """Result from a workflow execution."""
     workflow: WorkflowType
@@ -56,6 +64,7 @@ class ApprovalPoint(BaseModel):
     """Human approval checkpoint."""
     id: str
     workflow: WorkflowType
+    trigger_type: ApprovalTriggerType
     reason: str
     description: str
     requested_at: datetime
