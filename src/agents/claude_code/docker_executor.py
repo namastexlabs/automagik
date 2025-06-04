@@ -31,7 +31,7 @@ class DockerExecutor(ExecutorBase):
         logger.info("DockerExecutor initialized")
     
     async def execute_claude_task(self, request: ClaudeCodeRunRequest, 
-                                 agent_context: Dict[str, Any]) -> Dict[str, Any]:
+                                 agent_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Execute a Claude CLI task in a container.
         
         Args:
@@ -179,7 +179,7 @@ class DockerExecutor(ExecutorBase):
     
     async def _prepare_environment(self, request: ClaudeCodeRunRequest, 
                                   workflow_config: Dict[str, Any],
-                                  agent_context: Dict[str, Any]) -> Dict[str, str]:
+                                  agent_context: Optional[Dict[str, Any]]) -> Dict[str, str]:
         """Prepare environment variables for container execution.
         
         Args:

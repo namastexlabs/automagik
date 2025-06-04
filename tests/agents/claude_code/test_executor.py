@@ -367,8 +367,9 @@ class TestPrepareEnvironment:
     async def test_prepare_environment_with_env_file(self, mock_exists, mock_file_open):
         """Test environment preparation with .env file."""
         mock_exists.return_value = True
-        # Set up the mock to properly iterate over lines
-        mock_file_content = [
+        
+        # Setup mock file to properly simulate line iteration
+        env_content = [
             "# Comment\n",
             "KEY1=value1\n",
             "KEY2=value2\n",
@@ -378,6 +379,11 @@ class TestPrepareEnvironment:
         
         # Mock the entire open() context manager behavior 
         mock_file_open.return_value.__enter__.return_value = iter(mock_file_content)
+        
+        # Create a mock file object that supports iteration
+        mock_file = mock_open(read_data="".join(env_content)).return_value
+        mock_file.__iter__ = lambda self: iter(env_content)
+        mock_file_open.return_value = mock_file
         
         executor = DockerExecutor(Mock())
         
@@ -627,10 +633,11 @@ class TestEdgeCases:
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
         executor = DockerExecutor(mock_container_manager)
-        executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
-        executor._prepare_environment = AsyncMock(return_value={'ENV': 'value'})
-        executor._prepare_volumes = AsyncMock(return_value={'vol': {'bind': '/vol'}})
-        executor._build_claude_command = AsyncMock(return_value=['claude', 'command'])
+        # Include 'path' key in the mock workflow config
+        executor._load_workflow_config = AsyncMock(return_value={
+            'name': 'test',
+            'path': '/test/workflow/path'
+        })
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
@@ -652,10 +659,11 @@ class TestEdgeCases:
         mock_container_manager.wait_for_completion = AsyncMock(return_value={'success': True})
         
         executor = DockerExecutor(mock_container_manager)
-        executor._load_workflow_config = AsyncMock(return_value={'name': 'test'})
-        executor._prepare_environment = AsyncMock(return_value={'ENV': 'value'})
-        executor._prepare_volumes = AsyncMock(return_value={'vol': {'bind': '/vol'}})
-        executor._build_claude_command = AsyncMock(return_value=['claude', 'command'])
+        # Include 'path' key in the mock workflow config
+        executor._load_workflow_config = AsyncMock(return_value={
+            'name': 'test',
+            'path': '/test/workflow/path'
+        })
         
         request = ClaudeCodeRunRequest(
             message="Fix bug",
