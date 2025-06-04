@@ -378,7 +378,7 @@ class TestPrepareEnvironment:
         ]
         
         # Mock the entire open() context manager behavior 
-        mock_file_open.return_value.__enter__.return_value = iter(mock_file_content)
+        mock_file_open.return_value.__enter__.return_value = iter(env_content)
         
         # Create a mock file object that supports iteration
         mock_file = mock_open(read_data="".join(env_content)).return_value
