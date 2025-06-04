@@ -441,13 +441,21 @@ class TestCleanupIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @patch('src.agents.claude_code.agent.settings')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_agent_cleanup(self, mock_executor_factory, mock_container_class):
+    async def test_agent_cleanup(self, mock_executor_factory, mock_container_class, mock_settings):
         """Test agent cleanup process."""
+        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        
         # Mock container manager with cleanup
         mock_container = AsyncMock()
         mock_container_class.return_value = mock_container
+        
+        # Mock executor with cleanup
+        mock_executor = AsyncMock()
+        mock_executor.cleanup = AsyncMock()
+        mock_executor_factory.create_executor.return_value = mock_executor
         
         agent = ClaudeCodeAgent({})
         
@@ -459,5 +467,5 @@ class TestCleanupIntegration:
             await agent.cleanup()
         
         # Verify cleanup was called
-        mock_container.cleanup.assert_called_once()
+        mock_executor.cleanup.assert_called_once()
         mock_parent.assert_called_once()
