@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.simple.sofia.agent import SofiaAgent
+from src.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestSofiaAgentReliability:
@@ -32,10 +32,10 @@ class TestSofiaAgentReliability:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
@@ -71,10 +71,10 @@ class TestSofiaAgentReliability:
                                 ])
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
@@ -101,15 +101,15 @@ class TestSofiaAgentReliability:
                                 mock_agent.run = AsyncMock(side_effect=Exception("Persistent failure"))
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
                                                 # Mock settings for retry attempts
-                                                with patch('src.agents.simple.sofia.agent.settings') as mock_settings:
+                                                with patch('src.agents.pydanticai.sofia.agent.settings') as mock_settings:
                                                     mock_settings.LLM_RETRY_ATTEMPTS = 3
                                                     
                                                     # Mock asyncio.sleep to speed up test
@@ -142,10 +142,10 @@ class TestSofiaAgentReliability:
                                 ])
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
@@ -172,10 +172,10 @@ class TestSofiaAgentReliability:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
@@ -207,15 +207,15 @@ class TestSofiaAgentReliability:
                                 ])
                                 
                                 # Mock extract functions
-                                with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
                                                 # Mock logger to verify error logging
-                                                with patch('src.agents.simple.sofia.agent.logger') as mock_logger:
+                                                with patch('src.agents.pydanticai.sofia.agent.logger') as mock_logger:
                                                     with patch('asyncio.sleep', new_callable=AsyncMock):
                                                         result = await sofia_agent.run("Test input")
                                                         
@@ -230,7 +230,7 @@ class TestSofiaAgentReliability:
     def test_reliability_imports_exist(self, sofia_agent):
         """Test that required imports for reliability features exist."""
         # Verify that the agent file has the necessary imports
-        import src.agents.simple.sofia.agent as sofia_module
+        import src.agents.pydanticai.sofia.agent as sofia_module
         
         # Check for asyncio import (needed for sleep and retry logic)
         assert hasattr(sofia_module, 'asyncio')
@@ -241,7 +241,7 @@ class TestSofiaAgentReliability:
     @pytest.mark.asyncio
     async def test_reliability_configuration_from_settings(self, sofia_agent):
         """Test that retry configuration comes from settings."""
-        with patch('src.agents.simple.sofia.agent.settings') as mock_settings:
+        with patch('src.agents.pydanticai.sofia.agent.settings') as mock_settings:
             mock_settings.LLM_RETRY_ATTEMPTS = 5  # Custom retry count
             
             with patch.object(sofia_agent, '_check_and_register_prompt', new_callable=AsyncMock):
@@ -254,10 +254,10 @@ class TestSofiaAgentReliability:
                                     mock_agent.run = AsyncMock(side_effect=Exception("Always fails"))
                                     
                                     # Mock extract functions
-                                    with patch('src.agents.simple.sofia.agent.extract_all_messages', return_value=[]):
-                                        with patch('src.agents.simple.sofia.agent.extract_tool_calls', return_value=[]):
-                                            with patch('src.agents.simple.sofia.agent.extract_tool_outputs', return_value=[]):
-                                                with patch('src.agents.simple.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                    with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                            with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                                with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                     mock_sem = AsyncMock()
                                                     mock_semaphore.return_value = mock_sem
                                                     

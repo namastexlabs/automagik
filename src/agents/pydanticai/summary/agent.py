@@ -1,6 +1,6 @@
-"""SummaryAgentAgent implementation with PydanticAI.
+"""SummaryAgent implementation with PydanticAI.
 
-This module provides a SummaryAgentAgent class that uses PydanticAI for LLM integration
+This module provides a SummaryAgent class that uses PydanticAI for LLM integration
 and inherits common functionality from AutomagikAgent.
 """
 import logging
@@ -29,15 +29,15 @@ from src.agents.common.dependencies_helper import (
 
 logger = logging.getLogger(__name__)
 
-class SummaryAgentAgent(AutomagikAgent):
-    """SummaryAgentAgent implementation using PydanticAI.
+class SummaryAgent(AutomagikAgent):
+    """SummaryAgent implementation using PydanticAI.
     
     This agent provides a basic implementation that follows the PydanticAI
     conventions for multimodal support and tool calling.
     """
     
     def __init__(self, config: Dict[str, str]) -> None:
-        """Initialize the SummaryAgentAgent.
+        """Initialize the SummaryAgent.
         
         Args:
             config: Dictionary with configuration options
@@ -46,7 +46,7 @@ class SummaryAgentAgent(AutomagikAgent):
         super().__init__(config)
         
         # Load and register the code-defined prompt
-        from src.agents.simple.summary.prompts.prompt import AGENT_PROMPT
+        from .prompts.prompt import AGENT_PROMPT
         
         # Register the code-defined prompt for this agent
         # This call is asynchronous but we're in a synchronous __init__,
@@ -75,7 +75,7 @@ class SummaryAgentAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
-        logger.info("SummaryAgentAgent initialized successfully")
+        logger.info("SummaryAgent initialized successfully")
     
     async def _initialize_pydantic_agent(self) -> None:
         """Initialize the underlying PydanticAI agent."""

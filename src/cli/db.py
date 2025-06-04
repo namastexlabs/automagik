@@ -8,26 +8,21 @@ from dotenv import load_dotenv
 import psycopg2
 from pathlib import Path
 from src.config import settings
+from src.db.migration_manager import MigrationManager
 
 # Create the database command group
 db_app = typer.Typer()
 
-def apply_migrations(cursor, logger=None):
-    """Apply database migrations"""
+def apply_migrations(connection, logger=None):
+    """Apply database migrations using the enhanced migration manager"""
     if logger is None:
         logger = logging.getLogger("apply_migrations")
     
-    # Create migrations table if it doesn't exist
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS migrations (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) UNIQUE NOT NULL,
-            applied_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
+    # Create migration manager
+    migration_manager = MigrationManager(connection)
     
-    # Define migrations
-    migrations = [
+    # Define in-code migrations (legacy)
+    in_code_migrations = [
         ("add_user_data_column", """
             ALTER TABLE users 
             ADD COLUMN IF NOT EXISTS user_data JSONB;
@@ -59,43 +54,53 @@ def apply_migrations(cursor, logger=None):
         """),
     ]
     
-    # Apply migrations
+    # Apply in-code migrations first
     migration_success_count = 0
     migration_error_count = 0
     
-    for migration_name, migration_sql in migrations:
-        try:
-            # Check if migration has already been applied
-            cursor.execute(
-                "SELECT 1 FROM migrations WHERE name = %s",
-                (migration_name,)
-            )
-            if cursor.fetchone():
-                logger.info(f"Migration '{migration_name}' already applied, skipping.")
-                continue
-            
-            # Apply migration
-            logger.info(f"Applying migration: {migration_name}")
-            cursor.execute(migration_sql)
-            
-            # Record migration
-            cursor.execute(
-                "INSERT INTO migrations (name) VALUES (%s)",
-                (migration_name,)
-            )
-            migration_success_count += 1
-            logger.info(f"✅ Migration '{migration_name}' applied successfully")
-            
-        except Exception as e:
-            migration_error_count += 1
-            logger.error(f"❌ Failed to apply migration '{migration_name}': {e}")
-            # Continue with other migrations
-            continue
+    for migration_name, migration_sql in in_code_migrations:
+        if migration_name not in migration_manager.applied_migrations:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(migration_sql)
+                    cursor.execute(
+                        "INSERT INTO migrations (name, status) VALUES (%s, 'applied')",
+                        (migration_name,)
+                    )
+                connection.commit()
+                migration_success_count += 1
+                logger.info(f"✅ Migration '{migration_name}' applied successfully")
+            except Exception as e:
+                connection.rollback()
+                # Check if it's an "already exists" error
+                if "already exists" in str(e).lower():
+                    # Record as applied
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "INSERT INTO migrations (name, status) VALUES (%s, 'applied') ON CONFLICT (name) DO NOTHING",
+                            (migration_name,)
+                        )
+                    connection.commit()
+                    logger.info(f"⚠️ Migration '{migration_name}' objects already exist. Marked as applied.")
+                else:
+                    migration_error_count += 1
+                    logger.error(f"❌ Failed to apply migration '{migration_name}': {e}")
+        else:
+            logger.info(f"📝 Migration '{migration_name}' already applied, skipping.")
+    
+    # Apply file-based migrations
+    migrations_dir = Path("src/db/migrations")
+    file_success_count, file_error_count, error_messages = migration_manager.apply_all_migrations(migrations_dir)
+    
+    migration_success_count += file_success_count
+    migration_error_count += file_error_count
     
     if migration_error_count == 0:
         logger.info(f"✅ All {migration_success_count} migrations completed successfully")
     else:
         logger.warning(f"Migrations completed with {migration_error_count} errors and {migration_success_count} successes")
+        for error_msg in error_messages:
+            logger.error(error_msg)
 
 @db_app.callback()
 def db_callback(
@@ -197,12 +202,11 @@ def db_init(
             user=db_user,
             password=db_password
         )
-        conn.autocommit = True
-        cursor = conn.cursor()
+        # Don't use autocommit - let migration manager handle transactions
+        conn.autocommit = False
         
-        apply_migrations(cursor, logger)
+        apply_migrations(conn, logger)
         
-        cursor.close()
         conn.close()
     except Exception as e:
         logger.error(f"❌ Failed to apply migrations: {e}")
@@ -276,7 +280,7 @@ def create_required_tables(
         table_exists = cursor.fetchone()[0]
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 email TEXT,
                 phone_number VARCHAR(50),
                 user_data JSONB,
@@ -295,7 +299,7 @@ def create_required_tables(
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id INTEGER REFERENCES users(id),
+                user_id UUID REFERENCES users(id),
                 agent_id INTEGER REFERENCES agents(id),
                 name VARCHAR(255),
                 platform VARCHAR(50),
@@ -317,7 +321,7 @@ def create_required_tables(
             CREATE TABLE IF NOT EXISTS messages (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 session_id UUID REFERENCES sessions(id),
-                user_id INTEGER REFERENCES users(id),
+                user_id UUID REFERENCES users(id),
                 agent_id INTEGER REFERENCES agents(id),
                 role VARCHAR(20) NOT NULL,
                 text_content TEXT,
@@ -331,6 +335,7 @@ def create_required_tables(
                 user_feedback TEXT,
                 flagged TEXT,
                 context JSONB,
+                channel_payload JSONB,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
@@ -350,7 +355,7 @@ def create_required_tables(
                 description TEXT,
                 content TEXT,
                 session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id UUID REFERENCES users(id) ON DELETE SET NULL,
                 agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
                 read_mode VARCHAR(50),
                 access VARCHAR(20),

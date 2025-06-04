@@ -1,0 +1,171 @@
+"""Local execution implementation for Claude Code agent.
+
+This module provides the LocalExecutor class that executes Claude CLI
+directly on the host system without Docker containers.
+"""
+
+import asyncio
+import subprocess
+import os
+import shutil
+import tempfile
+import json
+import time
+from typing import Dict, Any, Optional, List
+from pathlib import Path
+
+from .executor_base import ExecutorBase
+from .models import ClaudeCodeRunRequest
+from .cli_environment import CLIEnvironmentManager
+from .cli_executor import ClaudeCLIExecutor, CLIResult
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+class LocalExecutor(ExecutorBase):
+    """Executes Claude CLI directly on the host system."""
+    
+    def __init__(
+        self, 
+        workspace_base: str = "/tmp/claude-workspace",
+        cleanup_on_complete: bool = True,
+        git_cache_enabled: bool = False,
+        timeout: int = 7200,
+        max_concurrent: int = 5
+    ):
+        """Initialize the local executor.
+        
+        Args:
+            workspace_base: Base directory for workspaces
+            cleanup_on_complete: Whether to cleanup after execution
+            git_cache_enabled: Whether to cache git repositories
+            timeout: Default timeout in seconds
+            max_concurrent: Maximum concurrent executions
+        """
+        self.cleanup_on_complete = cleanup_on_complete
+        self.git_cache_enabled = git_cache_enabled
+        
+        # Initialize CLI components
+        self.env_manager = CLIEnvironmentManager(
+            base_path=Path(workspace_base)
+        )
+        self.cli_executor = ClaudeCLIExecutor(
+            timeout=timeout,
+            max_concurrent=max_concurrent
+        )
+        
+        logger.info(f"LocalExecutor initialized with workspace base: {workspace_base}")
+    
+    async def execute_claude_task(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a Claude CLI task locally.
+        
+        Args:
+            request: Execution request with task details
+            agent_context: Agent context including session info
+            
+        Returns:
+            Dictionary with execution results
+        """
+        run_id = agent_context.get('run_id', str(int(time.time())))
+        
+        try:
+            # Create workspace using environment manager
+            workspace_path = await self.env_manager.create_workspace(run_id)
+            
+            # Setup repository
+            await self.env_manager.setup_repository(
+                workspace_path,
+                request.git_branch
+            )
+            
+            # Copy workflow configs
+            workflow_src = Path(__file__).parent / "workflows" / request.workflow_name
+            await self.env_manager.copy_configs(workflow_src, workspace_path)
+            
+            # Execute Claude CLI using the new executor
+            result: CLIResult = await self.cli_executor.execute(
+                workflow=request.workflow_name,
+                message=request.message,
+                workspace=workspace_path,
+                session_id=request.session_id,
+                max_turns=request.max_turns,
+                stream_callback=None,  # WebSocket streaming handled internally
+                timeout=request.timeout,
+                run_id=run_id
+            )
+            
+            # Cleanup if configured
+            if self.cleanup_on_complete and result.success:
+                await self.env_manager.cleanup(run_id)
+            
+            # Convert CLIResult to expected format
+            return result.to_dict()
+            
+        except Exception as e:
+            logger.error(f"Error executing local Claude task: {str(e)}")
+            # Cleanup on error
+            if self.cleanup_on_complete:
+                try:
+                    await self.env_manager.cleanup(run_id)
+                except Exception as cleanup_error:
+                    logger.error(f"Cleanup error: {cleanup_error}")
+            
+            return {
+                'success': False,
+                'session_id': request.session_id,
+                'result': '',
+                'exit_code': -1,
+                'execution_time': 0,
+                'logs': '',
+                'error': str(e),
+                'git_commits': [],
+                'workspace_path': None
+            }
+    
+    async def get_execution_logs(self, execution_id: str) -> str:
+        """Get execution logs.
+        
+        Args:
+            execution_id: Session ID for local execution
+            
+        Returns:
+            Execution logs as string
+        """
+        # For local execution, we would need to implement log persistence
+        # For now, return a placeholder
+        return f"Logs for session {execution_id} not available in local mode"
+    
+    async def cancel_execution(self, execution_id: str) -> bool:
+        """Cancel a running execution.
+        
+        Args:
+            execution_id: Run ID or session ID for local execution
+            
+        Returns:
+            True if cancelled successfully, False otherwise
+        """
+        try:
+            # Try to cancel using CLI executor
+            return await self.cli_executor.cancel_execution(execution_id)
+        except Exception as e:
+            logger.error(f"Error cancelling execution {execution_id}: {str(e)}")
+            return False
+    
+    async def cleanup(self) -> None:
+        """Clean up all resources."""
+        try:
+            # Clean up CLI executor
+            await self.cli_executor.cleanup()
+            
+            # Clean up environment manager (this will clean up all workspaces)
+            # Note: env_manager doesn't have a cleanup method yet
+            # We might need to add one later
+            
+            logger.info("LocalExecutor cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during LocalExecutor cleanup: {str(e)}")

@@ -95,8 +95,8 @@ class AgentFactory:
         
         # Try dynamic import for agent types not explicitly registered
         try:
-            # Try to import from simple agents folder
-            module_path = f"src.agents.simple.{agent_type}"
+            # Try to import from pydanticai agents folder
+            module_path = f"src.agents.pydanticai.{agent_type}"
             module = importlib.import_module(module_path)
             
             if hasattr(module, "create_agent"):
@@ -118,35 +118,74 @@ class AgentFactory:
         
     @classmethod
     def discover_agents(cls) -> None:
-        """Discover available agents in the simple folder.
+        """Discover available agents in the pydanticai and claude_code folders.
         
-        This method automatically scans the src/agents/simple directory for agent modules
-        and registers them with the factory.
+        This method automatically scans the src/agents/pydanticai and src/agents/claude_code
+        directories for agent modules and registers them with the factory.
+        
+        Note: As of NMSTX-230, all orchestration is handled by the PydanticAI Genie agent
+        which includes embedded LangGraph functionality for workflow orchestration.
         """
-        logger.info("Discovering agents in simple folder")
+        logger.info("Discovering agents in pydanticai and claude_code folders")
         
-        # Path to the simple agents directory
-        simple_dir = Path(os.path.dirname(os.path.dirname(__file__))) / "simple"
+        # Discover pydanticai agents (includes genie with embedded LangGraph)
+        cls._discover_agents_in_directory("pydanticai")
         
-        if not simple_dir.exists():
-            logger.warning(f"Simple agents directory not found: {simple_dir}")
+        # Discover claude_code agent (single module, not directory of agents)
+        cls._discover_single_agent("claude_code")
+    
+    @classmethod
+    def _discover_single_agent(cls, agent_name: str) -> None:
+        """Discover a single agent module.
+        
+        Args:
+            agent_name: Name of the agent module (e.g., 'claude_code')
+        """
+        logger.info(f"Discovering {agent_name} agent")
+        try:
+            # Import the agent module directly
+            module_name = f"src.agents.{agent_name}"
+            module = importlib.import_module(module_name)
+            
+            # Check if the module has a create_agent function
+            if hasattr(module, "create_agent") and callable(module.create_agent):
+                cls.register_agent_creator(agent_name, module.create_agent)
+                logger.debug(f"Discovered and registered {agent_name} agent")
+        except Exception as e:
+            logger.error(f"Error importing {agent_name} agent: {str(e)}")
+    
+    @classmethod
+    def _discover_agents_in_directory(cls, directory_name: str) -> None:
+        """Discover agents in a specific directory.
+        
+        Args:
+            directory_name: Name of the directory to scan (e.g., 'simple', 'langgraph')
+        """
+        logger.info(f"Discovering agents in {directory_name} folder")
+        
+        # Path to the agents directory
+        agents_dir = Path(os.path.dirname(os.path.dirname(__file__))) / directory_name
+        
+        if not agents_dir.exists():
+            logger.warning(f"{directory_name.title()} agents directory not found: {agents_dir}")
             return
             
         # Scan for agent directories
-        for item in simple_dir.iterdir():
-            if item.is_dir() and not item.name.startswith('__'):
+        for item in agents_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('__') and not item.name.startswith('.') and item.name != 'shared':
                 try:
                     # Try to import the module
-                    module_name = f"src.agents.simple.{item.name}"
+                    module_name = f"src.agents.{directory_name}.{item.name}"
                     module = importlib.import_module(module_name)
                     
                     # Check if the module has a create_agent function
                     if hasattr(module, "create_agent") and callable(module.create_agent):
-                        # Use agent name as-is, no normalization
-                        cls.register_agent_creator(item.name, module.create_agent)
-                        logger.debug(f"Discovered and registered agent: {item.name}")
+                        # Use agent name as-is, no prefixes
+                        agent_name = item.name
+                        cls.register_agent_creator(agent_name, module.create_agent)
+                        logger.debug(f"Discovered and registered {directory_name} agent: {agent_name}")
                 except Exception as e:
-                    logger.error(f"Error importing agent from {item.name}: {str(e)}")
+                    logger.error(f"Error importing {directory_name} agent from {item.name}: {str(e)}")
     
     @classmethod
     def list_available_agents(cls) -> List[str]:

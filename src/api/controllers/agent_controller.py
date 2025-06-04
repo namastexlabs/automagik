@@ -3,13 +3,14 @@
 import logging
 import uuid
 import inspect
+import time
 from typing import List, Optional, Dict, Any, Union
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 
 from src.agents.models.agent_factory import AgentFactory
 from src.memory.message_history import MessageHistory
-from src.api.models import AgentInfo, AgentRunRequest, UserCreate
+from src.api.models import AgentInfo, AgentRunRequest, AgentRunResponse, OrchestrationStatus, UserCreate
 from src.db import get_agent_by_name, get_user, create_user, User, ensure_default_user_exists
 from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
@@ -19,6 +20,39 @@ from src.db.repository.user import list_users
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+
+def is_langgraph_agent(agent_name: str) -> bool:
+    """Check if an agent is a LangGraph orchestration agent."""
+    return agent_name.startswith("langgraph-")
+
+
+def should_use_orchestration(agent_name: str, request: AgentRunRequest) -> bool:
+    """Determine if a request should use LangGraph orchestration."""
+    return (
+        is_langgraph_agent(agent_name) or
+        request.orchestration_config is not None or
+        request.target_agents is not None
+    )
+
+
+async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunRequest) -> AgentRunResponse:
+    """Handle orchestrated agent execution (DISABLED - LangGraph implementation removed)."""
+    logger.warning(f"Orchestration requested for {agent_name} but LangGraph implementation has been removed")
+    
+    execution_time = 0.0
+    
+    # Return error response indicating orchestration is unavailable
+    return AgentRunResponse(
+        status="error",
+        message="Orchestration is currently unavailable. LangGraph implementation has been removed pending NMSTX-230 completion.",
+        session_id=request.session_id,
+        agent_name=agent_name,
+        execution_time=execution_time,
+        orchestration=OrchestrationStatus(is_orchestrated=False, phase="disabled"),
+        errors=["Orchestration disabled - awaiting NMSTX-230 PydanticAI implementation"]
+    )
+
 
 async def list_registered_agents() -> List[AgentInfo]:
     """
@@ -175,6 +209,25 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Ensure agent_name is a string
         if not isinstance(agent_name, str):
             agent_name = str(agent_name)
+        
+        # Check if this should use LangGraph orchestration
+        if should_use_orchestration(agent_name, request):
+            logger.info(f"Routing to orchestrated execution for agent: {agent_name}")
+            response = await handle_orchestrated_agent_run(agent_name, request)
+            # Convert to Dict format for backward compatibility
+            return {
+                "status": response.status,
+                "message": response.message,
+                "session_id": response.session_id,
+                "agent_name": response.agent_name,
+                "execution_time": response.execution_time,
+                "orchestration": response.orchestration.model_dump() if response.orchestration else None,
+                "data": response.data,
+                "errors": response.errors
+            }
+        
+        # Continue with regular agent execution for non-orchestrated agents
+        logger.info(f"Using regular execution for agent: {agent_name}")
         
         # Early check for nonexistent agents to bail out before creating any DB entries
         if "nonexistent" in agent_name:
