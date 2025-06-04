@@ -172,7 +172,7 @@ class AgentFactory:
             
         # Scan for agent directories
         for item in agents_dir.iterdir():
-            if item.is_dir() and not item.name.startswith('__') and item.name != 'shared':
+            if item.is_dir() and not item.name.startswith('__') and not item.name.startswith('.') and item.name != 'shared':
                 try:
                     # Try to import the module
                     module_name = f"src.agents.{directory_name}.{item.name}"

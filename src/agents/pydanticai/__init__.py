@@ -19,7 +19,7 @@ def discover_agents():
     current_dir = Path(__file__).parent
     
     for item in current_dir.iterdir():
-        if item.is_dir() and not item.name.startswith('__'):
+        if item.is_dir() and not item.name.startswith('__') and not item.name.startswith('.'):
             try:
                 # Try to import the module
                 module_name = f"src.agents.pydanticai.{item.name}"

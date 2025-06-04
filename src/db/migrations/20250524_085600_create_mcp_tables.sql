@@ -64,11 +64,19 @@ CREATE INDEX IF NOT EXISTS idx_agent_mcp_servers_server_id ON agent_mcp_servers(
 CREATE INDEX IF NOT EXISTS idx_mcp_servers_agent_status ON agent_mcp_servers(agent_id, mcp_server_id);
 
 -- Add constraints to ensure configuration consistency
-ALTER TABLE mcp_servers ADD CONSTRAINT chk_stdio_has_command 
-    CHECK (server_type != 'stdio' OR command IS NOT NULL);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_stdio_has_command') THEN
+        ALTER TABLE mcp_servers ADD CONSTRAINT chk_stdio_has_command 
+            CHECK (server_type != 'stdio' OR command IS NOT NULL);
+    END IF;
     
-ALTER TABLE mcp_servers ADD CONSTRAINT chk_http_has_url 
-    CHECK (server_type != 'http' OR http_url IS NOT NULL);
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_http_has_url') THEN
+        ALTER TABLE mcp_servers ADD CONSTRAINT chk_http_has_url 
+            CHECK (server_type != 'http' OR http_url IS NOT NULL);
+    END IF;
+END
+$$;
 
 -- Add function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_mcp_updated_at_column()
@@ -80,9 +88,11 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers for automatic timestamp updates
+DROP TRIGGER IF EXISTS update_mcp_servers_updated_at ON mcp_servers;
 CREATE TRIGGER update_mcp_servers_updated_at BEFORE UPDATE ON mcp_servers 
     FOR EACH ROW EXECUTE FUNCTION update_mcp_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_agent_mcp_servers_updated_at ON agent_mcp_servers;
 CREATE TRIGGER update_agent_mcp_servers_updated_at BEFORE UPDATE ON agent_mcp_servers 
     FOR EACH ROW EXECUTE FUNCTION update_mcp_updated_at_column();
 

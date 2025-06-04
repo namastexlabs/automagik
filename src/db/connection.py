@@ -102,13 +102,15 @@ def safe_uuid(value: Any) -> Any:
     return value
 
 
-def check_migrations(cursor) -> Tuple[bool, List[str]]:
+def check_migrations(connection) -> Tuple[bool, List[str]]:
     """Check if all migrations are applied.
     
     Returns:
         Tuple of (is_healthy, list_of_pending_migrations)
     """
     try:
+        from src.db.migration_manager import MigrationManager
+        
         # Get the migrations directory path
         migrations_dir = Path("src/db/migrations")
         if not migrations_dir.exists():
@@ -121,25 +123,18 @@ def check_migrations(cursor) -> Tuple[bool, List[str]]:
         if not migration_files:
             return True, []
         
-        # Create migrations table if it doesn't exist
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS migrations (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                applied_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-        
-        # Get list of already applied migrations
-        cursor.execute("SELECT name FROM migrations")
-        applied_migrations = {row['name'] for row in cursor.fetchall()}
+        # Create migration manager to check status
+        migration_manager = MigrationManager(connection)
         
         # Check for pending migrations
         pending_migrations = []
         for migration_file in migration_files:
             migration_name = migration_file.name
-            if migration_name not in applied_migrations:
-                pending_migrations.append(migration_name)
+            if migration_name not in migration_manager.applied_migrations:
+                # Also check if it was partially applied
+                partial_status = migration_manager._check_partial_migration(migration_name, "")
+                if partial_status != "fully_applied":
+                    pending_migrations.append(migration_name)
         
         return len(pending_migrations) == 0, pending_migrations
         
@@ -155,8 +150,8 @@ def verify_database_health() -> bool:
         bool: True if database is healthy, False otherwise
     """
     try:
-        with get_db_cursor(commit=False) as cursor:
-            is_healthy, pending_migrations = check_migrations(cursor)
+        with get_db_connection() as conn:
+            is_healthy, pending_migrations = check_migrations(conn)
             
             if not is_healthy:
                 logger.warning("Database migrations are not up to date!")
