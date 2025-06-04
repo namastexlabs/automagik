@@ -11,7 +11,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+.mcp.json
 # Distribution / packaging
 .Python
 build/
