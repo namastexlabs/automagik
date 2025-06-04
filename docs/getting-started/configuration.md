@@ -6,13 +6,13 @@ This document explains how project configuration is managed in Automagik Agents,
 
 The project utilizes the [`pydantic-settings`](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) library to manage configuration. This approach provides:
 
-*   **Centralized Definition:** All configuration parameters are defined as typed fields within the `Settings` class in `src/config.py`.
-*   **Environment Variable Loading:** Settings are primarily loaded from environment variables.
-*   **.env File Support:** A `.env` file in the project root can be used to set environment variables locally during development (using `python-dotenv`).
-*   **Type Validation:** Pydantic automatically validates the types of loaded configuration values.
-*   **Default Values:** Default values can be specified directly in the `Settings` class.
+- **Centralized Definition:** All configuration parameters are defined as typed fields within the `Settings` class in `src/config.py`.
+- **Environment Variable Loading:** Settings are primarily loaded from environment variables.
+- **.env File Support:** A `.env` file in the project root can be used to set environment variables locally during development (using `python-dotenv`).
+- **Type Validation:** Pydantic automatically validates the types of loaded configuration values.
+- **Default Values:** Default values can be specified directly in the `Settings` class.
 
-Refer to the [config-rules](../rules/config-rules.md) for best practices when adding or modifying configuration.
+<!-- Note: config-rules.md reference removed as file does not exist -->
 
 ## Configuration Loading
 
@@ -30,48 +30,48 @@ Below is a list of the main configuration variables defined in `src/config.py`, 
 
 **Essential:**
 
-*   `AM_API_KEY` (str): API key for authenticating internal requests. (Required)
-*   `OPENAI_API_KEY` (str): OpenAI API key. (Required)
-*   `DISCORD_BOT_TOKEN` (str): Discord bot token. (Required)
-*   `DATABASE_URL` (str): Full PostgreSQL connection string. Takes precedence over individual `POSTGRES_*` variables if set.
+- `AM_API_KEY` (str): API key for authenticating internal requests. (Required)
+- `OPENAI_API_KEY` (str): OpenAI API key. (Required)
+- `DISCORD_BOT_TOKEN` (str): Discord bot token. (Required)
+- `DATABASE_URL` (str): Full PostgreSQL connection string. Takes precedence over individual `POSTGRES_*` variables if set.
     *   *Alternatively:* `POSTGRES_HOST` (str), `POSTGRES_PORT` (int), `POSTGRES_USER` (str), `POSTGRES_PASSWORD` (str), `POSTGRES_DB` (str): Individual database connection parameters.
 
 **Optional Integrations:**
 
-*   `NOTION_TOKEN` (Optional[str]): Notion integration token.
-*   `BLACKPEARL_TOKEN` (Optional[str]): BlackPearl API token.
-*   `OMIE_TOKEN` (Optional[str]): Omie API token.
-*   `GOOGLE_DRIVE_TOKEN` (Optional[str]): Google Drive API token.
-*   `EVOLUTION_API_KEY` (Optional[str]): Evolution API key.
-*   `EVOLUTION_API_URL` (Optional[str]): Evolution API URL.
-*   `EVOLUTION_INSTANCE` (str, default: "agent"): Evolution API instance name.
-*   `BLACKPEARL_API_URL` (Optional[str]): BlackPearl API URL.
-*   `BLACKPEARL_DB_URI` (Optional[str]): BlackPearl database URI.
-*   `SUPABASE_URL` (Optional[str]): Supabase project URL.
-*   `SUPABASE_SERVICE_ROLE_KEY` (Optional[str]): Supabase service role key.
-*   `LOGFIRE_TOKEN` (Optional[str]): Logfire token for logging service.
+- `NOTION_TOKEN` (Optional[str]): Notion integration token.
+- `BLACKPEARL_TOKEN` (Optional[str]): BlackPearl API token.
+- `OMIE_TOKEN` (Optional[str]): Omie API token.
+- `GOOGLE_DRIVE_TOKEN` (Optional[str]): Google Drive API token.
+- `EVOLUTION_API_KEY` (Optional[str]): Evolution API key.
+- `EVOLUTION_API_URL` (Optional[str]): Evolution API URL.
+- `EVOLUTION_INSTANCE` (str, default: "agent"): Evolution API instance name.
+- `BLACKPEARL_API_URL` (Optional[str]): BlackPearl API URL.
+- `BLACKPEARL_DB_URI` (Optional[str]): BlackPearl database URI.
+- `SUPABASE_URL` (Optional[str]): Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY` (Optional[str]): Supabase service role key.
+- `LOGFIRE_TOKEN` (Optional[str]): Logfire token for logging service.
 
 **Server & Application:**
 
-*   `AM_PORT` (int, default: 8881): Port for the FastAPI server.
-*   `AM_HOST` (str, default: "0.0.0.0"): Host for the FastAPI server.
-*   `AM_ENV` (Enum: "development", "production", "testing", default: "development"): Application environment.
-*   `AM_LOG_LEVEL` (Enum: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", default: "INFO"): Logging level.
-*   `AM_VERBOSE_LOGGING` (bool, default: False): Enable verbose logging.
-*   `LOGFIRE_IGNORE_NO_CONFIG` (bool, default: True): Suppress Logfire warning if no token.
-*   `AM_TIMEZONE` (str, default: "UTC"): Timezone for agents.
-*   `AM_AGENTS_NAMES` (Optional[str]): Comma-separated list of agent names to pre-instantiate.
-*   `DEFAULT_EVOLUTION_INSTANCE` (str, default: "default"): Default Evolution instance if none provided.
-*   `DEFAULT_WHATSAPP_NUMBER` (str, default: "5511999999999@s.whatsapp.net"): Default WhatsApp number.
+- `AM_PORT` (int, default: 8881): Port for the FastAPI server.
+- `AM_HOST` (str, default: "0.0.0.0"): Host for the FastAPI server.
+- `AM_ENV` (Enum: "development", "production", "testing", default: "development"): Application environment.
+- `AM_LOG_LEVEL` (Enum: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", default: "INFO"): Logging level.
+- `AM_VERBOSE_LOGGING` (bool, default: False): Enable verbose logging.
+- `LOGFIRE_IGNORE_NO_CONFIG` (bool, default: True): Suppress Logfire warning if no token.
+- `AM_TIMEZONE` (str, default: "UTC"): Timezone for agents.
+- `AM_AGENTS_NAMES` (Optional[str]): Comma-separated list of agent names to pre-instantiate.
+- `DEFAULT_EVOLUTION_INSTANCE` (str, default: "default"): Default Evolution instance if none provided.
+- `DEFAULT_WHATSAPP_NUMBER` (str, default: "5511999999999@s.whatsapp.net"): Default WhatsApp number.
 
 **Database Pool:**
 
-*   `POSTGRES_POOL_MIN` (int, default: 1): Minimum connections in the pool.
-*   `POSTGRES_POOL_MAX` (int, default: 10): Maximum connections in the pool.
+- `POSTGRES_POOL_MIN` (int, default: 1): Minimum connections in the pool.
+- `POSTGRES_POOL_MAX` (int, default: 10): Maximum connections in the pool.
 
 **Other:**
 
-*   `PYTHONWARNINGS` (Optional[str]): Python warnings configuration.
+- `PYTHONWARNINGS` (Optional[str]): Python warnings configuration.
 
 ## Example `.env` File
 
@@ -136,6 +136,6 @@ AM_VERBOSE_LOGGING=True
 
 ## Managing Sensitive Information
 
-*   **Never commit `.env` files or files containing secrets** (like API keys, passwords) to version control (Git). Ensure `.env` is listed in your `.gitignore` file.
-*   For production environments, use secure methods for managing environment variables (e.g., secrets management tools provided by your cloud provider or deployment platform).
-*   Avoid hardcoding secrets directly in the source code (`src/config.py` or elsewhere). 
+- **Never commit `.env` files or files containing secrets** (like API keys, passwords) to version control (Git). Ensure `.env` is listed in your `.gitignore` file.
+- For production environments, use secure methods for managing environment variables (e.g., secrets management tools provided by your cloud provider or deployment platform).
+- Avoid hardcoding secrets directly in the source code (`src/config.py` or elsewhere). 

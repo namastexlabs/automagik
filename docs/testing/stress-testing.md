@@ -8,7 +8,7 @@ This guide covers the stress testing tools available for the Automagik Agents AP
 Simple benchmark focused on the agent run endpoint.
 
 ```bash
-python scripts/benchmarks/agent_run_bench.py \
+uv run python scripts/benchmarks/agent_run_bench.py \
     --base-url http://localhost:8000 \
     --agent-name simple \
     --concurrency 200 \
@@ -24,7 +24,7 @@ Advanced stress testing with multiple test types and performance monitoring.
 Tests the primary agent execution endpoint with realistic payloads.
 
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
     --base-url http://localhost:8000 \
     --api-key your-api-key \
     --test-type agent_run \
@@ -37,7 +37,7 @@ python scripts/benchmarks/api_stress_test.py \
 **Validates the session queue fix** - tests rapid messages to the same session to verify merging behavior.
 
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
     --base-url http://localhost:8000 \
     --api-key your-api-key \
     --test-type session_queue \
@@ -56,7 +56,7 @@ This test specifically validates:
 Tests multiple endpoints with weighted distribution.
 
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
     --base-url http://localhost:8000 \
     --api-key your-api-key \
     --test-type full_api \
@@ -181,7 +181,7 @@ Example GitHub Actions step:
 ```yaml
 - name: Run API Stress Test
   run: |
-    python scripts/benchmarks/api_stress_test.py \
+    uv run python scripts/benchmarks/api_stress_test.py \
       --base-url http://localhost:8000 \
       --api-key ${{ secrets.API_KEY }} \
       --test-type session_queue \
@@ -224,7 +224,7 @@ def custom_agent_payload():
 
 ```bash
 # Production-like load test
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
     --base-url https://api.production.com \
     --api-key $PROD_API_KEY \
     --test-type full_api \
@@ -233,7 +233,7 @@ python scripts/benchmarks/api_stress_test.py \
     --timeout 60
 
 # Session queue edge case testing
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
     --base-url http://localhost:8000 \
     --api-key test-key \
     --test-type session_queue \

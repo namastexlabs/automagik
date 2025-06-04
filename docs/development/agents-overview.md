@@ -6,46 +6,46 @@ This document provides an overview of the agent system within the Automagik Agen
 
 The agent system is designed to execute tasks autonomously or semi-autonomously using Large Language Models (LLMs) and a set of predefined tools. Key concepts include:
 
-*   **Agents:** Independent units responsible for processing input, maintaining state (memory), deciding on actions (which may involve calling tools or generating responses), and interacting with users or other systems. (e.g., `SimpleAgent` located in `src/agents/simple/`).
-*   **Memory:** Agents maintain state and conversation history. This is managed by the `MemoryHandler` (`src/agents/common/memory_handler.py`) which likely interacts with the database via `src/memory/`. See [Memory Management](./memory.md).
-*   **Tools:** Reusable functions or integrations that agents can invoke to perform specific actions beyond simple text generation (e.g., web search, database queries, API calls). Tool availability and usage are managed by the `ToolRegistry` (`src/agents/common/tool_registry.py`) and implemented in `src/tools/`.
-*   **Sessions & Context:** Interactions are typically managed within sessions (`SessionManager` in `src/agents/common/session_manager.py`), each having a unique ID. Context might include user ID, agent ID, session ID, and run ID.
-*   **Prompts:** Interactions with LLMs are driven by carefully constructed prompts, handled by the `PromptBuilder` (`src/agents/common/prompt_builder.py`).
-*   **Messages:** Communication involves parsing and formatting messages (user messages, agent responses, tool calls/outputs), handled by functions in `src/agents/common/message_parser.py`.
+- **Agents:** Independent units responsible for processing input, maintaining state (memory), deciding on actions (which may involve calling tools or generating responses), and interacting with users or other systems. (e.g., `SimpleAgent` located in `src/agents/simple/`).
+- **Memory:** Agents maintain state and conversation history. This is managed by the `MemoryHandler` (`src/agents/common/memory_handler.py`) which likely interacts with the database via `src/memory/`. See [Memory Management](../architecture/memory.md).
+- **Tools:** Reusable functions or integrations that agents can invoke to perform specific actions beyond simple text generation (e.g., web search, database queries, API calls). Tool availability and usage are managed by the `ToolRegistry` (`src/agents/common/tool_registry.py`) and implemented in `src/tools/`.
+- **Sessions & Context:** Interactions are typically managed within sessions (`SessionManager` in `src/agents/common/session_manager.py`), each having a unique ID. Context might include user ID, agent ID, session ID, and run ID.
+- **Prompts:** Interactions with LLMs are driven by carefully constructed prompts, handled by the `PromptBuilder` (`src/agents/common/prompt_builder.py`).
+- **Messages:** Communication involves parsing and formatting messages (user messages, agent responses, tool calls/outputs), handled by functions in `src/agents/common/message_parser.py`.
 
 ## Structure (`src/agents/`)
 
 The agent-related code is primarily organized within the `src/agents/` directory:
 
-*   `src/agents/common/`: Contains shared utilities and handlers used across different agent implementations:
-    *   `memory_handler.py`: Manages agent memory interactions.
-    *   `message_parser.py`: Parses incoming/outgoing messages, extracts tool calls/outputs.
-    *   `prompt_builder.py`: Constructs prompts for LLMs.
-    *   `session_manager.py`: Handles session IDs, run IDs, and context.
-    *   `tool_registry.py`: Manages registration and lookup of available tools.
-    *   `dependencies_helper.py`: Assists with model settings, usage limits, etc.
-    *   `__init__.py`: Exports common utilities.
-*   `src/agents/models/`: Likely contains Pydantic models specific to agent data structures.
-*   `src/agents/<agent_name>/` (e.g., `src/agents/simple/`): Each subdirectory typically contains the specific implementation logic for a particular agent.
-    *   This might include the agent's main class, specific prompt templates, or custom logic.
+- `src/agents/common/`: Contains shared utilities and handlers used across different agent implementations:
+  - `memory_handler.py`: Manages agent memory interactions.
+  - `message_parser.py`: Parses incoming/outgoing messages, extracts tool calls/outputs.
+  - `prompt_builder.py`: Constructs prompts for LLMs.
+  - `session_manager.py`: Handles session IDs, run IDs, and context.
+  - `tool_registry.py`: Manages registration and lookup of available tools.
+  - `dependencies_helper.py`: Assists with model settings, usage limits, etc.
+  - `__init__.py`: Exports common utilities.
+- `src/agents/models/`: Likely contains Pydantic models specific to agent data structures.
+- `src/agents/<agent_name>/` (e.g., `src/agents/simple/`): Each subdirectory typically contains the specific implementation logic for a particular agent.
+  - This might include the agent's main class, specific prompt templates, or custom logic.
 
 ## Agent Lifecycle (Conceptual)
 
 A typical agent interaction might follow these steps:
 
-1.  **Initialization:** An agent instance is created, potentially loading configuration and tools.
-2.  **Session Start:** A new session is initiated (`create_session_id`, `create_run_id`).
-3.  **Receive Input:** The agent receives user input or a trigger.
-4.  **Parse Message:** The input message is parsed (`parse_user_message`).
-5.  **Load Memory:** Relevant conversation history or state is loaded (`MemoryHandler`).
-6.  **Build Prompt:** A prompt is constructed for the LLM, including history, user input, and available tools (`PromptBuilder`).
-7.  **LLM Call:** The prompt is sent to the configured LLM (e.g., OpenAI via `OPENAI_API_KEY`).
-8.  **Process Response:** The LLM response is received.
-9.  **Parse Response:** The response is parsed (`extract_tool_calls`, `extract_all_messages`).
+1. **Initialization:** An agent instance is created, potentially loading configuration and tools.
+2. **Session Start:** A new session is initiated (`create_session_id`, `create_run_id`).
+3. **Receive Input:** The agent receives user input or a trigger.
+4. **Parse Message:** The input message is parsed (`parse_user_message`).
+5. **Load Memory:** Relevant conversation history or state is loaded (`MemoryHandler`).
+6. **Build Prompt:** A prompt is constructed for the LLM, including history, user input, and available tools (`PromptBuilder`).
+7. **LLM Call:** The prompt is sent to the configured LLM (e.g., OpenAI via `OPENAI_API_KEY`).
+8. **Process Response:** The LLM response is received.
+9. **Parse Response:** The response is parsed (`extract_tool_calls`, `extract_all_messages`).
 10. **Tool Execution (if needed):**
-    *   If tool calls are identified, the `ToolRegistry` is used to find and execute the corresponding tools.
-    *   Tool outputs are collected.
-    *   The process might loop back to step 6 (Build Prompt) to send tool outputs back to the LLM for a final response.
+    - If tool calls are identified, the `ToolRegistry` is used to find and execute the corresponding tools.
+    - Tool outputs are collected.
+    - The process might loop back to step 6 (Build Prompt) to send tool outputs back to the LLM for a final response.
 11. **Generate Final Response:** A final response is formulated for the user.
 12. **Update Memory:** The interaction (inputs, outputs, tool calls) is saved to memory (`MemoryHandler`, `format_message_for_db`).
 13. **Session End:** The specific run or interaction concludes.
@@ -197,7 +197,7 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
     *(Further investigation or checking project conventions is needed for this step)*.
 
 6.  **Testing:**
-    Test your new agent thoroughly using the CLI or API (see [Running the Project](./running.md)). Ensure it handles prompts, uses tools (if any), and manages memory correctly.
+    Test your new agent thoroughly using the CLI or API (see [Running the Project](../getting-started/running.md)). Ensure it handles prompts, uses tools (if any), and manages memory correctly.
 
 *(This guide provides a template based on SimpleAgent. Specific implementations might require adjustments.)*
 
@@ -268,7 +268,7 @@ Both agents support image processing with:
 - PydanticAI ImageUrl conversion
 - Graceful fallback handling
 
-**Documentation**: [Multimodal Processing Guide](./features/multimodal.md)
+**Documentation**: [Multimodal Processing Guide](../integrations/multimodal.md)
 
 ### WhatsApp Integration
 
@@ -278,7 +278,7 @@ Both agents include Evolution API integration:
 - Group chat support
 - User information persistence
 
-**Documentation**: [WhatsApp Integration Guide](./features/whatsapp.md)
+**Documentation**: [WhatsApp Integration Guide](../integrations/whatsapp.md)
 
 ### Reliability Features
 
@@ -304,39 +304,39 @@ Sofia agent includes Model Context Protocol support:
 - Server lifecycle management
 - Linear, PostgreSQL, and Memory servers
 
-**Documentation**: [MCP Integration Guide](./features/mcp_integration.md)
+**Documentation**: [MCP Integration Guide](../integrations/mcp.md)
 
 ## Capabilities and Limitations
 
 ### Capabilities
-*   **Multimodal Understanding**: Process images alongside text using vision-capable models
-*   **WhatsApp Integration**: Send/receive messages through Evolution API
-*   **External Tool Access**: Interact with databases, APIs, and external services
-*   **Memory Persistence**: Store and retrieve user information and preferences
-*   **Reliable Execution**: Retry logic and concurrency control for robust operation
-*   **Dynamic Tool Loading**: (Sofia) Load tools from MCP servers dynamically
+- **Multimodal Understanding**: Process images alongside text using vision-capable models
+- **WhatsApp Integration**: Send/receive messages through Evolution API
+- **External Tool Access**: Interact with databases, APIs, and external services
+- **Memory Persistence**: Store and retrieve user information and preferences
+- **Reliable Execution**: Retry logic and concurrency control for robust operation
+- **Dynamic Tool Loading**: (Sofia) Load tools from MCP servers dynamically
 
 ### Limitations
-*   **Model Dependency**: Performance depends on underlying LLM capabilities
-*   **Tool Quality**: Effectiveness limited by available tool implementations
-*   **Memory Complexity**: Long-term memory and context management challenges
-*   **Hallucination Risk**: Standard LLM limitations apply
-*   **Resource Usage**: Vision models and MCP servers require additional resources
+- **Model Dependency**: Performance depends on underlying LLM capabilities
+- **Tool Quality**: Effectiveness limited by available tool implementations
+- **Memory Complexity**: Long-term memory and context management challenges
+- **Hallucination Risk**: Standard LLM limitations apply
+- **Resource Usage**: Vision models and MCP servers require additional resources
 
 ## Further Reading
 
 ### Core Documentation
-*   [Memory Management](./memory.md)
-*   [Database Documentation](./database.md)
-*   [API Documentation](./api.md)
-*   [MCP Integration](./mcp_integration.md)
+- [Memory Management](../architecture/memory.md)
+- [Database Documentation](../architecture/database.md)
+- [API Documentation](./api.md)
+- [MCP Integration](../integrations/mcp.md)
 
 ### Feature Guides
-*   [Multimodal Processing](./features/multimodal.md)
-*   [WhatsApp Integration](./features/whatsapp.md)
-*   [MCP Server Integration](./features/mcp_integration.md)
+- [Multimodal Processing](../integrations/multimodal.md)
+- [WhatsApp Integration](../integrations/whatsapp.md)
+- [MCP Server Integration](../integrations/mcp.md)
 
 ### Development
-*   [Agent Development Patterns](./agent_mocking_guide.md)
-*   [Configuration Guide](./configuration.md)
-*   [Running the Project](./running.md) 
+- [Agent Development Patterns](./agent-mocking.md)
+- [Configuration Guide](../getting-started/configuration.md)
+- [Running the Project](../getting-started/running.md) 

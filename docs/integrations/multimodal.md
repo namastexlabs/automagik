@@ -333,7 +333,7 @@ Test multimodal functionality:
 
 ```bash
 # Run multimodal tests
-python -m pytest tests/agents/simple/test_multimodal.py -v
+uv run pytest tests/agents/simple/test_multimodal.py -v
 
 # Test specific image processing
 python -m pytest tests/agents/simple/test_multimodal.py::TestSimpleAgentMultimodal::test_multimodal_processing_with_images -v

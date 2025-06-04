@@ -298,7 +298,7 @@ psql -h localhost -p 5432 -U automagik -d automagik
 
 ## Related Documentation
 
-- [Architecture](./architecture.md): Overall system architecture
-- [API Documentation](./api.md): General API usage patterns
-- [Agent Overview](./agents_overview.md): How agents integrate with MCP tools
-- [Configuration](./configuration.md): Environment and server configuration 
+- [Architecture](../architecture/overview.md): Overall system architecture
+- [API Documentation](../development/api.md): General API usage patterns
+- [Agent Overview](../development/agents-overview.md): How agents integrate with MCP tools
+- [Configuration](../getting-started/configuration.md): Environment and server configuration 
