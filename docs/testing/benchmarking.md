@@ -13,7 +13,7 @@ curl -s http://localhost:8881/health
 
 ### 🎯 **Full API Benchmark (Recommended Starting Point)**
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
   --mode api \
   --base-url http://localhost:8881 \
   --api-key am_xxxxx \
@@ -27,7 +27,7 @@ python scripts/benchmarks/api_stress_test.py \
 
 ### 🤖 **Agent-Only Benchmark**
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
   --mode api \
   --base-url http://localhost:8881 \
   --api-key am_xxxxx \
@@ -39,7 +39,7 @@ python scripts/benchmarks/api_stress_test.py \
 
 ### 🔄 **Session Queue Testing**
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
   --mode api \
   --base-url http://localhost:8881 \
   --api-key am_xxxxx \
@@ -52,7 +52,7 @@ python scripts/benchmarks/api_stress_test.py \
 
 ### 🎭 **Mock Agent Testing (No API Calls)**
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
   --mode mock \
   --mock-type test \
   --concurrency 100 \
@@ -67,7 +67,7 @@ python scripts/benchmarks/api_stress_test.py \
 #!/bin/bash
 for concurrency in 10 25 50 100 200; do
   echo "Testing concurrency: $concurrency"
-  python scripts/benchmarks/api_stress_test.py \
+  uv run python scripts/benchmarks/api_stress_test.py \
     --mode api \
     --base-url http://localhost:8881 \
     --api-key am_xxxxx \
@@ -84,7 +84,7 @@ done
 #!/bin/bash
 for requests in 100 500 1000 2000 5000; do
   echo "Testing volume: $requests requests"
-  python scripts/benchmarks/api_stress_test.py \
+  uv run python scripts/benchmarks/api_stress_test.py \
     --mode api \
     --base-url http://localhost:8881 \
     --api-key am_xxxxx \
@@ -100,7 +100,7 @@ done
 
 ### **Optimal Performance Test (Low Load)**
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
   --mode api \
   --base-url http://localhost:8881 \
   --api-key am_xxxxx \
@@ -112,7 +112,7 @@ python scripts/benchmarks/api_stress_test.py \
 
 ### **Breaking Point Test (High Load)**
 ```bash
-python scripts/benchmarks/api_stress_test.py \
+uv run python scripts/benchmarks/api_stress_test.py \
   --mode api \
   --base-url http://localhost:8881 \
   --api-key am_xxxxx \
@@ -276,4 +276,4 @@ P95 Latency: <2,000ms (3x improvement)
 
 ---
 
-*For detailed analysis of current performance issues, see [FULL_API_BENCHMARK_SUMMARY.md](FULL_API_BENCHMARK_SUMMARY.md)* 
+<!-- Note: FULL_API_BENCHMARK_SUMMARY.md reference removed as file does not exist --> 

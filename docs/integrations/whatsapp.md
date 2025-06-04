@@ -465,10 +465,10 @@ Test WhatsApp integration:
 
 ```bash
 # Run Evolution integration tests
-python -m pytest tests/agents/simple/test_simple_evolution.py -v
+uv run pytest tests/agents/simple/test_simple_evolution.py -v
 
 # Test specific WhatsApp functionality
-python -m pytest tests/tools/evolution/ -v
+uv run pytest tests/tools/evolution/ -v
 ```
 
 ## Future Enhancements
