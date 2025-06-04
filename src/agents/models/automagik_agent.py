@@ -1101,7 +1101,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 logger.info(f"Using shared Graphiti client for agent '{self.name}' with ID '{self.graphiti_agent_id}'")
                 return True
             else:
-                logger.warning(f"Shared Graphiti client is not available for agent '{self.name}'")
+                logger.warning(f" Shared Graphiti client is not available for agent '{self.name}'")
                 return False
         except Exception as e:
             logger.error(f"Failed to set up Graphiti for agent '{self.name}': {e}")
