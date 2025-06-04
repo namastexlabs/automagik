@@ -522,15 +522,22 @@ class TestWorkflowEdgeCases:
         
         agent = ClaudeCodeAgent({})
         
-        # Mock file system to simulate malformed workflow files
-        with patch('os.path.exists', return_value=True):
-            with patch('os.path.join', return_value='/fake/path'):
-                with patch('builtins.open', mock_open(read_data='invalid json')):
-                    with patch('json.loads', side_effect=json.JSONDecodeError("Invalid JSON", "", 0)):
-                        
-                        result = await agent._validate_workflow("malformed-workflow")
-                        
-                        assert result is False
+        # Mock file system to simulate missing workflow files
+        def mock_exists(path):
+            # Workflow directory exists, but some required files don't
+            if path.endswith("malformed-workflow"):
+                return True
+            elif path.endswith("prompt.md"):
+                return True
+            elif path.endswith(".mcp.json"):
+                return False  # Missing required file
+            elif path.endswith("allowed_tools.json"):
+                return True
+            return False
+        
+        with patch('os.path.exists', side_effect=mock_exists):
+            result = await agent._validate_workflow("malformed-workflow")
+            assert result is False
     
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')
