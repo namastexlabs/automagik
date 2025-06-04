@@ -1,0 +1,21 @@
+[
+  "Read",
+  "Write",
+  "Edit",
+  "LS",
+  "TodoWrite",
+  "TodoRead",
+  "mcp__linear__linear_createIssue",
+  "mcp__linear__linear_updateIssue",
+  "mcp__linear__linear_getIssueById",
+  "mcp__linear__linear_createComment",
+  "mcp__slack__slack_post_message",
+  "mcp__slack__slack_reply_to_thread",
+  "mcp__slack__slack_get_thread_replies",
+  "mcp__agent-memory__search_memory_nodes",
+  "mcp__agent-memory__search_memory_facts",
+  "mcp__agent-memory__add_memory",
+  "mcp__deepwiki__read_wiki_contents",
+  "mcp__deepwiki__ask_question",
+  "mcp__send_whatsapp_message__send_text_message"
+]

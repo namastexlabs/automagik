@@ -35,7 +35,7 @@ from src.agents.common.evolution import EvolutionMessagePayload
 
 # For typing wrappers
 from pydantic_ai import RunContext
-from src.agents.simple.sofia.specialized.airtable import run_airtable_assistant
+from .specialized.airtable import run_airtable_assistant
 from src.tools.meeting import join_meeting_with_url 
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class SofiaAgent(AutomagikAgent):
         super().__init__(config)
         
         # Load and register the code-defined prompt
-        from src.agents.simple.sofia.prompts.prompt import AGENT_PROMPT
+        from .prompts.prompt import AGENT_PROMPT
         
         # Register the code-defined prompt for this agent
         # This call is asynchronous but we're in a synchronous __init__,

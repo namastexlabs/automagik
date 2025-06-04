@@ -13,15 +13,15 @@ from pydantic_ai import Agent, RunContext
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
-from src.agents.simple.stan.models import EvolutionMessagePayload
-from src.agents.simple.stan.specialized.backoffice import backoffice_agent
-from src.agents.simple.stan.specialized.product import product_agent
-from src.agents.simple.stan.specialized.order import order_agent
+from .models import EvolutionMessagePayload
+from .specialized.backoffice import backoffice_agent
+from .specialized.product import product_agent
+from .specialized.order import order_agent
 from src.db.models import Memory
 from src.db.repository import create_memory
 from src.db.repository.user import update_user_data
 from src.memory.message_history import MessageHistory
-from src.agents.simple.stan.utils import get_or_create_contact
+from .utils import get_or_create_contact
 
 # Import only necessary utilities
 from src.agents.common.message_parser import (
@@ -106,12 +106,12 @@ class StanAgent(AutomagikAgent):
                 if not hasattr(self, '_code_prompt_text') or not self._code_prompt_text:
                     # Try to load the NOT_REGISTERED prompt
                     try:
-                        from src.agents.simple.stan.prompts.not_registered import PROMPT
+                        from .prompts.not_registered import PROMPT
                         self._code_prompt_text = PROMPT
                     except ImportError:
                         # If that fails, try to load the primary prompt.py
                         try:
-                            from src.agents.simple.stan.prompts.prompt import AGENT_PROMPT
+                            from .prompts.prompt import AGENT_PROMPT
                             self._code_prompt_text = AGENT_PROMPT
                         except ImportError:
                             logger.error("Failed to load any prompt for StanAgent")
@@ -149,9 +149,10 @@ class StanAgent(AutomagikAgent):
                 continue
                 
             # Dynamically import the prompt
-            module_name = f"src.agents.simple.stan.prompts.{status_key.lower()}"
+            module_name = f".prompts.{status_key.lower()}"
             try:
-                module = __import__(module_name, fromlist=["PROMPT"])
+                from importlib import import_module
+                module = import_module(module_name, package=__package__)
                 prompt_text = getattr(module, "PROMPT")
                 
                 # Register this prompt with the appropriate status key

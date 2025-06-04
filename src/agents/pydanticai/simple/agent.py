@@ -50,7 +50,7 @@ class SimpleAgent(AutomagikAgent):
         super().__init__(config)
         
         # Load and register the code-defined prompt
-        from src.agents.simple.simple.prompts.prompt import AGENT_PROMPT
+        from .prompts.prompt import AGENT_PROMPT
         
         # Register the code-defined prompt for this agent
         # This call is asynchronous but we're in a synchronous __init__,
