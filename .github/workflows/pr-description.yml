@@ -48,6 +48,6 @@ jobs:
             GITHUB_REPOSITORY: ${{ github.repository }}
             BASE_REF: ${{ github.base_ref }}
             HEAD_REF: ${{ github.head_ref }}
-          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,EditTool,WebFetch,Write"
+          allowed_tools: "Bash(git:*),Bash(gh:*),View,GlobTool,GrepTool,EditTool,WebFetch,Write"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 20
+          max_turns: 10
