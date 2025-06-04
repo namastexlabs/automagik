@@ -9,14 +9,13 @@ import os
 import logging
 import traceback
 
-from src.agents.simple.estruturar.prompts.prompt import ESTRUTURAR_AGENT_PROMPT
-
 # Setup logging first
 logger = logging.getLogger(__name__)
 
 
 try:
-    from src.agents.simple.estruturar.agent import EstruturarAgent
+    from .agent import EstruturarAgent
+    from src.agents.models.placeholder import PlaceholderAgent
     
     # Standardized create_agent function
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
@@ -36,4 +35,9 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize EstruturarAgent module: {str(e)}")
     logger.error(f"Traceback: {traceback.format_exc()}")
+    
+    # Create a placeholder function that returns an error agent
+    def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
+        """Create a placeholder agent due to initialization error."""
+        return PlaceholderAgent({"name": "estruturar_agent_error", "error": str(e)})
     

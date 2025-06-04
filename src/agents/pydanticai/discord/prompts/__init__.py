@@ -1,8 +1,6 @@
-"""Discord agent prompts package.
+"""Discord agent prompts module."""
 
-This package contains the prompts used by the Discord agent.
-"""
-
-from src.agents.simple.discord.prompts.prompt import AGENT_PROMPT
+# Export the main prompt
+from .prompt import AGENT_PROMPT
 
 __all__ = ["AGENT_PROMPT"]

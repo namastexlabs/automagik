@@ -16,7 +16,7 @@ logger = logging.getLogger("memory_system_test")
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.agents.simple.simple.agent import SimpleAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent
 from src.tools.memory.provider import MemoryProvider
 
 @pytest.mark.asyncio

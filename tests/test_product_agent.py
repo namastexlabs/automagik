@@ -10,7 +10,7 @@ import pytest
 from dotenv import load_dotenv
 from pydantic_ai import RunContext
 
-from src.agents.simple.stan.specialized.product import product_agent
+from src.agents.pydanticai.stan.specialized.product import product_agent
 
 # Configuração de logging
 logging.basicConfig(level=logging.INFO)

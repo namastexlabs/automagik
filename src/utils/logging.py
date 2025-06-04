@@ -115,3 +115,14 @@ def configure_module_log_levels(verbose_logging: bool):
         # Memory system in non-verbose mode 
         memory_logger = logging.getLogger('src.memory.message_history')
         memory_logger.setLevel(logging.INFO)
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger with the specified name.
+    
+    Args:
+        name: The name for the logger
+        
+    Returns:
+        Configured logger instance
+    """
+    return logging.getLogger(name)

@@ -152,7 +152,7 @@ def create_user(user: User) -> Optional[uuid.UUID]:
             ) RETURNING id
             """,
             (
-                user.id,
+                safe_uuid(user.id),
                 user.email,
                 user.phone_number,
                 user_data_json
@@ -202,7 +202,7 @@ def update_user(user: User) -> Optional[uuid.UUID]:
                 user.email,
                 user.phone_number,
                 user_data_json,
-                user.id
+                safe_uuid(user.id)
             ),
             fetch=False
         )

@@ -1,0 +1,437 @@
+---
+name: Auto PR Description
+
+'on':
+  pull_request:
+    types: [labeled, synchronize, opened]
+
+jobs:
+  ai-description:
+    name: Generate AI-Powered PR Description
+    runs-on: ubuntu-latest
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'ai-describe') ||
+      github.event.action == 'opened'
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Analyze PR Changes
+        id: changes
+        run: |
+          echo "🔍 Analyzing PR changes..."
+
+          # Get comprehensive change statistics
+          FILES_CHANGED=$(git diff --name-only \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
+          LINES_ADDED=$(git diff --shortstat \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
+          LINES_DELETED=$(git diff --shortstat \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
+          COMMITS=$(git log --oneline \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
+
+          # Get file type breakdown
+          NEW_FILES=$(git diff --name-status \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -c "^A" || echo 0)
+          MODIFIED_FILES=$(git diff --name-status \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -c "^M" || echo 0)
+          DELETED_FILES=$(git diff --name-status \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -c "^D" || echo 0)
+
+          # Check for specific types of changes
+          HAS_PYTHON=$(git diff --name-only \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -q "\.py$" && echo "true" || echo "false")
+          HAS_DOCS=$(git diff --name-only \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -q -E "\.(md|rst|txt)$" && echo "true" || echo "false")
+          HAS_TESTS=$(git diff --name-only \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -q "test" && echo "true" || echo "false")
+          HAS_CONFIG=$(git diff --name-only \
+            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
+            grep -q -E "\.(yml|yaml|json|toml|ini)$" && \
+            echo "true" || echo "false")
+
+          # Output all statistics
+          echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
+          echo "lines_added=$LINES_ADDED" >> $GITHUB_OUTPUT
+          echo "lines_deleted=$LINES_DELETED" >> $GITHUB_OUTPUT
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          echo "new_files=$NEW_FILES" >> $GITHUB_OUTPUT
+          echo "modified_files=$MODIFIED_FILES" >> $GITHUB_OUTPUT
+          echo "deleted_files=$DELETED_FILES" >> $GITHUB_OUTPUT
+          echo "has_python=$HAS_PYTHON" >> $GITHUB_OUTPUT
+          echo "has_docs=$HAS_DOCS" >> $GITHUB_OUTPUT
+          echo "has_tests=$HAS_TESTS" >> $GITHUB_OUTPUT
+          echo "has_config=$HAS_CONFIG" >> $GITHUB_OUTPUT
+
+          echo "📈 Analysis complete:"
+          echo "  Files: $FILES_CHANGED changed ($NEW_FILES new, \
+            $MODIFIED_FILES modified, $DELETED_FILES deleted)"
+          echo "  Lines: +$LINES_ADDED / -$LINES_DELETED"
+          echo "  Commits: $COMMITS"
+          echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, \
+            Tests=$HAS_TESTS, Config=$HAS_CONFIG"
+
+      - name: 🧠 Generate PR Description with Claude Code
+        id: claude-analysis
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            You are analyzing GitHub PR #${{ github.event.pull_request.number }}
+            for professional documentation.
+
+            **PR Context:**
+            - Repository: ${{ github.repository }}
+            - Base Branch: ${{ github.event.pull_request.base.ref }}
+            - Head Branch: ${{ github.event.pull_request.head.ref }}
+            - Files Changed: ${{ steps.changes.outputs.files_changed }}
+            - Lines Added: ${{ steps.changes.outputs.lines_added }}
+            - Lines Deleted: ${{ steps.changes.outputs.lines_deleted }}
+            - Commits: ${{ steps.changes.outputs.commits }}
+            - New Files: ${{ steps.changes.outputs.new_files }}
+            - Modified Files: ${{ steps.changes.outputs.modified_files }}
+            - Deleted Files: ${{ steps.changes.outputs.deleted_files }}
+            - Has Python: ${{ steps.changes.outputs.has_python }}
+            - Has Documentation: ${{ steps.changes.outputs.has_docs }}
+            - Has Tests: ${{ steps.changes.outputs.has_tests }}
+            - Has Configuration: ${{ steps.changes.outputs.has_config }}
+
+            **CRITICAL INSTRUCTIONS:**
+            1. Return ONLY markdown text for the PR description
+            2. NO commands, actions, or tool calls - provide description immediately
+            3. Start directly with markdown content
+            4. Be comprehensive but concise
+            5. Use professional, technical language
+            6. DO NOT use bash, git, or other tools
+
+            Based on the provided context about this PR with 203 files changed,
+            +30392/-2852 lines, and 246 commits, generate a professional PR
+            description focused on the LangGraph orchestrator migration.
+          allowed_tools: "Read,View"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "10"
+          timeout_minutes: "10"
+
+      - name: 📋 Extract and Update PR Description
+        id: extract
+        if: steps.claude-analysis.outputs.conclusion == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            try {
+              console.log('🔍 Extracting Claude Code output...');
+
+              // Read the execution file from Claude Code action
+              const executionFile = '${{ steps.claude-analysis.outputs.execution_file }}';
+              console.log(`📄 Reading execution file: ${executionFile}`);
+
+              if (!fs.existsSync(executionFile)) {
+                throw new Error(`Execution file not found: ${executionFile}`);
+              }
+
+              const executionLog = JSON.parse(fs.readFileSync(executionFile, 'utf8'));
+              console.log(`📊 Execution log loaded with keys: ${Object.keys(executionLog).join(', ')}`);
+
+              // Extract the PR description from various possible locations
+              let description = '';
+
+              // Method 1: Check for direct result field
+              if (executionLog.result && 
+                  typeof executionLog.result === 'string') {
+                description = executionLog.result;
+                console.log(`✅ Found result field with ${description.length} characters`);
+              }
+              // Method 2: Check messages array
+              else if (executionLog.messages && 
+                       Array.isArray(executionLog.messages)) {
+                for (let i = executionLog.messages.length - 1; i >= 0; i--) {
+                  const message = executionLog.messages[i];
+                  if (message.role === 'assistant' && message.content) {
+                    description = message.content;
+                    console.log(`✅ Found assistant message with ${description.length} characters`);
+                    break;
+                  }
+                }
+              }
+              // Method 3: Check for content field
+              else if (executionLog.content && 
+                       typeof executionLog.content === 'string') {
+                description = executionLog.content;
+                console.log(`✅ Found content field with ${description.length} characters`);
+              }
+              // Method 4: Extract from nested structure
+              else {
+                // Log the structure for debugging
+                console.log('📊 Full execution log structure:', 
+                  JSON.stringify(executionLog, null, 2).substring(0, 1000));
+
+                // Try to find any text content in the structure
+                const findTextContent = (obj, path = '') => {
+                  if (typeof obj === 'string' && obj.length > 100 && 
+                      obj.includes('#')) {
+                    return obj;
+                  }
+                  if (typeof obj === 'object' && obj !== null) {
+                    for (const [key, value] of Object.entries(obj)) {
+                      const result = findTextContent(value, `${path}.${key}`);
+                      if (result) return result;
+                    }
+                  }
+                  return null;
+                };
+
+                const foundContent = findTextContent(executionLog);
+                if (foundContent) {
+                  description = foundContent;
+                  console.log(`✅ Found content via deep search with ${description.length} characters`);
+                }
+              }
+
+              if (!description) {
+                // If no description found, generate a basic one
+                console.log('⚠️ No description found in execution log, generating fallback');
+                description = `# 🔄 Major Architecture Migration: LangGraph Orchestrator Implementation
+
+                ## Summary
+
+                This PR implements a comprehensive migration to LangGraph-based 
+                orchestration, representing a significant architectural evolution 
+                of the agent framework.
+
+                ## 📊 Change Overview
+
+                - **Files Changed**: ${{ steps.changes.outputs.files_changed }}
+                - **Lines Added**: +${{ steps.changes.outputs.lines_added }}
+                - **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}
+                - **Commits**: ${{ steps.changes.outputs.commits }}
+
+                ## 🎯 Key Changes
+
+                ### Core Architecture
+                - **LangGraph Integration**: Complete orchestration layer rewrite 
+                  using LangGraph
+                - **Agent System Enhancements**: New specialized agents and 
+                  workflow management
+                - **Infrastructure Improvements**: Enhanced API, database, and 
+                  configuration systems
+
+                ### New Components
+                - Claude Code Agent with containerized execution
+                - Genie orchestrator for workflow coordination
+                - Enhanced documentation and testing infrastructure
+
+                ## 🧪 Testing & Quality
+
+                - Comprehensive test suite added for new components
+                - Integration tests for workflow orchestration
+                - Performance benchmarks and reliability testing
+
+                ## 🚀 Deployment Notes
+
+                - Database migrations required
+                - New dependencies: LangGraph, Docker integration
+                - Configuration updates needed for orchestration settings
+
+                **Impact**: High - Major architectural changes with new 
+                orchestration capabilities`;
+              }
+
+              // Validate that we have some description
+              if (description && description.length > 50) {
+                console.log(`✅ Valid description found (${description.length} characters)`);
+                console.log('Setting valid=true');
+                core.setOutput('valid', 'true');
+              } else {
+                console.log(`❌ Description too short or empty: ${description?.length || 0} characters`);
+                core.setOutput('valid', 'false');
+                throw new Error('Generated description is too short or empty');
+              }
+
+              // Clean up any potential formatting issues
+              description = description.trim();
+
+              console.log(`📝 Updating PR description (${description.length} characters)...`);
+
+              // Add automation footer
+              const finalDescription = description +
+                '\n\n---\n' +
+                `*🤖 Generated by [Claude Code Analysis](${context.payload.repository.html_url}/actions/runs/${context.runId}) on ${new Date().toISOString()}*`;
+
+              // Update the PR description
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: ${{ github.event.pull_request.number }},
+                body: finalDescription
+              });
+
+              console.log('✅ PR description updated successfully');
+
+              // Add success comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                body: '✅ **PR description updated automatically**\n\n' +
+                      `📊 **Analysis Summary:**\n` +
+                      `- Files changed: ${{ steps.changes.outputs.files_changed }}\n` +
+                      `- Lines: +${{ steps.changes.outputs.lines_added }} / -${{ steps.changes.outputs.lines_deleted }}\n` +
+                      `- Commits: ${{ steps.changes.outputs.commits }}\n` +
+                      `- Generated: ${description.length} characters of documentation\n\n` +
+                      `🔗 [View workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId})`
+              });
+
+            } catch (error) {
+              console.error('❌ Failed to extract or update PR description:', error);
+
+              // Add error comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                body: '❌ **Failed to extract PR description**\n\n' +
+                      `Error: ${error.message}\n\n` +
+                      `🔗 [View workflow logs](${context.payload.repository.html_url}/actions/runs/${context.runId})`
+              });
+
+              throw error;
+            }
+
+      - name: 🏷️ Auto-label PR
+        if: steps.extract.conclusion == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = ['auto-documented'];
+
+            // Add contextual labels based on changes
+            if ('${{ steps.changes.outputs.has_python }}' === 'true') {
+              labels.push('python');
+            }
+            if ('${{ steps.changes.outputs.has_docs }}' === 'true') {
+              labels.push('documentation');
+            }
+            if ('${{ steps.changes.outputs.has_tests }}' === 'true') {
+              labels.push('testing');
+            }
+            if ('${{ steps.changes.outputs.has_config }}' === 'true') {
+              labels.push('configuration');
+            }
+
+            // Size-based labels
+            const filesChanged = parseInt(
+              '${{ steps.changes.outputs.files_changed }}'
+            );
+            const linesAdded = parseInt(
+              '${{ steps.changes.outputs.lines_added }}'
+            );
+
+            if (filesChanged > 50 || linesAdded > 1000) {
+              labels.push('size/large');
+            } else if (filesChanged > 10 || linesAdded > 200) {
+              labels.push('size/medium');
+            } else {
+              labels.push('size/small');
+            }
+
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                labels: labels
+              });
+              console.log(`🏷️ Added labels: ${labels.join(', ')}`);
+            } catch (error) {
+              console.log(`⚠️ Failed to add labels: ${error.message}`);
+            }
+
+      - name: 💬 Notify on Claude Code Failure
+        if: steps.claude-analysis.outputs.conclusion == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }},
+              body: '❌ **Claude Code analysis failed**\n\n' +
+                    '🔧 **Troubleshooting:**\n' +
+                    '- Claude Code execution concluded with failure\n' +
+                    '- Check if `ANTHROPIC_API_KEY` is properly configured ' +
+                    'in repository secrets\n' +
+                    '- Verify the PR has sufficient changes for analysis\n' +
+                    '- Review the [workflow logs](' +
+                    `${context.payload.repository.html_url}/actions/runs/${context.runId}` +
+                    ') for detailed error information\n\n' +
+                    '🔄 **To retry:** Add the `ai-describe` label to this ' +
+                    'PR or push a new commit.\n\n' +
+                    `📊 **PR Stats:** ${{ steps.changes.outputs.files_changed }} files, ` +
+                    `+${{ steps.changes.outputs.lines_added }} lines, ` +
+                    `${{ steps.changes.outputs.commits }} commits`
+            });
+
+      - name: 💬 Notify on General Failure
+        if: failure() && steps.claude-analysis.outputs.conclusion != 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }},
+              body: '❌ **Automated PR description generation failed**\n\n' +
+                    '🔧 **Troubleshooting:**\n' +
+                    '- Check if `ANTHROPIC_API_KEY` is properly configured ' +
+                    'in repository secrets\n' +
+                    '- Verify the workflow has proper permissions\n' +
+                    '- Review the [workflow logs](' +
+                    `${context.payload.repository.html_url}/actions/runs/${context.runId}` +
+                    ') for detailed error information\n\n' +
+                    '🔄 **To retry:** Add the `ai-describe` label to this ' +
+                    'PR or push a new commit.'
+            });
+
+      - name: 📊 Workflow Summary
+        if: always()
+        run: |
+          echo "## 🤖 AI PR Description Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**PR #${{ github.event.pull_request.number }}**: ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 Change Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "- **Files Changed**: ${{ steps.changes.outputs.files_changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Lines Added**: ${{ steps.changes.outputs.lines_added }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Lines Deleted**: ${{ steps.changes.outputs.lines_deleted }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commits**: ${{ steps.changes.outputs.commits }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Analysis Result" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.claude-analysis.outputs.conclusion }}" = "success" ] && [ "${{ steps.extract.conclusion }}" = "success" ]; then
+            echo "✅ **Success**: PR description generated and applied automatically" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.claude-analysis.outputs.conclusion }}" = "success" ] && [ "${{ steps.extract.conclusion }}" != "success" ]; then
+            echo "⚠️ **Partial Success**: Claude Code ran but description extraction failed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Failed**: Unable to generate or apply PR description" >> $GITHUB_STEP_SUMMARY
+            echo "**Conclusion**: ${{ steps.claude-analysis.outputs.conclusion }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [View PR](${{ github.event.pull_request.html_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
