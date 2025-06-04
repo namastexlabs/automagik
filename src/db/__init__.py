@@ -35,16 +35,6 @@ from src.db.repository import (
     link_session_to_agent,
     register_agent,
     
-    # User repository
-    get_user,
-    get_user_by_email,
-    get_user_by_identifier,
-    list_users,
-    create_user,
-    update_user,
-    delete_user,
-    ensure_default_user_exists,
-    
     # Session repository
     get_session,
     get_session_by_name,
@@ -73,4 +63,16 @@ from src.db.repository import (
     create_memory,
     update_memory,
     delete_memory
+)
+
+# Import UUID-compatible user repository functions
+from src.db.repository.user import (
+    get_user,
+    get_user_by_email,
+    get_user_by_identifier,
+    list_users,
+    create_user,
+    update_user,
+    delete_user,
+    ensure_default_user_exists,
 )
