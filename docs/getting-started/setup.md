@@ -6,15 +6,15 @@ This guide provides step-by-step instructions for setting up your local developm
 
 The Makefile system can automatically install most prerequisites, but you'll need:
 
-*   **Basic System**: Linux, macOS, or WSL on Windows
-*   **Git:** For cloning the repository
-*   **Internet Connection:** For downloading dependencies
+- **Basic System**: Linux, macOS, or WSL on Windows
+- **Git:** For cloning the repository
+- **Internet Connection:** For downloading dependencies
 
 The following will be installed automatically if missing:
-*   **Python:** Version 3.10+ (automatically detected/installed)
-*   **Docker & Docker Compose:** For containerized services
-*   **uv:** Python package manager (preferred over pip)
-*   **System tools:** make, curl, jq, ccze (for colored logs)
+- **Python:** Version 3.10+ (automatically detected/installed)
+- **Docker & Docker Compose:** For containerized services
+- **uv:** Python package manager (preferred over pip)
+- **System tools:** make, curl, jq, ccze (for colored logs)
 
 ## Quick Start (Recommended)
 
@@ -431,7 +431,7 @@ After successful installation:
 6. **Deploy to production**: Use `make install-prod && make prod`
 
 For more information, see:
-- [Makefile Reference](./makefile-reference.md) - Complete command reference
+- [Makefile Reference](../operations/makefile-reference.md) - Complete command reference
 - [Configuration Guide](./configuration.md) - Detailed configuration
 - [Running Guide](./running.md) - Operational procedures
 - [API Reference](http://localhost:8881/docs) - API documentation 

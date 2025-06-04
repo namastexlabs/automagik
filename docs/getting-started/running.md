@@ -211,10 +211,10 @@ The Makefile automatically detects your environment:
 
 Once services are running, access:
 
-*   **API Endpoints:** `http://localhost:${AM_PORT}/api/v1/`
-*   **Interactive Documentation (Swagger UI):** `http://localhost:${AM_PORT}/docs`
-*   **Alternative Documentation (ReDoc):** `http://localhost:${AM_PORT}/redoc`
-*   **Health Check:** `http://localhost:${AM_PORT}/health`
+- **API Endpoints:** `http://localhost:${AM_PORT}/api/v1/`
+- **Interactive Documentation (Swagger UI):** `http://localhost:${AM_PORT}/docs`
+- **Alternative Documentation (ReDoc):** `http://localhost:${AM_PORT}/redoc`
+- **Health Check:** `http://localhost:${AM_PORT}/health`
 
 **Port Detection:** Use `make status` to see which ports services are running on.
 
@@ -325,6 +325,6 @@ docker logs -f automagik_agents    # Docker container logs
 | `make prod` | Checks prerequisites | Forces production start |
 
 For more information, see:
-- [Makefile Reference](./makefile-reference.md) - Complete command reference
+- [Makefile Reference](../operations/makefile-reference.md) - Complete command reference
 - [Setup Guide](./setup.md) - Installation procedures
 - [Configuration Guide](./configuration.md) - Environment configuration 

@@ -141,13 +141,16 @@ make install-service  # Systemd service installation
 
 ### Database Management
 ```bash
-# Initialize database
+# Initialize database and apply all migrations
 automagik agents db init
 
-# Clear database (caution! deletes all data)
-automagik agents db clear
+# Force reinitialize (drops all tables and recreates with migrations)
+automagik agents db init --force
 
-# Note: No migration system exists - only init and clear commands
+# Clear database (caution! deletes all data but keeps schema)
+automagik agents db clear --yes
+
+# Note: Migration system automatically applies SQL files from src/db/migrations/
 ```
 
 ### Agent Management
