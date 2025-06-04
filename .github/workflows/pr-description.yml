@@ -1,24 +1,38 @@
+name: Auto PR Description
+
 on:
   pull_request:
-    types: [synchronize, reopened, labeled]
+    types: [labeled]
 
 jobs:
-  describe:
+  generate-description:
     runs-on: ubuntu-latest
+    if: contains(github.event.label.name, 'ai-describe')
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
       issues: write
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: PR Auto Describe
-        uses: salehhashemi1992/pr-auto-describe@main
+      - name: Generate PR Description with Claude
+        uses: anthropics/claude-code-base-action@beta
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          openai-model: 'gpt-4.1' 
-          github-api-base-url: 'https://api.github.com'
+          prompt: |
+            Analyze this pull request and generate a comprehensive description. Please:
+            
+            1. **Summary**: Provide a clear, concise summary of what this PR does
+            2. **Changes Made**: List the key changes, new features, or bug fixes
+            3. **Technical Details**: Highlight any important technical decisions or architectural changes
+            4. **Files Changed**: Briefly explain the purpose of major file changes
+            5. **Testing**: Note any testing considerations or requirements
+            6. **Breaking Changes**: Call out any breaking changes if present
+            
+            Format the description in clean markdown that will look good in a GitHub PR.
+            Then update this PR's description with your analysis.
+          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,EditTool"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: 3
