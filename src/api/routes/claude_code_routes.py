@@ -81,7 +81,7 @@ async def execute_claude_code_async(
         logger.info(f"Starting async Claude-Code execution for run {run_id}")
         
         # Get the claude-code agent
-        agent = AgentFactory.get_agent("claude-code")
+        agent = AgentFactory.get_agent("claude_code")
         if not agent:
             raise HTTPException(status_code=404, detail="Claude-Code agent not found")
         
@@ -179,7 +179,7 @@ async def run_claude_code_workflow(
     """
     try:
         # Validate workflow exists
-        agent = AgentFactory.get_agent("claude-code")
+        agent = AgentFactory.get_agent("claude_code")
         if not agent:
             raise HTTPException(status_code=404, detail="Claude-Code agent not available")
         
@@ -377,7 +377,7 @@ async def list_claude_code_workflows(
     """
     try:
         # Get the claude-code agent
-        agent = AgentFactory.get_agent("claude-code")
+        agent = AgentFactory.get_agent("claude_code")
         if not agent:
             raise HTTPException(status_code=404, detail="Claude-Code agent not available")
         
@@ -425,7 +425,7 @@ async def claude_code_health(
         
         # Check if claude-code feature is enabled
         from src.config import settings
-        health_status["feature_enabled"] = settings.config.get("AM_ENABLE_CLAUDE_CODE", False)
+        health_status["feature_enabled"] = settings.AM_ENABLE_CLAUDE_CODE
         
         if not health_status["feature_enabled"]:
             health_status["status"] = "disabled"
@@ -434,7 +434,7 @@ async def claude_code_health(
         
         # Check agent availability
         try:
-            agent = AgentFactory.get_agent("claude-code")
+            agent = AgentFactory.get_agent("claude_code")
             if agent:
                 health_status["agent_available"] = True
                 

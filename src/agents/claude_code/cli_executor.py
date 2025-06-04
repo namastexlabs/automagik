@@ -90,8 +90,7 @@ class ClaudeSession:
         cmd.extend([
             "-p",  # Pretty output
             "--output-format", "stream-json",
-            "--max-turns", str(self.max_turns),
-            "--dangerously-skip-permissions"
+            "--max-turns", str(self.max_turns)
         ])
         
         # Add MCP configuration if available
