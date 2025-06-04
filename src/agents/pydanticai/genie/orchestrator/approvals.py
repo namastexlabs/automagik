@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from ..models import EpicState, ApprovalPoint, ApprovalStatus
+from ..models import EpicState, ApprovalPoint, ApprovalStatus, ApprovalTriggerType, WorkflowType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,19 @@ class ApprovalManager:
     def __init__(self):
         """Initialize the approval manager."""
         self.pending_approvals: Dict[str, ApprovalPoint] = {}
+        
+    def _map_trigger_to_type(self, trigger: str) -> ApprovalTriggerType:
+        """Map trigger strings to ApprovalTriggerType enum values."""
+        trigger_mapping = {
+            "cost_threshold": ApprovalTriggerType.HIGH_COST,
+            "breaking_changes": ApprovalTriggerType.DESTRUCTIVE_CHANGES,
+            "database_changes": ApprovalTriggerType.DESTRUCTIVE_CHANGES,
+            "security_changes": ApprovalTriggerType.DESTRUCTIVE_CHANGES,
+            "external_dependencies": ApprovalTriggerType.EXTERNAL_DEPENDENCIES,
+            "manual_checkpoint": ApprovalTriggerType.MANUAL_OVERRIDE,
+            "new_endpoints": ApprovalTriggerType.DESTRUCTIVE_CHANGES,
+        }
+        return trigger_mapping.get(trigger, ApprovalTriggerType.MANUAL_OVERRIDE)
         
     async def check_approval_needed(
         self, 
@@ -169,9 +182,17 @@ class ApprovalManager:
         """
         approval_id = f"{state['epic_id']}-{trigger}-{datetime.now().isoformat()}"
         
+        # Map workflow string to WorkflowType enum
+        current_workflow = state["current_workflow"] or "architect"
+        try:
+            workflow_type = WorkflowType(current_workflow)
+        except ValueError:
+            workflow_type = WorkflowType.ARCHITECT
+            
         approval_point = ApprovalPoint(
             id=approval_id,
-            workflow=state["current_workflow"] or "planning",
+            workflow=workflow_type,
+            trigger_type=self._map_trigger_to_type(trigger),
             reason=trigger,
             description=description,
             requested_at=datetime.now()
