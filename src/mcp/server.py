@@ -136,6 +136,18 @@ class MCPServerManager:
                 # Test connection by temporarily entering context to discover capabilities
                 # Add timeout to prevent hanging indefinitely
                 try:
+                    # Add startup delays for different server types
+                    if self.config.server_type == MCPServerType.STDIO and self.config.command:
+                        if self.config.command[0] == 'docker':
+                            logger.info(f"Waiting for {self.name} Docker container to initialize...")
+                            await asyncio.sleep(5)  # Give Docker more time to start
+                        elif self.config.command[0] == 'npx':
+                            logger.info(f"Waiting for {self.name} NPX server to initialize...")
+                            await asyncio.sleep(3)  # Give NPX time to start
+                    elif self.config.server_type == MCPServerType.HTTP:
+                        logger.info(f"Connecting to remote {self.name} server...")
+                        await asyncio.sleep(1)  # Brief delay for HTTP connection
+                    
                     async def discover_with_timeout():
                         async with self._server as temp_server:
                             # Discover tools and resources
@@ -143,10 +155,16 @@ class MCPServerManager:
                     
                     await asyncio.wait_for(discover_with_timeout(), timeout=self.config.timeout_seconds)
                 except asyncio.TimeoutError:
-                    logger.warning(f"MCP server {self.name} startup timed out after {self.config.timeout_seconds}s")
-                    raise MCPServerError(f"Server startup timed out after {self.config.timeout_seconds} seconds", self.name)
+                    logger.warning(f"MCP server {self.name} discovery timed out after {self.config.timeout_seconds}s")
+                    logger.info(f"Proceeding without capability discovery for {self.name}")
+                    # Continue without capabilities - server may still be functional
+                    self._tools.clear()
+                    self._resources.clear()
+                    self.state.tools_discovered = []
+                    self.state.resources_discovered = []
                 except Exception as capability_error:
                     logger.warning(f"MCP server {self.name} capability discovery failed: {str(capability_error)}")
+                    logger.info(f"Proceeding without capability discovery for {self.name}")
                     # Continue without capabilities if server starts but discovery fails
                     self._tools.clear()
                     self._resources.clear()

@@ -7,7 +7,7 @@ import unittest
 import logging
 from unittest.mock import patch
 
-from src.agents.simple.simple.agent import SimpleAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +33,7 @@ class TestSimpleAgentTools(unittest.TestCase):
                               mock_get_time, mock_get_date):
         """Test that tools are properly registered."""
         # Mock the prompt module import
-        with patch("src.agents.simple.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
+        with patch("src.agents.pydanticai.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
             # This test will only create the agent and check the tool registry directly
             # without trying to call _initialize_agent
             with patch.object(SimpleAgent, '_initialize_agent', return_value=None):
@@ -52,7 +52,7 @@ class TestSimpleAgentTools(unittest.TestCase):
     def test_tool_types(self, mock_create_memory, mock_get_memory):
         """Test that all tools have the expected types."""
         # Mock the prompt module import
-        with patch("src.agents.simple.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
+        with patch("src.agents.pydanticai.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
             # This test will only create the agent and check the tool registry directly
             # without trying to call _initialize_agent
             with patch.object(SimpleAgent, '_initialize_agent', return_value=None):

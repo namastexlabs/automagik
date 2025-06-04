@@ -200,6 +200,79 @@ class Prompt(PromptBase):
         )
 
 
+# Preference Models [EPIC-SIMULATION-TEST]
+class PreferenceBase(BaseDBModel):
+    """Base class for Preference models."""
+    
+    user_id: uuid.UUID = Field(..., description="ID of the user these preferences belong to")
+    category: str = Field(..., description="Preference category (e.g., 'ui', 'behavior', 'notifications')")
+    preferences: Dict[str, Any] = Field(default_factory=dict, description="JSON object containing preference key-value pairs")
+    version: int = Field(default=1, description="Schema version for preference migration")
+
+
+class PreferenceCreate(PreferenceBase):
+    """Data needed to create new Preferences."""
+    pass
+
+
+class PreferenceUpdate(BaseModel):
+    """Data for updating existing Preferences."""
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        validate_assignment=True,
+    )
+    
+    preferences: Optional[Dict[str, Any]] = Field(default=None, description="Updated preference values")
+    version: Optional[int] = Field(default=None, description="Updated schema version")
+
+
+class Preference(PreferenceBase):
+    """Complete Preference model, including database fields."""
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, description="Unique identifier")
+    created_at: datetime = Field(..., description="Timestamp when preferences were created")
+    updated_at: datetime = Field(..., description="Timestamp when preferences were last updated")
+    
+    DB_TABLE: ClassVar[str] = "preferences"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "Preference":
+        """Create a Preference instance from a database row.
+        
+        Args:
+            row: Database row as dictionary
+            
+        Returns:
+            Preference instance
+        """
+        if not row:
+            return None
+            
+        return cls(
+            id=row["id"],
+            user_id=row["user_id"],
+            category=row["category"],
+            preferences=row["preferences"],
+            version=row["version"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"]
+        )
+
+
+class PreferenceHistory(BaseDBModel):
+    """Audit log for preference changes."""
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, description="Unique identifier")
+    preference_id: uuid.UUID = Field(..., description="ID of the preference that was changed")
+    old_value: Optional[Dict[str, Any]] = Field(None, description="Previous preference values")
+    new_value: Dict[str, Any] = Field(..., description="New preference values")
+    changed_by: Optional[uuid.UUID] = Field(None, description="User who made the change")
+    changed_at: datetime = Field(..., description="Timestamp of the change")
+    
+    DB_TABLE: ClassVar[str] = "preference_history"
+
+
 # MCP Models
 class MCPServerDB(BaseDBModel):
     """MCP Server model corresponding to the mcp_servers table."""

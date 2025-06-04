@@ -22,7 +22,7 @@ from src.tools.blackpearl.schema import (
 )
 
 # Import product agent
-from src.agents.simple.stan.specialized.product import product_agent
+from .product import product_agent
 
 logger = logging.getLogger(__name__)
 
