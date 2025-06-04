@@ -12,7 +12,7 @@ license = {text = "MIT"}
 authors = [
     {name = "Cezar Vasconcelos", email = "cezar@namastex.ai"}
 ]
-keywords = ["ai", "agents", "pydantic", "fastapi", "notion"]
+keywords = ["ai", "agents", "pydantic", "fastapi", "agno","generative-ai", "langgraph","memory"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
