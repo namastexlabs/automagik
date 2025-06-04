@@ -112,7 +112,7 @@ class EstruturarAgent(AutomagikAgent):
         Args:
             config: Dictionary with configuration options
         """
-        from src.agents.simple.estruturar.prompts.prompt import ESTRUTURAR_AGENT_PROMPT
+        from .prompts.prompt import ESTRUTURAR_AGENT_PROMPT
         
         # Initialize the base agent
         super().__init__(config)
