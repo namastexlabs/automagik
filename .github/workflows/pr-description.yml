@@ -2,12 +2,12 @@ name: Auto PR Description
 
 on:
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
 
 jobs:
   generate-description:
     runs-on: ubuntu-latest
-    if: contains(github.event.label.name, 'ai-describe')
+    if: contains(github.event.pull_request.labels.*.name, 'ai-describe')
     permissions:
       contents: read
       pull-requests: write
