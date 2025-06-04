@@ -401,7 +401,7 @@ automagik agents start
 
 ## 📚 Additional Resources
 
-- [Makefile Reference](./makefile-reference.md) - Complete command documentation
+- [Makefile Reference](../operations/makefile-reference.md) - Complete command documentation
 - [Setup Guide](./setup.md) - Updated installation procedures  
 - [Running Guide](./running.md) - Operational procedures with new commands
 - [Configuration Guide](./configuration.md) - Environment configuration

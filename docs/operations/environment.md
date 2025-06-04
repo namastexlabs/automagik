@@ -295,5 +295,5 @@ docker-compose -f docker/docker-compose-prod.yml up -d
 **Status**: Production ready for Makefile integration! 🚀
 
 **See Also**: 
-- [Docker Standardization](docker-standardization.md) - Container naming
+- [Docker Operations](docker.md) - Container management and best practices
 - [Makefile Migration Epic](../README.md) - Overall project context 
