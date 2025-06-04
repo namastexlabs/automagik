@@ -41,6 +41,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS preferences_updated_at_trigger ON preferences;
 CREATE TRIGGER preferences_updated_at_trigger
     BEFORE UPDATE ON preferences
     FOR EACH ROW
