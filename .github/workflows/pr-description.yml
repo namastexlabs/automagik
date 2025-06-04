@@ -22,17 +22,32 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
-            Analyze this pull request and generate a comprehensive description. Please:
+            You are analyzing a GitHub Pull Request. Your task is to:
             
-            1. **Summary**: Provide a clear, concise summary of what this PR does
-            2. **Changes Made**: List the key changes, new features, or bug fixes
-            3. **Technical Details**: Highlight any important technical decisions or architectural changes
-            4. **Files Changed**: Briefly explain the purpose of major file changes
-            5. **Testing**: Note any testing considerations or requirements
-            6. **Breaking Changes**: Call out any breaking changes if present
+            1. **Get PR changes**: Use `git log origin/main..HEAD --oneline` and `git diff origin/main..HEAD` to see what changed
+            2. **Analyze the changes**: Look at the modified files and understand what was added/changed
+            3. **Generate description**: Create a comprehensive PR description with:
+               - **Summary**: Clear, concise summary of what this PR does
+               - **Changes Made**: List the key changes, new features, or bug fixes
+               - **Technical Details**: Important technical decisions or architectural changes
+               - **Files Changed**: Purpose of major file changes
+               - **Testing**: Testing considerations or requirements
+               - **Breaking Changes**: Any breaking changes if present
+            4. **Update PR**: Use GitHub CLI or API to update this PR's description
             
-            Format the description in clean markdown that will look good in a GitHub PR.
-            Then update this PR's description with your analysis.
-          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,EditTool"
+            Format the description in clean markdown. Then update this PR's description with your analysis.
+            
+            Environment info:
+            - PR Number: ${{ github.event.pull_request.number }}
+            - Repository: ${{ github.repository }}
+            - Base branch: ${{ github.base_ref }}
+            - Head branch: ${{ github.head_ref }}
+          claude_env: |
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            PR_NUMBER: ${{ github.event.pull_request.number }}
+            GITHUB_REPOSITORY: ${{ github.repository }}
+            BASE_REF: ${{ github.base_ref }}
+            HEAD_REF: ${{ github.head_ref }}
+          allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,EditTool,WebFetch,Write"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 3
+          max_turns: 20
