@@ -177,9 +177,8 @@ class ContainerManager:
                 volumes=default_volumes,
                 network_mode='bridge',
                 detach=True,
-                remove=False,  # Keep container for result extraction
                 mem_limit='2g',
-                cpuset_cpus='0-1',  # Limit to 2 CPU cores
+                # cpuset_cpus='0-1',  # Commented out - let Docker choose available CPUs
                 security_opt=['no-new-privileges:true'],
                 working_dir='/workspace/am-agents-labs',
                 # Container will run entrypoint.sh by default
