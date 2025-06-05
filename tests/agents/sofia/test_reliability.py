@@ -149,8 +149,8 @@ class TestSofiaAgentReliability:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 
-                                                # Mock asyncio.sleep to track delay timing
-                                                with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+                                                # Mock _retry_sleep to track delay timing specifically
+                                                with patch.object(sofia_agent, '_retry_sleep', new_callable=AsyncMock) as mock_sleep:
                                                     await sofia_agent.run("Test input")
                                                     
                                                     # Verify exponential backoff: 2^0=1, 2^1=2

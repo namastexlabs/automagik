@@ -329,16 +329,27 @@ class AutomagikAgent(ABC, Generic[T]):
                     tool_outputs = []
                     try:
                         # Import from the locations that tests typically mock
-                        # First try the simple agent (most common test target)
+                        # First try the current agent's module (for specific agent tests)
+                        agent_module = self.__class__.__module__
                         try:
-                            from src.agents.pydanticai.simple.agent import extract_tool_calls, extract_tool_outputs
-                            tool_calls = extract_tool_calls(mock_result) or []
-                            tool_outputs = extract_tool_outputs(mock_result) or []
-                        except ImportError:
-                            # Fallback to common module
-                            from src.agents.common.message_parser import extract_tool_calls, extract_tool_outputs
-                            tool_calls = extract_tool_calls(mock_result) or []
-                            tool_outputs = extract_tool_outputs(mock_result) or []
+                            import importlib
+                            module = importlib.import_module(agent_module)
+                            if hasattr(module, 'extract_tool_calls') and hasattr(module, 'extract_tool_outputs'):
+                                tool_calls = module.extract_tool_calls(mock_result) or []
+                                tool_outputs = module.extract_tool_outputs(mock_result) or []
+                            else:
+                                raise ImportError("Agent module doesn't have extraction functions")
+                        except (ImportError, AttributeError):
+                            # Fallback to simple agent (most common test target)
+                            try:
+                                from src.agents.pydanticai.simple.agent import extract_tool_calls, extract_tool_outputs
+                                tool_calls = extract_tool_calls(mock_result) or []
+                                tool_outputs = extract_tool_outputs(mock_result) or []
+                            except ImportError:
+                                # Final fallback to common module
+                                from src.agents.common.message_parser import extract_tool_calls, extract_tool_outputs
+                                tool_calls = extract_tool_calls(mock_result) or []
+                                tool_outputs = extract_tool_outputs(mock_result) or []
                     except Exception:
                         # If extraction fails, use empty lists
                         pass
