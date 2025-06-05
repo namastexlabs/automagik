@@ -903,7 +903,7 @@ class AutomagikAgent(ABC, Generic[T]):
             if not active_prompt:
                 if status_key != "default":
                     logger.warning(f"No active prompt found for agent {self.db_id}, status {status_key}. Trying default.")
-                    active_prompt = get_active_prompt(self.db_id, "default")
+                    active_prompt = local_get_active_prompt(self.db_id, "default")
                     
                 if not active_prompt:
                     logger.error(f"No active prompt found for agent {self.db_id}")
