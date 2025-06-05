@@ -351,7 +351,7 @@ class TestAutomagikAgent:
         mock_prompt.id = 1
         mock_prompt.prompt_text = "Test prompt with {{variable}}"
         
-        with patch('src.agents.models.automagik_agent.get_active_prompt') as mock_get, \
+        with patch('src.db.repository.prompt.get_active_prompt') as mock_get, \
              patch('src.agents.models.automagik_agent.PromptBuilder.extract_template_variables') as mock_extract:
             
             mock_get.return_value = mock_prompt
@@ -371,7 +371,7 @@ class TestAutomagikAgent:
         mock_prompt = MagicMock()
         mock_prompt.prompt_text = "Default prompt"
         
-        with patch('src.agents.models.automagik_agent.get_active_prompt') as mock_get, \
+        with patch('src.db.repository.prompt.get_active_prompt') as mock_get, \
              patch('src.agents.models.automagik_agent.PromptBuilder.extract_template_variables') as mock_extract:
             
             # First call returns None, second returns default
