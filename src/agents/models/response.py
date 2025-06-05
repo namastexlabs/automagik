@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Union
 
 
@@ -12,7 +12,7 @@ class AgentResponse(BaseModel):
     text: str
     success: bool = True
     error_message: Optional[str] = None
-    tool_calls: Optional[List[Dict]] = None
-    tool_outputs: Optional[List[Dict]] = None
+    tool_calls: List[Dict] = Field(default_factory=list)
+    tool_outputs: List[Dict] = Field(default_factory=list)
     raw_message: Optional[Union[Dict, List]] = None 
     system_prompt: Optional[str] = None
