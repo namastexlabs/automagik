@@ -1,7 +1,7 @@
-"""StanAgentAgent implementation with PydanticAI.
+"""Stan Agent implementation with framework-agnostic architecture.
 
-This module provides a StanAgentAgent class that uses PydanticAI for LLM integration
-and inherits common functionality from AutomagikAgent.
+This module provides a Stan Agent class that uses the new AutomagikAgent framework
+for AI backend abstraction and channel handling.
 """
 import logging
 import traceback
@@ -9,11 +9,8 @@ import glob
 import os
 from typing import Dict, Optional, Any
 
-from pydantic_ai import Agent, RunContext
 from src.agents.models.automagik_agent import AutomagikAgent
-from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
-from .models import EvolutionMessagePayload
 from .specialized.backoffice import backoffice_agent
 from .specialized.product import product_agent
 from .specialized.order import order_agent
@@ -23,16 +20,6 @@ from src.db.repository.user import update_user_data
 from src.memory.message_history import MessageHistory
 from .utils import get_or_create_contact
 
-# Import only necessary utilities
-from src.agents.common.message_parser import (
-    extract_tool_calls, 
-    extract_tool_outputs,
-    extract_all_messages
-)
-from src.agents.common.dependencies_helper import (
-    create_usage_limits,
-    add_system_message_to_history
-)
 from src.tools import blackpearl
 from src.tools.blackpearl.schema import StatusAprovacaoEnum
 from src.tools.blackpearl import verificar_cnpj
@@ -40,46 +27,51 @@ from src.tools.blackpearl import verificar_cnpj
 logger = logging.getLogger(__name__)
 
 class StanAgent(AutomagikAgent):
-    """StanAgentAgent implementation using PydanticAI.
+    """Stan Agent implementation using framework-agnostic architecture.
     
-    This agent provides a basic implementation that follows the PydanticAI
-    conventions for multimodal support and tool calling.
+    This agent provides specialized functionality for customer management
+    with multi-state prompts based on approval status and BlackPearl integration.
     """
     
     def __init__(self, config: Dict[str, str]) -> None:
-        """Initialize the StanAgentAgent.
+        """Initialize the Stan Agent.
         
         Args:
             config: Dictionary with configuration options
         """
-        # First initialize the base agent without a system prompt
-        super().__init__(config)
+        # Initialize with framework type (defaults to pydantic_ai)
+        super().__init__(config, framework_type="pydantic_ai")
         
         # Flag to track if we've registered the prompts yet
         self._prompts_registered = False
         
-        # PydanticAI-specific agent instance
-        self._agent_instance: Optional[Agent] = None
+        # Configure dependencies using the convenience method
+        self.dependencies = self.create_default_dependencies()
         
-        # Configure dependencies
-        self.dependencies = AutomagikAgentsDependencies(
-            model_name="openai:o4-mini",
-            # model_settings=parse_model_settings(config)
-        )
+        # Override model if needed for Stan-specific requirements
+        if hasattr(self.dependencies, 'model_name'):
+            self.dependencies.model_name = "openai:o1-mini"
         
         # Set agent_id if available
         if self.db_id:
             self.dependencies.set_agent_id(self.db_id)
         
-        # Set usage limits if specified in config
-        usage_limits = create_usage_limits(config)
-        if usage_limits:
-            self.dependencies.set_usage_limits(usage_limits)
-        
-        # Register default tools
+        # Register default tools (handled automatically by AutomagikAgent)
         self.tool_registry.register_default_tools(self.context)
         
-        logger.info("StanAgentAgent initialized successfully")
+        # Register Stan-specific tools
+        self._register_stan_tools()
+        
+        # Initialize the framework with dependencies
+        # This is required for the AI framework to be ready
+        try:
+            # The framework initialization will be done asynchronously when needed
+            # But we need to ensure the dependencies are properly set
+            pass
+        except Exception as e:
+            logger.error(f"Error setting up Stan agent framework preparation: {e}")
+        
+        logger.info("Stan Agent initialized successfully")
 
     async def initialize_prompts(self) -> bool:
         """Initialize agent prompts during server startup.
@@ -271,46 +263,12 @@ class StanAgent(AutomagikAgent):
                 
         return True
 
-    async def _initialize_pydantic_agent(self) -> None:
-        """Initialize the underlying PydanticAI agent."""
-        if self._agent_instance:
-            logger.debug("PydanticAI agent already initialized.")
-            return
 
-        logger.info("Initializing PydanticAI agent...")
+    def _register_stan_tools(self):
+        """Register Stan-specific tools with the agent."""
         
-        # Pass imported tools directly to the constructor
-        # Combine imported tools and specialized agents into one list
-        all_tools = [
-            self._create_verificar_cnpj_wrapper(),
-            self._create_product_agent_wrapper(),
-            # self._create_order_agent_wrapper(),
-            self._create_backoffice_agent_wrapper(),
-        ]
-        
-        # Initialize Agent with tools (no system_prompt - will be in message history)
-        self._agent_instance = Agent(
-            self.dependencies.model_name,
-            deps_type=AutomagikAgentsDependencies,
-            model_settings=self.dependencies.model_settings,
-            tools=all_tools,  # Pass combined list of tools and sub-agents
-        )
-        
-        logger.info("PydanticAI agent initialization complete with tools.")
-
-    def _create_verificar_cnpj_wrapper(self):
-        """Create a wrapper for the verificar_cnpj function that handles the context properly.
-        
-        This creates a custom wrapper that follows the PydanticAI expected format, 
-        ensuring the ctx parameter is handled correctly when the tool is called.
-        
-        Returns:
-            A wrapped version of the verificar_cnpj function.
-        """
-        # Capture a reference to the context at creation time
-        agent_context = self.context
-        
-        async def verificar_cnpj_wrapper(ctx: RunContext[AutomagikAgentsDependencies], cnpj: str) -> Dict[str, Any]:
+        # Register verificar_cnpj tool
+        async def verificar_cnpj_tool(ctx, cnpj: str) -> Dict[str, Any]:
             """Verify a CNPJ in the Blackpearl API.
             
             Args:
@@ -320,24 +278,10 @@ class StanAgent(AutomagikAgent):
             Returns:
                 CNPJ verification result containing validation status and company information if valid
             """
-            # Use the captured context reference directly
-            return await verificar_cnpj(agent_context, cnpj)
-            
-        return verificar_cnpj_wrapper
-
-    def _create_product_agent_wrapper(self):
-        """Create a wrapper for the product_agent function that handles the context properly.
+            return await verificar_cnpj(self.context, cnpj)
         
-        This creates a custom wrapper that follows the PydanticAI expected format,
-        ensuring proper context handling when the agent is called.
-        
-        Returns:
-            A wrapped version of the product_agent function.
-        """
-        # Capture a reference to the context at creation time
-        agent_context = self.context
-        
-        async def product_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+        # Register product agent tool
+        async def product_agent_tool(ctx, input_text: str) -> str:
             """Specialized product agent with expertise in product information and catalog management.
             
             Args:
@@ -347,105 +291,13 @@ class StanAgent(AutomagikAgent):
             Returns:
                 Response from the product agent
             """
-            # We need to manually ensure evolution_payload is in the context
-            # because it appears to be lost when using set_context
-            if ctx.deps:
-                # First check if evolution_payload is in the agent_context
-                if agent_context and "evolution_payload" in agent_context:
-                    # Apply evolution_payload in multiple ways for maximum compatibility
-                    # 1. Set it directly on the deps object
-                    ctx.deps.evolution_payload = agent_context["evolution_payload"]
-                    
-                    # 2. Create a new context dict with all existing items plus evolution_payload
-                    updated_context = dict(ctx.deps.context) if hasattr(ctx.deps, 'context') and ctx.deps.context else {}
-                    updated_context["evolution_payload"] = agent_context["evolution_payload"]
-                    
-                    # 3. Set the updated context
-                    ctx.deps.set_context(updated_context)
-                    
-                    # 4. For direct access in the RunContext
-                    if hasattr(ctx, '__dict__'):
-                        ctx.__dict__['evolution_payload'] = agent_context["evolution_payload"]
-                        
-                    # 5. Set parent_context for nested tool calls
-                    if hasattr(ctx, '__dict__'):
-                        ctx.__dict__['parent_context'] = agent_context
-                # If no evolution_payload was found, log a warning
-                else:
-                    logger.warning("No evolution_payload found in agent_context to pass to product_agent")
-            
-            # Now proceed with normal execution
+            # Ensure evolution_payload is available in context
+            if hasattr(ctx, 'deps') and ctx.deps:
+                ctx.deps.set_context(self.context)
             return await product_agent(ctx, input_text)
-            
-        return product_agent_wrapper
-
-    def _create_order_agent_wrapper(self):
-        """Create a wrapper for the order_agent function that handles the context properly.
         
-        This creates a custom wrapper that follows the PydanticAI expected format,
-        ensuring proper context handling when the agent is called.
-        
-        Returns:
-            A wrapped version of the order_agent function.
-        """
-        # Capture a reference to the context at creation time
-        agent_context = self.context
-        
-        async def order_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
-            """Specialized order agent with expertise in sales orders and order management.
-            
-            Args:
-                ctx: The run context with dependencies
-                input_text: The user's text query about orders
-            
-            Returns:
-                Response from the order agent
-            """
-            # We need to manually ensure evolution_payload is in the context
-            # because it appears to be lost when using set_context
-            if ctx.deps:
-                # First check if evolution_payload is in the agent_context
-                if agent_context and "evolution_payload" in agent_context:
-                    # Apply evolution_payload in multiple ways for maximum compatibility
-                    # 1. Set it directly on the deps object
-                    ctx.deps.evolution_payload = agent_context["evolution_payload"]
-                    
-                    # 2. Create a new context dict with all existing items plus evolution_payload
-                    updated_context = dict(ctx.deps.context) if hasattr(ctx.deps, 'context') and ctx.deps.context else {}
-                    updated_context["evolution_payload"] = agent_context["evolution_payload"]
-                    
-                    # 3. Set the updated context
-                    ctx.deps.set_context(updated_context)
-                    
-                    # 4. For direct access in the RunContext
-                    if hasattr(ctx, '__dict__'):
-                        ctx.__dict__['evolution_payload'] = agent_context["evolution_payload"]
-                        
-                    # 5. Set parent_context for nested tool calls
-                    if hasattr(ctx, '__dict__'):
-                        ctx.__dict__['parent_context'] = agent_context
-                # If no evolution_payload was found, log a warning
-                else:
-                    logger.warning("No evolution_payload found in agent_context to pass to order_agent")
-            
-            # Now proceed with normal execution and pass the updated context
-            return await order_agent(ctx, input_text)
-            
-        return order_agent_wrapper
-
-    def _create_backoffice_agent_wrapper(self):
-        """Create a wrapper for the backoffice_agent function that handles the context properly.
-        
-        This creates a custom wrapper that follows the PydanticAI expected format,
-        ensuring proper context handling when the agent is called.
-        
-        Returns:
-            A wrapped version of the backoffice_agent function.
-        """
-        # Capture a reference to the context at creation time
-        agent_context = self.context
-        
-        async def backoffice_agent_wrapper(ctx: RunContext[AutomagikAgentsDependencies], input_text: str) -> str:
+        # Register backoffice agent tool
+        async def backoffice_agent_tool(ctx, input_text: str) -> str:
             """Specialized backoffice agent with access to BlackPearl and Omie tools.
             
             Args:
@@ -455,46 +307,75 @@ class StanAgent(AutomagikAgent):
             Returns:
                 Response from the backoffice agent
             """
-            ctx.deps.set_context(agent_context)
+            if hasattr(ctx, 'deps') and ctx.deps:
+                ctx.deps.set_context(self.context)
             return await backoffice_agent(ctx, input_text)
-            
-        return backoffice_agent_wrapper
+        
+        # Register tools with the registry
+        self.tool_registry.register_tool(verificar_cnpj_tool)
+        self.tool_registry.register_tool(product_agent_tool)
+        self.tool_registry.register_tool(backoffice_agent_tool)
+        
+        logger.info("Registered Stan-specific tools")
+
+
+
 
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[dict] = None,
                  message_limit: Optional[int] = 20) -> AgentResponse:
+        """Stan agent run implementation using the new framework.
         
+        This method now leverages the AutomagikAgent framework to handle:
+        - Evolution payload processing
+        - Prompt registration and loading
+        - Memory initialization
+        - BlackPearl contact management
+        - Framework execution
+        """
+        
+        # Extract user_id from context for BlackPearl operations
         user_id = self.context.get("user_id")
         logger.info(f"Context User ID: {user_id}")
         
         # Register prompts if not already done
         if not self._prompts_registered and self.db_id:
             await self._register_all_prompts()
-            
-        # Convert channel_payload to EvolutionMessagePayload if provided
-        evolution_payload = None
-        if channel_payload:
-            try:
-                # Convert the dictionary to EvolutionMessagePayload model
-                evolution_payload = EvolutionMessagePayload(**channel_payload)
-                logger.debug("Successfully converted channel_payload to EvolutionMessagePayload")
-            except Exception as e:
-                logger.error(f"Failed to convert channel_payload to EvolutionMessagePayload: {str(e)}")
         
-        # Extract user information
-        user_number, user_name = None, None
-        if evolution_payload:
-            user_number = evolution_payload.get_user_number()
-            user_name = evolution_payload.get_user_name()
-            logger.debug(f"Extracted user info: number={user_number}, name={user_name}")
-            # Store evolution_payload in both self.context and dependencies context
-            self.context["evolution_payload"] = evolution_payload
-            self.dependencies.set_context({"evolution_payload": evolution_payload})
-
-        # Get or create contact in BlackPearl
-        contato_blackpearl = None
-        cliente_blackpearl = None
-        if user_number:
+        # Handle BlackPearl contact management before framework execution
+        await self._handle_blackpearl_contact_management(channel_payload, user_id)
+        
+        # Use the framework to handle the execution
+        return await self._run_agent(
+            input_text=input_text,
+            system_prompt=system_message,
+            message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit) if message_history_obj else [],
+            multimodal_content=multimodal_content,
+            channel_payload=channel_payload,
+            message_limit=message_limit
+        )
+    
+    async def _handle_blackpearl_contact_management(self, channel_payload: Optional[dict], user_id: Optional[str]) -> None:
+        """Handle BlackPearl contact management and prompt selection.
+        
+        This method manages the Stan-specific BlackPearl contact lookup and 
+        approval status-based prompt selection.
+        """
+        if not channel_payload:
+            return
+            
+        try:
+            # Extract user information from context (already processed by channel handler)
+            user_number = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+            user_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
+            
+            if not user_number:
+                logger.debug("No user number found in context, skipping BlackPearl contact management")
+                return
+                
+            logger.debug(f"Extracted user info from context: number={user_number}, name={user_name}")
+            
+            # Get or create contact in BlackPearl
             contato_blackpearl = await get_or_create_contact(
                 self.context, 
                 user_number, 
@@ -505,46 +386,46 @@ class StanAgent(AutomagikAgent):
             
             if contato_blackpearl:
                 user_name = contato_blackpearl.get("nome", user_name)
-                # Store contact_id in context for future use if needed
                 self.context["blackpearl_contact_id"] = contato_blackpearl.get("id")
                 
+                # Get cliente information
                 cliente_blackpearl = await blackpearl.get_clientes(self.context, contatos_id=contato_blackpearl["id"])
                 if cliente_blackpearl and "results" in cliente_blackpearl and cliente_blackpearl["results"]:
                     cliente_blackpearl = cliente_blackpearl["results"][0]
-                
-                if cliente_blackpearl:
                     self.context["blackpearl_cliente_id"] = cliente_blackpearl.get("id")
                     self.context["blackpearl_cliente_nome"] = cliente_blackpearl.get("razao_social")
                     self.context["blackpearl_cliente_email"] = cliente_blackpearl.get("email")
-                    logger.info(f" BlackPearl Cliente ID: {self.context['blackpearl_cliente_id']} and Name: {self.context['blackpearl_cliente_nome']}")
-                    
-                # Set user information in dependencies if available
-                if hasattr(self.dependencies, 'set_user_info'):
-                    self.dependencies.set_user_info({
-                        "name": user_name,
-                        "phone": user_number,
-                        "blackpearl_contact_id": contato_blackpearl.get("id"),
-                        "blackpearl_cliente_id": self.context["blackpearl_cliente_id"]
-                    })
-            
-            update_user_data(user_id, {"blackpearl_contact_id": contato_blackpearl.get("id"), "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id")})
-            
-            logger.info(f" BlackPearl Contact ID: {contato_blackpearl.get('id')} and Name: {user_name}")
-
-        
-        # Handle different contact registration statuses
-        if contato_blackpearl:
-            status_aprovacao_str = contato_blackpearl.get("status_aprovacao", "NOT_REGISTERED")
-            await self._use_prompt_based_on_contact_status(status_aprovacao_str, contato_blackpearl.get('id'))
-        else:
-            # Use default prompt
+                    logger.info(f"BlackPearl Cliente: {self.context['blackpearl_cliente_id']} - {self.context['blackpearl_cliente_nome']}")
+                
+                # Update user data in database
+                update_user_data(user_id, {
+                    "blackpearl_contact_id": contato_blackpearl.get("id"), 
+                    "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id")
+                })
+                
+                # Select prompt based on approval status
+                status_aprovacao_str = contato_blackpearl.get("status_aprovacao", "NOT_REGISTERED")
+                await self._use_prompt_based_on_contact_status(status_aprovacao_str, contato_blackpearl.get('id'))
+                
+                # Store user info in memory for templates
+                await self._store_stan_user_memory(user_id, user_name, user_number)
+                
+                logger.info(f"BlackPearl Contact: {contato_blackpearl.get('id')} - {user_name}")
+            else:
+                # Use default prompt
+                await self.load_active_prompt_template(status_key="NOT_REGISTERED")
+                
+        except Exception as e:
+            logger.error(f"Error in BlackPearl contact management: {str(e)}")
+            # Fallback to default prompt
             await self.load_active_prompt_template(status_key="NOT_REGISTERED")
-
-        # Ensure memory variables are initialized
-        if self.db_id:
-            await self.initialize_memory_variables(user_id)
-        
-            # Create a memory entry snapshotting the user info used for this run
+    
+    async def _store_stan_user_memory(self, user_id: Optional[str], user_name: Optional[str], user_number: Optional[str]) -> None:
+        """Store Stan-specific user information in memory."""
+        if not self.db_id:
+            return
+            
+        try:
             user_info_for_memory = {
                 "user_id": user_id,
                 "user_name": user_name,
@@ -553,10 +434,10 @@ class StanAgent(AutomagikAgent):
                 "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id"),
                 "blackpearl_cliente_email": self.context.get("blackpearl_cliente_email"),
             }
-            # Filter out None values before saving
+            # Filter out None values
             user_info_content = {k: v for k, v in user_info_for_memory.items() if v is not None}
             
-            # Create a Memory object instance
+            # Create memory entry
             memory_to_create = Memory(
                 name="user_information",
                 content=str(user_info_content),
@@ -566,70 +447,8 @@ class StanAgent(AutomagikAgent):
                 agent_id=self.db_id
             )
             
-            # Call create_memory with the Memory object
             create_memory(memory=memory_to_create)
             logger.info(f"Created/Updated user_information memory for user {user_id}")
-
-        # Initialize the agent
-        await self._initialize_pydantic_agent()
-        
-        
-        # Get message history in PydanticAI format
-        pydantic_message_history = []
-        if message_history_obj:
-            pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
-        
-        user_input = input_text
-        try:
-            # Get filled system prompt
-            filled_system_prompt = await self.get_filled_system_prompt(
-                user_id=user_id
-            )
             
-            # Add system prompt to message history
-            if filled_system_prompt:
-                pydantic_message_history = add_system_message_to_history(
-                    pydantic_message_history, 
-                    filled_system_prompt
-                )
-            
-            # Update dependencies with context
-            if hasattr(self.dependencies, 'set_context'):
-                self.dependencies.set_context(self.context)
-        
-            # Run the agent
-            result = await self._agent_instance.run(
-                user_input,
-                message_history=pydantic_message_history,
-                usage_limits=getattr(self.dependencies, "usage_limits", None),
-                deps=self.dependencies
-            )
-            
-            # Extract tool calls and outputs
-            all_messages = extract_all_messages(result)
-            tool_calls = []
-            tool_outputs = []
-            
-            # Process each message to extract tool calls and outputs
-            for msg in all_messages:
-                tool_calls.extend(extract_tool_calls(msg))
-                tool_outputs.extend(extract_tool_outputs(msg))
-            
-            # Create response
-            return AgentResponse(
-                text=result.data,
-                success=True,
-                tool_calls=tool_calls,
-                tool_outputs=tool_outputs,
-                raw_message=all_messages,
-                system_prompt=filled_system_prompt,
-            )
         except Exception as e:
-            logger.error(f"Error running agent: {str(e)}")
-            logger.error(traceback.format_exc())
-            return AgentResponse(
-                text=f"Error: {str(e)}",
-                success=False,
-                error_message=str(e),
-                raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
-            ) 
+            logger.error(f"Error storing Stan user memory: {str(e)}") 

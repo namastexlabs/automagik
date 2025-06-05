@@ -148,13 +148,13 @@ class ToolRegistry:
         Args:
             context: Context dictionary for tool execution
         """
-        # Import date/time tools
-        from src.tools.datetime import get_current_date_tool, get_current_time_tool, format_date_tool
+        # Import date/time tools (use raw functions, not Tool instances)
+        from src.tools.datetime.tool import get_current_date, get_current_time, format_date
         
         # Register date/time tools
-        self.register_tool(get_current_date_tool)
-        self.register_tool(get_current_time_tool)
-        self.register_tool(format_date_tool)
+        self.register_tool(get_current_date)
+        self.register_tool(get_current_time)
+        self.register_tool(format_date)
         
         # Import and register memory tools
         _import_memory_tools()
@@ -405,11 +405,15 @@ class ToolRegistry:
         
         # Re-register wrappers for memory tools with the updated context
         if store_memory_tool and get_memory_tool and list_memories_tool:
-            # Create wrapper for store_memory_tool
-            async def store_memory_wrapper(key: str, content: str) -> str:
+            # Import RunContext for proper type annotation
+            from pydantic_ai import RunContext
+            
+            # Create wrapper for store_memory_tool with proper RunContext annotation
+            async def store_memory_wrapper(ctx: RunContext[Dict], key: str, content: str) -> str:
                 """Store a memory with the given key.
                 
                 Args:
+                    ctx: The run context
                     key: The key to store the memory under
                     content: The memory content to store
                     
@@ -418,11 +422,12 @@ class ToolRegistry:
                 """
                 return await store_memory_tool(new_context, key, content)
                 
-            # Create wrapper for get_memory_tool  
-            async def get_memory_wrapper(key: str) -> Any:
+            # Create wrapper for get_memory_tool with proper RunContext annotation
+            async def get_memory_wrapper(ctx: RunContext[Dict], key: str) -> Any:
                 """Retrieve a memory with the given key.
                 
                 Args:
+                    ctx: The run context
                     key: The key to retrieve the memory with
                     
                 Returns:
@@ -430,8 +435,8 @@ class ToolRegistry:
                 """
                 return await get_memory_tool(new_context, key)
             
-            # Create wrapper for list_memories_tool
-            async def list_memories_wrapper(prefix: Optional[str] = None) -> str:
+            # Create wrapper for list_memories_tool with proper RunContext annotation
+            async def list_memories_wrapper(ctx: RunContext[Dict], prefix: Optional[str] = None) -> str:
                 """List all available memories, optionally filtered by prefix.
                 
                 Args:
