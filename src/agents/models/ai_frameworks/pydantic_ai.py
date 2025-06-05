@@ -33,19 +33,21 @@ class PydanticAIFramework(AgentAIFramework):
             # Convert tools to PydanticAI format
             converted_tools = self.convert_tools(self._tools)
             
-            # Create PydanticAI agent
+            # Create PydanticAI agent (without tools initially)
             self._agent_instance = Agent(
                 model=self.config.model,
                 deps_type=dependencies_type,
                 retries=self.config.retries,
-                result_type=str,  # Default to string result
+                output_type=str,  # Default to string result (updated API)
                 system_prompt=""  # Will be provided at runtime
             )
             
-            # Register converted tools
+            # Register converted tools using the decorator approach
             for tool in converted_tools:
-                if hasattr(tool, '__name__'):
+                if callable(tool) and hasattr(tool, '__name__'):
+                    # Use the tool decorator to register the function
                     self._agent_instance.tool(tool)
+                    logger.debug(f"Registered tool: {tool.__name__}")
                     
             self.is_initialized = True
             logger.info(f"PydanticAI agent initialized with {len(converted_tools)} tools")
@@ -81,9 +83,9 @@ class PydanticAIFramework(AgentAIFramework):
             tool_calls = self.extract_tool_calls(result)
             tool_outputs = self.extract_tool_outputs(result)
             
-            # Create response
+            # Create response (using updated API)
             response = AgentResponse(
-                text=result.data if hasattr(result, 'data') else str(result),
+                text=result.output if hasattr(result, 'output') else str(result),
                 success=True,
                 tool_calls=tool_calls,
                 tool_outputs=tool_outputs,
@@ -104,7 +106,7 @@ class PydanticAIFramework(AgentAIFramework):
                               raw_messages: List[Dict[str, Any]]) -> List[Any]:
         """Convert message history to PydanticAI format."""
         try:
-            from pydantic_ai.messages import ModelMessage, UserMessage, SystemMessage
+            from pydantic_ai.messages import ModelRequest, ModelResponse, SystemPromptPart, UserPromptPart, TextPart
             
             formatted_messages = []
             
@@ -113,11 +115,14 @@ class PydanticAIFramework(AgentAIFramework):
                 content = message.get('content', '')
                 
                 if role == 'system':
-                    formatted_messages.append(SystemMessage(content=content))
+                    # System messages are handled as ModelRequest with SystemPromptPart
+                    formatted_messages.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
                 elif role == 'assistant':
-                    formatted_messages.append(ModelMessage(content=content))
+                    # Assistant messages are ModelResponse with TextPart
+                    formatted_messages.append(ModelResponse(parts=[TextPart(content=content)]))
                 else:  # user
-                    formatted_messages.append(UserMessage(content=content))
+                    # User messages are ModelRequest with UserPromptPart
+                    formatted_messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
                     
             return formatted_messages
             

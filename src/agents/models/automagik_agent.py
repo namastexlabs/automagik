@@ -1,7 +1,7 @@
 """AutomagikAgent with dependency inversion and framework abstraction."""
 import logging
 from typing import Dict, Optional, Union, Any, TypeVar, Generic, Type, List
-from abc import ABC, abstractmethod
+from abc import ABC
 import uuid
 import asyncio
 
@@ -174,7 +174,7 @@ class AutomagikAgent(ABC, Generic[T]):
         
         logger.debug(f"Initialized {self.__class__.__name__} with framework: {self.framework_type}")
     
-    def create_default_dependencies(self) -> 'AutomagikAgentsDependencies':
+    def create_default_dependencies(self):
         """Create default dependencies for the agent.
         
         This convenience method handles the common pattern of creating
@@ -256,7 +256,6 @@ class AutomagikAgent(ABC, Generic[T]):
                                 message_history: Optional[List[Dict[str, Any]]] = None,
                                 multimodal_content: Optional[Dict[str, Any]] = None,
                                 channel_payload: Optional[Dict] = None,
-                                message_limit: Optional[int] = 20,
                                 **kwargs) -> AgentResponse:
         """Run the agent using the configured AI framework.
         
@@ -371,6 +370,10 @@ class AutomagikAgent(ABC, Generic[T]):
                     system_prompt=system_prompt,
                     **kwargs
                 )
+                
+                # 9. Postprocess response using channel handler
+                result = await self._postprocess_response(result)
+                
                 return result
             
         except Exception as e:
@@ -382,38 +385,115 @@ class AutomagikAgent(ABC, Generic[T]):
             )
     
     async def _process_channel_payload(self, channel_payload: Optional[Dict]) -> None:
-        """Process Evolution/WhatsApp channel payload."""
+        """Process channel payload using appropriate channel handler."""
         if not channel_payload:
             return
             
         try:
-            # Import Evolution payload handling
-            from src.agents.common.evolution import EvolutionMessagePayload
+            # Import channel handler system
+            from src.channels.registry import get_channel_handler
             
-            # Convert to Evolution payload
-            evolution_payload = EvolutionMessagePayload(**channel_payload)
-            self.context["evolution_payload"] = evolution_payload
+            # Get appropriate channel handler
+            channel_handler = await get_channel_handler(
+                channel_payload=channel_payload,
+                context=self.context
+            )
             
-            # Extract user info
-            user_number = evolution_payload.get_user_number()
-            user_name = evolution_payload.get_user_name()
-            
-            if user_number:
-                self.context["user_phone_number"] = user_number
-            if user_name:
-                self.context["user_name"] = user_name
+            if channel_handler:
+                # Use channel handler to preprocess the payload
+                processed_data = await channel_handler.preprocess_in(
+                    input_text="",  # Will be provided separately
+                    channel_payload=channel_payload,
+                    context=self.context
+                )
                 
-            # Handle group chat detection
-            if evolution_payload.is_group_chat():
-                self.context["is_group_chat"] = True
-                self.context["group_jid"] = evolution_payload.get_group_jid()
-            
-            # Store user info in memory for template variables
-            if self.db_id and (user_number or user_name):
-                await self._store_user_info_in_memory(user_name, user_number)
+                # Update context with processed data
+                if processed_data and "context" in processed_data:
+                    self.context.update(processed_data["context"])
+                    
+                # Store channel handler for later use
+                self.context["channel_handler"] = channel_handler
+                
+                # Register channel-specific tools
+                channel_tools = channel_handler.get_tools()
+                if channel_tools:
+                    for tool in channel_tools:
+                        self.tool_registry.register_tool(tool)
+                        
+                logger.debug(f"Processed payload using {channel_handler.channel_name} handler")
+                
+                # Legacy compatibility: store user info in memory for template variables
+                user_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
+                user_number = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+                if self.db_id and (user_number or user_name):
+                    await self._store_user_info_in_memory(user_name, user_number)
+            else:
+                # Fallback to legacy Evolution handling for backward compatibility
+                from src.agents.common.evolution import EvolutionMessagePayload
+                
+                evolution_payload = EvolutionMessagePayload(**channel_payload)
+                self.context["evolution_payload"] = evolution_payload
+                
+                user_number = evolution_payload.get_user_number()
+                user_name = evolution_payload.get_user_name()
+                
+                if user_number:
+                    self.context["user_phone_number"] = user_number
+                if user_name:
+                    self.context["user_name"] = user_name
+                    
+                if evolution_payload.is_group_chat():
+                    self.context["is_group_chat"] = True
+                    self.context["group_jid"] = evolution_payload.get_group_jid()
+                
+                if self.db_id and (user_number or user_name):
+                    await self._store_user_info_in_memory(user_name, user_number)
+                    
+                logger.debug("Used legacy Evolution payload processing")
                 
         except Exception as e:
             logger.error(f"Error processing channel payload: {e}")
+    
+    async def _postprocess_response(self, response: AgentResponse) -> AgentResponse:
+        """Postprocess agent response using channel handler."""
+        try:
+            # Check if we have a channel handler
+            channel_handler = self.context.get("channel_handler")
+            if not channel_handler:
+                return response
+                
+            # Postprocess the response text
+            processed_text = await channel_handler.postprocess_out(
+                response=response.text,
+                context=self.context
+            )
+            
+            # Update the response
+            if isinstance(processed_text, dict):
+                # Handle structured responses (e.g., multi-part messages)
+                if "messages" in processed_text and "type" in processed_text:
+                    # For multi-part messages, join them with newlines for now
+                    response.text = "\n".join(processed_text["messages"])
+                    # Store original structure in metadata for advanced handlers
+                    if not hasattr(response, 'metadata'):
+                        response.metadata = {}
+                    response.metadata["channel_response"] = processed_text
+                elif "text" in processed_text:
+                    response.text = processed_text["text"]
+                else:
+                    # Use string representation as fallback
+                    response.text = str(processed_text)
+            else:
+                # Simple text response
+                response.text = str(processed_text)
+                
+            logger.debug(f"Postprocessed response using {channel_handler.channel_name} handler")
+            
+        except Exception as e:
+            logger.error(f"Error postprocessing response: {e}")
+            # Return original response if postprocessing fails
+            
+        return response
     
     async def _ensure_prompts_ready(self) -> None:
         """Ensure agent prompts are registered and loaded."""
@@ -811,10 +891,14 @@ class AutomagikAgent(ABC, Generic[T]):
             return False
             
         try:
-            if not get_active_prompt:
+            # Import locally to avoid module-level import issues
+            try:
+                from src.db.repository.prompt import get_active_prompt as local_get_active_prompt
+            except ImportError:
                 logger.error("get_active_prompt function not available")
                 return False
-            active_prompt = get_active_prompt(self.db_id, status_key)
+                
+            active_prompt = local_get_active_prompt(self.db_id, status_key)
             
             if not active_prompt:
                 if status_key != "default":
@@ -863,7 +947,7 @@ class AutomagikAgent(ABC, Generic[T]):
         """Async context manager entry."""
         return self
         
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, _exc_type, _exc_val, _exc_tb):  # type: ignore
         """Async context manager exit."""
         await self.cleanup()
     
@@ -1010,7 +1094,7 @@ class AutomagikAgent(ABC, Generic[T]):
         """Legacy property setter for backward compatibility."""
         self._graphiti_client = value
     
-    async def initialize_graphiti(self, max_retries: int = 5, retry_delay: float = 1.0) -> bool:
+    async def initialize_graphiti(self, _max_retries: int = 5, _retry_delay: float = 1.0) -> bool:
         """Initialize Graphiti (legacy compatibility)."""
         # For backward compatibility, return False if no agent ID (matching old behavior)
         if not hasattr(self, 'db_id') or not self.db_id or (hasattr(self, 'graphiti_agent_id') and not self.graphiti_agent_id):

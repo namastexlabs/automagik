@@ -10,10 +10,10 @@ from typing import Dict, List, Optional, Any, Union
 from src.channels.base import ChannelHandler
 from src.agents.common.evolution import EvolutionMessagePayload
 from src.tools.evolution.tool import (
-    send_text_to_number,
-    send_media_to_number,
-    send_audio_to_number,
-    delete_message
+    send_message,
+    send_audio,
+    send_reaction,
+    get_chat_history
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,10 @@ class EvolutionHandler(ChannelHandler):
                 "whatsapp_user_name": user_name,
                 "whatsapp_user_jid": user_jid,
                 "whatsapp_is_group": is_group,
-                "channel_type": "whatsapp"
+                "channel_type": "whatsapp",
+                # Backward compatibility mappings
+                "user_phone_number": user_number,
+                "user_name": user_name,
             })
             
             # Add group information if applicable
@@ -154,10 +157,10 @@ class EvolutionHandler(ChannelHandler):
             List of Evolution API tools for WhatsApp operations
         """
         tools = [
-            send_text_to_number,
-            send_media_to_number,
-            send_audio_to_number,
-            delete_message
+            send_message,
+            send_audio,
+            send_reaction,
+            get_chat_history
         ]
         
         # Add instance-specific context to tools if available
