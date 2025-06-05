@@ -112,6 +112,10 @@ class SofiaAgent(AutomagikAgent):
         )
         return airtable_agent_wrapper
 
+    async def _retry_sleep(self, wait_time: float):
+        """Sleep method for retry backoff - can be mocked in tests."""
+        await asyncio.sleep(wait_time)
+
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj=None,
                  channel_payload: Optional[Dict] = None,
@@ -160,7 +164,7 @@ class SofiaAgent(AutomagikAgent):
                             
                         # Exponential backoff before retry
                         wait_time = 2 ** (attempt - 1)
-                        await asyncio.sleep(wait_time)
+                        await self._retry_sleep(wait_time)
                     
             except Exception as e:
                 last_exception = e
@@ -170,9 +174,9 @@ class SofiaAgent(AutomagikAgent):
                     # Last attempt, don't wait
                     break
                     
-                # Exponential backoff
+                # Exponential backoff (2^(attempt-1))
                 wait_time = 2 ** (attempt - 1)
-                await asyncio.sleep(wait_time)
+                await self._retry_sleep(wait_time)
         
         # All retries failed, return error response
         return AgentResponse(
