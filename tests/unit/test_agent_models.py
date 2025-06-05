@@ -42,7 +42,7 @@ class TestAgentConfig:
         """Test AgentConfig initialization with different inputs."""
         # Test with empty config
         config = AgentConfig()
-        assert config.model == "openai:gpt-4.1-mini-turbo"
+        assert config.model == "openai:gpt-4.1-mini"
         assert config.temperature == 0.7
         assert config.retries == 1
         

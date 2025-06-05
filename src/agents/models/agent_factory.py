@@ -117,22 +117,33 @@ class AgentFactory:
         return PlaceholderAgent({"name": "unknown_agent_type", "error": f"Unknown agent type: {agent_type}"})
         
     @classmethod
-    def discover_agents(cls) -> None:
-        """Discover available agents in the pydanticai and claude_code folders.
+    def discover_agents(cls, framework: Optional[str] = None) -> None:
+        """Discover available agents in framework directories.
         
-        This method automatically scans the src/agents/pydanticai and src/agents/claude_code
-        directories for agent modules and registers them with the factory.
-        
-        Note: As of NMSTX-230, all orchestration is handled by the PydanticAI Genie agent
-        which includes embedded LangGraph functionality for workflow orchestration.
+        Args:
+            framework: Optional specific framework to discover, or None for all
         """
-        logger.info("Discovering agents in pydanticai and claude_code folders")
+        # Framework directories to scan
+        framework_directories = ["pydanticai", "agno", "langgraph"]
+        frameworks_to_scan = [framework] if framework else framework_directories
         
-        # Discover pydanticai agents (includes genie with embedded LangGraph)
-        cls._discover_agents_in_directory("pydanticai")
+        for fw in frameworks_to_scan:
+            logger.info(f"Discovering agents in {fw} framework")
+            cls._discover_agents_in_directory(fw)
         
-        # Discover claude_code agent (single module, not directory of agents)
+        # Also discover claude_code agent (single module)
         cls._discover_single_agent("claude_code")
+        
+        # Scan deprecated simple directory for backward compatibility
+        simple_dir = Path(os.path.dirname(os.path.dirname(__file__))) / "simple"
+        if simple_dir.exists():
+            logger.warning("Found deprecated simple directory - agents should be migrated to framework directories")
+            try:
+                # Import the deprecation shim which re-exports agents
+                importlib.import_module("src.agents.simple")
+                logger.info("Loaded simple directory deprecation shim")
+            except Exception as e:
+                logger.error(f"Error loading simple directory: {e}")
     
     @classmethod
     def _discover_single_agent(cls, agent_name: str) -> None:
