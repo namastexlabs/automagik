@@ -134,11 +134,11 @@ def message_history_to_pydantic_format(messages: List[Dict[str, Any]]) -> List[D
             from pydantic_ai.messages import ModelRequest, SystemPromptPart
             pydantic_messages.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
         elif role == "user":
-            from pydantic_ai.messages import UserMessage
-            pydantic_messages.append(UserMessage(content=content))
+            from pydantic_ai.messages import ModelRequest, UserPromptPart
+            pydantic_messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
         elif role == "assistant":
-            from pydantic_ai.messages import AssistantMessage
-            pydantic_messages.append(AssistantMessage(content=content))
+            from pydantic_ai.messages import ModelResponse, TextPart
+            pydantic_messages.append(ModelResponse(parts=[TextPart(content=content)]))
     
     return pydantic_messages
 
