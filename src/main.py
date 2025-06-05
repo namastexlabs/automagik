@@ -233,7 +233,7 @@ def create_app() -> FastAPI:
                 logger.info("🚀 Initializing Graphiti indices and constraints...")
                 # Import the client asynchronously with retry logic
                 try:
-                    from src.agents.models.automagik_agent import get_graphiti_client_async
+                    from src.utils.graphiti_queue import get_graphiti_client_async
                     
                     # Initialize the shared client with retry logic - faster for development
                     # Use shorter delays in development to make interruption more responsive
