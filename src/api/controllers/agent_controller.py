@@ -286,6 +286,11 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             if not agent or agent.__class__.__name__ == "PlaceholderAgent":
                 raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
                 
+            # Set the agent ID from database if available
+            if agent_id and not agent.db_id:
+                agent.db_id = agent_id
+                logger.info(f"Set agent {agent_name} database ID to {agent_id}")
+                
             # Update the agent with the request parameters if provided
             if request.parameters:
                 agent.update_config(request.parameters)
