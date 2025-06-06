@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List, Union
 from abc import ABC, abstractmethod
 
 from src.agents.models.automagik_agent import AutomagikAgent
+from src.agents.models.framework_types import FrameworkType
 from .agent_configuration import AgentConfigurationMixin
 from .tool_wrapper_factory import ToolWrapperFactory, ToolRegistrationHelper
 from .multi_prompt_manager import MultiPromptManager
@@ -36,7 +37,7 @@ class EvolutionAgent(AutomagikAgent):
             model_override: Optional model name override
         """
         # Initialize base agent (handles channel processing automatically)
-        super().__init__(config, framework_type="pydantic_ai")
+        super().__init__(config, framework_type=FrameworkType.PYDANTIC_AI)
         
         # Set prompt
         self._code_prompt_text = prompt
@@ -73,7 +74,7 @@ class MultiPromptAgent(AutomagikAgent):
             model_override: Optional model name override
         """
         # Initialize base agent
-        super().__init__(config, framework_type="pydantic_ai")
+        super().__init__(config, framework_type=FrameworkType.PYDANTIC_AI)
         
         # Set up dependencies
         self.dependencies = self.create_default_dependencies()
@@ -153,7 +154,7 @@ class APIIntegrationAgent(AutomagikAgent):
             model_override: Optional model name override
         """
         # Initialize base agent
-        super().__init__(config, framework_type="pydantic_ai")
+        super().__init__(config, framework_type=FrameworkType.PYDANTIC_AI)
         
         # Set prompt
         self._code_prompt_text = prompt
@@ -367,7 +368,7 @@ class DiscordAgent(AutomagikAgent):
             model_override: Optional model name override
         """
         # Initialize base agent
-        super().__init__(config, framework_type="pydantic_ai")
+        super().__init__(config, framework_type=FrameworkType.PYDANTIC_AI)
         
         # Set prompt
         self._code_prompt_text = prompt
@@ -408,7 +409,7 @@ class SimpleAgent(AutomagikAgent):
             prompt: The agent prompt text
         """
         # Initialize base agent
-        super().__init__(config, framework_type="pydantic_ai")
+        super().__init__(config, framework_type=FrameworkType.PYDANTIC_AI)
         
         # Set prompt
         self._code_prompt_text = prompt
