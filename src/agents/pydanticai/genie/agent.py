@@ -1,12 +1,9 @@
 """GenieAgent implementation with embedded LangGraph orchestration."""
 
-import asyncio
 import uuid
-from typing import Dict, Optional, List, Any, Union
+from typing import Dict, Optional, List, Any
 from datetime import datetime
 
-from pydantic_ai import Agent
-from pydantic_ai.tools import RunContext
 
 # Try to import langgraph, but gracefully handle if not available
 try:
