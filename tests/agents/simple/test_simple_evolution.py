@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from src.agents.pydanticai.simple.agent import SimpleAgent
-from src.agents.common.evolution import EvolutionMessagePayload
+from src.channels.models import EvolutionMessagePayload
 
 
 class TestSimpleAgentEvolution:
@@ -41,7 +41,7 @@ class TestSimpleAgentEvolution:
     
     def test_evolution_import(self):
         """Test that Evolution types can be imported."""
-        from src.agents.common.evolution import EvolutionMessagePayload
+        from src.channels.models import EvolutionMessagePayload
         assert EvolutionMessagePayload is not None
     
     def test_simple_agent_initialization(self, simple_agent):
