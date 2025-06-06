@@ -1,7 +1,8 @@
 from typing import Dict, Any
+from pydantic_ai import RunContext
 from src.tools.flashed.provider import FlashedProvider
 
-async def get_user_data(ctx: Dict[str, Any]) -> Dict[str, Any]:
+async def get_user_data(ctx: RunContext[Dict]) -> Dict[str, Any]:
     """Get user data from a specific user registered in the Flashed API.
     
     Args:
@@ -22,9 +23,12 @@ async def get_user_data(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     provider = FlashedProvider()
     async with provider:
-        return await provider.get_user_data(ctx["user_id"])
+        user_id = ctx.deps.context.get("user_id") if ctx.deps and hasattr(ctx.deps, 'context') else None
+        if not user_id:
+            raise ValueError("user_id not found in context")
+        return await provider.get_user_data(user_id)
 
-async def get_user_score(ctx: Dict[str, Any]) -> Dict[str, Any]:
+async def get_user_score(ctx: RunContext[Dict]) -> Dict[str, Any]:
     """Get user score data including daily progress, energy and streak.
     
     Args:
@@ -38,9 +42,12 @@ async def get_user_score(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     provider = FlashedProvider()
     async with provider:
-        return await provider.get_user_score(ctx["user_id"])
+        user_id = ctx.deps.context.get("user_id") if ctx.deps and hasattr(ctx.deps, 'context') else None
+        if not user_id:
+            raise ValueError("user_id not found in context")
+        return await provider.get_user_score(user_id)
 
-async def get_user_roadmap(ctx: Dict[str, Any]) -> Dict[str, Any]:
+async def get_user_roadmap(ctx: RunContext[Dict]) -> Dict[str, Any]:
     """Get the study roadmap for a specific user from the Flashed API.
     
     Args:
@@ -53,9 +60,12 @@ async def get_user_roadmap(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     provider = FlashedProvider()
     async with provider:
-        return await provider.get_user_roadmap(ctx["user_id"])
+        user_id = ctx.deps.context.get("user_id") if ctx.deps and hasattr(ctx.deps, 'context') else None
+        if not user_id:
+            raise ValueError("user_id not found in context")
+        return await provider.get_user_roadmap(user_id)
 
-async def get_user_objectives(ctx: Dict[str, Any]) -> Dict[str, Any]:
+async def get_user_objectives(ctx: RunContext[Dict]) -> Dict[str, Any]:
     """Get user objectives ordered by completion date from the Flashed API.
     
     Args:
@@ -72,9 +82,12 @@ async def get_user_objectives(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     provider = FlashedProvider()
     async with provider:
-        return await provider.get_user_objectives(ctx["user_id"])
+        user_id = ctx.deps.context.get("user_id") if ctx.deps and hasattr(ctx.deps, 'context') else None
+        if not user_id:
+            raise ValueError("user_id not found in context")
+        return await provider.get_user_objectives(user_id)
 
-async def get_last_card_round(ctx: Dict[str, Any]) -> Dict[str, Any]:
+async def get_last_card_round(ctx: RunContext[Dict]) -> Dict[str, Any]:
     """Get the data for the last study cards round from the Flashed API.
     
     Args:
@@ -89,9 +102,12 @@ async def get_last_card_round(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     provider = FlashedProvider()
     async with provider:
-        return await provider.get_last_card_round(ctx["user_id"])
+        user_id = ctx.deps.context.get("user_id") if ctx.deps and hasattr(ctx.deps, 'context') else None
+        if not user_id:
+            raise ValueError("user_id not found in context")
+        return await provider.get_last_card_round(user_id)
 
-async def get_user_energy(ctx: Dict[str, Any]) -> Dict[str, Any]:
+async def get_user_energy(ctx: RunContext[Dict]) -> Dict[str, Any]:
     """Get the current energy value for a specific user from the Flashed API.
     
     Args:
@@ -103,4 +119,7 @@ async def get_user_energy(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     provider = FlashedProvider()
     async with provider:
-        return await provider.get_user_energy(ctx["user_id"])
+        user_id = ctx.deps.context.get("user_id") if ctx.deps and hasattr(ctx.deps, 'context') else None
+        if not user_id:
+            raise ValueError("user_id not found in context")
+        return await provider.get_user_energy(user_id)
