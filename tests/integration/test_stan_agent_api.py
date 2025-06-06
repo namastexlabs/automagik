@@ -1,6 +1,7 @@
 import pytest
 import os
 import json
+import uuid
 import httpx
 from dotenv import load_dotenv
 from src.tools.blackpearl.provider import BlackpearlProvider
@@ -105,7 +106,7 @@ async def test_stan_agent_run_success():
         "message_limit": 10,
         "user_id": user_id_for_test, # Use ID obtained in setup
         "message_type": "text",
-        "session_name": "test-session",
+        "session_name": f"test-session-{uuid.uuid4()}",
         "session_origin": "whatsapp", # Emulate whatsapp origin
         "preserve_system_prompt": False,
     }
