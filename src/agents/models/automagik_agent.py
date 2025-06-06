@@ -9,6 +9,7 @@ from src.agents.models.dependencies import BaseDependencies
 from src.agents.models.response import AgentResponse
 from src.agents.models.ai_frameworks.base import AgentAIFramework
 from src.agents.models.state_manager import AutomagikStateManager, StateManagerInterface
+from src.agents.models.framework_types import FrameworkType
 from src.config import settings
 
 # Import framework implementations
@@ -58,7 +59,7 @@ class AgentConfig:
         self.model = self.config.get("model", "openai:gpt-4.1-mini")
         self.temperature = float(self.config.get("temperature", "0.7"))
         self.retries = int(self.config.get("retries", "1"))
-        self.framework_type = self.config.get("framework_type", "pydantic_ai")
+        self.framework_type = self.config.get("framework_type", FrameworkType.default().value)
         
         # Backward compatibility properties
         self.model_name = self.model  # For backward compatibility
@@ -99,13 +100,13 @@ class AutomagikAgent(ABC, Generic[T]):
 
     def __init__(self, 
                  config: Union[Dict[str, str], AgentConfig],
-                 framework_type: str = "pydantic_ai",
+                 framework_type: Union[str, "FrameworkType"] = None,
                  state_manager: Optional[StateManagerInterface] = None):
         """Initialize the agent with dependency inversion.
 
         Args:
             config: Dictionary or AgentConfig object with configuration options.
-            framework_type: Type of AI framework to use ('pydantic_ai', 'agno', etc.)
+            framework_type: Type of AI framework to use (string or FrameworkType enum)
             state_manager: Optional state manager instance
         """
         # Convert config to AgentConfig if it's a dictionary
@@ -114,8 +115,16 @@ class AutomagikAgent(ABC, Generic[T]):
         else:
             self.config = config
             
-        # Set framework type
-        self.framework_type = framework_type or self.config.get("framework_type", "pydantic_ai")
+        # Set framework type - normalize enum to string value
+        raw_framework_type = framework_type or self.config.get("framework_type") or FrameworkType.default()
+        
+        # Handle enum types
+        if hasattr(raw_framework_type, 'value'):
+            self.framework_type = raw_framework_type.value
+        else:
+            # Handle string - normalize to enum
+            normalized = FrameworkType.normalize(raw_framework_type)
+            self.framework_type = normalized.value
         
         # Initialize state manager
         self.state_manager = state_manager or AutomagikStateManager()
@@ -166,10 +175,10 @@ class AutomagikAgent(ABC, Generic[T]):
         
         # Framework registry
         self._framework_registry = {
-            "pydantic_ai": PydanticAIFramework,
+            FrameworkType.PYDANTIC_AI.value: PydanticAIFramework,
             # Add more frameworks here as they're implemented
-            # "agno": AgnoFramework,
-            # "langgraph": LangGraphFramework,
+            # FrameworkType.AGNO.value: AgnoFramework,
+            # FrameworkType.LANGGRAPH.value: LangGraphFramework,
         }
         
         logger.debug(f"Initialized {self.__class__.__name__} with framework: {self.framework_type}")
