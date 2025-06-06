@@ -4,6 +4,7 @@ This module provides tools for interacting with the Blackpearl API.
 """
 import logging
 from typing import Optional, Dict, Any, Union
+from pydantic_ai import RunContext
 from src.config import Environment, settings
 from src.tools.blackpearl.provider import BlackpearlProvider
 from src.tools.blackpearl.schema import (
@@ -13,7 +14,7 @@ from src.tools.blackpearl.schema import (
 logger = logging.getLogger(__name__)
 
 async def get_clientes(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -37,7 +38,7 @@ async def get_clientes(
     async with provider:
         return await provider.get_clientes(limit, offset, search, ordering, **filters)
 
-async def get_cliente(ctx: Dict[str, Any], cliente_id: int) -> Cliente:
+async def get_cliente(ctx: RunContext[Dict], cliente_id: int) -> Cliente:
     """Get a specific client from the Blackpearl API.
     
     Args:
@@ -52,7 +53,7 @@ async def get_cliente(ctx: Dict[str, Any], cliente_id: int) -> Cliente:
         cliente = await provider.get_cliente(cliente_id)
         return Cliente(**cliente)
 
-async def create_cliente(ctx: Dict[str, Any], cliente: Cliente) -> Dict[str, Any]:
+async def create_cliente(ctx: RunContext[Dict], cliente: Cliente) -> Dict[str, Any]:
     """Create a new client in the Blackpearl API.
     
     Args:
@@ -66,7 +67,7 @@ async def create_cliente(ctx: Dict[str, Any], cliente: Cliente) -> Dict[str, Any
     async with provider:
         return await provider.create_cliente(cliente)
 
-async def update_cliente(ctx: Dict[str, Any], cliente_id: int, cliente: Cliente) -> Dict[str, Any]:
+async def update_cliente(ctx: RunContext[Dict], cliente_id: int, cliente: Cliente) -> Dict[str, Any]:
     """Update a client in the Blackpearl API.
     
     Args:
@@ -81,7 +82,7 @@ async def update_cliente(ctx: Dict[str, Any], cliente_id: int, cliente: Cliente)
     async with provider:
         return await provider.update_cliente(cliente_id, cliente)
 
-async def delete_cliente(ctx: Dict[str, Any], cliente_id: int) -> None:
+async def delete_cliente(ctx: RunContext[Dict], cliente_id: int) -> None:
     """Delete a client from the Blackpearl API.
     
     Args:
@@ -93,7 +94,7 @@ async def delete_cliente(ctx: Dict[str, Any], cliente_id: int) -> None:
         await provider.delete_cliente(cliente_id)
 
 async def get_contatos(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -115,7 +116,7 @@ async def get_contatos(
     async with provider:
         return await provider.get_contatos(limit, offset, search, ordering)
 
-async def get_contato(ctx: Dict[str, Any], contato_id: int) -> Contato:
+async def get_contato(ctx: RunContext[Dict], contato_id: int) -> Contato:
     """Get a specific contact from the Blackpearl API.
     
     Args:
@@ -130,7 +131,7 @@ async def get_contato(ctx: Dict[str, Any], contato_id: int) -> Contato:
         contato = await provider.get_contato(contato_id)
         return Contato(**contato)
 
-async def create_contato(ctx: Dict[str, Any], contato: Union[Contato, Dict[str, Any]]) -> Dict[str, Any]:
+async def create_contato(ctx: RunContext[Dict], contato: Union[Contato, Dict[str, Any]]) -> Dict[str, Any]:
     """Create a new contact in the Blackpearl API.
     
     Args:
@@ -144,7 +145,7 @@ async def create_contato(ctx: Dict[str, Any], contato: Union[Contato, Dict[str, 
     async with provider:
         return await provider.create_contato(contato)
 
-async def update_contato(ctx: Dict[str, Any], contato_id: int, contato: Contato) -> Dict[str, Any]:
+async def update_contato(ctx: RunContext[Dict], contato_id: int, contato: Contato) -> Dict[str, Any]:
     """Update a contact in the Blackpearl API.
     
     Args:
@@ -159,7 +160,7 @@ async def update_contato(ctx: Dict[str, Any], contato_id: int, contato: Contato)
     async with provider:
         return await provider.update_contato(contato_id, contato)
 
-async def delete_contato(ctx: Dict[str, Any], contato_id: int) -> None:
+async def delete_contato(ctx: RunContext[Dict], contato_id: int) -> None:
     """Delete a contact from the Blackpearl API.
     
     Args:
@@ -171,7 +172,7 @@ async def delete_contato(ctx: Dict[str, Any], contato_id: int) -> None:
         await provider.delete_contato(contato_id)
 
 async def get_vendedores(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -193,7 +194,7 @@ async def get_vendedores(
     async with provider:
         return await provider.get_vendedores(limit, offset, search, ordering)
 
-async def get_vendedor(ctx: Dict[str, Any], vendedor_id: int) -> Dict[str, Any]:
+async def get_vendedor(ctx: RunContext[Dict], vendedor_id: int) -> Dict[str, Any]:
     """Get a specific salesperson from the Blackpearl API.
     
     Args:
@@ -207,7 +208,7 @@ async def get_vendedor(ctx: Dict[str, Any], vendedor_id: int) -> Dict[str, Any]:
     async with provider:
         return await provider.get_vendedor(vendedor_id)
 
-async def create_vendedor(ctx: Dict[str, Any], vendedor: Vendedor) -> Dict[str, Any]:
+async def create_vendedor(ctx: RunContext[Dict], vendedor: Vendedor) -> Dict[str, Any]:
     """Create a new salesperson in the Blackpearl API.
     
     Args:
@@ -221,7 +222,7 @@ async def create_vendedor(ctx: Dict[str, Any], vendedor: Vendedor) -> Dict[str, 
     async with provider:
         return await provider.create_vendedor(vendedor)
 
-async def update_vendedor(ctx: Dict[str, Any], vendedor_id: int, vendedor: Vendedor) -> Dict[str, Any]:
+async def update_vendedor(ctx: RunContext[Dict], vendedor_id: int, vendedor: Vendedor) -> Dict[str, Any]:
     """Update a salesperson in the Blackpearl API.
     
     Args:
@@ -237,7 +238,7 @@ async def update_vendedor(ctx: Dict[str, Any], vendedor_id: int, vendedor: Vende
         return await provider.update_vendedor(vendedor_id, vendedor)
 
 async def get_produtos(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -261,7 +262,7 @@ async def get_produtos(
     async with provider:
         return await provider.get_produtos(limit, offset, search, ordering, **filters)
 
-async def get_produto(ctx: Dict[str, Any], produto_id: int) -> Dict[str, Any]:
+async def get_produto(ctx: RunContext[Dict], produto_id: int) -> Dict[str, Any]:
     """Get a specific product from the Blackpearl API.
     
     Args:
@@ -276,7 +277,7 @@ async def get_produto(ctx: Dict[str, Any], produto_id: int) -> Dict[str, Any]:
         return await provider.get_produto(produto_id)
 
 async def get_familias_de_produtos(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -300,7 +301,7 @@ async def get_familias_de_produtos(
     async with provider:
         return await provider.get_familias_de_produtos(limit, offset, search, ordering, **filters)
 
-async def get_familia_de_produto(ctx: Dict[str, Any], familia_id: int) -> Dict[str, Any]:
+async def get_familia_de_produto(ctx: RunContext[Dict], familia_id: int) -> Dict[str, Any]:
     """Get a specific product family from the Blackpearl API.
     
     Args:
@@ -315,7 +316,7 @@ async def get_familia_de_produto(ctx: Dict[str, Any], familia_id: int) -> Dict[s
         return await provider.get_familia_de_produto(familia_id)
 
 async def get_marcas(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -339,7 +340,7 @@ async def get_marcas(
     async with provider:
         return await provider.get_marcas(limit, offset, search, ordering, **filters)
 
-async def get_marca(ctx: Dict[str, Any], marca_id: int) -> Dict[str, Any]:
+async def get_marca(ctx: RunContext[Dict], marca_id: int) -> Dict[str, Any]:
     """Get a specific brand from the Blackpearl API.
     
     Args:
@@ -354,7 +355,7 @@ async def get_marca(ctx: Dict[str, Any], marca_id: int) -> Dict[str, Any]:
         return await provider.get_marca(marca_id)
 
 async def get_imagens_de_produto(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -379,7 +380,7 @@ async def get_imagens_de_produto(
         return await provider.get_imagens_de_produto(limit, offset, search, ordering, **filters)
 
 async def get_pedidos(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -401,7 +402,7 @@ async def get_pedidos(
     async with provider:
         return await provider.get_pedidos(limit, offset, search, ordering)
 
-async def get_pedido(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
+async def get_pedido(ctx: RunContext[Dict], pedido_id: int) -> Dict[str, Any]:
     """Get a specific order from the Blackpearl API.
     
     Args:
@@ -415,7 +416,7 @@ async def get_pedido(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
     async with provider:
         return await provider.get_pedido(pedido_id)
 
-async def create_pedido(ctx: Dict[str, Any], pedido: PedidoDeVenda) -> Dict[str, Any]:
+async def create_pedido(ctx: RunContext[Dict], pedido: PedidoDeVenda) -> Dict[str, Any]:
     """Create a new order in the Blackpearl API.
     
     Args:
@@ -429,7 +430,7 @@ async def create_pedido(ctx: Dict[str, Any], pedido: PedidoDeVenda) -> Dict[str,
     async with provider:
         return await provider.create_pedido(pedido)
 
-async def update_pedido(ctx: Dict[str, Any], pedido_id: int, pedido: PedidoDeVenda) -> Dict[str, Any]:
+async def update_pedido(ctx: RunContext[Dict], pedido_id: int, pedido: PedidoDeVenda) -> Dict[str, Any]:
     """Update an order in the Blackpearl API.
     
     Args:
@@ -445,7 +446,7 @@ async def update_pedido(ctx: Dict[str, Any], pedido_id: int, pedido: PedidoDeVen
         return await provider.update_pedido(pedido_id, pedido)
 
 async def get_regras_frete(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -467,7 +468,7 @@ async def get_regras_frete(
     async with provider:
         return await provider.get_regras_frete(limit, offset, search, ordering)
 
-async def get_regra_frete(ctx: Dict[str, Any], regra_id: int) -> Dict[str, Any]:
+async def get_regra_frete(ctx: RunContext[Dict], regra_id: int) -> Dict[str, Any]:
     """Get a specific shipping rule from the Blackpearl API.
     
     Args:
@@ -481,7 +482,7 @@ async def get_regra_frete(ctx: Dict[str, Any], regra_id: int) -> Dict[str, Any]:
     async with provider:
         return await provider.get_regra_frete(regra_id)
 
-async def create_regra_frete(ctx: Dict[str, Any], regra: RegraDeFrete) -> Dict[str, Any]:
+async def create_regra_frete(ctx: RunContext[Dict], regra: RegraDeFrete) -> Dict[str, Any]:
     """Create a new shipping rule in the Blackpearl API.
     
     Args:
@@ -495,7 +496,7 @@ async def create_regra_frete(ctx: Dict[str, Any], regra: RegraDeFrete) -> Dict[s
     async with provider:
         return await provider.create_regra_frete(regra)
 
-async def update_regra_frete(ctx: Dict[str, Any], regra_id: int, regra: RegraDeFrete) -> Dict[str, Any]:
+async def update_regra_frete(ctx: RunContext[Dict], regra_id: int, regra: RegraDeFrete) -> Dict[str, Any]:
     """Update a shipping rule in the Blackpearl API.
     
     Args:
@@ -511,7 +512,7 @@ async def update_regra_frete(ctx: Dict[str, Any], regra_id: int, regra: RegraDeF
         return await provider.update_regra_frete(regra_id, regra)
 
 async def get_regras_negocio(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -533,7 +534,7 @@ async def get_regras_negocio(
     async with provider:
         return await provider.get_regras_negocio(limit, offset, search, ordering)
 
-async def get_regra_negocio(ctx: Dict[str, Any], regra_id: int) -> Dict[str, Any]:
+async def get_regra_negocio(ctx: RunContext[Dict], regra_id: int) -> Dict[str, Any]:
     """Get a specific business rule from the Blackpearl API.
     
     Args:
@@ -547,7 +548,7 @@ async def get_regra_negocio(ctx: Dict[str, Any], regra_id: int) -> Dict[str, Any
     async with provider:
         return await provider.get_regra_negocio(regra_id)
 
-async def create_regra_negocio(ctx: Dict[str, Any], regra: RegraDeNegocio) -> Dict[str, Any]:
+async def create_regra_negocio(ctx: RunContext[Dict], regra: RegraDeNegocio) -> Dict[str, Any]:
     """Create a new business rule in the Blackpearl API.
     
     Args:
@@ -561,7 +562,7 @@ async def create_regra_negocio(ctx: Dict[str, Any], regra: RegraDeNegocio) -> Di
     async with provider:
         return await provider.create_regra_negocio(regra)
 
-async def update_regra_negocio(ctx: Dict[str, Any], regra_id: int, regra: RegraDeNegocio) -> Dict[str, Any]:
+async def update_regra_negocio(ctx: RunContext[Dict], regra_id: int, regra: RegraDeNegocio) -> Dict[str, Any]:
     """Update a business rule in the Blackpearl API.
     
     Args:
@@ -576,7 +577,7 @@ async def update_regra_negocio(ctx: Dict[str, Any], regra_id: int, regra: RegraD
     async with provider:
         return await provider.update_regra_negocio(regra_id, regra)
 
-async def verificar_cnpj(ctx: Dict[str, Any], cnpj: str) -> Dict[str, Any]:
+async def verificar_cnpj(ctx: RunContext[Dict], cnpj: str) -> Dict[str, Any]:
     """Verify a CNPJ in the Blackpearl API.
     
     Args:
@@ -602,7 +603,7 @@ async def verificar_cnpj(ctx: Dict[str, Any], cnpj: str) -> Dict[str, Any]:
                 
         return verification_result
 
-async def finalizar_cadastro(ctx: Dict[str, Any], cliente_id: int) -> Dict[str, Any]:
+async def finalizar_cadastro(ctx: RunContext[Dict], cliente_id: int) -> Dict[str, Any]:
     """Finalize client registration in Omie API.
     
     Args:
@@ -618,7 +619,7 @@ async def finalizar_cadastro(ctx: Dict[str, Any], cliente_id: int) -> Dict[str, 
 
 # --- PedidoDeVenda Tools ---
 
-async def create_order_tool(ctx: Dict[str, Any], pedido: PedidoDeVenda) -> Dict[str, Any]:
+async def create_order_tool(ctx: RunContext[Dict], pedido: PedidoDeVenda) -> Dict[str, Any]:
     """Creates a new sales order draft in Blackpearl.
     
     Args:
@@ -634,7 +635,7 @@ async def create_order_tool(ctx: Dict[str, Any], pedido: PedidoDeVenda) -> Dict[
         result = await provider.create_pedido_venda(pedido=pedido)
         return result
 
-async def get_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
+async def get_order_tool(ctx: RunContext[Dict], pedido_id: int) -> Dict[str, Any]:
     """Retrieves details of a specific sales order from Blackpearl.
     
     Args:
@@ -649,7 +650,7 @@ async def get_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
         return result
 
 async def list_orders_tool(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
@@ -683,7 +684,7 @@ async def list_orders_tool(
         )
         return result
 
-async def update_order_tool(ctx: Dict[str, Any], pedido_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
+async def update_order_tool(ctx: RunContext[Dict], pedido_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
     """Updates specific fields of an existing sales order in Blackpearl.
     
     Args:
@@ -700,7 +701,7 @@ async def update_order_tool(ctx: Dict[str, Any], pedido_id: int, update_data: Di
         result = await provider.update_pedido_venda(pedido_id=pedido_id, pedido_data=update_data)
         return result
 
-async def approve_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, Any]:
+async def approve_order_tool(ctx: RunContext[Dict], pedido_id: int) -> Dict[str, Any]:
     """Approves a sales order in Blackpearl, potentially triggering integration (e.g., Omie).
     
     Args:
@@ -716,7 +717,7 @@ async def approve_order_tool(ctx: Dict[str, Any], pedido_id: int) -> Dict[str, A
 
 # --- ItemDePedido Tools ---
 
-async def add_item_to_order_tool(ctx: Dict[str, Any], item_data: ItemDePedidoCreate) -> Dict[str, Any]:
+async def add_item_to_order_tool(ctx: RunContext[Dict], item_data: ItemDePedidoCreate) -> Dict[str, Any]:
     """Adds a new item to a specific sales order in Blackpearl.
     
     Args:
@@ -733,7 +734,7 @@ async def add_item_to_order_tool(ctx: Dict[str, Any], item_data: ItemDePedidoCre
         result = await provider.create_pedido_item(item=item_data)
         return result
 
-async def get_order_item_tool(ctx: Dict[str, Any], item_id: int) -> Dict[str, Any]:
+async def get_order_item_tool(ctx: RunContext[Dict], item_id: int) -> Dict[str, Any]:
     """Retrieves details of a specific item within a sales order from Blackpearl.
     
     Args:
@@ -748,7 +749,7 @@ async def get_order_item_tool(ctx: Dict[str, Any], item_id: int) -> Dict[str, An
         return result
 
 async def list_order_items_tool(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     pedido_id: Optional[int] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
@@ -775,7 +776,7 @@ async def list_order_items_tool(
         )
         return result
 
-async def update_order_item_tool(ctx: Dict[str, Any], item_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
+async def update_order_item_tool(ctx: RunContext[Dict], item_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
     """Updates specific fields of an existing item within a sales order in Blackpearl.
     
     Args:
@@ -792,7 +793,7 @@ async def update_order_item_tool(ctx: Dict[str, Any], item_id: int, update_data:
         result = await provider.update_pedido_item(item_id=item_id, item_data=update_data)
         return result
 
-async def delete_order_item_tool(ctx: Dict[str, Any], item_id: int) -> Dict[str, Any]:
+async def delete_order_item_tool(ctx: RunContext[Dict], item_id: int) -> Dict[str, Any]:
     """Deletes an item from a sales order in Blackpearl.
     
     Args:
@@ -881,7 +882,7 @@ async def get_or_create_contact(context: Dict[str, Any],
 # --- CondicaoDePagamento Tools ---
 
 async def list_payment_conditions_tool(
-    ctx: Dict[str, Any],
+    ctx: RunContext[Dict],
     limit: Optional[int] = None,
     offset: Optional[int] = None,
     search: Optional[str] = None,
