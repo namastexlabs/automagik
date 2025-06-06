@@ -74,10 +74,10 @@ def log_server_config(host, port, should_reload):
     logger.info(f"└── Auto-reload: {reload_status}")
 
 def main():
-    """Run the Sofia application."""
+    """Run the Automagik Agents API."""
     try:
         # Log startup message
-        logger.info("Starting Sofia application via 'python -m src'")
+        logger.info("Starting Automagik Agents API")
         
         # Check if application is being run with arguments
         if len(sys.argv) > 1:

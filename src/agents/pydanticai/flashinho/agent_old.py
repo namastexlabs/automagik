@@ -1,11 +1,10 @@
-"""DiscordAgent implementation with PydanticAI.
+"""FlashinhoAgent implementation with PydanticAI.
 
-This module provides a DiscordAgent class that uses PydanticAI for LLM integration
+This module provides a FlashinhoAgent class that uses PydanticAI for LLM integration
 and inherits common functionality from AutomagikAgent.
 """
 import logging
 import traceback
-import os
 from typing import Dict, Any, Optional
 
 from pydantic_ai import Agent, RunContext
@@ -14,13 +13,7 @@ from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
 
-# Import Discord tools
-from src.tools.discord.tool import (
-    list_guilds_and_channels,
-    get_guild_info,
-    fetch_messages,
-    send_message
-)
+from src.tools.flashed.tool import get_user_data, get_user_score, get_user_roadmap, get_user_objectives, get_last_card_round, get_user_energy
 
 # Import only necessary utilities
 from src.agents.common.message_parser import (
@@ -38,15 +31,15 @@ from src.agents.common.dependencies_helper import (
 
 logger = logging.getLogger(__name__)
 
-class DiscordAgent(AutomagikAgent):
-    """DiscordAgent implementation using PydanticAI.
+class FlashinhoAgent(AutomagikAgent):
+    """FlashinhoAgent implementation using PydanticAI.
     
-    This agent provides Discord functionality that follows the PydanticAI
-    conventions for tool calling.
+    This agent provides a basic implementation that follows the PydanticAI
+    conventions for multimodal support and tool calling.
     """
     
     def __init__(self, config: Dict[str, str]) -> None:
-        """Initialize the DiscordAgent.
+        """Initialize the FlashinhoAgent.
         
         Args:
             config: Dictionary with configuration options
@@ -66,11 +59,6 @@ class DiscordAgent(AutomagikAgent):
         # PydanticAI-specific agent instance
         self._agent_instance: Optional[Agent] = None
         
-        # Get Discord bot token from config or environment variable
-        self.discord_bot_token = config.get("DISCORD_BOT_TOKEN") or os.environ.get("DISCORD_BOT_TOKEN")
-        if not self.discord_bot_token:
-            logger.warning("DISCORD_BOT_TOKEN not provided in config or environment variables")
-        
         # Configure dependencies
         self.dependencies = AutomagikAgentsDependencies(
             model_name=get_model_name(config=config),
@@ -89,7 +77,7 @@ class DiscordAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
-        logger.info("DiscordAgent initialized successfully")
+        logger.info("FlashinhoAgent initialized successfully")
     
     async def _initialize_pydantic_agent(self) -> None:
         """Initialize the underlying PydanticAI agent."""
@@ -103,11 +91,13 @@ class DiscordAgent(AutomagikAgent):
         # Convert tools to PydanticAI format
         tools = self.tool_registry.convert_to_pydantic_tools()
         
-        # Add Discord tools via wrappers
-        tools.append(self._create_list_guilds_wrapper())
-        tools.append(self._create_guild_info_wrapper())
-        tools.append(self._create_fetch_messages_wrapper())
-        tools.append(self._create_send_message_wrapper())
+        # Add external tools via wrappers
+        tools.append(self._create_get_user_data_wrapper())
+        tools.append(self._create_get_user_score_wrapper())
+        tools.append(self._create_get_user_roadmap_wrapper())
+        tools.append(self._create_get_user_objectives_wrapper())
+        tools.append(self._create_get_last_card_round_wrapper())
+        tools.append(self._create_get_user_energy_wrapper())
 
         logger.info(f"Prepared {len(tools)} tools for PydanticAI agent")
                     
@@ -125,98 +115,164 @@ class DiscordAgent(AutomagikAgent):
             logger.error(f"Failed to initialize agent: {str(e)}")
             raise
     
-    def _create_list_guilds_wrapper(self):
-        """Create a wrapper for the list_guilds_and_channels function.
+    def _create_get_user_data_wrapper(self):
+        """Create a wrapper for the get_user_data function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
         
         Returns:
-            A wrapped version of the list_guilds_and_channels function.
+            A wrapped version of the get_user_data function.
         """
-        # Capture references to required variables
-        bot_token = self.discord_bot_token
+        # Capture a reference to the context at creation time
+        agent_context = self.context
         
-        async def list_guilds_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
-            """Lists all guilds and channels the bot has access to.
+        async def get_user_data_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
                 
             Returns:
-                Dict with the guild and channel information
+                User data containing cadastro and metadata
             """
-            return await list_guilds_and_channels(ctx, bot_token)
+            # Use the captured context reference directly
+            return await get_user_data(agent_context)
             
-        return list_guilds_wrapper
+        return get_user_data_wrapper
 
-    def _create_guild_info_wrapper(self):
-        """Create a wrapper for the get_guild_info function.
+    def _create_get_user_score_wrapper(self):
+        """Create a wrapper for the get_user_score function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
         
         Returns:
-            A wrapped version of the get_guild_info function.
+            A wrapped version of the get_user_score function.
         """
-        # Capture references to required variables
-        bot_token = self.discord_bot_token
+        # Capture a reference to the context at creation time
+        agent_context = self.context
         
-        async def guild_info_wrapper(ctx: RunContext[AutomagikAgentsDependencies], guild_id: str) -> Dict[str, Any]:
-            """Retrieves information about a specific guild.
+        async def get_user_score_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user score data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                guild_id: ID of the guild to retrieve information for
                 
             Returns:
-                Dict with the guild information
+                - score: User score data
+                    - flashinhoEnergy: User's current energy
+                    - sequence: Study streak
+                    - dailyProgress: Daily progress percentage
             """
-            return await get_guild_info(ctx, bot_token, guild_id)
+            # Use the captured context reference directly
+            return await get_user_score(agent_context)
             
-        return guild_info_wrapper
+        return get_user_score_wrapper
 
-    def _create_fetch_messages_wrapper(self):
-        """Create a wrapper for the fetch_messages function.
+    def _create_get_user_roadmap_wrapper(self):
+        """Create a wrapper for the get_user_roadmap function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
         
         Returns:
-            A wrapped version of the fetch_messages function.
+            A wrapped version of the get_user_roadmap function.
         """
-        # Capture references to required variables
-        bot_token = self.discord_bot_token
+        # Capture a reference to the context at creation time
+        agent_context = self.context
         
-        async def fetch_messages_wrapper(ctx: RunContext[AutomagikAgentsDependencies], channel_id: str, limit: int = 100) -> Dict[str, Any]:
-            """Fetches messages from a specific channel.
+        async def get_user_roadmap_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user roadmap data from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                channel_id: ID of the channel to fetch messages from
-                limit: Maximum number of messages to retrieve
                 
             Returns:
-                Dict with the fetched messages
+                User roadmap data containing subjects and due date
             """
-            return await fetch_messages(ctx, bot_token, channel_id, limit)
+            # Use the captured context reference directly
+            return await get_user_roadmap(agent_context)
             
-        return fetch_messages_wrapper
+        return get_user_roadmap_wrapper
 
-    def _create_send_message_wrapper(self):
-        """Create a wrapper for the send_message function.
+    def _create_get_user_objectives_wrapper(self):
+        """Create a wrapper for the get_user_objectives function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
         
         Returns:
-            A wrapped version of the send_message function.
+            A wrapped version of the get_user_objectives function.
         """
-        # Capture references to required variables
-        bot_token = self.discord_bot_token
+        # Capture a reference to the context at creation time
+        agent_context = self.context
         
-        async def send_message_wrapper(ctx: RunContext[AutomagikAgentsDependencies], channel_id: str, content: str) -> Dict[str, Any]:
-            """Sends a message to a specific channel.
+        async def get_user_objectives_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user objectives from Flashed API.
             
             Args:
                 ctx: The run context with dependencies
-                channel_id: ID of the channel to send the message to
-                content: Content of the message to send
                 
             Returns:
-                Dict with information about the sent message
+                List of objectives ordered by completion date
             """
-            return await send_message(ctx, bot_token, channel_id, content)
+            # Use the captured context reference directly
+            return await get_user_objectives(agent_context)
             
-        return send_message_wrapper
+        return get_user_objectives_wrapper
+
+    def _create_get_last_card_round_wrapper(self):
+        """Create a wrapper for the get_last_card_round function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_last_card_round function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_last_card_round_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get last card round data from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                Last card round data with cards and round length
+            """
+            # Use the captured context reference directly
+            return await get_last_card_round(agent_context)
+            
+        return get_last_card_round_wrapper
+
+    def _create_get_user_energy_wrapper(self):
+        """Create a wrapper for the get_user_energy function that handles the context properly.
+        
+        This creates a custom wrapper that follows the PydanticAI expected format, 
+        ensuring the ctx parameter is handled correctly when the tool is called.
+        
+        Returns:
+            A wrapped version of the get_user_energy function.
+        """
+        # Capture a reference to the context at creation time
+        agent_context = self.context
+        
+        async def get_user_energy_wrapper(ctx: RunContext[AutomagikAgentsDependencies]) -> Dict[str, Any]:
+            """Get user energy value from Flashed API.
+            
+            Args:
+                ctx: The run context with dependencies
+                
+            Returns:
+                User energy data with current energy value
+            """
+            # Use the captured context reference directly
+            return await get_user_energy(agent_context)
+            
+        return get_user_energy_wrapper
         
     async def run(self, input_text: str, *, multimodal_content=None, system_message=None, message_history_obj: Optional[MessageHistory] = None,
                  channel_payload: Optional[Dict] = None,
@@ -228,28 +284,10 @@ class DiscordAgent(AutomagikAgent):
             multimodal_content: Optional multimodal content
             system_message: Optional system message for this run (ignored in favor of template)
             message_history_obj: Optional MessageHistory instance for DB storage
-            channel_payload: Optional channel payload, which might contain config
             
         Returns:
             AgentResponse object with result and metadata
         """
-        # Check for token in channel_payload (API calls will send it here)
-        if channel_payload and isinstance(channel_payload, dict):
-            config = channel_payload.get("config", {})
-            if isinstance(config, dict) and "DISCORD_BOT_TOKEN" in config:
-                token = config.get("DISCORD_BOT_TOKEN")
-                if token and isinstance(token, str):
-                    logger.info("Using Discord token from channel_payload")
-                    self.discord_bot_token = token
-        
-        # Validate token
-        if not self.discord_bot_token:
-            return AgentResponse(
-                text="Error: Discord bot token is required but was not provided",
-                success=False,
-                error_message="DISCORD_BOT_TOKEN is required"
-            )
-
         # Register the code-defined prompt if not already done
         await self._check_and_register_prompt()
         
@@ -270,7 +308,7 @@ class DiscordAgent(AutomagikAgent):
         
         # Prepare user input (handle multimodal content)
         user_input = input_text
-        
+        # hehe
         if multimodal_content:
             if hasattr(self.dependencies, 'configure_for_multimodal'):
                 self.dependencies.configure_for_multimodal(True)
@@ -328,14 +366,4 @@ class DiscordAgent(AutomagikAgent):
                 success=False,
                 error_message=str(e),
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
-            )
-
-
-def create_agent(config: Dict[str, str]) -> DiscordAgent:
-    """Factory function to create Discord agent."""
-    try:
-        return DiscordAgent(config)
-    except Exception as e:
-        logger.error(f"Failed to create Discord Agent: {str(e)}")
-        from src.agents.models.placeholder import PlaceholderAgent
-        return PlaceholderAgent(config)
+            ) 

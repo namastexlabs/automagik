@@ -138,9 +138,11 @@ Basic implementation demonstrating core patterns. Use as template for new agents
 
 ### Stan Agent
 Multi-state agent with different prompts based on user status:
-- `approved.py`, `pending_review.py`, `rejected.py` prompts
-- Dynamic prompt loading based on `user_status`
-- Specialized order and product tools
+- `approved.py`, `pending_review.py`, `rejected.py`, `verifying.py`, `not_registered.py` prompts
+- Dynamic prompt loading based on BlackPearl `status_aprovacao`
+- Specialized BlackPearl integration with contact management
+- Tools: `verificar_cnpj`, `product_agent`, `backoffice_agent`
+- **Recently refactored**: Now uses new framework-agnostic architecture with channel handlers
 
 ### Sofia Agent
 Meeting management agent with:

@@ -47,12 +47,14 @@ class AgentFactory:
         cls._agent_creators[name] = creator_fn
     
     @classmethod
-    def create_agent(cls, agent_type: str, config: Optional[Dict[str, str]] = None) -> AutomagikAgent:
+    def create_agent(cls, agent_type: str, config: Optional[Dict[str, str]] = None, 
+                    framework: Optional[str] = None) -> AutomagikAgent:
         """Create an agent of the specified type.
         
         Args:
             agent_type: The type of agent to create
             config: Optional configuration override
+            framework: Optional framework to use (e.g., 'pydanticai', 'agno')
             
         Returns:
             An initialized agent instance
@@ -63,11 +65,15 @@ class AgentFactory:
         if config is None:
             config = {}
             
-        logger.debug(f"Creating agent of type {agent_type}")
+        logger.debug(f"Creating agent of type {agent_type} with framework {framework}")
         
         # Default to simple agent
         if not agent_type:
             agent_type = "simple"
+        
+        # Set framework in config if provided
+        if framework:
+            config["framework_type"] = framework
         
         # Use agent type as-is, no normalization
         
@@ -94,45 +100,82 @@ class AgentFactory:
                 return PlaceholderAgent({"name": f"{agent_type}_error", "error": str(e)})
         
         # Try dynamic import for agent types not explicitly registered
-        try:
-            # Try to import from pydanticai agents folder
-            module_path = f"src.agents.pydanticai.{agent_type}"
-            module = importlib.import_module(module_path)
-            
-            if hasattr(module, "create_agent"):
-                agent = module.create_agent(config)
-                # Register for future use
-                cls.register_agent_creator(agent_type, module.create_agent)
-                logger.debug(f"Successfully created {agent_type} agent via dynamic import")
-                return agent
-        except ImportError:
-            logger.warning(f"Could not import agent module for {agent_type}")
-        except Exception as e:
-            logger.error(f"Error dynamically creating agent {agent_type}: {str(e)}")
-            logger.error(traceback.format_exc())
-            return PlaceholderAgent({"name": f"{agent_type}_error", "error": str(e)})
+        frameworks_to_try = []
+        
+        # If framework is specified, try that first
+        if framework:
+            frameworks_to_try.append(framework)
+        
+        # Add default frameworks to try
+        default_frameworks = ["pydanticai", "agno", "claude_code"]
+        for fw in default_frameworks:
+            if fw not in frameworks_to_try:
+                frameworks_to_try.append(fw)
+                
+        for fw in frameworks_to_try:
+            try:
+                if fw == "claude_code":
+                    # Special case for single-module claude_code agent
+                    module_path = f"src.agents.{fw}"
+                else:
+                    # Framework directory structure
+                    module_path = f"src.agents.{fw}.{agent_type}"
+                    
+                module = importlib.import_module(module_path)
+                
+                if hasattr(module, "create_agent"):
+                    agent = module.create_agent(config)
+                    # Register for future use with framework prefix for uniqueness
+                    if fw == "claude_code":
+                        cls.register_agent_creator(fw, module.create_agent)
+                    else:
+                        cls.register_agent_creator(f"{fw}.{agent_type}", module.create_agent)
+                        # Also register without framework prefix for backward compatibility
+                        if agent_type not in cls._agent_creators:
+                            cls.register_agent_creator(agent_type, module.create_agent)
+                    logger.debug(f"Successfully created {agent_type} agent from {fw} framework via dynamic import")
+                    return agent
+            except ImportError:
+                logger.debug(f"Could not import {agent_type} from {fw} framework")
+                continue
+            except Exception as e:
+                logger.error(f"Error dynamically creating agent {agent_type} from {fw}: {str(e)}")
+                continue
+                
+        logger.warning(f"Could not import agent module for {agent_type} from any framework")
                 
         # Unknown agent type
         logger.error(f"Unknown agent type: {agent_type}")
         return PlaceholderAgent({"name": "unknown_agent_type", "error": f"Unknown agent type: {agent_type}"})
         
     @classmethod
-    def discover_agents(cls) -> None:
-        """Discover available agents in the pydanticai and claude_code folders.
+    def discover_agents(cls, framework: Optional[str] = None) -> None:
+        """Discover available agents in framework directories.
         
-        This method automatically scans the src/agents/pydanticai and src/agents/claude_code
-        directories for agent modules and registers them with the factory.
-        
-        Note: As of NMSTX-230, all orchestration is handled by the PydanticAI Genie agent
-        which includes embedded LangGraph functionality for workflow orchestration.
+        Args:
+            framework: Optional specific framework to discover, or None for all
         """
-        logger.info("Discovering agents in pydanticai and claude_code folders")
+        # Framework directories to scan
+        framework_directories = ["pydanticai", "agno", "langgraph"]
+        frameworks_to_scan = [framework] if framework else framework_directories
         
-        # Discover pydanticai agents (includes genie with embedded LangGraph)
-        cls._discover_agents_in_directory("pydanticai")
+        for fw in frameworks_to_scan:
+            logger.info(f"Discovering agents in {fw} framework")
+            cls._discover_agents_in_directory(fw)
         
-        # Discover claude_code agent (single module, not directory of agents)
+        # Also discover claude_code agent (single module)
         cls._discover_single_agent("claude_code")
+        
+        # Scan deprecated simple directory for backward compatibility
+        simple_dir = Path(os.path.dirname(os.path.dirname(__file__))) / "simple"
+        if simple_dir.exists():
+            logger.warning("Found deprecated simple directory - agents should be migrated to framework directories")
+            try:
+                # Import the deprecation shim which re-exports agents
+                importlib.import_module("src.agents.simple")
+                logger.info("Loaded simple directory deprecation shim")
+            except Exception as e:
+                logger.error(f"Error loading simple directory: {e}")
     
     @classmethod
     def _discover_single_agent(cls, agent_name: str) -> None:
@@ -202,6 +245,67 @@ class AgentFactory:
                 agents.append(name)
         
         return agents
+        
+    @classmethod
+    def get_default_agent(cls, framework: str, config: Optional[Dict[str, str]] = None) -> AutomagikAgent:
+        """Get the default agent for a specific framework.
+        
+        Args:
+            framework: The framework name (e.g., 'pydanticai', 'agno')
+            config: Optional configuration override
+            
+        Returns:
+            Default agent instance for the framework
+        """
+        if config is None:
+            config = {}
+            
+        # Set framework in config
+        config["framework_type"] = framework
+        
+        # Define default agents per framework
+        default_agents = {
+            "pydanticai": "simple",
+            "agno": "simple",  # Fallback to simple if agno doesn't have its own
+            "claude_code": "claude_code",
+            "langchain": "simple",  # Future framework
+            "langgraph": "simple"   # Future framework
+        }
+        
+        default_agent_type = default_agents.get(framework, "simple")
+        logger.debug(f"Getting default agent '{default_agent_type}' for framework '{framework}'")
+        
+        return cls.create_agent(default_agent_type, config, framework)
+        
+    @classmethod
+    def list_agents_by_framework(cls) -> Dict[str, List[str]]:
+        """List available agents grouped by framework.
+        
+        Returns:
+            Dictionary mapping framework names to lists of agent names
+        """
+        agents_by_framework = {}
+        
+        # Discover agents if not already done
+        cls.discover_agents()
+        
+        # Group registered agents by framework
+        for agent_name in cls._agent_creators.keys():
+            if "." in agent_name:
+                # Framework-prefixed agent (e.g., "pydanticai.simple")
+                framework, agent = agent_name.split(".", 1)
+                if framework not in agents_by_framework:
+                    agents_by_framework[framework] = []
+                if agent not in agents_by_framework[framework]:
+                    agents_by_framework[framework].append(agent)
+            else:
+                # Non-prefixed agent - add to pydanticai (default framework)
+                if "pydanticai" not in agents_by_framework:
+                    agents_by_framework["pydanticai"] = []
+                if agent_name not in agents_by_framework["pydanticai"]:
+                    agents_by_framework["pydanticai"].append(agent_name)
+                    
+        return agents_by_framework
         
     @classmethod
     def get_agent(cls, agent_name: str) -> AutomagikAgent:

@@ -148,23 +148,27 @@ class ToolRegistry:
         Args:
             context: Context dictionary for tool execution
         """
-        # Import date/time tools
-        from src.tools.datetime import get_current_date_tool, get_current_time_tool, format_date_tool
+        # Import date/time tools (use raw functions, not Tool instances)
+        from src.tools.datetime.tool import get_current_date, get_current_time, format_date
         
         # Register date/time tools
-        self.register_tool(get_current_date_tool)
-        self.register_tool(get_current_time_tool)
-        self.register_tool(format_date_tool)
+        self.register_tool(get_current_date)
+        self.register_tool(get_current_time)
+        self.register_tool(format_date)
         
         # Import and register memory tools
         _import_memory_tools()
         
         if context:
+            # Import RunContext for proper PydanticAI annotations
+            from pydantic_ai import RunContext
+            
             # Create and register wrapper for store_memory_tool that includes the context
-            async def store_memory_wrapper(key: str, content: str) -> str:
+            async def store_memory_wrapper(ctx: RunContext[Dict], key: str, content: str) -> str:
                 """Store a memory with the given key.
                 
                 Args:
+                    ctx: PydanticAI run context (required for PydanticAI tools)
                     key: The key to store the memory under
                     content: The memory content to store
                     
@@ -174,10 +178,11 @@ class ToolRegistry:
                 return await store_memory_tool(context, key, content)
             
             # Create and register wrapper for get_memory_tool that includes the context
-            async def get_memory_wrapper(key: str) -> Any:
+            async def get_memory_wrapper(ctx: RunContext[Dict], key: str) -> Any:
                 """Retrieve a memory with the given key.
                 
                 Args:
+                    ctx: PydanticAI run context (required for PydanticAI tools)
                     key: The key to retrieve the memory with
                     
                 Returns:
@@ -186,10 +191,11 @@ class ToolRegistry:
                 return await get_memory_tool(context, key)
             
             # Create and register wrapper for list_memories_tool
-            async def list_memories_wrapper(prefix: Optional[str] = None) -> str:
+            async def list_memories_wrapper(ctx: RunContext[Dict], prefix: Optional[str] = None) -> str:
                 """List all available memories, optionally filtered by prefix.
                 
                 Args:
+                    ctx: PydanticAI run context (required for PydanticAI tools)
                     prefix: Optional prefix to filter memory keys
                     
                 Returns:
@@ -220,6 +226,80 @@ class ToolRegistry:
             self.register_tool(list_memories_tool)
             
         logger.debug("Default tools registered")
+    
+    def register_evolution_tools(self, context: Dict[str, Any]) -> None:
+        """Register Evolution WhatsApp tools.
+        
+        Args:
+            context: Agent context containing necessary information
+        """
+        try:
+            # Import Evolution tools
+            from src.tools.evolution.tool import send_reaction as _send_reaction, send_message as _send_message
+            from pydantic_ai import RunContext
+            
+            # Create context-aware wrappers
+            async def send_reaction(ctx: RunContext[Dict], remote_jid: str, message_id: str, emoji: str = "👍") -> Dict[str, Any]:
+                """Send a reaction emoji to a specific message.
+                
+                Args:
+                    ctx: PydanticAI run context (required for PydanticAI tools)
+                    remote_jid: The remote JID (WhatsApp chat ID)
+                    message_id: The ID of the message to react to
+                    emoji: The emoji to send as reaction
+                    
+                Returns:
+                    Dictionary with success status and result/error info
+                """
+                try:
+                    result = await _send_reaction(ctx, remote_jid, message_id, emoji)
+                    return result if isinstance(result, dict) else {"success": True, "message": "Reaction sent successfully"}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+            
+            async def send_text_message(ctx: RunContext[Dict], phone: str, message: str) -> Dict[str, Any]:
+                """Send a text message via Evolution API.
+                
+                Args:
+                    ctx: PydanticAI run context (required for PydanticAI tools)
+                    phone: Phone number to send message to
+                    message: Message content
+                    
+                Returns:
+                    Dictionary with success status and result/error info
+                """
+                try:
+                    result = await _send_message(ctx, phone, message)
+                    return result if isinstance(result, dict) else {"success": True, "message": "Message sent successfully"}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+            
+            # Register the wrappers
+            self.register_tool(send_reaction)
+            self.register_tool(send_text_message)
+            
+            # Also register with alias that tests expect  
+            async def send_text_to_user(ctx: RunContext[Dict], phone: str, message: str) -> Dict[str, Any]:
+                """Send a text message to user via Evolution API (alias for send_text_message).
+                
+                Args:
+                    ctx: PydanticAI run context (required for PydanticAI tools)
+                    phone: Phone number to send message to
+                    message: Message content
+                    
+                Returns:
+                    Dictionary with success status and result/error info
+                """
+                return await send_text_message(ctx, phone, message)
+            
+            self.register_tool(send_text_to_user)
+            
+            logger.debug("Evolution tools registered")
+            
+        except ImportError as e:
+            logger.warning(f"Could not import Evolution tools: {e}")
+        except Exception as e:
+            logger.error(f"Error registering Evolution tools: {e}")
     
     async def register_mcp_tools(self, agent_name: str) -> None:
         """Register MCP tools for a specific agent.
@@ -325,11 +405,15 @@ class ToolRegistry:
         
         # Re-register wrappers for memory tools with the updated context
         if store_memory_tool and get_memory_tool and list_memories_tool:
-            # Create wrapper for store_memory_tool
-            async def store_memory_wrapper(key: str, content: str) -> str:
+            # Import RunContext for proper type annotation
+            from pydantic_ai import RunContext
+            
+            # Create wrapper for store_memory_tool with proper RunContext annotation
+            async def store_memory_wrapper(ctx: RunContext[Dict], key: str, content: str) -> str:
                 """Store a memory with the given key.
                 
                 Args:
+                    ctx: The run context
                     key: The key to store the memory under
                     content: The memory content to store
                     
@@ -338,11 +422,12 @@ class ToolRegistry:
                 """
                 return await store_memory_tool(new_context, key, content)
                 
-            # Create wrapper for get_memory_tool  
-            async def get_memory_wrapper(key: str) -> Any:
+            # Create wrapper for get_memory_tool with proper RunContext annotation
+            async def get_memory_wrapper(ctx: RunContext[Dict], key: str) -> Any:
                 """Retrieve a memory with the given key.
                 
                 Args:
+                    ctx: The run context
                     key: The key to retrieve the memory with
                     
                 Returns:
@@ -350,8 +435,8 @@ class ToolRegistry:
                 """
                 return await get_memory_tool(new_context, key)
             
-            # Create wrapper for list_memories_tool
-            async def list_memories_wrapper(prefix: Optional[str] = None) -> str:
+            # Create wrapper for list_memories_tool with proper RunContext annotation
+            async def list_memories_wrapper(ctx: RunContext[Dict], prefix: Optional[str] = None) -> str:
                 """List all available memories, optionally filtered by prefix.
                 
                 Args:

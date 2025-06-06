@@ -329,13 +329,3 @@ class DiscordAgent(AutomagikAgent):
                 error_message=str(e),
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
             )
-
-
-def create_agent(config: Dict[str, str]) -> DiscordAgent:
-    """Factory function to create Discord agent."""
-    try:
-        return DiscordAgent(config)
-    except Exception as e:
-        logger.error(f"Failed to create Discord Agent: {str(e)}")
-        from src.agents.models.placeholder import PlaceholderAgent
-        return PlaceholderAgent(config)
