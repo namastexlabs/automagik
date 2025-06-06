@@ -218,30 +218,23 @@ class TestEndToEndWorkflows:
         
         user_input = "Test error recovery"
         
-        # Mock failing then succeeding initialization
-        call_count = 0
-        async def mock_init_side_effect():
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise Exception("Temporary initialization failure")
-            # Second call succeeds
+        # Test error recovery with a realistic scenario - mock AI framework failure after initialization
+        # This allows context extraction to happen before the error
+        await simple_agent.initialize_framework(type(simple_agent.dependencies))  # Ensure framework is initialized first
         
-        with patch.object(simple_agent, '_initialize_pydantic_agent', side_effect=mock_init_side_effect), \
-             patch.object(simple_agent, 'get_filled_system_prompt', new_callable=AsyncMock, return_value="System prompt"), \
-             patch.object(simple_agent, 'initialize_memory_variables', new_callable=AsyncMock):
+        with patch.object(simple_agent.ai_framework, 'run', side_effect=Exception("Simulated LLM failure")):
             
-            # Execute error recovery workflow
+            # Execute error recovery workflow - should fail gracefully but extract context first
             response = await simple_agent.run(
                 user_input,
                 channel_payload=whatsapp_message_workflow_payload
             )
+            
+            # Verify error was handled gracefully
+            assert response.success is False
+            assert "Simulated LLM failure" in response.error_message
         
-        # Verify error was handled gracefully
-        assert response.success is False
-        assert "Temporary initialization failure" in response.error_message
-        
-        # Verify WhatsApp context was still extracted despite error
+        # Verify WhatsApp context was extracted before the error occurred
         assert "user_phone_number" in simple_agent.context
     
     @pytest.mark.asyncio

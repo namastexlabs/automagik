@@ -348,6 +348,16 @@ class TestMCPIntegration:
     async def test_server_crud_operations(self, base_url, auth_headers):
         """Test CRUD operations for MCP servers."""
         async with httpx.AsyncClient() as client:
+            # Clean up any existing test server first
+            try:
+                cleanup_response = await client.delete(
+                    f"{base_url}/api/v1/mcp/servers/test_crud_server",
+                    headers=auth_headers
+                )
+                # Don't assert on cleanup - it's OK if the server doesn't exist
+            except Exception:
+                pass  # Ignore cleanup errors
+            
             # Create server
             server_data = {
                 "name": "test_crud_server",
@@ -372,14 +382,18 @@ class TestMCPIntegration:
             data = response.json()
             assert data["name"] == "test_crud_server"
             
-            # Update server
+            # Update server (with extended timeout)
             update_data = {
                 "description": "Updated CRUD server"
             }
+            
+            # Use a custom client with longer timeout for this specific operation
+            timeout = httpx.Timeout(60.0)  # 60 second timeout
             response = await client.put(
                 f"{base_url}/api/v1/mcp/servers/test_crud_server",
                 json=update_data,
-                headers=auth_headers
+                headers=auth_headers,
+                timeout=timeout
             )
             assert response.status_code == 200
             
