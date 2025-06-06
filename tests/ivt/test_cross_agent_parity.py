@@ -226,23 +226,32 @@ class TestCrossAgentParity:
     async def test_error_handling_consistency(self, simple_agent, sofia_agent):
         """Test that both agents handle errors consistently."""
         
-        # Mock initialization failure
-        with patch.object(simple_agent, '_initialize_pydantic_agent', side_effect=Exception("Test error")):
+        # Test both agents handle errors gracefully by mocking LLM failure
+        from unittest.mock import AsyncMock
+        
+        # Mock LLM to raise an exception
+        mock_error = Exception("Simulated LLM failure")
+        
+        # Ensure agents are initialized first
+        await simple_agent.initialize_framework(type(simple_agent.dependencies))
+        await sofia_agent.initialize_framework(type(sofia_agent.dependencies))
+        
+        # Test SimpleAgent error handling
+        with patch.object(simple_agent.ai_framework, 'run', side_effect=mock_error):
             simple_response = await simple_agent.run("Test input")
             assert simple_response.success is False
-            assert "Test error" in simple_response.error_message
+            assert "Simulated LLM failure" in simple_response.error_message
         
-        # Mock initialization failure for Sofia (with semaphore)
-        with patch.object(sofia_agent, '_initialize_pydantic_agent', side_effect=Exception("Test error")):
+        # Test Sofia agent error handling  
+        with patch.object(sofia_agent.ai_framework, 'run', side_effect=mock_error):
             sofia_response = await sofia_agent.run("Test input")
             assert sofia_response.success is False
-            assert "Test error" in sofia_response.error_message
+            assert "Simulated LLM failure" in sofia_response.error_message
         
-        # Both should return AgentResponse objects even on failure
-        assert hasattr(simple_response, 'success')
-        assert hasattr(simple_response, 'error_message')
-        assert hasattr(sofia_response, 'success')
-        assert hasattr(sofia_response, 'error_message')
+        # Both should return AgentResponse objects with consistent error structure
+        assert isinstance(simple_response, type(sofia_response))
+        assert hasattr(simple_response, 'success') and hasattr(sofia_response, 'success')
+        assert hasattr(simple_response, 'error_message') and hasattr(sofia_response, 'error_message')
     
     def test_memory_integration_structure(self, simple_agent, sofia_agent):
         """Test that both agents have consistent memory integration."""

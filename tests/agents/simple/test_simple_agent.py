@@ -24,27 +24,31 @@ class TestSimpleAgent:
         assert agent.dependencies is not None
         assert agent.tool_registry is not None
     
-    def test_agent_has_mcp_loading_method(self, basic_config):
-        """Test that Simple agent has MCP loading capability."""
+    def test_agent_has_framework_integration(self, basic_config):
+        """Test that Simple agent has framework integration capability."""
         agent = SimpleAgent(basic_config)
-        assert hasattr(agent, '_load_mcp_servers')
-        assert callable(getattr(agent, '_load_mcp_servers'))
+        # MCP loading is now handled by the framework
+        assert hasattr(agent, 'ai_framework')
+        assert hasattr(agent, 'framework_type')
+        from src.agents.models.framework_types import FrameworkType
+        assert agent.framework_type == FrameworkType.PYDANTIC_AI.value
     
     @pytest.mark.asyncio
-    async def test_mcp_servers_loading(self, basic_config):
-        """Test that MCP servers can be loaded without errors."""
+    async def test_framework_initialization(self, basic_config):
+        """Test that framework can be initialized without errors."""
         agent = SimpleAgent(basic_config)
-        # This should not fail even if no MCP servers are configured
-        servers = await agent._load_mcp_servers()
-        assert isinstance(servers, list)
+        # Framework initialization is now handled internally
+        # Just test that the agent can prepare for framework use
+        assert not agent.is_framework_ready  # Should be False before initialization
+        assert agent.dependencies is not None
     
     @pytest.mark.asyncio
-    async def test_agent_initialization_async(self, basic_config):
-        """Test that agent can be initialized asynchronously."""
+    async def test_agent_run_method(self, basic_config):
+        """Test that agent has a working run method."""
         agent = SimpleAgent(basic_config)
-        # Should not raise an exception
-        await agent._initialize_pydantic_agent()
-        assert agent._agent_instance is not None
+        # Agent should have a run method that delegates to framework
+        assert hasattr(agent, 'run')
+        assert callable(getattr(agent, 'run'))
 
 
 class TestSimpleAgentFeatures:
@@ -58,12 +62,12 @@ class TestSimpleAgentFeatures:
             "model_provider": "openai"
         }
     
-    def test_agent_has_mcp_integration(self, agent_config):
-        """Test that Simple agent has MCP integration features."""
+    def test_agent_has_framework_integration(self, agent_config):
+        """Test that Simple agent has framework integration features."""
         agent = SimpleAgent(agent_config)
-        # Check for MCP-related methods
-        assert hasattr(agent, '_load_mcp_servers')
-        assert hasattr(agent, '_initialize_pydantic_agent')
+        # Check for framework-related methods
+        assert hasattr(agent, 'initialize_framework')
+        assert hasattr(agent, 'is_framework_ready')
         
     def test_agent_has_retry_logic_imports(self, agent_config):
         """Test that Simple agent has the imports needed for retry logic."""
@@ -82,8 +86,7 @@ class TestSimpleAgentFeatures:
         run_sig = inspect.signature(agent.run)
         assert 'multimodal_content' in run_sig.parameters
         
-        # Check that the run method contains multimodal processing logic
-        source = inspect.getsource(agent.run)
-        assert '_convert_image_payload_to_pydantic' in source
-        assert 'ImageUrl' in source
-        assert 'pydantic_ai_input_list' in source 
+        # Check that the framework provides multimodal processing
+        assert hasattr(agent, '_run_agent')
+        framework_sig = inspect.signature(agent._run_agent)
+        assert 'multimodal_content' in framework_sig.parameters 
