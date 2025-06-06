@@ -30,7 +30,8 @@ class TestSimpleAgent:
         # MCP loading is now handled by the framework
         assert hasattr(agent, 'ai_framework')
         assert hasattr(agent, 'framework_type')
-        assert agent.framework_type == "pydantic_ai"
+        from src.agents.models.framework_types import FrameworkType
+        assert agent.framework_type == FrameworkType.PYDANTIC_AI.value
     
     @pytest.mark.asyncio
     async def test_framework_initialization(self, basic_config):
