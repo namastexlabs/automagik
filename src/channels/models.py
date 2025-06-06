@@ -1,3 +1,8 @@
+"""Channel models for Evolution and other messaging platforms.
+
+This module contains shared models for channel payload processing,
+moved from agent-specific locations to centralized channel handling.
+"""
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, model_validator
 from datetime import datetime
@@ -35,6 +40,7 @@ class Message(BaseModel):
     conversation: Optional[str] = None
     messageContextInfo: Optional[MessageContextInfo] = None
 
+
 class WhatsAppData(BaseModel):
     key: MessageKey
     source: Optional[str] = None
@@ -48,6 +54,11 @@ class WhatsAppData(BaseModel):
 
 
 class EvolutionMessagePayload(BaseModel):
+    """Evolution API message payload model.
+    
+    Centralized model for WhatsApp/Evolution message processing,
+    moved from Stan agent to shared channel models.
+    """
     data: WhatsAppData
     event: str
     apikey: Optional[str] = None
