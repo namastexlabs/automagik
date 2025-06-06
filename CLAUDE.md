@@ -359,10 +359,32 @@ RESEARCH = "f7bf2f0f-1a55-4a3d-bc61-783ebb3b3f6e"
 
 ## 🏗️ Architecture & Patterns
 
+### Framework-Agnostic Architecture
+
+The agent system is built with a framework-agnostic architecture supporting multiple AI frameworks:
+
+```
+src/agents/
+├── models/                    # Core framework code
+│   ├── automagik_agent.py    # Base agent class with framework abstraction
+│   ├── ai_frameworks/        # AI framework adapters
+│   │   ├── base.py          # Framework interface
+│   │   ├── pydantic_ai.py   # PydanticAI implementation
+│   │   └── future_frameworks.py  # LangChain, Agno, etc.
+│   └── agent_factory.py     # Multi-framework agent discovery
+├── pydanticai/               # PydanticAI agents (current production)
+├── agno/                     # Agno framework agents (future)
+├── claude_code/              # Claude Code workflow agent
+└── channels/                 # Channel handlers (WhatsApp, Discord, etc.)
+    ├── base.py              # Channel interface
+    ├── evolution.py         # WhatsApp/Evolution handler
+    └── registry.py          # Auto-detection system
+```
+
 ### Agent Structure
 All agents must follow this structure:
 ```
-src/agents/pydanticai/agent_name/
+src/agents/{framework}/agent_name/
 ├── __init__.py          # Factory function: create_agent()
 ├── agent.py             # Main class extending AutomagikAgent
 ├── prompts/
@@ -379,27 +401,38 @@ src/agents/pydanticai/agent_name/
 automagik agents create -n new_agent -t simple
 ```
 
-2. **Manual creation**:
+2. **Framework-specific creation**:
+```python
+# For PydanticAI agents (default)
+from src.agents.models.agent_factory import AgentFactory
+agent = AgentFactory.create_agent("simple", framework="pydanticai")
+
+# For future frameworks
+agent = AgentFactory.create_agent("simple", framework="agno")
+default_agent = AgentFactory.get_default_agent("pydanticai")
+```
+
+3. **Manual creation**:
 ```python
 # agent.py
 from src.agents.models.automagik_agent import AutomagikAgent
-from src.agents.models.dependencies import AutomagikAgentsDependencies
 from .prompts.prompt import AGENT_PROMPT
 
 class NewAgent(AutomagikAgent):
     def __init__(self, config: Dict[str, str]) -> None:
-        super().__init__(config)
+        super().__init__(config, framework_type="pydanticai")
         self._code_prompt_text = AGENT_PROMPT
-        self.dependencies = AutomagikAgentsDependencies(
-            model_name=get_model_name(config),
-            model_settings=parse_model_settings(config)
-        )
+        
+        # Set dependencies using the convenience method
+        self.dependencies = self.create_default_dependencies()
+        
+        # Register default tools (now handled automatically by framework)
         self.tool_registry.register_default_tools(self.context)
 ```
 
 ### Tool Registration
 ```python
-# Register default tools
+# Register default tools (handled automatically by framework)
 self.tool_registry.register_default_tools(self.context)
 
 # Register custom tool
@@ -407,6 +440,49 @@ self.tool_registry.register_default_tools(self.context)
 async def my_custom_tool(ctx: RunContext, param: str) -> str:
     """Tool description"""
     return f"Result: {param}"
+```
+
+### Channel Handler System
+
+The framework includes a channel handler system for omnichannel support:
+
+```python
+# Channel handlers are automatically detected and used
+from src.channels.registry import get_channel_handler
+
+# WhatsApp/Evolution example
+handler = await get_channel_handler(channel_payload=whatsapp_payload)
+# Returns EvolutionHandler with WhatsApp-specific tools and processing
+
+# Handlers provide:
+# - preprocess_in(): Extract channel-specific context 
+# - postprocess_out(): Format responses for channel limits
+# - get_tools(): Channel-specific tools (send_text, send_media, etc.)
+# - validate_payload(): Auto-detect channel type
+```
+
+**Supported Channels**:
+- ✅ **WhatsApp** (via Evolution API) - Full support with media, groups, contacts
+- 🔄 **Discord** (future) - Planned channel handler
+- 🔄 **Telegram** (future) - Planned channel handler
+
+**Creating Channel Handlers**:
+```python
+# src/channels/my_channel.py
+from src.channels.base import ChannelHandler
+
+class MyChannelHandler(ChannelHandler):
+    async def preprocess_in(self, input_text, channel_payload, context):
+        # Extract channel-specific user info, metadata
+        return {"input_text": input_text, "context": context}
+    
+    async def postprocess_out(self, response, context):
+        # Format for channel (length limits, special formatting)
+        return response
+    
+    def get_tools(self):
+        # Return channel-specific tools
+        return [my_channel_send_tool, my_channel_delete_tool]
 ```
 
 ### Memory Integration
@@ -425,9 +501,23 @@ Recent context: {{recent_messages}}
 am-agents-labs/
 ├── src/
 │   ├── agents/
-│   │   ├── models/           # Base classes (AutomagikAgent)
-│   │   ├── pydanticai/       # All PydanticAI agents
-│   │   └── common/           # Shared utilities
+│   │   ├── models/           # Framework-agnostic core
+│   │   │   ├── automagik_agent.py      # Base agent class
+│   │   │   ├── ai_frameworks/          # AI framework adapters
+│   │   │   │   ├── base.py            # Framework interface
+│   │   │   │   ├── pydantic_ai.py     # PydanticAI adapter
+│   │   │   │   └── future.py          # Future frameworks
+│   │   │   ├── agent_factory.py       # Multi-framework discovery
+│   │   │   └── state_manager.py       # State management
+│   │   ├── pydanticai/       # PydanticAI agents (production)
+│   │   ├── agno/             # Agno framework (future)
+│   │   ├── claude_code/      # Claude Code workflows
+│   │   ├── common/           # Shared utilities
+│   │   └── simple/           # Deprecated (shim to pydanticai)
+│   ├── channels/             # Channel handlers
+│   │   ├── base.py          # Channel interface
+│   │   ├── evolution.py     # WhatsApp/Evolution
+│   │   └── registry.py      # Auto-detection
 │   ├── api/                  # FastAPI routes
 │   ├── db/                   # Database layer
 │   ├── tools/                # Tool implementations

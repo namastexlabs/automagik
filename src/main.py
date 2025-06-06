@@ -72,9 +72,14 @@ def signal_handler(signum, frame):
     force_exit_thread = threading.Thread(target=force_exit, daemon=True)
     force_exit_thread.start()
 
-# Register signal handlers
-signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
-signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
+def register_signal_handlers():
+    """Register signal handlers for graceful shutdown.
+    
+    This function should only be called when running as the main application,
+    not during imports or tests.
+    """
+    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
 
 async def initialize_all_agents():
     """Initialize agents at startup.
@@ -94,14 +99,38 @@ async def initialize_all_agents():
         available_agents = AgentFactory.list_available_agents()
         logger.info(f"Found {len(available_agents)} available agents: {', '.join(available_agents)}")
         
+        # Import database functions
+        from src.db.repository.agent import create_agent, get_agent_by_name, list_agents, update_agent
+        from src.db.models import Agent
+        
+        # Register discovered agents in database if they don't exist
+        registered_count = 0
+        for agent_name in available_agents:
+            existing_agent = get_agent_by_name(agent_name)
+            if not existing_agent:
+                # Create new agent in database
+                from src.agents.models.framework_types import FrameworkType
+                new_agent = Agent(
+                    name=agent_name,
+                    type=FrameworkType.default().value,  # Use enum for consistency
+                    model="openai:gpt-4o",  # Default model
+                    config={"created_by": "auto_discovery"},
+                    description=f"Auto-discovered {agent_name} agent",
+                    active=True  # Default to active
+                )
+                create_agent(new_agent)
+                registered_count += 1
+                logger.info(f"📝 Registered new agent in database: {agent_name}")
+        
+        if registered_count > 0:
+            logger.info(f"✅ Registered {registered_count} new agents in database")
+        
         # Handle AM_AGENTS_NAMES to update active status in database
         if settings.AM_AGENTS_NAMES:
             # Parse comma-separated list of agent names
             specified_agents = [name.strip() for name in settings.AM_AGENTS_NAMES.split(',')]
             logger.info(f"🔧 AM_AGENTS_NAMES environment variable specified: {', '.join(specified_agents)}")
             
-            # Import database functions
-            from src.db.repository.agent import list_agents, get_agent_by_name, update_agent
             
             # First, deactivate all agents
             all_db_agents = list_agents(active_only=False)
@@ -233,7 +262,7 @@ def create_app() -> FastAPI:
                 logger.info("🚀 Initializing Graphiti indices and constraints...")
                 # Import the client asynchronously with retry logic
                 try:
-                    from src.agents.models.automagik_agent import get_graphiti_client_async
+                    from src.utils.graphiti_queue import get_graphiti_client_async
                     
                     # Initialize the shared client with retry logic - faster for development
                     # Use shorter delays in development to make interruption more responsive
@@ -519,6 +548,9 @@ if __name__ == "__main__":
     
     # Parse arguments
     args = parser.parse_args()
+    
+    # Register signal handlers only when running as main application
+    register_signal_handlers()
     
     # Log the configuration
     logger.info("Starting server with configuration:")
