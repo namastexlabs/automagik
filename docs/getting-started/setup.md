@@ -92,7 +92,14 @@ AM_PORT=8881
 AM_HOST=0.0.0.0
 AM_ENV=development
 
-# Database Configuration (for local development)
+# Database Configuration
+# DATABASE_TYPE can be "sqlite" (default) or "postgresql"
+DATABASE_TYPE=sqlite
+
+# SQLite Configuration (default, no additional setup required)
+SQLITE_DATABASE_PATH=./data/automagik_agents.db
+
+# PostgreSQL Configuration (optional, for production use)
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/automagik_agents"
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
@@ -122,13 +129,49 @@ ANTHROPIC_API_KEY=
 
 ### 2. Database Setup
 
+The framework supports both SQLite (default) and PostgreSQL databases:
+
+#### SQLite (Recommended for Development)
+
+SQLite is the default database and requires no additional setup:
+
 ```bash
+# Initialize SQLite database (automatic)
+make db-init
+```
+
+The SQLite database file will be created automatically at `./data/automagik_agents.db`.
+
+**Advantages:**
+- ✅ Zero configuration required
+- ✅ Single file database
+- ✅ Perfect for development and testing
+- ✅ Fast and lightweight
+
+#### PostgreSQL (Recommended for Production)
+
+For production deployments or when you need advanced database features:
+
+```bash
+# Set DATABASE_TYPE=postgresql in your .env file
+echo "DATABASE_TYPE=postgresql" >> .env
+
 # Install and start PostgreSQL
 make install-postgres
 
 # Initialize database
 make db-init
+```
 
+**Advantages:**
+- ✅ Robust production database
+- ✅ Advanced features (full-text search, JSON operations)
+- ✅ Better concurrent access
+- ✅ Scalable for large deployments
+
+#### Optional: Graph Database Services
+
+```bash
 # Optional: Install graph services
 make install-neo4j      # Neo4j database
 make install-graphiti   # Graphiti service

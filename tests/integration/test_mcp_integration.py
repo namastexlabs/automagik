@@ -3,9 +3,16 @@
 import pytest
 import httpx
 import uuid
+import os
 from unittest.mock import patch, AsyncMock
 
 from src.config import settings
+
+# Skip integration tests if server is not available
+skip_if_server_unavailable = pytest.mark.skipif(
+    not os.environ.get("AM_API_KEY") or not os.environ.get("AM_INTEGRATION_SERVER_RUNNING"),
+    reason="Integration server not running or AM_API_KEY not set"
+)
 
 
 class TestMCPIntegration:
@@ -32,6 +39,7 @@ class TestMCPIntegration:
         created_servers = []
         return created_servers
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_configure_calculator_server(self, base_url, auth_headers, unique_server_name, cleanup_servers):
         """Test configuring a calculator MCP server using the expected JSON format."""
@@ -77,6 +85,7 @@ class TestMCPIntegration:
                     # Ignore cleanup errors
                     pass
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_server_lifecycle_operations(self, base_url, auth_headers, unique_server_name, cleanup_servers):
         """Test MCP server lifecycle operations."""
@@ -133,6 +142,7 @@ class TestMCPIntegration:
                     # Ignore cleanup errors
                     pass
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_server_tool_discovery(self, base_url, auth_headers, unique_server_name, cleanup_servers):
         """Test tool discovery for MCP servers."""
@@ -179,6 +189,7 @@ class TestMCPIntegration:
                     # Ignore cleanup errors
                     pass
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_agent_mcp_tool_integration(self, base_url, auth_headers):
         """Test agent integration with MCP tools."""
@@ -256,6 +267,7 @@ class TestMCPIntegration:
                     # Ignore cleanup errors
                     pass
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_call_mcp_tool(self, base_url, auth_headers):
         """Test calling an MCP tool."""
@@ -296,6 +308,7 @@ class TestMCPIntegration:
             assert data["tool_name"] == "add"
             assert data["server_name"] == "calculator"
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_mcp_health_check(self, base_url):
         """Test MCP health check endpoint."""
@@ -309,6 +322,7 @@ class TestMCPIntegration:
             assert "servers_running" in data
             assert "tools_available" in data
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_bulk_server_configuration(self, base_url, auth_headers):
         """Test configuring multiple servers at once."""
@@ -344,6 +358,7 @@ class TestMCPIntegration:
             assert "calculator1" in server_names
             assert "calculator2" in server_names
     
+    @skip_if_server_unavailable
     @pytest.mark.asyncio
     async def test_server_crud_operations(self, base_url, auth_headers):
         """Test CRUD operations for MCP servers."""

@@ -28,7 +28,14 @@ TEST_USER_IDENTIFIER = "integration-test-user@example.com" # Use email for get/c
 # --- Fixtures (Optional) ---
 # You could define fixtures here for reusable test data if needed
 
+# Skip integration tests if server is not available
+skip_if_server_unavailable = pytest.mark.skipif(
+    not os.environ.get("AM_API_KEY") or not os.environ.get("AM_INTEGRATION_SERVER_RUNNING"),
+    reason="Integration server not running or AM_API_KEY not set"
+)
+
 # --- Test Cases ---
+@skip_if_server_unavailable
 @pytest.mark.integration # Mark as an integration test
 @pytest.mark.asyncio # Add asyncio marker
 @patch.dict(os.environ, {
