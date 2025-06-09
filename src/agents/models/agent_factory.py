@@ -156,11 +156,10 @@ class AgentFactory:
             framework: Optional specific framework to discover, or None for all
         """
         # Framework directories to scan
-        framework_directories = ["pydanticai", "agno", "langgraph"]
+        framework_directories = ["pydanticai", "agno"]
         frameworks_to_scan = [framework] if framework else framework_directories
         
         for fw in frameworks_to_scan:
-            logger.info(f"Discovering agents in {fw} framework")
             cls._discover_agents_in_directory(fw)
         
         # Also discover claude_code agent (single module)
@@ -204,7 +203,7 @@ class AgentFactory:
         Args:
             directory_name: Name of the directory to scan (e.g., 'simple', 'langgraph')
         """
-        logger.info(f"Discovering agents in {directory_name} folder")
+        logger.info(f"Discovering agents in {directory_name} framework")
         
         # Path to the agents directory
         agents_dir = Path(os.path.dirname(os.path.dirname(__file__))) / directory_name
@@ -267,6 +266,7 @@ class AgentFactory:
         default_agents = {
             "pydanticai": "simple",
             "agno": "simple",  # Fallback to simple if agno doesn't have its own
+            "claude": "claude_code",  # Alias for claude_code
             "claude_code": "claude_code",
             "langchain": "simple",  # Future framework
             "langgraph": "simple"   # Future framework
