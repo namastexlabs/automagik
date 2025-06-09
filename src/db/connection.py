@@ -16,24 +16,24 @@ import psycopg2
 import psycopg2.extensions
 from psycopg2.extras import RealDictCursor, execute_values
 from psycopg2.pool import ThreadedConnectionPool
-from fastapi.concurrency import run_in_threadpool  # NEW IMPORT FOR ASYNC WRAPPERS
+from fastapi.concurrency import run_in_threadpool
 
 from src.config import settings
+from src.db.providers.factory import get_database_provider
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
-# Connection pool for database connections
+# Legacy support - these are now handled by providers
 _pool: Optional[ThreadedConnectionPool] = None
 
-# Register UUID adapter for psycopg2
+# Register UUID adapter for psycopg2 (PostgreSQL compatibility)
 psycopg2.extensions.register_adapter(uuid.UUID, lambda u: psycopg2.extensions.AsIs(f"'{u}'"))
 
 
 def _is_shutdown_requested() -> bool:
     """Check if shutdown has been requested from main.py signal handler."""
     try:
-        # Import here to avoid circular imports and get fresh value
         import src.main
         return getattr(src.main, '_shutdown_requested', False)
     except (ImportError, AttributeError):
@@ -41,139 +41,59 @@ def _is_shutdown_requested() -> bool:
 
 
 def _interruptible_sleep(seconds: float) -> None:
-    """Sleep that can be interrupted by shutdown signal or KeyboardInterrupt.
-    
-    Args:
-        seconds: Total seconds to sleep
-        
-    Raises:
-        KeyboardInterrupt: If shutdown is requested or Ctrl+C is pressed
-    """
+    """Sleep that can be interrupted by shutdown signal or KeyboardInterrupt."""
     start_time = time.time()
-    # Use much shorter intervals for more responsive shutdown detection
-    check_interval = 0.05  # 50ms intervals for very responsive checking
+    check_interval = 0.05
     
     while time.time() - start_time < seconds:
-        # Check for shutdown signal FIRST - more aggressive
         if _is_shutdown_requested():
             logger.info("Sleep interrupted by shutdown signal - exiting immediately")
             raise KeyboardInterrupt("Shutdown requested")
         
-        # Sleep in very small intervals for maximum responsiveness
         try:
             time.sleep(check_interval)
         except KeyboardInterrupt:
             logger.info("Sleep interrupted by KeyboardInterrupt - exiting immediately")
             raise
             
-        # Double-check shutdown flag after each sleep interval
         if _is_shutdown_requested():
             logger.info("Sleep interrupted by shutdown signal after interval - exiting immediately")
             raise KeyboardInterrupt("Shutdown requested")
 
 
 def generate_uuid() -> uuid.UUID:
-    """Safely generate a new UUID.
-    
-    This function ensures that the uuid module is properly accessed
-    and not shadowed by local variables.
-    
-    Returns:
-        A new UUID4 object
-    """
-    return uuid.uuid4()
+    """Safely generate a new UUID."""
+    provider = get_database_provider()
+    return provider.generate_uuid()
 
 
 def safe_uuid(value: Any) -> Any:
-    """Convert UUID objects to strings for safe database use.
-    
-    This is a utility function for cases where direct SQL queries are used
-    instead of repository functions. It ensures UUID objects are properly
-    converted to strings to prevent adaptation errors.
-    
-    Args:
-        value: The value to convert if it's a UUID
-        
-    Returns:
-        String representation of UUID or the original value
-    """
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    return value
+    """Convert UUID objects to strings for safe database use."""
+    provider = get_database_provider()
+    return provider.safe_uuid(value)
 
 
 def check_migrations(connection) -> Tuple[bool, List[str]]:
-    """Check if all migrations are applied.
-    
-    Returns:
-        Tuple of (is_healthy, list_of_pending_migrations)
-    """
-    try:
-        from src.db.migration_manager import MigrationManager
-        
-        # Get the migrations directory path
-        migrations_dir = Path("src/db/migrations")
-        if not migrations_dir.exists():
-            logger.warning("No migrations directory found")
-            return True, []
-        
-        # Get all SQL files and sort them by name (which includes timestamp)
-        migration_files = sorted(migrations_dir.glob("*.sql"))
-        
-        if not migration_files:
-            return True, []
-        
-        # Create migration manager to check status
-        migration_manager = MigrationManager(connection)
-        
-        # Check for pending migrations
-        pending_migrations = []
-        for migration_file in migration_files:
-            migration_name = migration_file.name
-            if migration_name not in migration_manager.applied_migrations:
-                # Also check if it was partially applied
-                partial_status = migration_manager._check_partial_migration(migration_name, "")
-                if partial_status != "fully_applied":
-                    pending_migrations.append(migration_name)
-        
-        return len(pending_migrations) == 0, pending_migrations
-        
-    except Exception as e:
-        logger.error(f"Error checking migrations: {e}")
-        return False, []
+    """Check if all migrations are applied."""
+    provider = get_database_provider()
+    return provider.check_migrations(connection)
 
 
 def verify_database_health() -> bool:
-    """Verify database health and migrations status.
-    
-    Returns:
-        bool: True if database is healthy, False otherwise
-    """
-    try:
-        with get_db_connection() as conn:
-            is_healthy, pending_migrations = check_migrations(conn)
-            
-            if not is_healthy:
-                logger.warning("Database migrations are not up to date!")
-                logger.warning("Pending migrations:")
-                for migration in pending_migrations:
-                    logger.warning(f"  - {migration}")
-                logger.warning("\nPlease run 'automagik-agents db init' to apply pending migrations.")
-                return False
-            
-            return True
-            
-    except Exception as e:
-        logger.error(f"Failed to verify database health: {e}")
-        return False
+    """Verify database health and migrations status."""
+    provider = get_database_provider()
+    return provider.verify_health()
 
 
 def get_db_config() -> Dict[str, Any]:
-    """Get database configuration from connection string or individual settings."""
-    # Try to use DATABASE_URL first
+    """Get database configuration - for backward compatibility."""
+    provider = get_database_provider()
+    if provider.get_database_type() != "postgresql":
+        return {}
+        
+    # PostgreSQL configuration parsing
     if settings.DATABASE_URL:
         try:
-            # Parse the database URL
             env_db_url = os.environ.get("DATABASE_URL")
             actual_db_url = env_db_url if env_db_url else settings.DATABASE_URL
             parsed = urllib.parse.urlparse(actual_db_url)
@@ -186,236 +106,65 @@ def get_db_config() -> Dict[str, Any]:
                 "user": parsed.username,
                 "password": parsed.password,
                 "database": dbname,
-                "client_encoding": "UTF8",  # Explicitly set client encoding to UTF8
+                "client_encoding": "UTF8",
             }
         except Exception as e:
-            logger.warning(
-                f"Failed to parse DATABASE_URL: {str(e)}. Falling back to individual settings."
-            )
+            logger.warning(f"Failed to parse DATABASE_URL: {str(e)}. Falling back to individual settings.")
 
-    # Fallback to individual settings
     return {
         "host": settings.POSTGRES_HOST,
         "port": settings.POSTGRES_PORT,
         "user": settings.POSTGRES_USER,
         "password": settings.POSTGRES_PASSWORD,
         "database": settings.POSTGRES_DB,
-        "client_encoding": "UTF8",  # Explicitly set client encoding to UTF8
+        "client_encoding": "UTF8",
     }
 
 
-def get_connection_pool() -> ThreadedConnectionPool:
+def get_connection_pool():
     """Get or create a database connection pool."""
-    global _pool
-
-    if _pool is None:
-        config = get_db_config()
-        max_retries = 5
-        retry_delay = 2  # seconds
-
-        for attempt in range(max_retries):
-            # AGGRESSIVE: Check for shutdown before AND during each attempt
-            if _is_shutdown_requested():
-                logger.info("Database connection pool initialization interrupted by shutdown signal")
-                raise KeyboardInterrupt("Shutdown requested")
-                
-            try:
-                min_conn = getattr(settings, "POSTGRES_POOL_MIN", 1)
-                max_conn = getattr(settings, "POSTGRES_POOL_MAX", 10)
-
-                logger.info(
-                    f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{config['database']} with UTF8 encoding..."
-                )
-
-                # Check shutdown flag again right before connection attempt
-                if _is_shutdown_requested():
-                    logger.info("Database connection attempt aborted due to shutdown signal")
-                    raise KeyboardInterrupt("Shutdown requested during connection attempt")
-
-                # Can either connect with individual params or with a connection string
-                if settings.DATABASE_URL and attempt == 0:
-                    try:
-                        # Add client_encoding to the connection string if not already present
-                        dsn = settings.DATABASE_URL
-                        if "client_encoding" not in dsn.lower():
-                            if "?" in dsn:
-                                dsn += "&client_encoding=UTF8"
-                            else:
-                                dsn += "?client_encoding=UTF8"
-
-                        _pool = ThreadedConnectionPool(
-                            minconn=min_conn, maxconn=max_conn, dsn=dsn
-                        )
-                        logger.info(
-                            "Successfully connected to PostgreSQL using DATABASE_URL with UTF8 encoding"
-                        )
-                        # Make sure we set the encoding correctly
-                        with _pool.getconn() as conn:
-                            with conn.cursor() as cursor:
-                                cursor.execute("SET client_encoding = 'UTF8';")
-                                conn.commit()
-                            _pool.putconn(conn)
-                        break
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to connect using DATABASE_URL: {str(e)}. Will try with individual params."
-                        )
-
-                # Try with individual params
-                _pool = ThreadedConnectionPool(
-                    minconn=min_conn,
-                    maxconn=max_conn,
-                    host=config["host"],
-                    port=config["port"],
-                    user=config["user"],
-                    password=config["password"],
-                    database=config["database"],
-                    client_encoding="UTF8",  # Explicitly set client encoding
-                )
-                # Make sure we set the encoding correctly
-                with _pool.getconn() as conn:
-                    with conn.cursor() as cursor:
-                        cursor.execute("SET client_encoding = 'UTF8';")
-                        conn.commit()
-                    _pool.putconn(conn)
-                logger.info(
-                    "Successfully connected to PostgreSQL database with UTF8 encoding"
-                )
-                
-                # Verify database health after successful connection
-                if not verify_database_health():
-                    logger.error("Database health check failed. Please run 'automagik-agents db init' to apply pending migrations.")
-                    raise Exception("Database migrations are not up to date")
-                
-                break
-                
-            except KeyboardInterrupt:
-                # Handle Ctrl+C gracefully - IMMEDIATE EXIT
-                logger.info("Database connection attempt interrupted by user - exiting immediately")
-                raise
-                
-            except psycopg2.Error as e:
-                # Check shutdown flag immediately after any database error
-                if _is_shutdown_requested():
-                    logger.info("Shutdown requested during database error handling - exiting immediately")
-                    raise KeyboardInterrupt("Shutdown requested during error handling")
-                    
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        f"Failed to connect to database (attempt {attempt + 1}/{max_retries}): {str(e)}"
-                    )
-                    
-                    # AGGRESSIVE: Check shutdown flag before starting sleep
-                    if _is_shutdown_requested():
-                        logger.info("Shutdown requested before retry delay - exiting immediately")
-                        raise KeyboardInterrupt("Shutdown requested before retry")
-                    
-                    # Use more aggressive interruptible sleep with shorter intervals
-                    try:
-                        _interruptible_sleep(retry_delay)
-                    except KeyboardInterrupt:
-                        logger.info("Database connection retry interrupted by user - exiting immediately")
-                        raise
-                        
-                    # Check shutdown flag again after sleep
-                    if _is_shutdown_requested():
-                        logger.info("Shutdown requested after retry delay - exiting immediately")
-                        raise KeyboardInterrupt("Shutdown requested after retry delay")
-                else:
-                    logger.error(
-                        f"Failed to connect to database after {max_retries} attempts: {str(e)}"
-                    )
-                    raise
-
-    return _pool
+    provider = get_database_provider()
+    return provider.get_connection_pool()
 
 
 @contextmanager
 def get_db_connection() -> Generator:
     """Get a database connection from the pool."""
-    pool = get_connection_pool()
-    conn = None
-    try:
-        conn = pool.getconn()
-        # Ensure UTF-8 encoding for this connection
-        with conn.cursor() as cursor:
-            cursor.execute("SET client_encoding = 'UTF8';")
-            conn.commit()
+    provider = get_database_provider()
+    with provider.get_connection() as conn:
         yield conn
-    finally:
-        if conn:
-            pool.putconn(conn)
 
 
 @contextmanager
 def get_db_cursor(commit: bool = False) -> Generator:
     """Get a database cursor with automatic commit/rollback."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            yield cursor
-            if commit:
-                conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Database error: {str(e)}")
-            raise
-        finally:
-            cursor.close()
+    provider = get_database_provider()
+    with provider.get_cursor(commit=commit) as cursor:
+        yield cursor
 
 
 def execute_query(query: str, params: tuple = None, fetch: bool = True, commit: bool = True) -> List[Dict[str, Any]]:
-    """Execute a database query and return the results.
-    
-    Args:
-        query: SQL query to execute
-        params: Query parameters
-        fetch: Whether to fetch and return results
-        commit: Whether to commit the transaction
-        
-    Returns:
-        List of records as dictionaries if fetch=True, otherwise empty list
-    """
-    with get_db_cursor(commit=commit) as cursor:
-        cursor.execute(query, params)
-        
-        if fetch and cursor.description:
-            return [dict(record) for record in cursor.fetchall()]
-        return []
+    """Execute a database query and return the results."""
+    provider = get_database_provider()
+    return provider.execute_query(query, params, fetch, commit)
 
 
 def execute_batch(query: str, params_list: List[Tuple], commit: bool = True) -> None:
-    """Execute a batch query with multiple parameter sets.
-    
-    Args:
-        query: SQL query template
-        params_list: List of parameter tuples
-        commit: Whether to commit the transaction
-    """
-    with get_db_cursor(commit=commit) as cursor:
-        execute_values(cursor, query, params_list)
+    """Execute a batch query with multiple parameter sets."""
+    provider = get_database_provider()
+    return provider.execute_batch(query, params_list, commit)
 
 
 def close_connection_pool() -> None:
     """Close the database connection pool."""
-    global _pool
-    if _pool:
-        _pool.closeall()
-        _pool = None
-        logger.info("Closed all database connections")
+    provider = get_database_provider()
+    provider.close_connection_pool()
 
 
 def verify_db_read_write():
-    """Performs a read/write test using a transaction rollback.
-    
-    Creates a temporary user, starts a transaction, inserts a session and message,
-    verifies they can be read, rolls back the transaction, and deletes the user.
-    Raises an exception if any part of the verification fails.
-    """
+    """Performs a read/write test using a transaction rollback."""
     logger.info("🔍 Performing verification test of message storage without creating persistent sessions...")
-    pool = get_connection_pool()
     test_user_id = generate_uuid()
-    conn = None  # Initialize conn to None
     
     # Create a test user and commit it to the database
     test_email = "test_verification@automagik.test"
@@ -437,90 +186,158 @@ def verify_db_read_write():
 
         # Now use a separate transaction for test session/message that will be rolled back
         logger.info("Testing database message storage functionality with transaction rollback...")
-        conn = pool.getconn()
-        conn.autocommit = False  # Start a transaction
         
-        # Generate test UUIDs
-        test_session_id = generate_uuid()
-        test_message_id = generate_uuid()
+        # Use provider-specific database connection
+        from src.db.providers.factory import get_database_provider
+        provider = get_database_provider()
         
-        # Create the session and message within the transaction
-        with conn.cursor() as cur:
-            # Insert test session
-            cur.execute(
-                """
-                INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now())
-            )
+        if provider.get_database_type() == "sqlite":
+            # SQLite-specific transaction handling
+            # Generate test UUIDs
+            test_session_id = generate_uuid()
+            test_message_id = generate_uuid()
             
-            # Insert test message
-            cur.execute(
-                """
-                INSERT INTO messages (
-                    id, session_id, user_id, role, text_content, raw_payload, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    safe_uuid(test_message_id),
-                    safe_uuid(test_session_id),
-                    safe_uuid(test_user_id),
-                    "user",
-                    "Test database connection",
-                    json.dumps({"content": "Test database connection"}),
-                    datetime.now(),
-                    datetime.now()
+            # Use provider execute_query for SQLite which handles parameter conversion
+            try:
+                # Insert test session
+                provider.execute_query(
+                    """
+                    INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now()),
+                    fetch=False,
+                    commit=False
                 )
-            )
-            
-            # Verify we can read the data back
-            cur.execute("SELECT COUNT(*) FROM sessions WHERE id = %s", (safe_uuid(test_session_id),))
-            session_count = cur.fetchone()[0]
-            
-            cur.execute("SELECT COUNT(*) FROM messages WHERE id = %s", (safe_uuid(test_message_id),))
-            message_count = cur.fetchone()[0]
-            
-            if session_count > 0 and message_count > 0:
-                logger.info("✅ Database read/write test successful within transaction")
-            else:
-                logger.error("❌ Failed to verify database read operations within transaction")
-                # Attempt to rollback before raising
-                try: conn.rollback() 
-                except: pass
-                raise Exception("Database verification failed: Could not read back inserted test data")
-            
-            # Roll back the transaction to avoid persisting test data
-            conn.rollback()
-            logger.info("✅ Test transaction rolled back - no test data persisted")
+                
+                # Insert test message
+                provider.execute_query(
+                    """
+                    INSERT INTO messages (
+                        id, session_id, user_id, role, text_content, raw_payload, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        safe_uuid(test_message_id),
+                        safe_uuid(test_session_id),
+                        safe_uuid(test_user_id),
+                        "user",
+                        "Test database connection",
+                        json.dumps({"content": "Test database connection"}),
+                        datetime.now(),
+                        datetime.now()
+                    ),
+                    fetch=False,
+                    commit=False
+                )
+                
+                # Verify we can read the data back
+                session_result = provider.execute_query(
+                    "SELECT COUNT(*) FROM sessions WHERE id = %s", 
+                    (safe_uuid(test_session_id),)
+                )
+                session_count = session_result[0]['COUNT(*)'] if session_result else 0
+                
+                message_result = provider.execute_query(
+                    "SELECT COUNT(*) FROM messages WHERE id = %s", 
+                    (safe_uuid(test_message_id),)
+                )
+                message_count = message_result[0]['COUNT(*)'] if message_result else 0
+                
+                if session_count > 0 and message_count > 0:
+                    logger.info("✅ Database read/write test successful within transaction")
+                else:
+                    logger.error("❌ Failed to verify database read operations within transaction")
+                    raise Exception("Database verification failed: Could not read back inserted test data")
+                
+                # Clean up test data manually for SQLite (since we're not using transactions)
+                provider.execute_query("DELETE FROM messages WHERE id = %s", (safe_uuid(test_message_id),), fetch=False)
+                provider.execute_query("DELETE FROM sessions WHERE id = %s", (safe_uuid(test_session_id),), fetch=False)
+                logger.info("✅ Test data cleaned up successfully")
+                
+            except Exception as sqlite_error:
+                logger.error(f"SQLite test failed: {sqlite_error}")
+                # Try to clean up anyway
+                try:
+                    provider.execute_query("DELETE FROM messages WHERE id = %s", (safe_uuid(test_message_id),), fetch=False)
+                    provider.execute_query("DELETE FROM sessions WHERE id = %s", (safe_uuid(test_session_id),), fetch=False)
+                except:
+                    pass
+                raise sqlite_error
+                
+        else:
+            # PostgreSQL transaction handling (original logic)
+            with get_db_connection() as conn:
+                conn.autocommit = False  # PostgreSQL style
+                
+                # Generate test UUIDs
+                test_session_id = generate_uuid()
+                test_message_id = generate_uuid()
+                
+                with conn.cursor() as cur:
+                    # Insert test session
+                    cur.execute(
+                        """
+                        INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now())
+                    )
+                    
+                    # Insert test message
+                    cur.execute(
+                        """
+                        INSERT INTO messages (
+                            id, session_id, user_id, role, text_content, raw_payload, created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            safe_uuid(test_message_id),
+                            safe_uuid(test_session_id),
+                            safe_uuid(test_user_id),
+                            "user",
+                            "Test database connection",
+                            json.dumps({"content": "Test database connection"}),
+                            datetime.now(),
+                            datetime.now()
+                        )
+                    )
+                    
+                    # Verify we can read the data back
+                    cur.execute("SELECT COUNT(*) FROM sessions WHERE id = %s", (safe_uuid(test_session_id),))
+                    session_count = cur.fetchone()[0]
+                    
+                    cur.execute("SELECT COUNT(*) FROM messages WHERE id = %s", (safe_uuid(test_message_id),))
+                    message_count = cur.fetchone()[0]
+                    
+                    if session_count > 0 and message_count > 0:
+                        logger.info("✅ Database read/write test successful within transaction")
+                    else:
+                        logger.error("❌ Failed to verify database read operations within transaction")
+                        conn.rollback()
+                        raise Exception("Database verification failed: Could not read back inserted test data")
+                    
+                    # Roll back the transaction to avoid persisting test data
+                    conn.rollback()
+                    logger.info("✅ Test transaction rolled back - no test data persisted")
         
-        # Return connection to pool
-        pool.putconn(conn)
-        conn = None # Reset conn after putting it back
         logger.info("✅ Database verification completed successfully without creating persistent test data")
 
     except Exception as test_e:
         logger.error(f"❌ Database verification test failed: {str(test_e)}")
-        # Ensure any open transaction is rolled back
-        if conn:
-            try: conn.rollback() 
-            except: pass
-            try: pool.putconn(conn) # Try to return connection even on error
-            except: pass 
-        # Log detailed error before raising
         logger.error(f"Detailed error: {traceback.format_exc()}")
-        raise # Re-raise the original exception after cleanup attempts
+        raise
     finally:
         # Clean up the test user regardless of transaction success/failure
         try:
             delete_user(test_user_id)
             logger.info(f"Cleaned up test user {test_user_id}")
         except Exception as cleanup_e:
-            # Log as warning because the primary error (if any) is more important
             logger.warning(f"⚠️ Failed to clean up test user {test_user_id}: {str(cleanup_e)}")
-            logger.warning(f"Cleanup error details: {traceback.format_exc()}") 
+            logger.warning(f"Cleanup error details: {traceback.format_exc()}")
 
-# Add non-blocking wrappers ----------------------------------------------------
+
+# Async wrappers
 async def async_execute_query(
     query: str,
     params: tuple | None = None,
@@ -528,11 +345,7 @@ async def async_execute_query(
     fetch: bool = True,
     commit: bool = True,
 ):
-    """Async wrapper around execute_query that runs in a threadpool.
-
-    This allows us to keep the existing synchronous psycopg2 code unchanged
-    while preventing it from blocking the event-loop.
-    """
+    """Async wrapper around execute_query that runs in a threadpool."""
     return await run_in_threadpool(execute_query, query, params, fetch, commit)
 
 
@@ -543,4 +356,4 @@ async def async_execute_batch(
     commit: bool = True,
 ):
     """Async wrapper around execute_batch that runs in a threadpool."""
-    return await run_in_threadpool(execute_batch, query, params_list, commit) 
+    return await run_in_threadpool(execute_batch, query, params_list, commit)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Database tests for MCP tables and repository - NAM-15"""
 
-from src.db.connection import get_connection_pool
+from src.db.connection import execute_query
 from src.db.repository.mcp import (
     list_mcp_servers, get_mcp_server_by_name, create_mcp_server, 
     update_mcp_server, delete_mcp_server
@@ -10,38 +10,35 @@ from src.db.models import MCPServerDB
 
 def test_database_tables():
     """Test that MCP database tables exist."""
-    pool = get_connection_pool()
-    conn = pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            # Check mcp_servers table exists
-            cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'mcp_servers')")
-            mcp_servers_exists = cur.fetchone()[0]
+    # Use SQLite-compatible table existence check
+    # For SQLite: SELECT name FROM sqlite_master WHERE type='table' AND name='table_name'
+    # For PostgreSQL: SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'table_name')
+    
+    # Check mcp_servers table exists
+    mcp_servers_result = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name='mcp_servers'")
+    mcp_servers_exists = len(mcp_servers_result) > 0
+    
+    # Check agent_mcp_servers table exists  
+    agent_mcp_servers_result = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name='agent_mcp_servers'")
+    agent_mcp_servers_exists = len(agent_mcp_servers_result) > 0
+    
+    print(f"✅ MCP Tables exist - mcp_servers: {mcp_servers_exists}, agent_mcp_servers: {agent_mcp_servers_exists}")
             
-            # Check agent_mcp_servers table exists  
-            cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'agent_mcp_servers')")
-            agent_mcp_servers_exists = cur.fetchone()[0]
-            
-            print(f"✅ MCP Tables exist - mcp_servers: {mcp_servers_exists}, agent_mcp_servers: {agent_mcp_servers_exists}")
-            
-            assert mcp_servers_exists and agent_mcp_servers_exists, "MCP tables are missing"
-                
-            # Check table structure
-            cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'mcp_servers' ORDER BY ordinal_position")
-            columns = [row[0] for row in cur.fetchall()]
-            expected_columns = ['id', 'name', 'server_type', 'description', 'command', 'env', 'http_url', 
-                              'auto_start', 'max_retries', 'timeout_seconds', 'tags', 'priority', 'status', 
-                              'enabled', 'started_at', 'last_error', 'error_count', 'connection_attempts', 
-                              'last_ping', 'tools_discovered', 'resources_discovered', 'created_at', 
-                              'updated_at', 'last_started', 'last_stopped']
-            
-            missing_columns = [col for col in expected_columns if col not in columns]
-            assert not missing_columns, f"Missing columns in mcp_servers: {missing_columns}"
-            
-            print("✅ MCP table structure verified")
-            
-    finally:
-        pool.putconn(conn)
+    assert mcp_servers_exists and agent_mcp_servers_exists, "MCP tables are missing"
+    
+    # Check table structure using SQLite PRAGMA
+    columns_result = execute_query("PRAGMA table_info(mcp_servers)")
+    columns = [row['name'] for row in columns_result]
+    expected_columns = ['id', 'name', 'server_type', 'description', 'command', 'env', 'http_url', 
+                      'auto_start', 'max_retries', 'timeout_seconds', 'tags', 'priority', 'status', 
+                      'enabled', 'started_at', 'last_error', 'error_count', 'connection_attempts', 
+                      'last_ping', 'tools_discovered', 'resources_discovered', 'created_at', 
+                      'updated_at', 'last_started', 'last_stopped']
+    
+    missing_columns = [col for col in expected_columns if col not in columns]
+    assert not missing_columns, f"Missing columns in mcp_servers: {missing_columns}"
+    
+    print("✅ MCP table structure verified")
 
 def test_repository_functions():
     """Test MCP repository CRUD operations."""
