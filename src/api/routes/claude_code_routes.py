@@ -423,13 +423,14 @@ async def claude_code_health(
             "feature_enabled": False
         }
         
-        # Check if claude-code feature is enabled
-        from src.config import settings
-        health_status["feature_enabled"] = settings.AM_ENABLE_CLAUDE_CODE
+        # Check if claude CLI is available by looking for credentials
+        from pathlib import Path
+        claude_credentials = Path.home() / ".claude" / ".credentials.json"
+        health_status["feature_enabled"] = claude_credentials.exists()
         
         if not health_status["feature_enabled"]:
             health_status["status"] = "disabled"
-            health_status["message"] = "Claude-Code feature is disabled"
+            health_status["message"] = f"Claude CLI not configured (no credentials at {claude_credentials})"
             return health_status
         
         # Check agent availability

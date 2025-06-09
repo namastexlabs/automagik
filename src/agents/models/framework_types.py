@@ -44,6 +44,7 @@ class FrameworkType(str, Enum):
         name_mappings = {
             "pydanticai": cls.PYDANTIC_AI,
             "agno": cls.AGNO,
+            "claude": cls.CLAUDE_CODE,  # Allow "claude" as alias for "claude_code"
             "claude_code": cls.CLAUDE_CODE,
             "claude-code": cls.CLAUDE_CODE,
             "langchain": cls.LANGCHAIN,
