@@ -3,10 +3,10 @@
 This module defines Pydantic models for request/response handling,
 configuration validation, and container management.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from uuid import UUID, uuid4
 
 class ClaudeCodeRunRequest(BaseModel):
@@ -45,9 +45,8 @@ class ClaudeCodeRunRequest(BaseModel):
             raise ValueError('Workflow name must be alphanumeric with dashes or underscores')
         return v
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "Fix the session timeout issue in agent controller",
                 "session_id": "session_abc123",
@@ -60,6 +59,7 @@ class ClaudeCodeRunRequest(BaseModel):
                 }
             }
         }
+    )
 
 class ClaudeCodeRunResponse(BaseModel):
     """Response model for async Claude CLI execution start."""
@@ -73,9 +73,8 @@ class ClaudeCodeRunResponse(BaseModel):
     session_id: str = Field(..., description="Session identifier")
     started_at: datetime = Field(..., description="When the execution was started")
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "run_id": "run_abc123def456",
                 "status": "pending",
@@ -84,6 +83,7 @@ class ClaudeCodeRunResponse(BaseModel):
                 "started_at": "2025-06-03T10:00:00Z"
             }
         }
+    )
 
 class ClaudeCodeStatusResponse(BaseModel):
     """Response model for execution status polling."""
@@ -107,9 +107,8 @@ class ClaudeCodeStatusResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if execution failed")
     logs: Optional[str] = Field(None, description="Container execution logs")
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "run_id": "run_abc123def456",
                 "status": "completed",
@@ -126,6 +125,7 @@ class ClaudeCodeStatusResponse(BaseModel):
                 "logs": "Container execution logs..."
             }
         }
+    )
 
 class WorkflowInfo(BaseModel):
     """Information about an available workflow."""
@@ -135,9 +135,8 @@ class WorkflowInfo(BaseModel):
     path: str = Field(..., description="Filesystem path to workflow")
     valid: bool = Field(..., description="Whether workflow configuration is valid")
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "bug-fixer",
                 "description": "Bug fixing specialist workflow",
@@ -145,6 +144,7 @@ class WorkflowInfo(BaseModel):
                 "valid": True
             }
         }
+    )
 
 class ContainerInfo(BaseModel):
     """Information about a container."""
@@ -156,9 +156,8 @@ class ContainerInfo(BaseModel):
     created_at: datetime = Field(..., description="When container was created")
     started_at: Optional[datetime] = Field(None, description="When container started execution")
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "container_id": "claude-code-session_xyz789-abc123",
                 "status": "running",
@@ -168,6 +167,7 @@ class ContainerInfo(BaseModel):
                 "started_at": "2025-06-03T10:00:30Z"
             }
         }
+    )
 
 class ExecutionResult(BaseModel):
     """Result of a Claude CLI execution."""
@@ -183,9 +183,8 @@ class ExecutionResult(BaseModel):
     git_commits: List[str] = Field(default_factory=list, description="Git commit SHAs created")
     timeout: bool = Field(default=False, description="Whether execution timed out")
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "exit_code": 0,
@@ -199,6 +198,7 @@ class ExecutionResult(BaseModel):
                 "timeout": False
             }
         }
+    )
 
 class ClaudeCodeConfig(BaseModel):
     """Configuration for Claude-Code agent."""
@@ -219,9 +219,8 @@ class ClaudeCodeConfig(BaseModel):
     )
     enabled: bool = Field(default=False, description="Whether claude-code agent is enabled")
     
-    class Config:
-        """Pydantic model configuration."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "agent_type": "claude-code",
                 "framework": "claude-cli",
@@ -234,6 +233,7 @@ class ClaudeCodeConfig(BaseModel):
                 "enabled": True
             }
         }
+    )
 
 
 # Additional models for container management and execution
@@ -385,7 +385,7 @@ class ContainerSnapshot(BaseModel):
     human_feedback: Optional[str] = Field(None, description="Human feedback if provided")
     failure_analysis: Optional[Dict[str, Any]] = Field(None, description="Failure analysis if applicable")
     learning_context: Optional[str] = Field(None, description="Learning for next attempt")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Snapshot creation time")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Snapshot creation time")
 
 
 class ClaudeExecutionOutput(BaseModel):
