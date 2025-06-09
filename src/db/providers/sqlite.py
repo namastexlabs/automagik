@@ -15,6 +15,21 @@ from fastapi.concurrency import run_in_threadpool
 
 from .base import DatabaseProvider
 
+class SQLiteCursorWrapper:
+    """Wrapper to provide context manager support for SQLite cursors."""
+    
+    def __init__(self, cursor):
+        self.cursor = cursor
+    
+    def __enter__(self):
+        return self.cursor
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cursor.close()
+    
+    def __getattr__(self, name):
+        return getattr(self.cursor, name)
+
 logger = logging.getLogger(__name__)
 
 class SQLiteConnectionPool:
@@ -56,6 +71,9 @@ class SQLiteConnectionPool:
         # Configure row factory for dict-like results
         conn.row_factory = self._dict_factory
         
+        # SQLite cursors don't support context managers by default
+        # We'll handle this in the get_cursor method instead
+        
         with self._lock:
             self._all_connections.append(conn)
         
@@ -63,9 +81,29 @@ class SQLiteConnectionPool:
     
     @staticmethod
     def _dict_factory(cursor, row):
-        """Convert row to dictionary."""
+        """Convert row to dictionary with JSON field parsing."""
         columns = [column[0] for column in cursor.description]
-        return dict(zip(columns, row))
+        result = dict(zip(columns, row))
+        
+        # Parse JSON fields that are stored as text
+        json_fields = {
+            'config', 'metadata', 'raw_payload', 'tool_calls', 'tool_outputs', 
+            'context', 'user_data', 'channel_payload', 'preferences', 
+            'old_preferences', 'new_preferences', 'args', 'env', 'command',
+            'tags', 'tools_discovered', 'resources_discovered'
+        }
+        
+        for field_name, value in result.items():
+            if field_name in json_fields and value is not None and isinstance(value, str):
+                try:
+                    # Only parse if it looks like JSON (starts with { or [)
+                    if value.strip().startswith(('{', '[')):
+                        result[field_name] = json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    # If parsing fails, keep as string
+                    pass
+        
+        return result
     
     def get_connection(self) -> sqlite3.Connection:
         """Get a connection from the pool."""
@@ -84,6 +122,14 @@ class SQLiteConnectionPool:
         except:
             # Pool is full, close the connection
             conn.close()
+    
+    def getconn(self) -> sqlite3.Connection:
+        """Get a connection from the pool (PostgreSQL-style interface compatibility)."""
+        return self.get_connection()
+    
+    def putconn(self, conn: sqlite3.Connection):
+        """Return a connection to the pool (PostgreSQL-style interface compatibility)."""
+        self.return_connection(conn)
     
     def close_all(self):
         """Close all connections in the pool."""
@@ -179,8 +225,237 @@ class SQLiteProvider(DatabaseProvider):
         if self._pool is None:
             logger.info(f"Creating SQLite connection pool for database: {self.database_path}")
             self._pool = SQLiteConnectionPool(self.database_path, max_connections=10)
+            # Initialize schema if needed
+            self._initialize_schema()
         
         return self._pool
+    
+    def _initialize_schema(self):
+        """Initialize SQLite database schema if not already created."""
+        try:
+            with self.get_connection() as conn:
+                # Check if tables exist by trying to query the agents table
+                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'")
+                if cursor.fetchone() is None:
+                    logger.info("Initializing SQLite database schema...")
+                    self._create_schema(conn)
+                    logger.info("✅ SQLite database schema initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize SQLite schema: {e}")
+            raise
+    
+    def _create_schema(self, conn: sqlite3.Connection):
+        """Create the complete database schema for SQLite."""
+        schema_sql = """
+        -- Create users table
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT UNIQUE,
+            phone_number TEXT,
+            user_data TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        -- Create agents table
+        CREATE TABLE IF NOT EXISTS agents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL,
+            model TEXT NOT NULL,
+            description TEXT,
+            version TEXT,
+            config TEXT DEFAULT '{}',
+            active INTEGER DEFAULT 1,
+            run_id INTEGER DEFAULT 0,
+            system_prompt TEXT,
+            active_default_prompt_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        -- Create sessions table
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            agent_id INTEGER,
+            agent_name TEXT,
+            name TEXT,
+            platform TEXT,
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            run_finished_at TEXT,
+            message_count INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+        );
+
+        -- Create messages table
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            session_id TEXT,
+            user_id TEXT,
+            agent_id INTEGER,
+            role TEXT NOT NULL,
+            text_content TEXT,
+            media_url TEXT,
+            mime_type TEXT,
+            message_type TEXT,
+            raw_payload TEXT DEFAULT '{}',
+            tool_calls TEXT DEFAULT '{}',
+            tool_outputs TEXT DEFAULT '{}',
+            system_prompt TEXT,
+            user_feedback TEXT,
+            flagged TEXT,
+            context TEXT DEFAULT '{}',
+            channel_payload TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+        );
+
+        -- Create memories table
+        CREATE TABLE IF NOT EXISTS memories (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            content TEXT,
+            session_id TEXT,
+            user_id TEXT,
+            agent_id INTEGER,
+            read_mode TEXT,
+            access TEXT,
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+        );
+
+        -- Create prompts table
+        CREATE TABLE IF NOT EXISTS prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL,
+            prompt_text TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 0,
+            is_default_from_code INTEGER NOT NULL DEFAULT 0,
+            status_key TEXT NOT NULL DEFAULT 'default',
+            name TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+            UNIQUE(agent_id, status_key, version)
+        );
+
+        -- Create mcp_servers table (comprehensive version matching PostgreSQL)
+        CREATE TABLE IF NOT EXISTS mcp_servers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            server_type TEXT NOT NULL CHECK (server_type IN ('stdio', 'http')),
+            description TEXT,
+            
+            -- Server connection configuration
+            command TEXT, -- JSON array of command parts for stdio servers
+            env TEXT DEFAULT '{}', -- Environment variables as key-value pairs
+            http_url TEXT, -- URL for HTTP servers
+            
+            -- Server behavior configuration
+            auto_start INTEGER NOT NULL DEFAULT 1,
+            max_retries INTEGER NOT NULL DEFAULT 3,
+            timeout_seconds INTEGER NOT NULL DEFAULT 30,
+            tags TEXT DEFAULT '[]', -- JSON array of tags for categorization
+            priority INTEGER NOT NULL DEFAULT 0,
+            
+            -- Server state tracking
+            status TEXT NOT NULL DEFAULT 'stopped' CHECK (status IN ('stopped', 'starting', 'running', 'error', 'stopping')),
+            enabled INTEGER NOT NULL DEFAULT 1,
+            started_at TEXT,
+            last_error TEXT,
+            error_count INTEGER NOT NULL DEFAULT 0,
+            connection_attempts INTEGER NOT NULL DEFAULT 0,
+            last_ping TEXT,
+            
+            -- Discovery results
+            tools_discovered TEXT DEFAULT '[]', -- JSON array of discovered tool names
+            resources_discovered TEXT DEFAULT '[]', -- JSON array of discovered resource URIs
+            
+            -- Audit trail
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_started TEXT,
+            last_stopped TEXT
+        );
+
+        -- Create agent_mcp_servers table
+        CREATE TABLE IF NOT EXISTS agent_mcp_servers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL,
+            mcp_server_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+            FOREIGN KEY (mcp_server_id) REFERENCES mcp_servers(id) ON DELETE CASCADE,
+            UNIQUE(agent_id, mcp_server_id)
+        );
+
+        -- Create preferences table
+        CREATE TABLE IF NOT EXISTS preferences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            category TEXT NOT NULL,
+            preferences TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(user_id, category)
+        );
+
+        -- Create preference_history table
+        CREATE TABLE IF NOT EXISTS preference_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            preference_id INTEGER NOT NULL,
+            old_preferences TEXT,
+            new_preferences TEXT,
+            changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (preference_id) REFERENCES preferences(id) ON DELETE CASCADE
+        );
+
+        -- Create indexes for better performance
+        CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_agent_id ON messages(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_memories_session_id ON memories(session_id);
+        CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id);
+        CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_prompts_agent_id_status_key ON prompts(agent_id, status_key);
+        CREATE INDEX IF NOT EXISTS idx_prompts_active ON prompts(agent_id, status_key, is_active);
+        
+        -- MCP server indexes
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_status ON mcp_servers(status);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_type ON mcp_servers(server_type);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_auto_start ON mcp_servers(auto_start, enabled);
+        
+        -- Agent MCP server assignment indexes
+        CREATE INDEX IF NOT EXISTS idx_agent_mcp_servers_agent_id ON agent_mcp_servers(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_mcp_servers_server_id ON agent_mcp_servers(mcp_server_id);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_agent_status ON agent_mcp_servers(agent_id, mcp_server_id);
+
+        -- Enable foreign key constraints
+        PRAGMA foreign_keys = ON;
+        """
+        
+        # Execute schema creation
+        conn.executescript(schema_sql)
+        conn.commit()
     
     @contextmanager
     def get_connection(self) -> Generator:
@@ -210,20 +485,50 @@ class SQLiteProvider(DatabaseProvider):
             finally:
                 cursor.close()
     
+    def _convert_params_to_sqlite(self, params: Union[tuple, list, dict, None]) -> Union[tuple, list, dict, None]:
+        """Convert parameters to SQLite-compatible types."""
+        if params is None:
+            return None
+        
+        def convert_value(value):
+            # Convert UUID objects to strings
+            if hasattr(value, '__class__') and value.__class__.__name__ == 'UUID':
+                return str(value)
+            # Convert datetime objects to ISO format strings
+            elif hasattr(value, 'isoformat'):
+                return value.isoformat()
+            # Convert boolean values to integers for SQLite (do this before checking int since bool is subclass of int)
+            elif isinstance(value, bool):
+                return 1 if value else 0
+            # Convert other non-basic types to strings
+            elif value is not None and not isinstance(value, (str, int, float, bytes, type(None))):
+                return str(value)
+            return value
+        
+        if isinstance(params, (tuple, list)):
+            converted = [convert_value(param) for param in params]
+            return tuple(converted) if isinstance(params, tuple) else converted
+        elif isinstance(params, dict):
+            return {key: convert_value(value) for key, value in params.items()}
+        else:
+            return params
+
     def execute_query(
         self, 
         query: str, 
-        params: Union[tuple, dict, None] = None, 
+        params: Union[tuple, list, dict, None] = None, 
         fetch: bool = True, 
         commit: bool = True
     ) -> List[Dict[str, Any]]:
         """Execute a database query and return the results."""
         # Convert PostgreSQL-style queries to SQLite compatible format
         query = self._convert_query_to_sqlite(query)
+        # Convert parameters to SQLite-compatible types
+        converted_params = self._convert_params_to_sqlite(params)
         
         with self.get_cursor(commit=commit) as cursor:
-            if params:
-                cursor.execute(query, params)
+            if converted_params:
+                cursor.execute(query, converted_params)
             else:
                 cursor.execute(query)
             
@@ -240,33 +545,116 @@ class SQLiteProvider(DatabaseProvider):
     ) -> None:
         """Execute a batch query with multiple parameter sets."""
         query = self._convert_query_to_sqlite(query)
+        # Convert all parameter sets to SQLite-compatible types
+        converted_params_list = [self._convert_params_to_sqlite(params) for params in params_list]
         
         with self.get_cursor(commit=commit) as cursor:
-            cursor.executemany(query, params_list)
+            cursor.executemany(query, converted_params_list)
     
     def _convert_query_to_sqlite(self, query: str) -> str:
         """Convert PostgreSQL-specific query syntax to SQLite."""
-        # Convert RETURNING clauses (SQLite supports them in newer versions)
-        # Convert JSONB operators to JSON functions
-        # Convert UUID-specific operations
-        # Convert timestamp operations
+        import re
+        
+        # Convert parameter placeholders from PostgreSQL (%s) to SQLite (?)
+        converted_query = query.replace('%s', '?')
         
         # Basic conversions for common patterns
         conversions = [
             # PostgreSQL CURRENT_TIMESTAMP to SQLite
             ("CURRENT_TIMESTAMP", "datetime('now')"),
+            ("NOW()", "datetime('now')"),
             # PostgreSQL boolean literals
             ("TRUE", "1"),
             ("FALSE", "0"),
+            # PostgreSQL SERIAL to INTEGER PRIMARY KEY AUTOINCREMENT
+            ("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+            # PostgreSQL UUID default to TEXT
+            ("UUID PRIMARY KEY DEFAULT gen_random_uuid()", "TEXT PRIMARY KEY"),
+            # PostgreSQL TIMESTAMPTZ to TEXT
+            ("TIMESTAMPTZ", "TEXT"),
+            ("TIMESTAMP WITH TIME ZONE", "TEXT"),
+            # PostgreSQL JSONB to TEXT
+            ("JSONB", "TEXT"),
             # PostgreSQL string concatenation
             ("||", "||"),  # SQLite supports this
             # PostgreSQL ILIKE to SQLite (case-insensitive)
             (" ILIKE ", " LIKE "),
+            # PostgreSQL LIMIT/OFFSET syntax (SQLite supports this)
+            # PostgreSQL ON CONFLICT clauses
+            ("ON CONFLICT DO NOTHING", "OR IGNORE"),
         ]
         
-        converted_query = query
         for pg_syntax, sqlite_syntax in conversions:
             converted_query = converted_query.replace(pg_syntax, sqlite_syntax)
+        
+        # Handle PostgreSQL-specific type casting first
+        # PostgreSQL: '[]'::json -> SQLite: '[]'
+        converted_query = re.sub(r"'([^']+)'::json", r"'\1'", converted_query, flags=re.IGNORECASE)
+        
+        # Handle complex COALESCE with JSON_AGG and FILTER
+        # PostgreSQL: COALESCE(JSON_AGG(...) FILTER (...), '[]')
+        # SQLite: Use simpler GROUP_CONCAT approach
+        complex_coalesce_pattern = r"COALESCE\(\s*JSON_AGG\(([^)]+)\s+ORDER\s+BY\s+[^)]+\)\s+FILTER\s+\([^)]+\),\s*'(\[\])'\s*\)"
+        match = re.search(complex_coalesce_pattern, converted_query, re.IGNORECASE)
+        if match:
+            column_expr = match.group(1).strip()
+            empty_json = match.group(2)
+            # Simple SQLite replacement that creates a JSON-like array
+            replacement = f"'[' || COALESCE(GROUP_CONCAT('\"' || {column_expr} || '\"'), '') || ']'"
+            converted_query = re.sub(complex_coalesce_pattern, replacement, converted_query, flags=re.IGNORECASE)
+        
+        # Handle standalone JSON_AGG with FILTER
+        json_agg_filter_pattern = r'JSON_AGG\(([^)]+)\s+ORDER\s+BY\s+[^)]+\)\s+FILTER\s+\([^)]+\)'
+        if re.search(json_agg_filter_pattern, converted_query, re.IGNORECASE):
+            converted_query = re.sub(
+                json_agg_filter_pattern,
+                r"'[' || COALESCE(GROUP_CONCAT('\"' || \1 || '\"'), '') || ']'",
+                converted_query,
+                flags=re.IGNORECASE
+            )
+        
+        # Handle simple JSON_AGG without FILTER
+        simple_json_agg_pattern = r'JSON_AGG\(([^)]+)\)'
+        converted_query = re.sub(
+            simple_json_agg_pattern,
+            r"'[' || COALESCE(GROUP_CONCAT('\"' || \1 || '\"'), '') || ']'",
+            converted_query,
+            flags=re.IGNORECASE
+        )
+        
+        # Handle remaining COALESCE patterns with JSON casting
+        coalesce_json_pattern = r"COALESCE\(([^,]+),\s*'(\[\])'\)"
+        converted_query = re.sub(
+            coalesce_json_pattern,
+            r"COALESCE(\1, '\2')",
+            converted_query,
+            flags=re.IGNORECASE
+        )
+        
+        # Handle PostgreSQL boolean literals in WHERE clauses
+        converted_query = re.sub(r'\bTRUE\b', '1', converted_query, flags=re.IGNORECASE)
+        converted_query = re.sub(r'\bFALSE\b', '0', converted_query, flags=re.IGNORECASE)
+        
+        # Handle ORDER BY with NULLS LAST/FIRST (PostgreSQL) to SQLite equivalent
+        # PostgreSQL: ORDER BY column NULLS LAST
+        # SQLite: ORDER BY column IS NULL, column
+        nulls_last_pattern = r'ORDER BY\s+([^,\s]+)\s+NULLS\s+LAST'
+        converted_query = re.sub(
+            nulls_last_pattern, 
+            r'ORDER BY \1 IS NULL, \1',
+            converted_query,
+            flags=re.IGNORECASE
+        )
+        
+        # PostgreSQL: ORDER BY column NULLS FIRST  
+        # SQLite: ORDER BY column IS NULL DESC, column
+        nulls_first_pattern = r'ORDER BY\s+([^,\s]+)\s+NULLS\s+FIRST'
+        converted_query = re.sub(
+            nulls_first_pattern,
+            r'ORDER BY \1 IS NULL DESC, \1', 
+            converted_query,
+            flags=re.IGNORECASE
+        )
         
         return converted_query
     

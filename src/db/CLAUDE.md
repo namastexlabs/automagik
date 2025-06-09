@@ -4,7 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Database Architecture & Usage
 
-This codebase uses PostgreSQL with a sophisticated repository pattern, automated migrations, and type-safe Pydantic models.
+This codebase supports both SQLite (default) and PostgreSQL databases through a unified provider architecture, with sophisticated repository patterns, automated migrations, and type-safe Pydantic models.
+
+## 🔧 Database Provider System
+
+The framework uses a provider abstraction layer for database independence:
+
+### Supported Database Types
+- **SQLite** (default) - Zero-configuration, single-file database
+- **PostgreSQL** - Production-ready with advanced features
+
+### Provider Architecture
+```python
+# Database providers handle connection management and SQL execution
+from src.db.providers import DatabaseProvider, get_database_provider
+
+# Factory automatically selects provider based on DATABASE_TYPE env var
+provider = get_database_provider()
+
+# All database operations go through the provider
+result = provider.execute_query("SELECT * FROM users", fetch=True)
+```
+
+### Configuration
+```bash
+# Use SQLite (default)
+DATABASE_TYPE=sqlite
+SQLITE_DATABASE_PATH=./data/automagik_agents.db
+
+# Use PostgreSQL  
+DATABASE_TYPE=postgresql
+DATABASE_URL=postgresql://user:pass@localhost/automagik
+```
 
 ## 🏗️ Database Architecture
 
