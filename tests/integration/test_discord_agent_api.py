@@ -25,7 +25,14 @@ AGENT_ENDPOINT = f"http://{API_HOST}/api/v1/agent/discord/run"  # Using 'discord
 TEST_USER_IDENTIFIER = "discord-test-user@example.com"  # Use email for get/create
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
+# Skip integration tests if server is not available
+skip_if_server_unavailable = pytest.mark.skipif(
+    not os.environ.get("AM_API_KEY") or not os.environ.get("AM_INTEGRATION_SERVER_RUNNING"),
+    reason="Integration server not running or AM_API_KEY not set"
+)
+
 # --- Test Cases ---
+@skip_if_server_unavailable
 @pytest.mark.integration  # Mark as an integration test
 @pytest.mark.asyncio  # Add asyncio marker
 async def test_discord_agent_run_success():

@@ -1,6 +1,5 @@
 import pytest
 import uuid
-from src.db import get_db_connection
 
 # Constants for setup
 _TEST_USER_EMAIL = "session_test_user@example.com"
@@ -19,35 +18,37 @@ def setup_module():
     """Setup test data before running tests"""
     global created_session_id, _TEST_USER_ID
     
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-
-        # Ensure we have at least one user to satisfy FK / NOT NULL constraint.
-        cur.execute("SELECT id FROM users WHERE email = %s", (_TEST_USER_EMAIL,))
-        row = cur.fetchone()
-        if row:
-            _TEST_USER_ID = row[0]
-        else:
-            # Insert a minimal user record.
-            cur.execute(
-                """
-                INSERT INTO users (email, created_at, updated_at)
-                VALUES (%s, NOW(), NOW()) RETURNING id
-                """,
-                (_TEST_USER_EMAIL,)
-            )
-            _TEST_USER_ID = cur.fetchone()[0]
-
-        # Now insert the test session row referencing the user_id.
-        cur.execute(
+    from src.db.connection import execute_query
+    
+    # Ensure we have at least one user to satisfy FK / NOT NULL constraint.
+    user_result = execute_query("SELECT id FROM users WHERE email = %s", (_TEST_USER_EMAIL,))
+    if user_result:
+        _TEST_USER_ID = user_result[0]["id"]
+    else:
+        # Generate a UUID for the user
+        import uuid
+        test_user_uuid = str(uuid.uuid4())
+        
+        # Insert a minimal user record with explicit UUID
+        user_insert_result = execute_query(
             """
-            INSERT INTO sessions (id, user_id, name, platform, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, NOW(), NOW())
+            INSERT INTO users (id, email, created_at, updated_at)
+            VALUES (%s, %s, datetime('now'), datetime('now'))
             """,
-            (test_session["id"], _TEST_USER_ID, test_session["name"], "test")
+            (test_user_uuid, _TEST_USER_EMAIL),
+            fetch=False
         )
+        _TEST_USER_ID = test_user_uuid
 
-        conn.commit()
+    # Now insert the test session row referencing the user_id.
+    execute_query(
+        """
+        INSERT INTO sessions (id, user_id, name, platform, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, datetime('now'), datetime('now'))
+        """,
+        (test_session["id"], _TEST_USER_ID, test_session["name"], "test"),
+        fetch=False
+    )
 
     created_session_id = test_session["id"]
 

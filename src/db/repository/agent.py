@@ -65,7 +65,8 @@ def list_agents(active_only: bool = True) -> List[Agent]:
     try:
         if active_only:
             result = execute_query(
-                "SELECT * FROM agents WHERE active = TRUE ORDER BY name"
+                "SELECT * FROM agents WHERE active = %s ORDER BY name",
+                (True,)
             )
         else:
             result = execute_query(
