@@ -14,9 +14,14 @@ async def test_list_agents_respects_active_status():
     if len(all_agents) < 2:
         pytest.skip("Need at least 2 agents in database for this test")
     
-    # Pick two agents - one to activate, one to deactivate
-    agent_to_activate = all_agents[0]
-    agent_to_deactivate = all_agents[1]
+    # Pick two real agents (skip placeholder agents like claude-code_disabled)
+    real_agents = [agent for agent in all_agents if not agent.name.endswith('_disabled') and not agent.name.endswith('_error')]
+    
+    if len(real_agents) < 2:
+        pytest.skip("Need at least 2 real agents in database for this test")
+    
+    agent_to_activate = real_agents[0]
+    agent_to_deactivate = real_agents[1]
     
     # Store original states to restore later
     original_states = {

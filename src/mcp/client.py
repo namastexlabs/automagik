@@ -471,8 +471,53 @@ class MCPClientManager:
             logger.error(f"Failed to delete server config: {str(e)}")
             raise MCPError(f"Failed to delete server configuration: {str(e)}")
     
+    async def _cleanup_orphaned_processes(self) -> None:
+        """Clean up any orphaned MCP processes before starting new ones."""
+        try:
+            import subprocess
+            
+            # Kill any existing mcp-linear processes
+            try:
+                result = subprocess.run(
+                    ['pkill', '-f', 'mcp-linear'], 
+                    capture_output=True, 
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    logger.info("🧹 Cleaned up orphaned mcp-linear processes")
+                elif result.returncode == 1:
+                    # No processes found, which is fine
+                    logger.debug("No orphaned mcp-linear processes found")
+            except subprocess.TimeoutExpired:
+                logger.warning("Timeout while cleaning up mcp-linear processes")
+            except Exception as e:
+                logger.warning(f"Could not clean up mcp-linear processes: {e}")
+            
+            # Kill any existing mcp-server-postgres processes
+            try:
+                result = subprocess.run(
+                    ['pkill', '-f', 'mcp-server-postgres'], 
+                    capture_output=True, 
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    logger.info("🧹 Cleaned up orphaned mcp-server-postgres processes")
+            except Exception as e:
+                logger.debug(f"No mcp-server-postgres processes to clean up: {e}")
+            
+            # Give processes time to fully terminate
+            await asyncio.sleep(1)
+            
+        except Exception as e:
+            logger.warning(f"Error during orphaned process cleanup: {e}")
+    
     async def _start_auto_start_servers(self) -> None:
         """Start servers configured for auto-start."""
+        # Clean up any orphaned MCP processes before starting
+        await self._cleanup_orphaned_processes()
+        
         start_tasks = []
         
         # Create snapshot to avoid race conditions during iteration
@@ -718,6 +763,42 @@ class MCPClientManager:
         except Exception as e:
             logger.error(f"Failed to refresh MCP configurations: {str(e)}")
             raise MCPError(f"Configuration refresh failed: {str(e)}")
+    
+    async def shutdown(self) -> None:
+        """Shutdown all MCP servers and cleanup resources."""
+        try:
+            logger.info("Shutting down MCP client manager...")
+            
+            # Stop health check task if running
+            if self._health_check_task and not self._health_check_task.done():
+                self._health_check_task.cancel()
+                try:
+                    await self._health_check_task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Stop all servers
+            stop_tasks = []
+            servers_snapshot = dict(self._servers)
+            
+            for server in servers_snapshot.values():
+                if server.is_running:
+                    stop_tasks.append(server.stop())
+            
+            if stop_tasks:
+                logger.info(f"Stopping {len(stop_tasks)} MCP servers...")
+                await asyncio.gather(*stop_tasks, return_exceptions=True)
+            
+            # Clear state
+            self._servers.clear()
+            self._agent_servers.clear()
+            self._initialized = False
+            
+            logger.info("✅ MCP client manager shutdown complete")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during MCP client manager shutdown: {str(e)}")
+            # Don't raise here to avoid interfering with application shutdown
 
 
 # Global MCP client manager instance
@@ -758,3 +839,12 @@ async def refresh_mcp_client_manager() -> MCPClientManager:
         await mcp_client_manager.initialize()
     
     return mcp_client_manager
+
+
+async def shutdown_mcp_client_manager() -> None:
+    """Shutdown the global MCP client manager instance."""
+    global mcp_client_manager
+    
+    if mcp_client_manager is not None:
+        await mcp_client_manager.shutdown()
+        mcp_client_manager = None

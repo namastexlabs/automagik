@@ -18,6 +18,7 @@ from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
 from src.cli.db import db_init
+from src.db.providers.factory import get_database_provider
 
 # Configure Neo4j logging to reduce verbosity
 logging.getLogger("neo4j").setLevel(logging.WARNING)
@@ -248,8 +249,20 @@ def create_app() -> FastAPI:
         # The database needs to be available first
         try:
             logger.info("🏗️ Initializing database for application startup...")
-            # Use the existing database initialization pattern
-            db_init(force=False)  # Call db_init from src.cli.db, explicitly setting force=False
+            # Check which database provider we're using
+            provider = get_database_provider()
+            db_type = provider.get_database_type()
+            
+            if db_type == "sqlite":
+                # SQLite initialization is handled automatically by the provider
+                logger.info(f"Using {db_type} database provider")
+                # Test the connection to ensure everything is working
+                with provider.get_connection() as conn:
+                    conn.execute("SELECT 1")
+                logger.info("✅ SQLite database ready")
+            else:
+                # Use the existing PostgreSQL initialization
+                db_init(force=False)
             logger.info("✅ Database initialization completed")
         except Exception as e:
             logger.error(f"❌ Database initialization failed: {str(e)}")
@@ -309,6 +322,16 @@ def create_app() -> FastAPI:
         
         # Cleanup shared resources
         try:
+            # Shutdown MCP client manager
+            logger.info("🛑 Shutting down MCP client manager...")
+            from src.mcp.client import shutdown_mcp_client_manager
+            await shutdown_mcp_client_manager()
+            logger.info("✅ MCP client manager shutdown successfully")
+        except Exception as e:
+            logger.error(f"❌ Error shutting down MCP client manager: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
+        try:
             # Stop Graphiti queue
             logger.info("🛑 Stopping Graphiti queue...")
             from src.utils.graphiti_queue import shutdown_graphiti_queue
@@ -318,16 +341,8 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error stopping Graphiti queue: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
-        try:
-            # Close shared Graphiti client if it exists
-            from src.agents.models.automagik_agent import _shared_graphiti_client
-            if _shared_graphiti_client is not None:
-                logger.info("Closing shared Graphiti client...")
-                await _shared_graphiti_client.close()
-                logger.info("✅ Shared Graphiti client closed successfully")
-        except Exception as e:
-            logger.error(f"❌ Error closing shared Graphiti client: {str(e)}")
-            logger.error(f"Detailed error: {traceback.format_exc()}")
+        # Graphiti client cleanup is handled automatically by the queue shutdown above
+        logger.debug("🛑 Graphiti client cleanup completed via queue shutdown")
     
     # Create the FastAPI app
     app = FastAPI(
@@ -385,30 +400,54 @@ def create_app() -> FastAPI:
     try:
         logger.info("🔧 Initializing database connection for message storage")
         
-        # First test database connection
-        from src.db.connection import get_connection_pool
-        pool = get_connection_pool()
+        # Get database provider for connection testing
+        from src.db.providers.factory import get_database_provider
+        provider = get_database_provider()
         
-        # Test the connection with a simple query
-        with pool.getconn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT version()")
-                version = cur.fetchone()[0]
-                logger.info(f"✅ Database connection test successful: {version}")
+        # Test the connection with provider-specific logic
+        if provider.get_database_type() == "sqlite":
+            # SQLite-specific connection test
+            with provider.get_connection() as conn:
+                conn.execute("SELECT 1")
+                logger.info("✅ SQLite database connection test successful")
                 
                 # Check if required tables exist
-                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions')")
-                sessions_table_exists = cur.fetchone()[0]
+                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+                sessions_table_exists = cursor.fetchone() is not None
                 
-                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'messages')")
-                messages_table_exists = cur.fetchone()[0]
+                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'")
+                messages_table_exists = cursor.fetchone() is not None
                 
                 logger.info(f"Database tables check - Sessions: {sessions_table_exists}, Messages: {messages_table_exists}")
                 
                 if not (sessions_table_exists and messages_table_exists):
                     logger.error("❌ Required database tables are missing - sessions or messages tables not found")
                     raise ValueError("Required database tables not found")
-            pool.putconn(conn)
+        else:
+            # PostgreSQL connection test using legacy method
+            from src.db.connection import get_connection_pool
+            pool = get_connection_pool()
+            
+            # Test the connection with a simple query
+            with pool.getconn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT version()")
+                    version = cur.fetchone()[0]
+                    logger.info(f"✅ Database connection test successful: {version}")
+                    
+                    # Check if required tables exist
+                    cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions')")
+                    sessions_table_exists = cur.fetchone()[0]
+                    
+                    cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'messages')")
+                    messages_table_exists = cur.fetchone()[0]
+                    
+                    logger.info(f"Database tables check - Sessions: {sessions_table_exists}, Messages: {messages_table_exists}")
+                    
+                    if not (sessions_table_exists and messages_table_exists):
+                        logger.error("❌ Required database tables are missing - sessions or messages tables not found")
+                        raise ValueError("Required database tables not found")
+                pool.putconn(conn)
             
         logger.info("✅ Database connection pool initialized successfully")
         

@@ -187,26 +187,31 @@ def verify_db_read_write():
         # Now use a separate transaction for test session/message that will be rolled back
         logger.info("Testing database message storage functionality with transaction rollback...")
         
-        with get_db_connection() as conn:
-            conn.autocommit = False  # Start a transaction
-            
+        # Use provider-specific database connection
+        from src.db.providers.factory import get_database_provider
+        provider = get_database_provider()
+        
+        if provider.get_database_type() == "sqlite":
+            # SQLite-specific transaction handling
             # Generate test UUIDs
             test_session_id = generate_uuid()
             test_message_id = generate_uuid()
             
-            # Create the session and message within the transaction
-            with conn.cursor() as cur:
+            # Use provider execute_query for SQLite which handles parameter conversion
+            try:
                 # Insert test session
-                cur.execute(
+                provider.execute_query(
                     """
                     INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now())
+                    (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now()),
+                    fetch=False,
+                    commit=False
                 )
                 
                 # Insert test message
-                cur.execute(
+                provider.execute_query(
                     """
                     INSERT INTO messages (
                         id, session_id, user_id, role, text_content, raw_payload, created_at, updated_at
@@ -221,26 +226,100 @@ def verify_db_read_write():
                         json.dumps({"content": "Test database connection"}),
                         datetime.now(),
                         datetime.now()
-                    )
+                    ),
+                    fetch=False,
+                    commit=False
                 )
                 
                 # Verify we can read the data back
-                cur.execute("SELECT COUNT(*) FROM sessions WHERE id = %s", (safe_uuid(test_session_id),))
-                session_count = cur.fetchone()[0]
+                session_result = provider.execute_query(
+                    "SELECT COUNT(*) FROM sessions WHERE id = %s", 
+                    (safe_uuid(test_session_id),)
+                )
+                session_count = session_result[0]['COUNT(*)'] if session_result else 0
                 
-                cur.execute("SELECT COUNT(*) FROM messages WHERE id = %s", (safe_uuid(test_message_id),))
-                message_count = cur.fetchone()[0]
+                message_result = provider.execute_query(
+                    "SELECT COUNT(*) FROM messages WHERE id = %s", 
+                    (safe_uuid(test_message_id),)
+                )
+                message_count = message_result[0]['COUNT(*)'] if message_result else 0
                 
                 if session_count > 0 and message_count > 0:
                     logger.info("✅ Database read/write test successful within transaction")
                 else:
                     logger.error("❌ Failed to verify database read operations within transaction")
-                    conn.rollback()
                     raise Exception("Database verification failed: Could not read back inserted test data")
                 
-                # Roll back the transaction to avoid persisting test data
-                conn.rollback()
-                logger.info("✅ Test transaction rolled back - no test data persisted")
+                # Clean up test data manually for SQLite (since we're not using transactions)
+                provider.execute_query("DELETE FROM messages WHERE id = %s", (safe_uuid(test_message_id),), fetch=False)
+                provider.execute_query("DELETE FROM sessions WHERE id = %s", (safe_uuid(test_session_id),), fetch=False)
+                logger.info("✅ Test data cleaned up successfully")
+                
+            except Exception as sqlite_error:
+                logger.error(f"SQLite test failed: {sqlite_error}")
+                # Try to clean up anyway
+                try:
+                    provider.execute_query("DELETE FROM messages WHERE id = %s", (safe_uuid(test_message_id),), fetch=False)
+                    provider.execute_query("DELETE FROM sessions WHERE id = %s", (safe_uuid(test_session_id),), fetch=False)
+                except:
+                    pass
+                raise sqlite_error
+                
+        else:
+            # PostgreSQL transaction handling (original logic)
+            with get_db_connection() as conn:
+                conn.autocommit = False  # PostgreSQL style
+                
+                # Generate test UUIDs
+                test_session_id = generate_uuid()
+                test_message_id = generate_uuid()
+                
+                with conn.cursor() as cur:
+                    # Insert test session
+                    cur.execute(
+                        """
+                        INSERT INTO sessions (id, user_id, platform, created_at, updated_at) 
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (safe_uuid(test_session_id), safe_uuid(test_user_id), "verification_test", datetime.now(), datetime.now())
+                    )
+                    
+                    # Insert test message
+                    cur.execute(
+                        """
+                        INSERT INTO messages (
+                            id, session_id, user_id, role, text_content, raw_payload, created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            safe_uuid(test_message_id),
+                            safe_uuid(test_session_id),
+                            safe_uuid(test_user_id),
+                            "user",
+                            "Test database connection",
+                            json.dumps({"content": "Test database connection"}),
+                            datetime.now(),
+                            datetime.now()
+                        )
+                    )
+                    
+                    # Verify we can read the data back
+                    cur.execute("SELECT COUNT(*) FROM sessions WHERE id = %s", (safe_uuid(test_session_id),))
+                    session_count = cur.fetchone()[0]
+                    
+                    cur.execute("SELECT COUNT(*) FROM messages WHERE id = %s", (safe_uuid(test_message_id),))
+                    message_count = cur.fetchone()[0]
+                    
+                    if session_count > 0 and message_count > 0:
+                        logger.info("✅ Database read/write test successful within transaction")
+                    else:
+                        logger.error("❌ Failed to verify database read operations within transaction")
+                        conn.rollback()
+                        raise Exception("Database verification failed: Could not read back inserted test data")
+                    
+                    # Roll back the transaction to avoid persisting test data
+                    conn.rollback()
+                    logger.info("✅ Test transaction rolled back - no test data persisted")
         
         logger.info("✅ Database verification completed successfully without creating persistent test data")
 
