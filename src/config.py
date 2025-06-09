@@ -135,7 +135,13 @@ class Settings(BaseSettings):
     # Meeting Bot
     MEETING_BOT_URL: Optional[str] = Field(None, description="Meeting bot webhook service URL for creating bots")
 
-    # Database (PostgreSQL)
+    # Database Configuration
+    DATABASE_TYPE: str = Field("sqlite", description="Database type (sqlite or postgresql)")
+    
+    # SQLite Configuration  
+    SQLITE_DATABASE_PATH: Optional[str] = Field(None, description="Path to SQLite database file (defaults to data/automagik.db)")
+    
+    # PostgreSQL Configuration
     DATABASE_URL: str = Field("postgresql://postgres:postgres@localhost:5432/automagik", 
                           description="PostgreSQL connection string")
     POSTGRES_HOST: str = Field("localhost", description="PostgreSQL host")
