@@ -60,7 +60,7 @@ class PydanticAIFramework(AgentAIFramework):
     async def run(self,
                   user_input: Union[str, List[Any]],
                   dependencies: BaseDependencies,
-                  message_history: Optional[List[Dict[str, Any]]] = None,
+                  message_history: Optional[List[Any]] = None,
                   system_prompt: Optional[str] = None,
                   **kwargs) -> AgentResponse:
         """Run the PydanticAI agent."""
@@ -103,7 +103,7 @@ class PydanticAIFramework(AgentAIFramework):
             )
     
     def format_message_history(self, 
-                              raw_messages: List[Dict[str, Any]]) -> List[Any]:
+                              raw_messages: List[Any]) -> List[Any]:
         """Convert message history to PydanticAI format."""
         try:
             from pydantic_ai.messages import ModelRequest, ModelResponse, SystemPromptPart, UserPromptPart, TextPart
@@ -111,23 +111,36 @@ class PydanticAIFramework(AgentAIFramework):
             formatted_messages = []
             
             for message in raw_messages:
-                role = message.get('role', 'user')
-                content = message.get('content', '')
+                # Check if message is already a PydanticAI ModelMessage
+                if hasattr(message, 'parts'):
+                    # Already a PydanticAI message, use as-is
+                    formatted_messages.append(message)
+                    continue
                 
-                if role == 'system':
-                    # System messages are handled as ModelRequest with SystemPromptPart
-                    formatted_messages.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
-                elif role == 'assistant':
-                    # Assistant messages are ModelResponse with TextPart
-                    formatted_messages.append(ModelResponse(parts=[TextPart(content=content)]))
-                else:  # user
-                    # User messages are ModelRequest with UserPromptPart
-                    formatted_messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+                # Handle dictionary messages (legacy format)
+                if isinstance(message, dict):
+                    role = message.get('role', 'user')
+                    content = message.get('content', '')
+                    
+                    if role == 'system':
+                        # System messages are handled as ModelRequest with SystemPromptPart
+                        formatted_messages.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
+                    elif role == 'assistant':
+                        # Assistant messages are ModelResponse with TextPart
+                        formatted_messages.append(ModelResponse(parts=[TextPart(content=content)]))
+                    else:  # user
+                        # User messages are ModelRequest with UserPromptPart
+                        formatted_messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+                else:
+                    # Unknown message type, log warning and skip
+                    logger.warning(f"Unknown message type in history: {type(message)}")
                     
             return formatted_messages
             
         except Exception as e:
             logger.error(f"Error formatting message history: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
     
     def extract_tool_calls(self, result: Any) -> List[Dict[str, Any]]:
