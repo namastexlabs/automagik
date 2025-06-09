@@ -8,9 +8,14 @@ import uuid
 try:
     from langgraph.graph import StateGraph, START, END
     from langgraph.graph.message import add_messages
-    from langgraph.checkpoint.postgres import PostgresSaver
     from langgraph.prebuilt import ToolNode
     LANGGRAPH_AVAILABLE = True
+    # Try to import PostgresSaver separately as it requires PostgreSQL libs
+    try:
+        from langgraph.checkpoint.postgres import PostgresSaver
+    except ImportError:
+        # PostgreSQL libraries not available, we'll use in-memory checkpointing
+        PostgresSaver = None
 except ImportError:
     LANGGRAPH_AVAILABLE = False
     StateGraph = None
@@ -45,6 +50,11 @@ def create_orchestration_graph(
     if not LANGGRAPH_AVAILABLE:
         logger.warning("LangGraph not available, cannot create orchestration graph")
         return None
+        
+    if PostgresSaver is None:
+        logger.info("PostgreSQL checkpointing not available (missing libpq), using in-memory state")
+        # Continue without checkpointing for now
+        # TODO: Implement alternative checkpointing strategy
         
     # Initialize components
     router = WorkflowRouter()

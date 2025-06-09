@@ -3,13 +3,16 @@
 import uuid
 from typing import Dict, Optional, List, Any
 from datetime import datetime
+import logging
 
+logger = logging.getLogger(__name__)
 
 # Try to import langgraph, but gracefully handle if not available
 try:
     from langgraph.graph import StateGraph
     LANGGRAPH_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logger.debug(f"LangGraph import failed: {e}")
     LANGGRAPH_AVAILABLE = False
     StateGraph = None
 
@@ -17,7 +20,6 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.config import settings
-import logging
 
 from .prompts.prompt import AGENT_PROMPT
 from .models import (
@@ -31,8 +33,6 @@ if LANGGRAPH_AVAILABLE:
         create_orchestration_graph, WorkflowRouter, 
         ClaudeCodeClient, ApprovalManager
     )
-
-logger = logging.getLogger(__name__)
 
 
 class GenieAgent(AutomagikAgent):
@@ -96,7 +96,7 @@ class GenieAgent(AutomagikAgent):
             self.approval_manager = None
             self.active_epics = {}
             
-            logger.warning("GenieAgent initialized without LangGraph orchestration (dependency not available)")
+            logger.info("GenieAgent initialized without LangGraph orchestration")
         
     def _create_orchestration_graph(self) -> Optional[StateGraph]:
         """Create the embedded LangGraph orchestration graph.
@@ -105,7 +105,7 @@ class GenieAgent(AutomagikAgent):
             Configured StateGraph for workflow orchestration, or None if LangGraph not available
         """
         if not LANGGRAPH_AVAILABLE:
-            logger.warning("LangGraph not available, orchestration disabled")
+            logger.info("LangGraph orchestration disabled")
             return None
             
         try:

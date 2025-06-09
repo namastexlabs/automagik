@@ -72,7 +72,7 @@ class ClaudeCodeAgent(AutomagikAgent):
         })
         
         # Determine execution mode
-        self.execution_mode = os.environ.get("CLAUDE_CODE_MODE", "docker").lower()
+        self.execution_mode = os.environ.get("CLAUDE_CODE_MODE", "local").lower()
         logger.info(f"ClaudeCodeAgent initializing in {self.execution_mode} mode")
         
         # Initialize appropriate executor
@@ -117,12 +117,14 @@ class ClaudeCodeAgent(AutomagikAgent):
         Returns:
             AgentResponse object with result and metadata
         """
-        # Check if claude-code is enabled
-        if not settings.AM_ENABLE_CLAUDE_CODE:
+        # Check if claude CLI is available
+        from pathlib import Path
+        claude_credentials = Path.home() / ".claude" / ".credentials.json"
+        if not claude_credentials.exists():
             return AgentResponse(
-                text="Claude-Code agent is disabled. Set AM_ENABLE_CLAUDE_CODE=true to enable.",
+                text=f"Claude CLI not configured. Please install Claude CLI and authenticate.",
                 success=False,
-                error_message="Agent disabled via feature flag"
+                error_message=f"No credentials found at {claude_credentials}"
             )
         
         try:
