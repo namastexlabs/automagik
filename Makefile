@@ -49,63 +49,63 @@ FOLLOW ?=
 # 🛠️ Utility Functions
 # ===========================================
 define print_status
-	@echo -e "$(FONT_PURPLE)🪄 $(1)$(FONT_RESET)"
+	echo -e "$(FONT_PURPLE)🪄 $(1)$(FONT_RESET)"
 endef
 
 define print_success
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
 endef
 
 define print_warning
-	@echo -e "$(FONT_YELLOW)$(WARNING) $(1)$(FONT_RESET)"
+	echo -e "$(FONT_YELLOW)$(WARNING) $(1)$(FONT_RESET)"
 endef
 
 define print_error
-	@echo -e "$(FONT_RED)$(ERROR) $(1)$(FONT_RESET)"
+	echo -e "$(FONT_RED)$(ERROR) $(1)$(FONT_RESET)"
 endef
 
 define print_success_with_logo
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"
-	@$(call show_automagik_logo)
+	echo -e "$(FONT_GREEN)$(CHECKMARK) $(1)$(FONT_RESET)"; \
+	$(call show_automagik_logo)
 endef
 
 define show_nmstx_logo
-	@echo ""
-	@echo -e "$(FONT_PURPLE)  :*@@@@*.     :=@@@-%@@@%=          :-@@@%* :*@@@@@@@#-:#@@@@@@@@@@@*-           -#@@@%=   $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@@@#-    :=@@@-%@@@@#=        :-@@@@%--@@@@@%@@@@%-============-.          -@@@@*=    $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@@@@#=   :=@@@-%@@@@@*-      .-@@@@@%-#@@@*  .-%@%+=              :+@@@@*.=@@@@*.     $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@#@@@%*  :=@@@-%@@@@@@*-     -%@@@@@%-#@@@*                        .-@@@@%@@@%+       $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@--@@@@*::=@@@-%@@@%@@@*:   -#@@@@@@%--@@@@@%%#+:     :*@@@*.        -*@@@@@*=        $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@*.-%@@@#:=@@@-%@@@-#@@@*. -*@@@=+@@%* :-@@@@@@@@#-   :*@@@*.        .=@@@@@*.        $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@*. -#@@@#+@@@-%@@@=-#@@@+-+@@@*-+@@%*      .-#@@@*:  :*@@@*.       -*@@@@@@@*-       $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  :*@@@*.  :=@@@@@@@-%@@@*.-@@@%*@@@*--+@@%*       .-@@@**  :*@@@*.      -@@@@#-#@@@%=      $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)            .-@@@@@@-%@@@*..-@@@@@@*=             .=%@@@*.  :*@@@*.    .-@@@@*. .:==-::   $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)              -#@@@@-%@@@*. .-@@@@#=             -+@@@@*:   :*@@@*.   -+@@@%+               $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)               :=+++:=+++-                       ::=-:      .-+++-   :=+++=:                $(FONT_RESET)"
-	@echo ""
+	echo ""; \
+	echo -e "$(FONT_PURPLE)  :*@@@@*.     :=@@@-%@@@%=          :-@@@%* :*@@@@@@@#-:#@@@@@@@@@@@*-           -#@@@%=   $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@@@#-    :=@@@-%@@@@#=        :-@@@@%--@@@@@%@@@@%-============-.          -@@@@*=    $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@@@@#=   :=@@@-%@@@@@*-      .-@@@@@%-#@@@*  .-%@%+=              :+@@@@*.=@@@@*.     $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@#@@@%*  :=@@@-%@@@@@@*-     -%@@@@@%-#@@@*                        .-@@@@%@@@%+       $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@--@@@@*::=@@@-%@@@%@@@*:   -#@@@@@@%--@@@@@%%#+:     :*@@@*.        -*@@@@@*=        $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@*.-%@@@#:=@@@-%@@@-#@@@*. -*@@@=+@@%* :-@@@@@@@@#-   :*@@@*.        .=@@@@@*.        $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@*. -#@@@#+@@@-%@@@=-#@@@+-+@@@*-+@@%*      .-#@@@*:  :*@@@*.       -*@@@@@@@*-       $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  :*@@@*.  :=@@@@@@@-%@@@*.-@@@%*@@@*--+@@%*       .-@@@**  :*@@@*.      -@@@@#-#@@@%=      $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)            .-@@@@@@-%@@@*..-@@@@@@*=             .=%@@@*.  :*@@@*.    .-@@@@*. .:==-::   $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)              -#@@@@-%@@@*. .-@@@@#=             -+@@@@*:   :*@@@*.   -+@@@%+               $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)               :=+++:=+++-                       ::=-:      .-+++-   :=+++=:                $(FONT_RESET)"; \
+	echo ""
 endef
 
 define show_automagik_logo
-	@echo ""
-	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"
-	@echo ""
+	echo ""; \
+	echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"; \
+	echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"; \
+	echo ""
 endef
 
 define check_docker
-	@if ! command -v docker >/dev/null 2>&1; then \
+	if ! command -v docker >/dev/null 2>&1; then \
 		$(call print_error,Docker not found); \
 		echo -e "$(FONT_YELLOW)💡 Install Docker: https://docs.docker.com/get-docker/$(FONT_RESET)"; \
 		exit 1; \
-	fi
-	@if ! docker info >/dev/null 2>&1; then \
+	fi; \
+	if ! docker info >/dev/null 2>&1; then \
 		$(call print_error,Docker daemon not running); \
 		echo -e "$(FONT_YELLOW)💡 Start Docker service$(FONT_RESET)"; \
 		exit 1; \
@@ -113,7 +113,7 @@ define check_docker
 endef
 
 define check_env_file
-	@if [ ! -f ".env" ]; then \
+	if [ ! -f ".env" ]; then \
 		$(call print_warning,.env file not found); \
 		echo -e "$(FONT_CYAN)Copying .env.example to .env...$(FONT_RESET)"; \
 		cp .env.example .env; \
@@ -127,6 +127,19 @@ define detect_graphiti_profile
 		echo "--profile graphiti"; \
 	else \
 		echo ""; \
+	fi
+endef
+
+define detect_database_type
+	if [ -f ".env" ]; then \
+		db_type=$$(grep "^DATABASE_TYPE=" .env | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr '[:upper:]' '[:lower:]'); \
+		if [ "$$db_type" = "postgresql" ]; then \
+			echo "postgresql"; \
+		else \
+			echo "sqlite"; \
+		fi; \
+	else \
+		echo "sqlite"; \
 	fi
 endef
 
@@ -146,9 +159,9 @@ help: ## 🪄 Show this help message
 	@echo -e "$(FONT_PURPLE)🪄 Automagik Agents - Streamlined Commands$(FONT_RESET)"
 	@echo ""
 	@echo -e "$(FONT_CYAN)🚀 Installation:$(FONT_RESET)"
-	@echo -e "  $(FONT_PURPLE)install$(FONT_RESET)         Install development environment (uv sync)"
+	@echo -e "  $(FONT_PURPLE)install$(FONT_RESET)         Install development environment (uv sync) - uses SQLite by default"
 	@echo -e "  $(FONT_PURPLE)install-service$(FONT_RESET) Install as systemd service with optional dependencies"
-	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install database dependencies (PostgreSQL, Neo4j, Graphiti)"
+	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install optional database dependencies (PostgreSQL, Neo4j, Graphiti)"
 	@echo -e "  $(FONT_PURPLE)install-docker$(FONT_RESET)  Install Docker development stack"
 	@echo -e "  $(FONT_PURPLE)install-prod$(FONT_RESET)    Install production Docker stack"
 	@echo ""
@@ -175,7 +188,7 @@ help: ## 🪄 Show this help message
 	@echo -e "  $(FONT_PURPLE)clean$(FONT_RESET)           Clean temporary files"
 	@echo -e "  $(FONT_PURPLE)test$(FONT_RESET)            Run test suite"
 	@echo ""
-	@echo -e "$(FONT_YELLOW)💡 Neo4j/Graphiti auto-detected from .env$(FONT_RESET)"
+	@echo -e "$(FONT_YELLOW)💡 SQLite is used by default. PostgreSQL/Neo4j/Graphiti are optional$(FONT_RESET)"
 	@echo ""
 
 print-test: ## 🎨 Test color system
@@ -194,59 +207,73 @@ print-test: ## 🎨 Test color system
 # ===========================================
 .PHONY: install install-service install-deps install-docker install-prod
 install: ## 🛠️ Install development environment
-	$(call print_status,Installing development environment...)
+	@$(call print_status,Installing development environment...)
 	@$(call check_prerequisites)
 	@$(call setup_python_env)
 	@$(call check_env_file)
-	$(call print_success_with_logo,Development environment ready!)
+	@$(call print_success_with_logo,Development environment ready!)
 
 install-service: ## ⚙️ Install as systemd service with optional dependencies
-	$(call print_status,Installing Automagik Agents systemd service...)
+	@$(call print_status,Installing Automagik Agents systemd service...)
 	@$(MAKE) install
 	@$(call check_env_file)
 	@$(call show_dependency_prompt)
 	@$(call create_systemd_service)
 	@sudo systemctl daemon-reload
 	@sudo systemctl enable automagik-agents
-	$(call print_success_with_logo,Systemd service installed!)
+	@$(call print_success_with_logo,Systemd service installed!)
 	@echo -e "$(FONT_CYAN)💡 Start with: sudo systemctl start automagik-agents$(FONT_RESET)"
 
-install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graphiti)
-	$(call print_status,Installing database dependencies...)
+install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graphiti - optional for SQLite)
+	@$(call print_status,Installing database dependencies...)
 	@$(call check_docker)
 	@$(call check_env_file)
-	@$(call print_status,Stopping any existing containers...)
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true
-	@$(call print_status,Starting PostgreSQL container...)
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d --force-recreate automagik-agents-db
-	@$(call print_status,Waiting for PostgreSQL to be ready...)
-	@sleep 5
-	@$(call check_postgres_ready)
-	@$(call print_status,Starting Neo4j container...)
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-neo4j
-	@$(call print_status,Waiting for Neo4j to be ready...)
-	@sleep 10
-	@$(call print_status,Starting Graphiti service...)
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-graphiti
-	@$(call print_status,Waiting for Graphiti to be ready...)
-	@sleep 5
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"
-	@echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"
-	@echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"
-	$(call print_success_with_logo,All database dependencies installed!)
+	@db_type=$$($(call detect_database_type)); \
+	if [ "$$db_type" = "postgresql" ]; then \
+		$(call print_status,Database type: PostgreSQL - starting container...); \
+		$(call print_status,Stopping any existing containers...); \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true; \
+		$(call print_status,Starting PostgreSQL container...); \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d --force-recreate automagik-agents-db; \
+		$(call print_status,Waiting for PostgreSQL to be ready...); \
+		sleep 5; \
+		$(call check_postgres_ready); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL started successfully!$(FONT_RESET)"; \
+	else \
+		$(call print_status,Database type: SQLite - no container needed); \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite configured - database will be created automatically$(FONT_RESET)"; \
+	fi
+	@echo ""
+	@read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
+	if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
+		$(call print_status,Starting Neo4j container...); \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-neo4j; \
+		$(call print_status,Waiting for Neo4j to be ready...); \
+		sleep 10; \
+		$(call print_status,Starting Graphiti service...); \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-graphiti; \
+		$(call print_status,Waiting for Graphiti to be ready...); \
+		sleep 5; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
+	fi
+	@$(call print_success_with_logo,Database dependencies setup complete!)
 
 install-docker: ## 🐳 Install Docker development stack
-	$(call print_status,Installing Docker development stack...)
+	@$(call print_status,Installing Docker development stack...)
 	@$(call check_docker)
 	@$(call check_env_file)
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env build
 	@$(call print_status,Starting Docker development stack...)
 	@profile=$$($(call detect_graphiti_profile)); \
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
-	$(call print_success_with_logo,Docker development stack ready!)
+	@$(call print_success_with_logo,Docker development stack ready!)
 
 install-prod: ## 🏭 Install production Docker stack
-	$(call print_status,Installing production Docker stack...)
+	@$(call print_status,Installing production Docker stack...)
 	@$(call check_docker)
 	@if [ ! -f ".env.prod" ]; then \
 		$(call print_error,.env.prod file not found); \
@@ -257,7 +284,7 @@ install-prod: ## 🏭 Install production Docker stack
 	@env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) build
 	@$(call print_status,Starting production Docker stack...)
 	@env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) up -d
-	$(call print_success_with_logo,Production Docker stack ready!)
+	@$(call print_success_with_logo,Production Docker stack ready!)
 
 # ===========================================
 # 🎛️ Service Management
@@ -435,38 +462,43 @@ test: ## 🧪 Run test suite
 # 🔧 Helper Functions
 # ===========================================
 define show_dependency_prompt
-	@echo ""
-	@echo -e "$(FONT_CYAN)🗄️ Optional Database Dependencies$(FONT_RESET)"
-	@echo "Automagik Agents can work with external databases or use local Docker containers."
-	@echo ""
-	@echo -e "$(FONT_YELLOW)Available dependencies:$(FONT_RESET)"
-	@echo "• 🐘 PostgreSQL (database)"
-	@echo "• 🔗 Neo4j (knowledge graph)"
-	@echo "• 🧠 Graphiti (AI memory service)"
-	@echo ""
-	@bash -c ' \
-		read -p "Install database dependencies? [Y/n]: " install_deps; \
-		if [ "$$install_deps" != "n" ] && [ "$$install_deps" != "N" ]; then \
-			echo ""; \
-			echo -e "$(FONT_PURPLE)🪄 Installing database dependencies...$(FONT_RESET)"; \
-			echo -e "$(FONT_PURPLE)🪄 Starting PostgreSQL container...$(FONT_RESET)"; \
-			$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d automagik-agents-db; \
-			echo -e "$(FONT_PURPLE)🪄 Waiting for PostgreSQL to be ready...$(FONT_RESET)"; \
-			sleep 5; \
-			max_attempts=12; attempt=1; \
-			while [ $$attempt -le $$max_attempts ]; do \
-				if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
-					echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL is ready!$(FONT_RESET)"; \
-					break; \
-				else \
-					echo -n "$(FONT_YELLOW).$(FONT_RESET)"; \
-					sleep 5; \
-					attempt=$$((attempt + 1)); \
+	echo ""; \
+	db_type=$$($(call detect_database_type)); \
+	if [ "$$db_type" = "postgresql" ]; then \
+		echo -e "$(FONT_CYAN)🗄️ Database Dependencies$(FONT_RESET)"; \
+		echo "PostgreSQL is configured. Install Docker containers for database services?"; \
+		echo ""; \
+		echo -e "$(FONT_YELLOW)Available dependencies:$(FONT_RESET)"; \
+		echo "• 🐘 PostgreSQL (database container)"; \
+		echo "• 🔗 Neo4j (knowledge graph)"; \
+		echo "• 🧠 Graphiti (AI memory service)"; \
+		echo ""; \
+		bash -c ' \
+			read -p "Install PostgreSQL container? [Y/n]: " install_deps; \
+			if [ "$$install_deps" != "n" ] && [ "$$install_deps" != "N" ]; then \
+				echo ""; \
+				echo -e "$(FONT_PURPLE)🪄 Installing PostgreSQL container...$(FONT_RESET)"; \
+				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d automagik-agents-db; \
+				echo -e "$(FONT_PURPLE)🪄 Waiting for PostgreSQL to be ready...$(FONT_RESET)"; \
+				sleep 5; \
+				max_attempts=12; attempt=1; \
+				while [ $$attempt -le $$max_attempts ]; do \
+					if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
+						echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL is ready!$(FONT_RESET)"; \
+						break; \
+					else \
+						echo -n "$(FONT_YELLOW).$(FONT_RESET)"; \
+						sleep 5; \
+						attempt=$$((attempt + 1)); \
+					fi; \
+				done; \
+				if [ $$attempt -gt $$max_attempts ]; then \
+					echo -e "$(FONT_RED)$(ERROR) PostgreSQL failed to start within 60 seconds$(FONT_RESET)"; \
+					exit 1; \
 				fi; \
-			done; \
-			if [ $$attempt -gt $$max_attempts ]; then \
-				echo -e "$(FONT_RED)$(ERROR) PostgreSQL failed to start within 60 seconds$(FONT_RESET)"; \
-				exit 1; \
+				echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL container installed!$(FONT_RESET)"; \
+			else \
+				echo -e "$(FONT_YELLOW)$(WARNING) Skipping PostgreSQL container - using external database$(FONT_RESET)"; \
 			fi; \
 			echo ""; \
 			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
@@ -485,10 +517,36 @@ define show_dependency_prompt
 			else \
 				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
 			fi; \
-			echo -e "$(FONT_GREEN)$(CHECKMARK) Database dependencies installed!$(FONT_RESET)"; \
-		else \
-			echo -e "$(FONT_YELLOW)$(WARNING) Skipping database dependencies - configure external databases in .env$(FONT_RESET)"; \
-		fi'
+		'; \
+	else \
+		echo -e "$(FONT_CYAN)🗄️ Optional Database Dependencies$(FONT_RESET)"; \
+		echo "SQLite is configured as the default database (no container needed)."; \
+		echo ""; \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database will be created automatically$(FONT_RESET)"; \
+		echo ""; \
+		echo -e "$(FONT_YELLOW)Optional AI memory services:$(FONT_RESET)"; \
+		echo "• 🔗 Neo4j (knowledge graph)"; \
+		echo "• 🧠 Graphiti (AI memory service)"; \
+		echo ""; \
+		bash -c ' \
+			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
+			if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
+				echo -e "$(FONT_PURPLE)🪄 Starting Neo4j container...$(FONT_RESET)"; \
+				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-neo4j; \
+				echo -e "$(FONT_PURPLE)🪄 Waiting for Neo4j to be ready...$(FONT_RESET)"; \
+				sleep 10; \
+				echo -e "$(FONT_PURPLE)🪄 Starting Graphiti service...$(FONT_RESET)"; \
+				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-graphiti; \
+				echo -e "$(FONT_PURPLE)🪄 Waiting for Graphiti to be ready...$(FONT_RESET)"; \
+				sleep 5; \
+				echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
+				echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
+				echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
+			else \
+				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
+			fi; \
+		'; \
+	fi
 endef
 
 define check_postgres_ready
@@ -511,29 +569,29 @@ define check_postgres_ready
 endef
 
 define check_prerequisites
-	@if ! command -v python3 >/dev/null 2>&1; then \
+	if ! command -v python3 >/dev/null 2>&1; then \
 		$(call print_error,Python 3 not found); \
 		exit 1; \
-	fi
-	@if ! command -v uv >/dev/null 2>&1; then \
+	fi; \
+	if ! command -v uv >/dev/null 2>&1; then \
 		$(call print_status,Installing uv...); \
 		curl -LsSf https://astral.sh/uv/install.sh | sh; \
 	fi
 endef
 
 define setup_python_env
-	@$(call print_status,Installing dependencies with uv...)
-	@uv sync
+	$(call print_status,Installing dependencies with uv...); \
+	uv sync
 endef
 
 define create_systemd_service
-	@$(call print_status,Creating systemd service...)
-	@sudo printf '[Unit]\nDescription=Automagik Agents Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nEnvironment=PATH=%s/bin\nExecStart=%s/bin/python -m src\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' \
+	$(call print_status,Creating systemd service...); \
+	sudo printf '[Unit]\nDescription=Automagik Agents Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nEnvironment=PATH=%s/bin\nExecStart=%s/bin/python -m src\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' \
 		"$(shell whoami)" "$(PROJECT_ROOT)" "$(VENV_PATH)" "$(VENV_PATH)" > /etc/systemd/system/automagik-agents.service
 endef
 
 define show_systemd_status
-	@if systemctl is-active automagik-agents >/dev/null 2>&1; then \
+	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 		pid=$$(systemctl show automagik-agents --property=MainPID --value 2>/dev/null); \
 		port=$$(ss -tlnp | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
@@ -545,7 +603,7 @@ define show_systemd_status
 endef
 
 define show_docker_status
-	@containers=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null); \
+	containers=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null); \
 	if [ -n "$$containers" ]; then \
 		echo "$$containers" | while IFS=$$'\t' read -r name status ports; do \
 			port=$$(echo "$$ports" | grep -o '[0-9]*->[0-9]*' | head -1 | cut -d'>' -f2); \
@@ -557,7 +615,7 @@ define show_docker_status
 endef
 
 define show_local_status
-	@if pgrep -f "python.*src" >/dev/null 2>&1; then \
+	if pgrep -f "python.*src" >/dev/null 2>&1; then \
 		pid=$$(pgrep -f "python.*src"); \
 		port=$$(ss -tlnp | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
@@ -566,7 +624,7 @@ define show_local_status
 endef
 
 define check_health
-	@healthy=0; \
+	healthy=0; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service: running$(FONT_RESET)"; \
 		healthy=1; \
@@ -582,8 +640,28 @@ define check_health
 		echo -e "$(FONT_GREEN)$(CHECKMARK) API health check: passed$(FONT_RESET)"; \
 	elif curl -s http://localhost:18881/health >/dev/null 2>&1; then \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) API health check: passed (prod)$(FONT_RESET)"; \
-		else \
+	else \
 		echo -e "$(FONT_YELLOW)$(WARNING) API health check: failed$(FONT_RESET)"; \
+	fi; \
+	db_type=$$($(call detect_database_type)); \
+	if [ "$$db_type" = "postgresql" ]; then \
+		if docker ps --filter "name=automagik-agents-db" --format "{{.Names}}" | grep -q automagik-agents-db; then \
+			if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
+				echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL database: healthy$(FONT_RESET)"; \
+			else \
+				echo -e "$(FONT_YELLOW)$(WARNING) PostgreSQL database: not ready$(FONT_RESET)"; \
+			fi; \
+		else \
+			echo -e "$(FONT_YELLOW)$(WARNING) PostgreSQL container: not running$(FONT_RESET)"; \
+		fi; \
+	else \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database: configured$(FONT_RESET)"; \
+	fi; \
+	if docker ps --filter "name=automagik-agents-neo4j" --format "{{.Names}}" | grep -q automagik-agents-neo4j; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j: running$(FONT_RESET)"; \
+	fi; \
+	if docker ps --filter "name=automagik-agents-graphiti" --format "{{.Names}}" | grep -q automagik-agents-graphiti; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) Graphiti: running$(FONT_RESET)"; \
 	fi
 endef
 

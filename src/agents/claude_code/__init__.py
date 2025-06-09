@@ -53,13 +53,15 @@ try:
         if config is None:
             config = {}
         
-        # Check if claude-code is enabled via feature flag
-        from src.config import settings
-        if not getattr(settings, 'AM_ENABLE_CLAUDE_CODE', False):
-            logger.info("Claude-Code agent is disabled via AM_ENABLE_CLAUDE_CODE setting")
+        # Check if claude CLI is available by looking for credentials
+        from pathlib import Path
+        claude_credentials = Path.home() / ".claude" / ".credentials.json"
+        
+        if not claude_credentials.exists():
+            logger.info(f"Claude-Code agent disabled: credentials not found at {claude_credentials}")
             return PlaceholderAgent({
                 "name": "claude-code_disabled", 
-                "error": "Claude-Code agent disabled via feature flag"
+                "error": f"Claude CLI not configured (no credentials at {claude_credentials})"
             })
         
         return ClaudeCodeAgent(config)
@@ -72,7 +74,10 @@ except Exception as e:
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
         """Create a placeholder agent due to initialization error."""
         from src.agents.models.placeholder import PlaceholderAgent
-        return PlaceholderAgent({"name": "claude-code_error", "error": str(e)})
+        error_config = {"name": "claude-code_error", "error": str(e)}
+        if config:
+            error_config.update(config)
+        return PlaceholderAgent(error_config)
 
 __all__ = [
     'create_agent',

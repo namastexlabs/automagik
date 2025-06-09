@@ -40,7 +40,7 @@ class ExecutorFactory:
         """
         # Determine execution mode
         if mode is None:
-            mode = os.environ.get("CLAUDE_CODE_MODE", "docker")
+            mode = os.environ.get("CLAUDE_CODE_MODE", "local")
         
         mode = mode.lower()
         logger.info(f"Creating executor for mode: {mode}")
