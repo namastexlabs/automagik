@@ -154,8 +154,11 @@ class TestSofiaAgentModelRequestFix:
         
         agent = SofiaAgent(sofia_config)
         
-        # Initialize the agent so ai_framework is available
-        await agent._initialize_pydantic_agent()
+        # Initialize the agent framework
+        from src.agents.models.dependencies import AutomagikAgentsDependencies
+        success = await agent.initialize_framework(AutomagikAgentsDependencies)
+        assert success, "Framework initialization should succeed"
+        assert agent.ai_framework is not None, "AI framework should be initialized"
         
         # Create a message history with PydanticAI messages
         history = MessageHistory("test-session", no_auto_create=True)
