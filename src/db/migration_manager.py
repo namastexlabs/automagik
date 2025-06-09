@@ -176,6 +176,10 @@ class MigrationManager:
         """
         migration_name = migration_path.name
         
+        # Skip SQLite-specific migrations when using PostgreSQL
+        if migration_name == "00000000_000000_create_initial_schema.sql":
+            return True, f"Migration '{migration_name}' is SQLite-specific, skipping for PostgreSQL."
+        
         # Check if already applied
         if migration_name in self.applied_migrations:
             return True, f"Migration '{migration_name}' already applied, skipping."
