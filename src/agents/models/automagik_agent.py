@@ -802,7 +802,14 @@ class AutomagikAgent(ABC, Generic[T]):
         has_registration_flag = hasattr(self, '_prompt_registered')
         
         if not has_prompt_text:
-            logger.info(f"No _code_prompt_text found for {self.__class__.__name__}, skipping prompt registration")
+            # ClaudeCodeAgent uses workflow-based prompts, so this is expected
+            # Also skip logging for PlaceholderAgent when it's a disabled claude-code
+            if self.__class__.__name__ == "ClaudeCodeAgent":
+                pass  # Expected - uses workflow prompts
+            elif self.__class__.__name__ == "PlaceholderAgent" and hasattr(self, 'name') and "claude-code" in str(getattr(self, 'name', '')):
+                pass  # Expected - disabled claude-code placeholder
+            else:
+                logger.info(f"No _code_prompt_text found for {self.__class__.__name__}, skipping prompt registration")
             return True
             
         if not has_registration_flag:
