@@ -888,7 +888,20 @@ AM_LOG_SQL=false               # Enable SQL query logging
 AM_FORCE_DEV_ENV=1             # Force development environment
 
 # Database Configuration
+DATABASE_TYPE=sqlite            # Database type: "sqlite" (default) or "postgresql"
+
+# SQLite Configuration (default)
+SQLITE_DATABASE_PATH=./data/automagik_agents.db
+
+# PostgreSQL Configuration (optional)
 DATABASE_URL=postgresql://user:pass@localhost/automagik
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=automagik
+POSTGRES_PASSWORD=password
+POSTGRES_DB=automagik
+POSTGRES_POOL_MIN=10
+POSTGRES_POOL_MAX=25
 
 # Optional: Knowledge Graph
 NEO4J_URI=bolt://localhost:7687
