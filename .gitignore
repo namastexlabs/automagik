@@ -252,3 +252,6 @@ uv.lock
 
 # Backup files
 *.bak
+
+
+data/*

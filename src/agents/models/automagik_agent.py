@@ -565,8 +565,17 @@ class AutomagikAgent(ABC, Generic[T]):
             return [{"role": "system", "content": system_prompt}]
             
         # Check if system message already exists
-        if message_history and message_history[0].get("role") == "system":
-            return message_history
+        if message_history:
+            first_message = message_history[0]
+            # Handle both PydanticAI ModelMessage objects and dictionary messages
+            if hasattr(first_message, 'parts'):
+                # This is a PydanticAI ModelMessage - check if it's a system message
+                from pydantic_ai.messages import SystemPromptPart
+                if first_message.parts and isinstance(first_message.parts[0], SystemPromptPart):
+                    return message_history
+            elif isinstance(first_message, dict) and first_message.get("role") == "system":
+                # This is a dictionary message
+                return message_history
             
         # Prepend system message
         return [{"role": "system", "content": system_prompt}] + message_history
