@@ -319,7 +319,20 @@ class AutomagikAgent(ABC, Generic[T]):
             if system_prompt and message_history:
                 message_history = self._add_system_message_to_history(message_history, system_prompt)
             
-            # 6. Process multimodal content
+            # 6. Prepare context and memory
+            if self.dependencies:
+                # Set user and agent IDs
+                self.dependencies.set_agent_id(self.db_id)
+                if channel_payload:
+                    self.dependencies.set_evolution_payload(channel_payload)
+                
+                # NEW: Pass multimodal content to dependencies
+                if multimodal_content:
+                    context = kwargs.get('context', {})
+                    context['multimodal_content'] = multimodal_content
+                    self.dependencies.update_context(context)
+            
+            # Process multimodal input
             processed_input = await self._process_multimodal_input(input_text, multimodal_content)
             
             # 7. Update dependencies with context
