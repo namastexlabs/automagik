@@ -35,15 +35,34 @@ jobs:
           COMMITS=$(git log --oneline origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
 
           # Get file type breakdown
-          NEW_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -c "^A" || echo 0)
-          MODIFIED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -c "^M" || echo 0)
-          DELETED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -c "^D" || echo 0)
+          NEW_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^A" | wc -l)
+          MODIFIED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^M" | wc -l)
+          DELETED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^D" | wc -l)
 
           # Check for specific types of changes
-          HAS_PYTHON=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "\.py$" && echo "true" || echo "false")
-          HAS_DOCS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(md|rst|txt)$" && echo "true" || echo "false")
-          HAS_TESTS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "test" && echo "true" || echo "false")
-          HAS_CONFIG=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(yml|yaml|json|toml|ini)$" && echo "true" || echo "false")
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "\.py$"; then
+            HAS_PYTHON="true"
+          else
+            HAS_PYTHON="false"
+          fi
+          
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(md|rst|txt)$"; then
+            HAS_DOCS="true"
+          else
+            HAS_DOCS="false"
+          fi
+          
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "test"; then
+            HAS_TESTS="true"
+          else
+            HAS_TESTS="false"
+          fi
+          
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(yml|yaml|json|toml|ini)$"; then
+            HAS_CONFIG="true"
+          else
+            HAS_CONFIG="false"
+          fi
 
           # Output all statistics
           echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
