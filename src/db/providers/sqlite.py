@@ -192,6 +192,31 @@ class SQLiteProvider(DatabaseProvider):
         }
         return supported_features.get(feature, False)
     
+    def table_exists(self, table_name: str) -> bool:
+        """Check if a table exists in the database."""
+        try:
+            result = self.execute_query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,),
+                fetch=True
+            )
+            return len(result) > 0
+        except Exception as e:
+            logger.error(f"Error checking if table {table_name} exists: {e}")
+            return False
+    
+    def get_table_columns(self, table_name: str) -> List[str]:
+        """Get list of column names for a table."""
+        try:
+            result = self.execute_query(
+                f"PRAGMA table_info({table_name})",
+                fetch=True
+            )
+            return [row['name'] for row in result]
+        except Exception as e:
+            logger.error(f"Error getting columns for table {table_name}: {e}")
+            return []
+    
     def generate_uuid(self) -> uuid.UUID:
         """Generate a new UUID."""
         return uuid.uuid4()

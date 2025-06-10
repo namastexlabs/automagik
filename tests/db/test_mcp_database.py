@@ -14,21 +14,20 @@ def test_database_tables():
     # For SQLite: SELECT name FROM sqlite_master WHERE type='table' AND name='table_name'
     # For PostgreSQL: SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'table_name')
     
-    # Check mcp_servers table exists
-    mcp_servers_result = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name='mcp_servers'")
-    mcp_servers_exists = len(mcp_servers_result) > 0
+    # Check mcp_servers table exists using database-agnostic method
+    from src.db.connection import table_exists
+    mcp_servers_exists = table_exists('mcp_servers')
     
-    # Check agent_mcp_servers table exists  
-    agent_mcp_servers_result = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name='agent_mcp_servers'")
-    agent_mcp_servers_exists = len(agent_mcp_servers_result) > 0
+    # Check agent_mcp_servers table exists using database-agnostic method
+    agent_mcp_servers_exists = table_exists('agent_mcp_servers')
     
     print(f"✅ MCP Tables exist - mcp_servers: {mcp_servers_exists}, agent_mcp_servers: {agent_mcp_servers_exists}")
             
     assert mcp_servers_exists and agent_mcp_servers_exists, "MCP tables are missing"
     
-    # Check table structure using SQLite PRAGMA
-    columns_result = execute_query("PRAGMA table_info(mcp_servers)")
-    columns = [row['name'] for row in columns_result]
+    # Check table structure using database-agnostic method
+    from src.db.connection import get_table_columns
+    columns = get_table_columns('mcp_servers')
     expected_columns = ['id', 'name', 'server_type', 'description', 'command', 'env', 'http_url', 
                       'auto_start', 'max_retries', 'timeout_seconds', 'tags', 'priority', 'status', 
                       'enabled', 'started_at', 'last_error', 'error_count', 'connection_attempts', 

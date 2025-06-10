@@ -279,17 +279,17 @@ class TestErrorHandlingIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_disabled_agent_error(self, mock_settings):
-        """Test error when agent is disabled."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = False
+    @patch('pathlib.Path.exists')
+    async def test_disabled_agent_error(self, mock_exists):
+        """Test error when agent has no credentials."""
+        # Mock credentials file not existing
+        mock_exists.return_value = False
         
-        agent = ClaudeCodeAgent({})
+        agent = ClaudeCodeAgent({"default_workflow": "fix"})
         response = await agent.run("Test message")
         
         assert response.success is False
-        assert "disabled" in response.text.lower()
-        assert response.error_message == "Agent disabled via feature flag"
+        assert "not configured" in response.text.lower()
         
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -364,19 +364,19 @@ class TestFeatureFlagIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_feature_flag_disabled_by_default(self, mock_settings):
-        """Test that claude-code is disabled by default."""
-        # Mock settings to disable claude-code
-        mock_settings.AM_ENABLE_CLAUDE_CODE = False
+    @patch('pathlib.Path.exists')
+    async def test_feature_flag_disabled_by_default(self, mock_exists):
+        """Test that claude-code requires credentials by default."""
+        # Mock credentials file not existing (default state)
+        mock_exists.return_value = False
         
-        agent = ClaudeCodeAgent({})
+        agent = ClaudeCodeAgent({"default_workflow": "fix"})
         
-        # Try to run with disabled feature flag
+        # Try to run without credentials
         response = await agent.run("Test")
         
         assert response.success is False
-        assert "disabled" in response.text.lower()
+        assert "not configured" in response.text.lower()
         
     @pytest.mark.integration
     @pytest.mark.asyncio

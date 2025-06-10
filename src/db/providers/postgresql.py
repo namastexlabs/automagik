@@ -6,7 +6,6 @@ import time
 import urllib.parse
 import uuid
 import json
-import traceback
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from datetime import datetime
@@ -49,6 +48,32 @@ class PostgreSQLProvider(DatabaseProvider):
             "gin_indexes": True
         }
         return supported_features.get(feature, False)
+    
+    def table_exists(self, table_name: str) -> bool:
+        """Check if a table exists in the database."""
+        try:
+            result = self.execute_query(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s)",
+                (table_name,),
+                fetch=True
+            )
+            return result[0]['exists'] if result else False
+        except Exception as e:
+            logger.error(f"Error checking if table {table_name} exists: {e}")
+            return False
+    
+    def get_table_columns(self, table_name: str) -> List[str]:
+        """Get list of column names for a table."""
+        try:
+            result = self.execute_query(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = %s ORDER BY ordinal_position",
+                (table_name,),
+                fetch=True
+            )
+            return [row['column_name'] for row in result]
+        except Exception as e:
+            logger.error(f"Error getting columns for table {table_name}: {e}")
+            return []
     
     def generate_uuid(self) -> uuid.UUID:
         """Generate a new UUID."""
