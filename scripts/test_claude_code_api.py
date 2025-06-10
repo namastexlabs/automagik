@@ -52,7 +52,7 @@ async def make_request(
     """Make an HTTP request and return success status, response data, and error message."""
     url = f"{BASE_URL}{endpoint}"
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "x-api-key": API_KEY,  # Fixed: Use x-api-key instead of Authorization
         "Content-Type": "application/json"
     }
     
