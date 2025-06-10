@@ -5,7 +5,7 @@ to ensure compatibility with the ClaudeCodeAgent.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 
 from .models import ClaudeCodeRunRequest
 

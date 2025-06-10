@@ -5,11 +5,6 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from .prompts.prompt import AGENT_PROMPT
 
 # Backward compatibility imports for tests
-from src.agents.common.message_parser import (
-    extract_all_messages,
-    extract_tool_calls,
-    extract_tool_outputs
-)
 
 
 class SimpleAgent(AutomagikAgent):
