@@ -8,7 +8,6 @@ import logging
 import os
 from typing import Optional
 
-from src.config import settings
 from .executor_base import ExecutorBase
 from .container import ContainerManager
 

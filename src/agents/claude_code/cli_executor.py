@@ -8,12 +8,11 @@ import asyncio
 import json
 import logging
 import os
-import re
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, List, Any, Callable, AsyncIterator
+from typing import Dict, Optional, List, Any, Callable
 from datetime import datetime
 import uuid
 
@@ -196,7 +195,7 @@ class StreamProcessor:
             
             return data
             
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             # Log non-JSON lines (might be errors or warnings)
             if line and not line.startswith("{"):
                 logger.debug(f"Non-JSON output: {line}")

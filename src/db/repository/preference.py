@@ -5,7 +5,6 @@
 
 import uuid
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 
 from src.db.connection import get_db_connection
 from src.db.models import Preference, PreferenceCreate, PreferenceUpdate, PreferenceHistory
