@@ -246,11 +246,11 @@ class TestThroughputPerformance:
         
     @pytest.mark.performance
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_concurrent_execution_performance(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_concurrent_execution_performance(self, mock_exists):
         """Test performance with concurrent executions."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock components for fast execution
         mock_container_manager = Mock(spec=ContainerManager)
@@ -291,8 +291,10 @@ class TestThroughputPerformance:
         
         for i, agent in enumerate(agents):
             for j in range(10):
-                task = agent.run(f"Task {i}-{j}")
-                tasks.append(task)
+                with patch('pathlib.Path.exists') as mock_exists:
+                    mock_exists.return_value = True
+                    task = agent.run(f"Task {i}-{j}")
+                    tasks.append(task)
         
         results = await asyncio.gather(*tasks)
         total_time = time.time() - start_time
@@ -391,8 +393,8 @@ class TestLatencyPerformance:
         
         for i in range(20):
             start_time = time.time()
-            with patch('src.agents.claude_code.agent.settings') as mock_settings:
-                mock_settings.AM_ENABLE_CLAUDE_CODE = True
+            with patch('pathlib.Path.exists') as mock_exists:
+                mock_exists.return_value = True
                 response = await agent.run(f"Quick task {i}")
             latency = time.time() - start_time
             latencies.append(latency)

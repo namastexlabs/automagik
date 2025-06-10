@@ -101,28 +101,30 @@ class TestClaudeCodeAgentRun:
         assert "No credentials found" in response.error_message
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_run_invalid_workflow(self, mock_executor_factory, mock_settings):
+    async def test_run_invalid_workflow(self, mock_executor_factory, mock_exists):
         """Test running with invalid workflow."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials file exists
+        mock_exists.return_value = True
         
-        agent = ClaudeCodeAgent({})
+        agent = ClaudeCodeAgent({"default_workflow": "invalid-workflow"})
         # Mock workflow validation to return False
         agent._validate_workflow = AsyncMock(return_value=False)
         
         response = await agent.run("Test message")
         
         assert response.success is False
-        assert "Workflow 'bug-fixer' not found or invalid" in response.text
+        assert "Workflow 'invalid-workflow' not found or invalid" in response.text
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_run_successful_execution(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_run_successful_execution(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test successful execution."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials file exists
+        mock_exists.return_value = True
         
         # Mock executor
         mock_executor = AsyncMock()
@@ -152,11 +154,11 @@ class TestClaudeCodeAgentRun:
         assert call_args["request"].message == "Fix the bug"
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_run_failed_execution(self, mock_executor_factory, mock_settings):
+    async def test_run_failed_execution(self, mock_executor_factory, mock_exists):
         """Test failed execution."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         # Mock executor
         mock_executor = AsyncMock()
@@ -180,12 +182,12 @@ class TestClaudeCodeAgentRun:
         assert response.error_message == "Container crashed"
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_run_with_message_history(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_run_with_message_history(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test run with message history storage."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         # Mock executor
         mock_executor = AsyncMock()
@@ -233,11 +235,11 @@ class TestClaudeCodeAgentRun:
         assert assistant_msg["context"]["git_commits"] == ["abc123"]
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_run_exception_handling(self, mock_executor_factory, mock_settings):
+    async def test_run_exception_handling(self, mock_executor_factory, mock_exists):
         """Test exception handling during run."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         # Mock executor to raise exception
         mock_executor = AsyncMock()
@@ -520,10 +522,10 @@ class TestEdgeCases:
     """Test edge cases and error conditions."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_run_with_multimodal_content(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_run_with_multimodal_content(self, mock_exists):
         """Test run with multimodal content (should be ignored)."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=True)
@@ -546,10 +548,10 @@ class TestEdgeCases:
         agent.executor.execute_claude_task.assert_called_once()
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_run_with_custom_workflow_context(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_run_with_custom_workflow_context(self, mock_exists):
         """Test run with custom workflow from context."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         agent = ClaudeCodeAgent({})
         agent.context["workflow_name"] = "custom-workflow"
