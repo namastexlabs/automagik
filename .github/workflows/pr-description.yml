@@ -115,9 +115,9 @@ jobs:
             5. Use professional, technical language
             6. DO NOT use bash, git, or other tools
 
-            Based on the provided context about this PR with 203 files changed,
-            +30392/-2852 lines, and 246 commits, generate a professional PR
-            description focused on the LangGraph orchestrator migration.
+            Based on the provided context about this PR with ${{ steps.changes.outputs.files_changed }} files changed,
+            +${{ steps.changes.outputs.lines_added }}/-${{ steps.changes.outputs.lines_deleted }} lines, and ${{ steps.changes.outputs.commits }} commits, 
+            analyze the actual changes and generate a professional PR description based on the real content and purpose of this PR.
           allowed_tools: "Read,View"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: "10"
@@ -203,13 +203,11 @@ jobs:
               if (!description) {
                 // If no description found, generate a basic one
                 console.log('⚠️ No description found in execution log, generating fallback');
-                description = `# 🔄 Major Architecture Migration: LangGraph Orchestrator Implementation
+                description = \`# 📋 Automated PR Documentation
 
                 ## Summary
 
-                This PR implements a comprehensive migration to LangGraph-based 
-                orchestration, representing a significant architectural evolution 
-                of the agent framework.
+                This PR represents development work on the automagik-agents framework.
 
                 ## 📊 Change Overview
 
@@ -218,35 +216,21 @@ jobs:
                 - **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}
                 - **Commits**: ${{ steps.changes.outputs.commits }}
 
-                ## 🎯 Key Changes
+                ## 🎯 Change Types
 
-                ### Core Architecture
-                - **LangGraph Integration**: Complete orchestration layer rewrite 
-                  using LangGraph
-                - **Agent System Enhancements**: New specialized agents and 
-                  workflow management
-                - **Infrastructure Improvements**: Enhanced API, database, and 
-                  configuration systems
+                - **Python Changes**: ${{ steps.changes.outputs.has_python }}
+                - **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}
+                - **Test Updates**: ${{ steps.changes.outputs.has_tests }}
+                - **Configuration Changes**: ${{ steps.changes.outputs.has_config }}
 
-                ### New Components
-                - Claude Code Agent with containerized execution
-                - Genie orchestrator for workflow coordination
-                - Enhanced documentation and testing infrastructure
+                ## 📝 Details
 
-                ## 🧪 Testing & Quality
+                This PR includes various improvements and updates to the codebase. 
+                For detailed information about the specific changes, please review 
+                the commit history and file diffs.
 
-                - Comprehensive test suite added for new components
-                - Integration tests for workflow orchestration
-                - Performance benchmarks and reliability testing
-
-                ## 🚀 Deployment Notes
-
-                - Database migrations required
-                - New dependencies: LangGraph, Docker integration
-                - Configuration updates needed for orchestration settings
-
-                **Impact**: High - Major architectural changes with new 
-                orchestration capabilities`;
+                **Note**: This is a fallback description generated when Claude Code 
+                analysis could not extract specific details about the changes.\`;
               }
 
               // Validate that we have some description
