@@ -33,7 +33,7 @@ def setup_module():
         user_insert_result = execute_query(
             """
             INSERT INTO users (id, email, created_at, updated_at)
-            VALUES (%s, %s, datetime('now'), datetime('now'))
+            VALUES (%s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """,
             (test_user_uuid, _TEST_USER_EMAIL),
             fetch=False
@@ -44,7 +44,7 @@ def setup_module():
     execute_query(
         """
         INSERT INTO sessions (id, user_id, name, platform, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, datetime('now'), datetime('now'))
+        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
         (test_session["id"], _TEST_USER_ID, test_session["name"], "test"),
         fetch=False

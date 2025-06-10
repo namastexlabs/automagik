@@ -7,14 +7,12 @@ import urllib.parse
 import uuid
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional, Tuple
-from pathlib import Path
 
 from datetime import datetime
 import json
 import traceback
 import psycopg2
 import psycopg2.extensions
-from psycopg2.extras import RealDictCursor, execute_values
 from psycopg2.pool import ThreadedConnectionPool
 from fastapi.concurrency import run_in_threadpool
 
@@ -357,3 +355,23 @@ async def async_execute_batch(
 ):
     """Async wrapper around execute_batch that runs in a threadpool."""
     return await run_in_threadpool(execute_batch, query, params_list, commit)
+
+
+def table_exists(table_name: str) -> bool:
+    """Check if a table exists in the database using provider-specific method."""
+    try:
+        provider = get_database_provider()
+        return provider.table_exists(table_name)
+    except Exception as e:
+        logger.error(f"Error checking if table {table_name} exists: {e}")
+        return False
+
+
+def get_table_columns(table_name: str) -> List[str]:
+    """Get list of column names for a table using provider-specific method."""
+    try:
+        provider = get_database_provider()
+        return provider.get_table_columns(table_name)
+    except Exception as e:
+        logger.error(f"Error getting columns for table {table_name}: {e}")
+        return []
