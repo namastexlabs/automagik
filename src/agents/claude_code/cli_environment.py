@@ -32,7 +32,7 @@ class CLIEnvironmentManager:
             repository_cache: Path to cached repository for faster cloning
         """
         self.base_path = Path(base_path)
-        self.config_source = config_source or Path("/root/workspace/am-agents-labs")
+        self.config_source = config_source or Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
         self.repository_cache = repository_cache
         self.active_workspaces: Dict[str, Path] = {}
         
