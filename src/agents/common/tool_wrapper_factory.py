@@ -4,7 +4,7 @@ This module provides utilities to eliminate duplication in tool wrapper creation
 across PydanticAI agents, reducing boilerplate code significantly.
 """
 import logging
-from typing import Any, Dict, Callable, Optional, Union, List
+from typing import Any, Dict, Callable, Optional, List
 from functools import wraps
 import inspect
 

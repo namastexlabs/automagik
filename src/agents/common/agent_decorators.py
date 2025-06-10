@@ -4,11 +4,9 @@ This module provides decorators that enable declarative agent configuration,
 eliminating verbose setup code.
 """
 import logging
-from typing import Dict, Any, List, Optional, Union, Callable, Type
+from typing import Dict, Any, List, Optional, Union, Type
 from functools import wraps
-import inspect
 
-from .agent_configuration import AgentConfigTemplates
 from .tool_wrapper_factory import ToolRegistrationHelper
 
 logger = logging.getLogger(__name__)

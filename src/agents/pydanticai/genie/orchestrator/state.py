@@ -1,8 +1,7 @@
 """LangGraph state orchestration for Genie."""
 
-from typing import Dict, List, Any, Optional, Annotated, Sequence
+from typing import Dict, List, Any, Optional
 from datetime import datetime
-import uuid
 
 # Try to import langgraph components, handle gracefully if not available
 try:

@@ -13,7 +13,6 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.response import AgentResponse
 from .specialized.backoffice import backoffice_agent
 from .specialized.product import product_agent
-from .specialized.order import order_agent
 from src.db.models import Memory
 from src.db.repository import create_memory
 from src.db.repository.user import update_user_data

@@ -73,8 +73,8 @@ def detect_environment_file() -> str:
         )
         if result.returncode == 0:
             docker_output = result.stdout
-            if (f"automagik-agents-prod" in docker_output or 
-                f"automagik_agent" in docker_output and prod_port in docker_output):
+            if ("automagik-agents-prod" in docker_output or 
+                "automagik_agent" in docker_output and prod_port in docker_output):
                 return prod_env_file
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
         # Docker not available or error - continue with file-based detection

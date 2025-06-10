@@ -6,12 +6,10 @@ for common agent types like Evolution/WhatsApp agents and multi-prompt agents.
 import logging
 import os
 from typing import Dict, Any, Optional, List, Union
-from abc import ABC, abstractmethod
 
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.framework_types import FrameworkType
-from .agent_configuration import AgentConfigurationMixin
-from .tool_wrapper_factory import ToolWrapperFactory, ToolRegistrationHelper
+from .tool_wrapper_factory import ToolRegistrationHelper
 from .multi_prompt_manager import MultiPromptManager
 
 logger = logging.getLogger(__name__)
