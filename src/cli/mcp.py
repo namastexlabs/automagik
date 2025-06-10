@@ -3,7 +3,6 @@
 import asyncio
 import typer
 from typing import Optional
-from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 

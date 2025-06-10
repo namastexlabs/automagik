@@ -18,7 +18,6 @@ from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
 from src.cli.db import db_init
-from src.db.providers.factory import get_database_provider
 
 # Configure Neo4j logging to reduce verbosity
 logging.getLogger("neo4j").setLevel(logging.WARNING)

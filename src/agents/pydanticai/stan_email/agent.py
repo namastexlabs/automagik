@@ -18,7 +18,6 @@ from src.db.repository import create_memory, list_messages, list_sessions, updat
 from src.db.repository.user import get_user, update_user_data
 from src.tools import blackpearl, evolution
 from src.tools.blackpearl.schema import StatusAprovacaoEnum
-from src.tools.blackpearl.tool import get_or_create_contact
 from src.tools.gmail import fetch_emails, mark_emails_read
 from src.tools.gmail.schema import FetchEmailsInput
 from src.tools.gmail.tool import fetch_all_emails_from_thread_by_email_id

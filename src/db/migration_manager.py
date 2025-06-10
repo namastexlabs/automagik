@@ -2,9 +2,8 @@
 Enhanced migration manager with better error handling and idempotency.
 """
 import logging
-import psycopg2
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional
 from datetime import datetime
 import hashlib
 
