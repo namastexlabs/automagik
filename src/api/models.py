@@ -127,77 +127,44 @@ class AgentRunRequest(BaseResponseModel):
     model_config = ConfigDict(
         exclude_none=True,
         json_schema_extra={
-            "example": {
-                "message_content": "string",
-                "message_type": "string",
-                "media_contents": [
-                    {
-                        "mime_type": "image/",
-                        "media_url": "string",
-                        "width": 0,
-                        "height": 0,
-                        "alt_text": "string"
-                    },
-                    {
-                        "mime_type": "image/",
-                        "data": "string",
-                        "width": 0,
-                        "height": 0,
-                        "alt_text": "string",
-                        "thumbnail_url": "string"
-                    },
-                    {
-                        "mime_type": "audio/",
-                        "media_url": "string",
-                        "duration_seconds": 0,
-                        "transcript": "string"
-                    },
-                    {
-                        "mime_type": "audio/",
-                        "data": "string",
-                        "duration_seconds": 0,
-                        "transcript": "string"
-                    },
-                    {
-                        "mime_type": "application/",
-                        "media_url": "string",
-                        "name": "string",
-                        "size_bytes": 0,
-                        "page_count": 0
-                    },
-                    {
-                        "mime_type": "application/",
-                        "data": "string",
-                        "name": "string",
-                        "size_bytes": 0,
-                        "page_count": 0
-                    }
-                ],
-                "channel_payload": {
-                    "additionalProp1": {}
+            "examples": [
+                # Simple example - most common usage
+                {
+                    "message_content": "Buenas",
+                    "message_limit": 10,
+                    "message_type": "text",
+                    "session_name": "teste",
+                    "session_origin": "automagik-agent"
                 },
-                "context": {},
-                "session_id": "string",
-                "session_name": "string",
-                "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                "message_limit": 10,
-                "session_origin": "automagik-agent",
-                "agent_id": "string",
-                "parameters": {
-                    "additionalProp1": {}
+                # Example with image
+                {
+                    "message_content": "What's in this image?",
+                    "message_type": "image",
+                    "media_contents": [
+                        {
+                            "mime_type": "image/jpeg",
+                            "media_url": "https://example.com/image.jpg",
+                            "width": 800,
+                            "height": 600,
+                            "alt_text": "Sample image"
+                        }
+                    ],
+                    "session_name": "image_analysis",
+                    "session_origin": "web"
                 },
-                "messages": [
-                    "string"
-                ],
-                "system_prompt": "string",
-                "user": {
-                    "email": "string",
-                    "phone_number": "string",
-                    "user_data": {
-                        "additionalProp1": {}
+                # WhatsApp example
+                {
+                    "message_content": "Help me with my order",
+                    "session_name": "customer_support",
+                    "session_origin": "whatsapp",
+                    "user": {
+                        "phone_number": "+1234567890"
+                    },
+                    "channel_payload": {
+                        "chat_id": "5511999999999@c.us"
                     }
                 }
-            }
+            ]
         }
     )
 
