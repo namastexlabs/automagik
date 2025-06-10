@@ -40,11 +40,11 @@ jobs:
           DELETED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^D" | wc -l)
 
           # Check for binary files
+          BINARY_FILES=0
           CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD)
           if [ -n "$CHANGED_FILES" ]; then
-            BINARY_FILES=$(echo "$CHANGED_FILES" | xargs file 2>/dev/null | grep -c "binary" || echo 0)
-          else
-            BINARY_FILES=0
+            BINARY_COUNT=$(echo "$CHANGED_FILES" | xargs file 2>/dev/null | grep "binary" | wc -l)
+            BINARY_FILES=$BINARY_COUNT
           fi
 
           # Check for specific types of changes
