@@ -6,7 +6,7 @@ from src.agents.models.agent_factory import AgentFactory
 available_agents = []
 
 def setup_module():
-    """Setup before running tests - discover available agents"""
+    """Setup before running tests - discover available agents and register them"""
     global available_agents
     
     # Initialize agent factory
@@ -16,6 +16,25 @@ def setup_module():
     # Ensure we have at least one agent available
     if not available_agents:
         pytest.skip("No agents available for testing")
+    
+    # Register agents in database for testing (similar to what main.py does at startup)
+    from src.db.repository.agent import create_agent, get_agent_by_name
+    from src.db.models import Agent
+    from src.agents.models.framework_types import FrameworkType
+    
+    for agent_name in available_agents:
+        existing_agent = get_agent_by_name(agent_name)
+        if not existing_agent:
+            # Create new agent in database
+            new_agent = Agent(
+                name=agent_name,
+                type=FrameworkType.default().value,
+                model="openai:gpt-4o",
+                config={"created_by": "test_setup"},
+                description=f"Test agent: {agent_name}",
+                active=True
+            )
+            create_agent(new_agent)
 
 def test_list_agents(client):
     """Test listing available agents endpoint"""
