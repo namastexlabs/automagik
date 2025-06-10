@@ -4,14 +4,8 @@ This module provides the LocalExecutor class that executes Claude CLI
 directly on the host system without Docker containers.
 """
 
-import asyncio
-import subprocess
-import os
-import shutil
-import tempfile
-import json
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from pathlib import Path
 
 from .executor_base import ExecutorBase

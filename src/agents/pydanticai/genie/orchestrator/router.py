@@ -1,7 +1,6 @@
 """Workflow routing logic for Genie orchestrator."""
 
-import re
-from typing import List, Dict, Set
+from typing import List, Set
 from ..models import WorkflowType
 import logging
 

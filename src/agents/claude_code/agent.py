@@ -12,7 +12,6 @@ import os
 from typing import Dict, Optional, Any
 from datetime import datetime
 
-from src.config import settings
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
@@ -122,7 +121,7 @@ class ClaudeCodeAgent(AutomagikAgent):
         claude_credentials = Path.home() / ".claude" / ".credentials.json"
         if not claude_credentials.exists():
             return AgentResponse(
-                text=f"Claude CLI not configured. Please install Claude CLI and authenticate.",
+                text="Claude CLI not configured. Please install Claude CLI and authenticate.",
                 success=False,
                 error_message=f"No credentials found at {claude_credentials}"
             )

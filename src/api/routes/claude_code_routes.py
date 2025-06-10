@@ -5,10 +5,9 @@ supporting workflow-based execution and async container management.
 """
 import logging
 import uuid
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 
 from src.agents.models.agent_factory import AgentFactory
