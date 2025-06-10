@@ -334,3 +334,117 @@ class AgentMCPServerDB(BaseDBModel):
         if not row:
             return None
         return cls(**row)
+
+
+# New Simplified MCP Config Models (NMSTX-253 Refactor)
+class MCPConfigBase(BaseDBModel):
+    """Base class for MCP Config models."""
+    
+    name: str = Field(..., description="Unique server identifier")
+    config: Dict[str, Any] = Field(..., description="Complete JSON configuration")
+
+
+class MCPConfigCreate(MCPConfigBase):
+    """Data needed to create a new MCP Config."""
+    pass
+
+
+class MCPConfigUpdate(BaseModel):
+    """Data for updating an existing MCP Config."""
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        validate_assignment=True,
+    )
+    
+    config: Optional[Dict[str, Any]] = Field(default=None, description="Updated configuration")
+
+
+class MCPConfig(MCPConfigBase):
+    """Complete MCP Config model, including database fields."""
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, description="Unique identifier")
+    created_at: datetime = Field(..., description="Timestamp when config was created")
+    updated_at: datetime = Field(..., description="Timestamp when config was last updated")
+    
+    DB_TABLE: ClassVar[str] = "mcp_configs"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "MCPConfig":
+        """Create an MCPConfig instance from a database row.
+        
+        Args:
+            row: Database row as dictionary
+            
+        Returns:
+            MCPConfig instance
+        """
+        if not row:
+            return None
+            
+        return cls(
+            id=row["id"],
+            name=row["name"],
+            config=row["config"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"]
+        )
+
+    def get_server_type(self) -> str:
+        """Get the server type from config."""
+        return self.config.get("server_type", "stdio")
+    
+    def get_command(self) -> List[str]:
+        """Get the command array for stdio servers."""
+        return self.config.get("command", [])
+    
+    def get_agents(self) -> List[str]:
+        """Get the list of agent names this server is assigned to."""
+        return self.config.get("agents", [])
+    
+    def get_tools_config(self) -> Dict[str, List[str]]:
+        """Get the tools configuration (include/exclude lists)."""
+        return self.config.get("tools", {})
+    
+    def get_environment(self) -> Dict[str, str]:
+        """Get environment variables for the server."""
+        return self.config.get("environment", {})
+    
+    def is_enabled(self) -> bool:
+        """Check if the server is enabled."""
+        return self.config.get("enabled", True)
+    
+    def should_auto_start(self) -> bool:
+        """Check if the server should auto-start."""
+        return self.config.get("auto_start", True)
+    
+    def get_timeout(self) -> int:
+        """Get the timeout in milliseconds."""
+        return self.config.get("timeout", 30000)
+    
+    def get_retry_count(self) -> int:
+        """Get the retry count."""
+        return self.config.get("retry_count", 3)
+    
+    def is_assigned_to_agent(self, agent_name: str) -> bool:
+        """Check if this server is assigned to a specific agent."""
+        agents = self.get_agents()
+        return agent_name in agents or "*" in agents
+    
+    def get_filtered_tools(self, available_tools: List[str]) -> List[str]:
+        """Filter tools based on include/exclude configuration."""
+        tools_config = self.get_tools_config()
+        include = tools_config.get("include", ["*"])
+        exclude = tools_config.get("exclude", [])
+        
+        # If include has "*", start with all available tools
+        if "*" in include:
+            filtered = available_tools.copy()
+        else:
+            # Only include specified tools
+            filtered = [tool for tool in available_tools if tool in include]
+        
+        # Remove excluded tools
+        filtered = [tool for tool in filtered if tool not in exclude]
+        
+        return filtered
