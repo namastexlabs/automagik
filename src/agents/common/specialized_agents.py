@@ -493,80 +493,19 @@ class MultimodalAgent(AutomagikAgent):
         logger.info(f"Multimodal agent {self.__class__.__name__} initialized with vision model: {vision_model}")
     
     def _register_multimodal_tools(self):
-        """Register standard multimodal analysis tools."""
+        """Register multimodal analysis tools."""
         
-        # Create bound methods to capture self properly
-        def describe_attached_media() -> str:
-            """Describe all media attached to the current message."""
-            return self.dependencies.describe_media()
-        
-        def count_media() -> Dict[str, int]:
-            """Get count of each media type attached."""
-            return self.dependencies.get_media_count()
-        
-        def has_images() -> bool:
-            """Check if images are attached to the message."""
-            return self.dependencies.has_media('image')
-        
-        def has_audio() -> bool:
-            """Check if audio files are attached to the message."""
-            return self.dependencies.has_media('audio')
-        
-        def has_documents() -> bool:
-            """Check if documents are attached to the message."""
-            return self.dependencies.has_media('document')
-        
-        def get_image_urls() -> List[str]:
-            """Get URLs of attached images (if they are URLs)."""
-            urls = []
-            for img in self.dependencies.current_images:
-                # Check both 'data' and 'url' fields for URLs
-                url = img.get('url', '') or img.get('data', '')
-                if url.startswith(('http://', 'https://')):
-                    urls.append(url)
-            return urls
-        
-        # Store references to self to avoid closure issues
         deps = self.dependencies
         
-        # Create wrapper functions that accept PydanticAI arguments
-        def describe_media_wrapper(*args, **kwargs) -> str:
-            """Describe all media attached to the current message."""
-            return deps.describe_media()
+        def analyze_image_wrapper(*args, question: str = "What do you see in this image?", **kwargs) -> str:
+            """Analyze attached images with a specific question or prompt."""
+            if not deps.has_media('image'):
+                return "No images are attached to analyze."
+            
+            # Agent can prompt to extract whatever is needed from the image
+            return f"Image analysis requested: {question}"
         
-        def count_media_wrapper(*args, **kwargs) -> Dict[str, int]:
-            """Get count of each media type attached."""
-            return deps.get_media_count()
-        
-        def has_images_wrapper(*args, **kwargs) -> bool:
-            """Check if images are attached to the message."""
-            return deps.has_media('image')
-        
-        def has_audio_wrapper(*args, **kwargs) -> bool:
-            """Check if audio files are attached to the message."""
-            return deps.has_media('audio')
-        
-        def has_documents_wrapper(*args, **kwargs) -> bool:
-            """Check if documents are attached to the message."""
-            return deps.has_media('document')
-        
-        def get_image_urls_wrapper(*args, **kwargs) -> List[str]:
-            """Get URLs of attached images (if they are URLs)."""
-            urls = []
-            for img in deps.current_images:
-                # Check both 'data' and 'url' fields for URLs
-                url = img.get('url', '') or img.get('data', '')
-                if url.startswith(('http://', 'https://')):
-                    urls.append(url)
-            return urls
-        
-        # Register tools without name parameter
-        self.tool_registry.register_tool(describe_media_wrapper)
-        self.tool_registry.register_tool(count_media_wrapper)
-        self.tool_registry.register_tool(has_images_wrapper)
-        self.tool_registry.register_tool(has_audio_wrapper)
-        self.tool_registry.register_tool(has_documents_wrapper)
-        self.tool_registry.register_tool(get_image_urls_wrapper)
+        self.tool_registry.register_tool(analyze_image_wrapper)
     
     async def _run_agent(self, input_text: str, multimodal_content: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Run agent with automatic multimodal enhancements."""
@@ -649,39 +588,3 @@ class MultimodalAgent(AutomagikAgent):
         
         return prompt + enhancement
     
-    async def analyze_image(self, question: str = "What do you see in this image?") -> str:
-        """Convenience method to analyze attached images."""
-        if not self.dependencies.has_media('image'):
-            return "No images are attached to analyze."
-        
-        result = await self._run_agent(
-            question,
-            multimodal_content={'images': self.dependencies.current_images}
-        )
-        return result.text if hasattr(result, 'text') else str(result)
-    
-    async def analyze_document(self, question: str = "What is this document about?") -> str:
-        """Convenience method to analyze attached documents."""
-        if not self.dependencies.has_media('document'):
-            return "No documents are attached to analyze."
-        
-        result = await self._run_agent(
-            question,
-            multimodal_content={'documents': self.dependencies.current_documents}
-        )
-        return result.text if hasattr(result, 'text') else str(result)
-    
-    async def transcribe_audio(self, additional_instructions: str = "") -> str:
-        """Convenience method to transcribe attached audio."""
-        if not self.dependencies.has_media('audio'):
-            return "No audio files are attached to transcribe."
-        
-        prompt = "Please transcribe the attached audio."
-        if additional_instructions:
-            prompt += f" {additional_instructions}"
-        
-        result = await self._run_agent(
-            prompt,
-            multimodal_content={'audio': self.dependencies.current_audio}
-        )
-        return result.text if hasattr(result, 'text') else str(result)
