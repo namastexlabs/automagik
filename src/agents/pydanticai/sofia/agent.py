@@ -23,10 +23,9 @@ from src.agents.models.automagik_agent import get_llm_semaphore
 
 # Additional backward compatibility imports for Sofia-specific tests
 import asyncio
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent
 from src.config import settings
 from src.mcp.client import refresh_mcp_client_manager
-from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 
 logger = logging.getLogger(__name__)

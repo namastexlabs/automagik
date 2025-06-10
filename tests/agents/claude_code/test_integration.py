@@ -20,13 +20,13 @@ class TestAgentFactoryIntegration:
     """Test ClaudeCodeAgent integration with AgentFactory."""
     
     @pytest.mark.integration
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    @patch('src.config.settings')
-    def test_agent_factory_discovery(self, mock_settings, mock_executor_factory, mock_container_class):
+    def test_agent_factory_discovery(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test that ClaudeCodeAgent is discoverable by AgentFactory."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Check if claude_code module has create_agent function
         import importlib
@@ -48,11 +48,11 @@ class TestAgentFactoryIntegration:
         assert isinstance(agent, ClaudeCodeAgent)
         
     @pytest.mark.integration
-    @patch('src.config.settings')
-    def test_agent_factory_list_agents(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    def test_agent_factory_list_agents(self, mock_exists):
         """Test that ClaudeCodeAgent appears in available agents."""
-        # Mock settings to enable claude-code
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         factory = AgentFactory()
         # Call discover_agents to populate the registry
@@ -65,13 +65,13 @@ class TestAgentFactoryIntegration:
         assert 'claude_code' in agent_names
         
     @pytest.mark.integration
-    @patch('src.config.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    def test_agent_factory_create_agent(self, mock_executor_factory, mock_container_class, mock_settings):
+    def test_agent_factory_create_agent(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test creating ClaudeCodeAgent instance via factory."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         factory = AgentFactory()
         factory.discover_agents()
@@ -83,13 +83,13 @@ class TestAgentFactoryIntegration:
         assert agent.config.get("docker_image") == "test-image:latest"
         
     @pytest.mark.integration
-    @patch('src.config.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    def test_agent_factory_create_from_config(self, mock_executor_factory, mock_container_class, mock_settings):
+    def test_agent_factory_create_from_config(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test creating ClaudeCodeAgent from configuration."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         factory = AgentFactory()
         factory.discover_agents()
@@ -112,12 +112,12 @@ class TestDatabaseIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_agent_with_message_history(self, mock_settings, mock_executor_factory, mock_container_class):
+    async def test_agent_with_message_history(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test agent execution with message history storage."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         # Mock executor
         mock_executor = AsyncMock()
@@ -293,12 +293,12 @@ class TestErrorHandlingIntegration:
         
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_docker_initialization_failure(self, mock_settings, mock_executor_factory, mock_container_class):
+    async def test_docker_initialization_failure(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test handling Docker initialization failure."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         # Mock container manager that fails to initialize
         mock_container = Mock()
@@ -380,10 +380,10 @@ class TestFeatureFlagIntegration:
         
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_feature_flag_enabled(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_feature_flag_enabled(self, mock_exists):
         """Test agent works when feature flag is enabled."""
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_exists.return_value = True
         
         agent = ClaudeCodeAgent({})
         agent._validate_workflow = AsyncMock(return_value=False)  # Will fail on workflow
@@ -439,11 +439,14 @@ class TestCleanupIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_agent_cleanup(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_agent_cleanup(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test agent cleanup process."""
+        # Mock credentials exist
+        mock_exists.return_value = True
+        
         # Mock executor with proper cleanup method
         mock_executor = AsyncMock()
         mock_executor.cleanup = AsyncMock()
