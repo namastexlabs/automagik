@@ -29,13 +29,13 @@ class TestTimeoutScenarios:
     """Test various timeout scenarios."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_container_timeout_handling(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_container_timeout_handling(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test handling of container execution timeout."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates timeout
         mock_executor = Mock()
@@ -123,13 +123,13 @@ class TestResourceLimits:
     """Test resource limitation handling."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_memory_limit_handling(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_memory_limit_handling(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test handling when container hits memory limits."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates memory limit
         mock_executor = Mock()
@@ -149,13 +149,13 @@ class TestResourceLimits:
         assert "memory" in response.text.lower()
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_disk_space_limit_handling(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_disk_space_limit_handling(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test handling when container runs out of disk space."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates disk space issue
         mock_executor = Mock()
@@ -225,13 +225,13 @@ class TestErrorPropagation:
     """Test error propagation through the system."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_docker_api_error_propagation(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_docker_api_error_propagation(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test that Docker API errors are properly propagated."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates Docker error
         mock_executor = Mock()
@@ -276,13 +276,13 @@ class TestAsyncOperations:
     """Test asynchronous operation edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_background_task_exception_handling(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_background_task_exception_handling(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test exception handling in background tasks."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that will be called by background task
         mock_executor = Mock()
@@ -394,11 +394,11 @@ class TestInputValidation:
     """Test input validation edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_empty_message_handling(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_empty_message_handling(self, mock_exists):
         """Test handling of empty messages."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         agent = ClaudeCodeAgent({})
         
@@ -514,11 +514,11 @@ class TestWorkflowEdgeCases:
     """Test workflow-specific edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_malformed_workflow_files(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_malformed_workflow_files(self, mock_exists):
         """Test handling of malformed workflow files."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         agent = ClaudeCodeAgent({})
         
@@ -540,11 +540,11 @@ class TestWorkflowEdgeCases:
             assert result is False
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_circular_workflow_dependencies(self, mock_settings):
+    @patch('pathlib.Path.exists')
+    async def test_circular_workflow_dependencies(self, mock_exists):
         """Test detection of circular workflow dependencies."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         agent = ClaudeCodeAgent({})
         
@@ -647,13 +647,13 @@ class TestConcurrencyLimits:
     """Test concurrency limit scenarios."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_max_concurrent_containers_reached(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_max_concurrent_containers_reached(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test behavior when max concurrent containers is reached."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates concurrency limit
         mock_executor = Mock()
@@ -677,13 +677,13 @@ class TestNetworkIssues:
     """Test network-related edge cases."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_network_connectivity_issues(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_network_connectivity_issues(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test handling of network connectivity issues."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates network issue
         mock_executor = Mock()
@@ -707,13 +707,13 @@ class TestDataCorruption:
     """Test data corruption scenarios."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
+    @patch('pathlib.Path.exists')
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    async def test_corrupted_container_state(self, mock_executor_factory, mock_container_class, mock_settings):
+    async def test_corrupted_container_state(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test recovery from corrupted container state."""
-        # Enable claude-code agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        # Mock credentials exist
+        mock_exists.return_value = True
         
         # Mock executor that simulates corrupted state
         mock_executor = Mock()
