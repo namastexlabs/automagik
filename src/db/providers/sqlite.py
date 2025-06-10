@@ -450,6 +450,15 @@ class SQLiteProvider(DatabaseProvider):
             FOREIGN KEY (preference_id) REFERENCES preferences(id) ON DELETE CASCADE
         );
 
+        -- Create new simplified mcp_configs table (NMSTX-253 Refactor)
+        CREATE TABLE IF NOT EXISTS mcp_configs (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            config TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         -- Create indexes for better performance
         CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
         CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
@@ -473,6 +482,9 @@ class SQLiteProvider(DatabaseProvider):
         CREATE INDEX IF NOT EXISTS idx_agent_mcp_servers_agent_id ON agent_mcp_servers(agent_id);
         CREATE INDEX IF NOT EXISTS idx_agent_mcp_servers_server_id ON agent_mcp_servers(mcp_server_id);
         CREATE INDEX IF NOT EXISTS idx_mcp_servers_agent_status ON agent_mcp_servers(agent_id, mcp_server_id);
+        
+        -- New MCP configs indexes (NMSTX-253 Refactor)
+        CREATE INDEX IF NOT EXISTS idx_mcp_configs_name ON mcp_configs(name);
 
         -- Enable foreign key constraints
         PRAGMA foreign_keys = ON;
@@ -659,6 +671,19 @@ class SQLiteProvider(DatabaseProvider):
         # Handle PostgreSQL boolean literals in WHERE clauses
         converted_query = re.sub(r'\bTRUE\b', '1', converted_query, flags=re.IGNORECASE)
         converted_query = re.sub(r'\bFALSE\b', '0', converted_query, flags=re.IGNORECASE)
+        
+        # Handle PostgreSQL JSON containment operator @> for SQLite
+        # PostgreSQL: config->'agents' @> '[{"agent_name"}]'
+        # SQLite: JSON_SEARCH(config, 'one', 'agent_name', NULL, '$.agents[*]') IS NOT NULL
+        json_contains_pattern = r"([a-zA-Z_]+)->'([^']+)'\s+@>\s+(%s|\?)"
+        if re.search(json_contains_pattern, converted_query):
+            # For now, replace with a simpler LIKE pattern for SQLite
+            # This is a simplified approach - full JSON path queries would be more complex
+            converted_query = re.sub(
+                r"([a-zA-Z_]+)->'([^']+)'\s+@>\s+(%s|\?)",
+                r"json_extract(\1, '$.\2') LIKE '%'||replace(replace(\3, '[', ''), ']', '')||'%'",
+                converted_query
+            )
         
         # Handle ORDER BY with NULLS LAST/FIRST (PostgreSQL) to SQLite equivalent
         # PostgreSQL: ORDER BY column NULLS LAST
