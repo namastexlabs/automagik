@@ -215,10 +215,14 @@ install: ## 🛠️ Install development environment
 
 install-service: ## ⚙️ Install as systemd service with optional dependencies
 	@$(call print_status,Installing Automagik Agents systemd service...)
-	@$(MAKE) install
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(call print_warning,Virtual environment not found - creating it now...); \
+		$(MAKE) install; \
+	fi
 	@$(call check_env_file)
 	@$(call show_dependency_prompt)
 	@$(call create_systemd_service)
+	@$(call print_status,Reloading systemd and enabling service...)
 	@sudo systemctl daemon-reload
 	@sudo systemctl enable automagik-agents
 	@$(call print_success_with_logo,Systemd service installed!)
@@ -574,20 +578,36 @@ define check_prerequisites
 		exit 1; \
 	fi; \
 	if ! command -v uv >/dev/null 2>&1; then \
-		$(call print_status,Installing uv...); \
-		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+		if [ -f "$$HOME/.local/bin/uv" ]; then \
+			export PATH="$$HOME/.local/bin:$$PATH"; \
+			$(call print_status,Found uv in $$HOME/.local/bin); \
+		else \
+			$(call print_status,Installing uv...); \
+			curl -LsSf https://astral.sh/uv/install.sh | sh; \
+			export PATH="$$HOME/.local/bin:$$PATH"; \
+			$(call print_success,uv installed successfully); \
+		fi; \
+	else \
+		$(call print_status,uv is already available in PATH); \
 	fi
 endef
 
 define setup_python_env
 	$(call print_status,Installing dependencies with uv...); \
-	uv sync
+	if command -v uv >/dev/null 2>&1; then \
+		uv sync; \
+	elif [ -f "$$HOME/.local/bin/uv" ]; then \
+		$$HOME/.local/bin/uv sync; \
+	else \
+		$(call print_error,uv not found - please run 'make install' without sudo first); \
+		exit 1; \
+	fi
 endef
 
 define create_systemd_service
 	$(call print_status,Creating systemd service...); \
-	sudo printf '[Unit]\nDescription=Automagik Agents Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nEnvironment=PATH=%s/bin\nExecStart=%s/bin/python -m src\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' \
-		"$(shell whoami)" "$(PROJECT_ROOT)" "$(VENV_PATH)" "$(VENV_PATH)" > /etc/systemd/system/automagik-agents.service
+	printf '[Unit]\nDescription=Automagik Agents Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nEnvironment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\nExecStart=%s/bin/python -m src\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' \
+		"$(shell whoami)" "$(PROJECT_ROOT)" "$(VENV_PATH)" "$(HOME)" "$(VENV_PATH)" | sudo tee /etc/systemd/system/automagik-agents.service > /dev/null
 endef
 
 define show_systemd_status
