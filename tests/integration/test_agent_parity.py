@@ -165,8 +165,9 @@ class TestAgentParity:
         assert len(simple_tools) > 0
         assert len(sofia_tools) > 0
         
-        # Sofia should have more tools (superset of Simple)
-        assert len(sofia_tools) >= len(simple_tools)
+        # Simple should have more tools (includes multimodal capabilities)
+        # SimpleAgent has multimodal enhancements that SofiaAgent doesn't have
+        assert len(simple_tools) >= len(sofia_tools)
         
         # Common tools should exist in both
         common_tools = ["send_reaction", "send_text_to_user"]
