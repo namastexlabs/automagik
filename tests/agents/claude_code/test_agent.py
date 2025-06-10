@@ -24,6 +24,7 @@ class TestClaudeCodeAgentInitialization:
     
     @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch.dict('os.environ', {'CLAUDE_CODE_MODE': 'docker'})
     def test_agent_initialization(self, mock_executor_factory, mock_container_class):
         """Test basic agent initialization."""
         # Mock the classes
@@ -86,18 +87,18 @@ class TestClaudeCodeAgentRun:
     """Test ClaudeCodeAgent run method."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.settings')
-    async def test_run_disabled_agent(self, mock_settings):
-        """Test running agent when disabled via feature flag."""
-        # Mock settings to disable agent
-        mock_settings.AM_ENABLE_CLAUDE_CODE = False
+    @patch('pathlib.Path.exists')
+    async def test_run_no_credentials(self, mock_exists):
+        """Test running agent when Claude CLI credentials are not configured."""
+        # Mock credentials file not existing
+        mock_exists.return_value = False
         
-        agent = ClaudeCodeAgent({})
+        agent = ClaudeCodeAgent({"default_workflow": "fix"})
         response = await agent.run("Test message")
         
         assert response.success is False
-        assert "Claude-Code agent is disabled" in response.text
-        assert response.error_message == "Agent disabled via feature flag"
+        assert "Claude CLI not configured" in response.text
+        assert "No credentials found" in response.error_message
         
     @pytest.mark.asyncio
     @patch('src.agents.claude_code.agent.settings')

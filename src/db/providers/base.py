@@ -3,7 +3,7 @@
 import uuid
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Tuple, Union
 from datetime import datetime
 
 class DatabaseProvider(ABC):
@@ -100,6 +100,16 @@ class DatabaseProvider(ABC):
     @abstractmethod
     def supports_feature(self, feature: str) -> bool:
         """Check if the provider supports a specific feature."""
+        pass
+    
+    @abstractmethod
+    def table_exists(self, table_name: str) -> bool:
+        """Check if a table exists in the database."""
+        pass
+    
+    @abstractmethod
+    def get_table_columns(self, table_name: str) -> List[str]:
+        """Get list of column names for a table."""
         pass
     
     def __str__(self) -> str:
