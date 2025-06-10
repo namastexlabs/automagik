@@ -58,7 +58,7 @@ class FrameworkType(str, Enum):
         # Remove special characters for fuzzy matching (but not for pydantic_ai)
         if "pydantic" in name_lower and "_" in name_lower:
             # Explicitly reject pydantic_ai variations
-            raise ValueError(f"Framework 'pydantic_ai' is no longer supported. Use 'pydanticai' instead.")
+            raise ValueError("Framework 'pydantic_ai' is no longer supported. Use 'pydanticai' instead.")
         
         # Normalize other framework names (remove underscores/hyphens)
         name_normalized = name_lower.replace("_", "").replace("-", "")
