@@ -399,52 +399,119 @@ class MCPConfig(MCPConfigBase):
         return self.config.get("command", [])
     
     def get_agents(self) -> List[str]:
-        """Get the list of agent names this server is assigned to."""
-        return self.config.get("agents", [])
+        """Get the list of agents assigned to this MCP server."""
+        agents = self.config.get("agents", [])
+        return agents if isinstance(agents, list) else []
     
-    def get_tools_config(self) -> Dict[str, List[str]]:
-        """Get the tools configuration (include/exclude lists)."""
+    def is_assigned_to_agent(self, agent_name: str) -> bool:
+        """Check if this MCP server is assigned to a specific agent.
+        
+        Args:
+            agent_name: Name of the agent to check
+            
+        Returns:
+            True if assigned, False otherwise. Returns True for "*" wildcard.
+        """
+        agents = self.get_agents()
+        return "*" in agents or agent_name in agents
+    
+    def get_tools_config(self) -> Dict[str, Any]:
+        """Get the tools configuration (include/exclude filters)."""
         return self.config.get("tools", {})
+    
+    def should_include_tool(self, tool_name: str) -> bool:
+        """Check if a tool should be included based on filters.
+        
+        Args:
+            tool_name: Name of the tool to check
+            
+        Returns:
+            True if tool should be included, False if excluded
+        """
+        tools_config = self.get_tools_config()
+        
+        # Check exclude list first
+        exclude_list = tools_config.get("exclude", [])
+        if isinstance(exclude_list, list):
+            for pattern in exclude_list:
+                if pattern == "*" or tool_name == pattern or (pattern.endswith("*") and tool_name.startswith(pattern[:-1])):
+                    return False
+        
+        # Check include list
+        include_list = tools_config.get("include", ["*"])
+        if isinstance(include_list, list):
+            for pattern in include_list:
+                if pattern == "*" or tool_name == pattern or (pattern.endswith("*") and tool_name.startswith(pattern[:-1])):
+                    return True
+        
+        # Default to exclude if no include patterns match
+        return False
     
     def get_environment(self) -> Dict[str, str]:
         """Get environment variables for the server."""
-        return self.config.get("environment", {})
-    
-    def is_enabled(self) -> bool:
-        """Check if the server is enabled."""
-        return self.config.get("enabled", True)
-    
-    def should_auto_start(self) -> bool:
-        """Check if the server should auto-start."""
-        return self.config.get("auto_start", True)
+        env = self.config.get("environment", {})
+        return env if isinstance(env, dict) else {}
     
     def get_timeout(self) -> int:
         """Get the timeout in milliseconds."""
         return self.config.get("timeout", 30000)
     
     def get_retry_count(self) -> int:
-        """Get the retry count."""
+        """Get the maximum retry count."""
         return self.config.get("retry_count", 3)
     
-    def is_assigned_to_agent(self, agent_name: str) -> bool:
-        """Check if this server is assigned to a specific agent."""
-        agents = self.get_agents()
-        return agent_name in agents or "*" in agents
+    def is_enabled(self) -> bool:
+        """Check if the server is enabled."""
+        return self.config.get("enabled", True)
     
-    def get_filtered_tools(self, available_tools: List[str]) -> List[str]:
-        """Filter tools based on include/exclude configuration."""
-        tools_config = self.get_tools_config()
-        include = tools_config.get("include", ["*"])
-        exclude = tools_config.get("exclude", [])
+    def is_auto_start(self) -> bool:
+        """Check if the server should auto-start."""
+        return self.config.get("auto_start", True)
+    
+    def get_url(self) -> Optional[str]:
+        """Get the URL for HTTP servers."""
+        return self.config.get("url")
+    
+    def validate_config(self) -> bool:
+        """Validate the configuration is complete and consistent.
         
-        # If include has "*", start with all available tools
-        if "*" in include:
-            filtered = available_tools.copy()
-        else:
-            # Only include specified tools
-            filtered = [tool for tool in available_tools if tool in include]
+        Returns:
+            True if valid, False otherwise
+        """
+        # Check required fields
+        if not self.config.get("name"):
+            return False
         
-        # Remove excluded tools
-        filtered = [tool for tool in filtered if tool not in exclude]
+        server_type = self.get_server_type()
+        if server_type not in ["stdio", "http"]:
+            return False
         
-        return filtered
+        # Check type-specific requirements
+        if server_type == "stdio" and not self.get_command():
+            return False
+        
+        if server_type == "http" and not self.get_url():
+            return False
+        
+        return True
+    
+    def to_legacy_format(self) -> Dict[str, Any]:
+        """Convert to legacy mcp_servers table format for migration compatibility.
+        
+        Returns:
+            Dictionary matching old mcp_servers schema
+        """
+        return {
+            "name": self.name,
+            "server_type": self.get_server_type(),
+            "description": self.config.get("description"),
+            "command": self.get_command() if self.get_server_type() == "stdio" else None,
+            "env": self.get_environment(),
+            "http_url": self.get_url(),
+            "auto_start": self.is_auto_start(),
+            "max_retries": self.get_retry_count(),
+            "timeout_seconds": self.get_timeout() // 1000,  # Convert ms to seconds
+            "tags": self.config.get("tags", []),
+            "priority": self.config.get("priority", 0),
+            "enabled": self.is_enabled()
+        }
