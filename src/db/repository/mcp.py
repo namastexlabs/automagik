@@ -653,25 +653,29 @@ def list_mcp_configs(enabled_only: bool = True, agent_name: Optional[str] = None
         List of MCPConfig objects
     """
     try:
-        query = "SELECT * FROM mcp_configs"
-        params = []
-        conditions = []
+        # Get all configs first, then filter in Python for SQLite compatibility
+        query = "SELECT * FROM mcp_configs ORDER BY name ASC"
+        result = execute_query(query, [])
         
-        if enabled_only:
-            conditions.append("(config->>'enabled')::boolean = true")
+        configs = []
+        for row in result:
+            try:
+                config = MCPConfig.from_db_row(row)
+                
+                # Apply enabled filter
+                if enabled_only and not config.is_enabled():
+                    continue
+                
+                # Apply agent filter
+                if agent_name and not config.is_assigned_to_agent(agent_name):
+                    continue
+                
+                configs.append(config)
+            except Exception as e:
+                logger.warning(f"Skipping invalid config row: {str(e)}")
+                continue
         
-        if agent_name:
-            # Filter configs where agents array contains the agent name or '*' 
-            conditions.append("(config->'agents' @> %s OR config->'agents' @> %s)")
-            params.extend([json.dumps([agent_name]), json.dumps(["*"])])
-        
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        
-        query += " ORDER BY name ASC"
-        
-        result = execute_query(query, params)
-        return [MCPConfig.from_db_row(row) for row in result]
+        return configs
     except Exception as e:
         logger.error(f"Error listing MCP configs: {str(e)}")
         return []
@@ -698,20 +702,20 @@ def create_mcp_config(config_data: MCPConfigCreate) -> Optional[str]:
             logger.error("MCP config must specify server_type")
             return None
         
-        # Serialize config as JSONB
+        # Generate UUID for SQLite compatibility
+        import uuid
+        config_id = str(uuid.uuid4())
+        
+        # Serialize config as JSON
         config_json = json.dumps(config_data.config)
         
-        # Insert the config
-        result = execute_query(
-            """
-            INSERT INTO mcp_configs (name, config, created_at, updated_at)
-            VALUES (%s, %s, NOW(), NOW())
-            RETURNING id
-            """,
-            (config_data.name, config_json)
+        # Insert the config (SQLite compatible)
+        execute_query(
+            "INSERT INTO mcp_configs (id, name, config, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            (config_id, config_data.name, config_json),
+            fetch=False
         )
         
-        config_id = str(result[0]["id"]) if result else None
         logger.info(f"Created MCP config {config_data.name} with ID {config_id}")
         return config_id
     except Exception as e:
@@ -734,16 +738,11 @@ def update_mcp_config(config_id: str, update_data: MCPConfigUpdate) -> bool:
             logger.error("No config data provided for update")
             return False
         
-        # Serialize config as JSONB
+        # Serialize config as JSON
         config_json = json.dumps(update_data.config)
         
         execute_query(
-            """
-            UPDATE mcp_configs SET 
-                config = %s,
-                updated_at = NOW()
-            WHERE id = %s
-            """,
+            "UPDATE mcp_configs SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (config_json, config_id),
             fetch=False
         )
@@ -770,16 +769,11 @@ def update_mcp_config_by_name(name: str, update_data: MCPConfigUpdate) -> bool:
             logger.error("No config data provided for update")
             return False
         
-        # Serialize config as JSONB
+        # Serialize config as JSON
         config_json = json.dumps(update_data.config)
         
         execute_query(
-            """
-            UPDATE mcp_configs SET 
-                config = %s,
-                updated_at = NOW()
-            WHERE name = %s
-            """,
+            "UPDATE mcp_configs SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE name = ?",
             (config_json, name),
             fetch=False
         )
@@ -845,17 +839,25 @@ def get_agent_mcp_configs(agent_name: str) -> List[MCPConfig]:
         List of MCPConfig objects assigned to the agent
     """
     try:
-        # Query configs where agents array contains the agent name or '*'
+        # Get all enabled configs first, then filter in Python for SQLite compatibility
         result = execute_query(
-            """
-            SELECT * FROM mcp_configs 
-            WHERE (config->'agents' @> %s OR config->'agents' @> %s)
-            AND (config->>'enabled')::boolean = true
-            ORDER BY name ASC
-            """,
-            (json.dumps([agent_name]), json.dumps(["*"]))
+            "SELECT * FROM mcp_configs ORDER BY name ASC",
+            []
         )
-        return [MCPConfig.from_db_row(row) for row in result]
+        
+        configs = []
+        for row in result:
+            try:
+                config = MCPConfig.from_db_row(row)
+                
+                # Check if enabled and assigned to agent
+                if config.is_enabled() and config.is_assigned_to_agent(agent_name):
+                    configs.append(config)
+            except Exception as e:
+                logger.warning(f"Skipping invalid config row: {str(e)}")
+                continue
+        
+        return configs
     except Exception as e:
         logger.error(f"Error getting MCP configs for agent {agent_name}: {str(e)}")
         return []
@@ -871,16 +873,25 @@ def get_configs_by_server_type(server_type: str) -> List[MCPConfig]:
         List of MCPConfig objects
     """
     try:
+        # Get all configs first, then filter in Python for SQLite compatibility
         result = execute_query(
-            """
-            SELECT * FROM mcp_configs 
-            WHERE config->>'server_type' = %s
-            AND (config->>'enabled')::boolean = true
-            ORDER BY name ASC
-            """,
-            (server_type,)
+            "SELECT * FROM mcp_configs ORDER BY name ASC",
+            []
         )
-        return [MCPConfig.from_db_row(row) for row in result]
+        
+        configs = []
+        for row in result:
+            try:
+                config = MCPConfig.from_db_row(row)
+                
+                # Check if enabled and matches server type
+                if config.is_enabled() and config.get_server_type() == server_type:
+                    configs.append(config)
+            except Exception as e:
+                logger.warning(f"Skipping invalid config row: {str(e)}")
+                continue
+        
+        return configs
     except Exception as e:
         logger.error(f"Error getting MCP configs by server type {server_type}: {str(e)}")
         return []
