@@ -29,42 +29,21 @@ jobs:
           echo "🔍 Analyzing PR changes..."
 
           # Get comprehensive change statistics
-          FILES_CHANGED=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
-          LINES_ADDED=$(git diff --shortstat \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
-          LINES_DELETED=$(git diff --shortstat \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
-          COMMITS=$(git log --oneline \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
+          FILES_CHANGED=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
+          LINES_ADDED=$(git diff --shortstat origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
+          LINES_DELETED=$(git diff --shortstat origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
+          COMMITS=$(git log --oneline origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
 
           # Get file type breakdown
-          NEW_FILES=$(git diff --name-status \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -c "^A" || echo 0)
-          MODIFIED_FILES=$(git diff --name-status \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -c "^M" || echo 0)
-          DELETED_FILES=$(git diff --name-status \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -c "^D" || echo 0)
+          NEW_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -c "^A" || echo 0)
+          MODIFIED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -c "^M" || echo 0)
+          DELETED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -c "^D" || echo 0)
 
           # Check for specific types of changes
-          HAS_PYTHON=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q "\.py$" && echo "true" || echo "false")
-          HAS_DOCS=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q -E "\.(md|rst|txt)$" && echo "true" || echo "false")
-          HAS_TESTS=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q "test" && echo "true" || echo "false")
-          HAS_CONFIG=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q -E "\.(yml|yaml|json|toml|ini)$" && \
-            echo "true" || echo "false")
+          HAS_PYTHON=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "\.py$" && echo "true" || echo "false")
+          HAS_DOCS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(md|rst|txt)$" && echo "true" || echo "false")
+          HAS_TESTS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "test" && echo "true" || echo "false")
+          HAS_CONFIG=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(yml|yaml|json|toml|ini)$" && echo "true" || echo "false")
 
           # Output all statistics
           echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
@@ -80,12 +59,10 @@ jobs:
           echo "has_config=$HAS_CONFIG" >> $GITHUB_OUTPUT
 
           echo "📈 Analysis complete:"
-          echo "  Files: $FILES_CHANGED changed ($NEW_FILES new, \
-            $MODIFIED_FILES modified, $DELETED_FILES deleted)"
+          echo "  Files: $FILES_CHANGED changed ($NEW_FILES new, $MODIFIED_FILES modified, $DELETED_FILES deleted)"
           echo "  Lines: +$LINES_ADDED / -$LINES_DELETED"
           echo "  Commits: $COMMITS"
-          echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, \
-            Tests=$HAS_TESTS, Config=$HAS_CONFIG"
+          echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, Tests=$HAS_TESTS, Config=$HAS_CONFIG"
 
       - name: 🧠 Generate PR Description with Claude Code
         id: claude-analysis
