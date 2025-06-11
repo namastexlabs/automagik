@@ -18,15 +18,26 @@ echo "   Workflow: $WORKFLOW_DIR"
 echo "   Branch: $GIT_BRANCH"
 echo "   Workspace: $WORKSPACE_DIR"
 
-# Clone am-agents-labs repository if not exists
+# Set repository URL (use environment variable or default)
+REPO_URL="${REPOSITORY_URL:-https://github.com/namastexlabs/am-agents-labs.git}"
+
+# Extract repository name from URL
+REPO_NAME=$(basename "$REPO_URL" .git)
+
+# Update workspace directory to use dynamic repo name
+WORKSPACE_DIR="/workspace/$REPO_NAME"
+
+# Clone repository if not exists
 if [ ! -d "$WORKSPACE_DIR" ]; then
-    echo "📦 Cloning am-agents-labs repository..."
+    echo "📦 Cloning repository from $REPO_URL..."
     cd /workspace
     
     if [ -n "$GITHUB_TOKEN" ]; then
-        git clone -b "$GIT_BRANCH" "https://oauth2:${GITHUB_TOKEN}@github.com/namastexlabs/am-agents-labs.git" am-agents-labs
+        # Parse URL and insert token
+        REPO_URL_WITH_TOKEN=$(echo "$REPO_URL" | sed "s|https://|https://oauth2:${GITHUB_TOKEN}@|")
+        git clone -b "$GIT_BRANCH" "$REPO_URL_WITH_TOKEN" "$REPO_NAME"
     else
-        git clone -b "$GIT_BRANCH" "https://github.com/namastexlabs/am-agents-labs.git" am-agents-labs
+        git clone -b "$GIT_BRANCH" "$REPO_URL" "$REPO_NAME"
     fi
     
     cd "$WORKSPACE_DIR"
