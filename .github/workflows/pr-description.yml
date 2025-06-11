@@ -29,42 +29,56 @@ jobs:
           echo "🔍 Analyzing PR changes..."
 
           # Get comprehensive change statistics
-          FILES_CHANGED=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
-          LINES_ADDED=$(git diff --shortstat \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
-          LINES_DELETED=$(git diff --shortstat \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
-          COMMITS=$(git log --oneline \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
+          FILES_CHANGED=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
+          LINES_ADDED=$(git diff --shortstat origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
+          LINES_DELETED=$(git diff --shortstat origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -o '[0-9]* deletion' | grep -o '[0-9]*' || echo 0)
+          COMMITS=$(git log --oneline origin/${{ github.event.pull_request.base.ref }}..HEAD | wc -l)
 
           # Get file type breakdown
-          NEW_FILES=$(git diff --name-status \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -c "^A" || echo 0)
-          MODIFIED_FILES=$(git diff --name-status \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -c "^M" || echo 0)
-          DELETED_FILES=$(git diff --name-status \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -c "^D" || echo 0)
+          NEW_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^A" | wc -l)
+          MODIFIED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^M" | wc -l)
+          DELETED_FILES=$(git diff --name-status origin/${{ github.event.pull_request.base.ref }}..HEAD | grep "^D" | wc -l)
+
+          # Check for binary files
+          BINARY_FILES=0
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD)
+          if [ -n "$CHANGED_FILES" ]; then
+            BINARY_COUNT=$(echo "$CHANGED_FILES" | xargs file 2>/dev/null | grep "binary" | wc -l)
+            BINARY_FILES=$BINARY_COUNT
+          fi
 
           # Check for specific types of changes
-          HAS_PYTHON=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q "\.py$" && echo "true" || echo "false")
-          HAS_DOCS=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q -E "\.(md|rst|txt)$" && echo "true" || echo "false")
-          HAS_TESTS=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q "test" && echo "true" || echo "false")
-          HAS_CONFIG=$(git diff --name-only \
-            origin/${{ github.event.pull_request.base.ref }}..HEAD | \
-            grep -q -E "\.(yml|yaml|json|toml|ini)$" && \
-            echo "true" || echo "false")
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "\.py$"; then
+            HAS_PYTHON="true"
+          else
+            HAS_PYTHON="false"
+          fi
+          
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(md|rst|txt)$"; then
+            HAS_DOCS="true"
+          else
+            HAS_DOCS="false"
+          fi
+          
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q "test"; then
+            HAS_TESTS="true"
+          else
+            HAS_TESTS="false"
+          fi
+          
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD | grep -q -E "\.(yml|yaml|json|toml|ini)$"; then
+            HAS_CONFIG="true"
+          else
+            HAS_CONFIG="false"
+          fi
+
+          # Determine if this is a large PR requiring different handling
+          if [ "$FILES_CHANGED" -gt 50 ] || [ "$LINES_ADDED" -gt 2000 ]; then
+            LARGE_PR="true"
+            echo "⚠️ Large PR detected ($FILES_CHANGED files, +$LINES_ADDED lines) - using optimized analysis"
+          else
+            LARGE_PR="false"
+          fi
 
           # Output all statistics
           echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
@@ -74,21 +88,24 @@ jobs:
           echo "new_files=$NEW_FILES" >> $GITHUB_OUTPUT
           echo "modified_files=$MODIFIED_FILES" >> $GITHUB_OUTPUT
           echo "deleted_files=$DELETED_FILES" >> $GITHUB_OUTPUT
+          echo "binary_files=$BINARY_FILES" >> $GITHUB_OUTPUT
           echo "has_python=$HAS_PYTHON" >> $GITHUB_OUTPUT
           echo "has_docs=$HAS_DOCS" >> $GITHUB_OUTPUT
           echo "has_tests=$HAS_TESTS" >> $GITHUB_OUTPUT
           echo "has_config=$HAS_CONFIG" >> $GITHUB_OUTPUT
+          echo "large_pr=$LARGE_PR" >> $GITHUB_OUTPUT
 
           echo "📈 Analysis complete:"
-          echo "  Files: $FILES_CHANGED changed ($NEW_FILES new, \
-            $MODIFIED_FILES modified, $DELETED_FILES deleted)"
+          echo "  Files: $FILES_CHANGED changed ($NEW_FILES new, $MODIFIED_FILES modified, $DELETED_FILES deleted)"
           echo "  Lines: +$LINES_ADDED / -$LINES_DELETED"
           echo "  Commits: $COMMITS"
-          echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, \
-            Tests=$HAS_TESTS, Config=$HAS_CONFIG"
+          echo "  Binary files: $BINARY_FILES"
+          echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, Tests=$HAS_TESTS, Config=$HAS_CONFIG"
+          echo "  Large PR: $LARGE_PR"
 
       - name: 🧠 Generate PR Description with Claude Code
         id: claude-analysis
+        if: steps.changes.outputs.large_pr != 'true'
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
@@ -119,17 +136,94 @@ jobs:
             5. Use professional, technical language
             6. DO NOT use bash, git, or other tools
 
-            Based on the provided context about this PR with 203 files changed,
-            +30392/-2852 lines, and 246 commits, generate a professional PR
-            description focused on the LangGraph orchestrator migration.
+            Based on the provided context about this PR with ${{ steps.changes.outputs.files_changed }} files changed,
+            +${{ steps.changes.outputs.lines_added }}/-${{ steps.changes.outputs.lines_deleted }} lines, and ${{ steps.changes.outputs.commits }} commits, 
+            analyze the actual changes and generate a professional PR description based on the real content and purpose of this PR.
           allowed_tools: "Read,View"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: "10"
+          max_turns: "30"
           timeout_minutes: "10"
+
+      - name: 📊 Generate Large PR Description
+        id: large-pr-fallback
+        if: steps.changes.outputs.large_pr == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const description = `# 📋 Large PR: Automated Documentation
+
+            ## Summary
+
+            This is a large-scale PR affecting multiple components of the automagik-agents framework.
+
+            ## 📊 Change Overview
+
+            - **Files Changed**: ${{ steps.changes.outputs.files_changed }}
+            - **Lines Added**: +${{ steps.changes.outputs.lines_added }}
+            - **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}
+            - **Commits**: ${{ steps.changes.outputs.commits }}
+            - **Binary Files**: ${{ steps.changes.outputs.binary_files }}
+
+            ## 🎯 Change Breakdown
+
+            - **New Files**: ${{ steps.changes.outputs.new_files }}
+            - **Modified Files**: ${{ steps.changes.outputs.modified_files }}
+            - **Deleted Files**: ${{ steps.changes.outputs.deleted_files }}
+
+            ## 🔍 Change Types
+
+            - **Python Changes**: ${{ steps.changes.outputs.has_python }}
+            - **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}
+            - **Test Updates**: ${{ steps.changes.outputs.has_tests }}
+            - **Configuration Changes**: ${{ steps.changes.outputs.has_config }}
+
+            ## ⚠️ Large PR Notice
+
+            Due to the scale of this PR (${{ steps.changes.outputs.files_changed }} files changed), 
+            AI analysis was skipped to avoid timeouts. Please review the individual commits 
+            and file changes for detailed information.
+
+            ## 📝 Manual Review Recommended
+
+            For PRs of this size, consider:
+            - Breaking into smaller, focused PRs
+            - Detailed manual testing
+            - Comprehensive code review
+            - Documentation updates for major changes
+
+            ---
+            *🤖 Generated by automated analysis - Large PR detected, simplified description used*`;
+
+            // Update the PR description
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.pull_request.number }},
+              body: description
+            });
+
+            // Add informative comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }},
+              body: '🔄 **Large PR Detected - Simplified Analysis Used**\n\n' +
+                    `📊 **Statistics:**\n` +
+                    `- Files: ${{ steps.changes.outputs.files_changed }} changed\n` +
+                    `- Lines: +${{ steps.changes.outputs.lines_added }} / -${{ steps.changes.outputs.lines_deleted }}\n` +
+                    `- Commits: ${{ steps.changes.outputs.commits }}\n` +
+                    `- Binary files: ${{ steps.changes.outputs.binary_files }}\n\n` +
+                    `⚠️ **Note:** AI analysis was skipped to prevent timeouts. Consider breaking large PRs into smaller, focused changes for better review and CI performance.\n\n` +
+                    `🔗 [View workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId})`
+            });
+
+            console.log('✅ Large PR description generated and applied');
+            core.setOutput('conclusion', 'success');
+            core.setOutput('valid', 'true');
 
       - name: 📋 Extract and Update PR Description
         id: extract
-        if: steps.claude-analysis.outputs.conclusion == 'success'
+        if: steps.claude-analysis.outputs.conclusion == 'success' && steps.changes.outputs.large_pr != 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -207,13 +301,11 @@ jobs:
               if (!description) {
                 // If no description found, generate a basic one
                 console.log('⚠️ No description found in execution log, generating fallback');
-                description = `# 🔄 Major Architecture Migration: LangGraph Orchestrator Implementation
+                description = `# 📋 Automated PR Documentation
 
                 ## Summary
 
-                This PR implements a comprehensive migration to LangGraph-based 
-                orchestration, representing a significant architectural evolution 
-                of the agent framework.
+                This PR represents development work on the automagik-agents framework.
 
                 ## 📊 Change Overview
 
@@ -222,35 +314,21 @@ jobs:
                 - **Lines Deleted**: -${{ steps.changes.outputs.lines_deleted }}
                 - **Commits**: ${{ steps.changes.outputs.commits }}
 
-                ## 🎯 Key Changes
+                ## 🎯 Change Types
 
-                ### Core Architecture
-                - **LangGraph Integration**: Complete orchestration layer rewrite 
-                  using LangGraph
-                - **Agent System Enhancements**: New specialized agents and 
-                  workflow management
-                - **Infrastructure Improvements**: Enhanced API, database, and 
-                  configuration systems
+                - **Python Changes**: ${{ steps.changes.outputs.has_python }}
+                - **Documentation Updates**: ${{ steps.changes.outputs.has_docs }}
+                - **Test Updates**: ${{ steps.changes.outputs.has_tests }}
+                - **Configuration Changes**: ${{ steps.changes.outputs.has_config }}
 
-                ### New Components
-                - Claude Code Agent with containerized execution
-                - Genie orchestrator for workflow coordination
-                - Enhanced documentation and testing infrastructure
+                ## 📝 Details
 
-                ## 🧪 Testing & Quality
+                This PR includes various improvements and updates to the codebase. 
+                For detailed information about the specific changes, please review 
+                the commit history and file diffs.
 
-                - Comprehensive test suite added for new components
-                - Integration tests for workflow orchestration
-                - Performance benchmarks and reliability testing
-
-                ## 🚀 Deployment Notes
-
-                - Database migrations required
-                - New dependencies: LangGraph, Docker integration
-                - Configuration updates needed for orchestration settings
-
-                **Impact**: High - Major architectural changes with new 
-                orchestration capabilities`;
+                **Note**: This is a fallback description generated when Claude Code 
+                analysis could not extract specific details about the changes.`;
               }
 
               // Validate that we have some description
@@ -315,7 +393,7 @@ jobs:
             }
 
       - name: 🏷️ Auto-label PR
-        if: steps.extract.conclusion == 'success'
+        if: steps.extract.conclusion == 'success' || steps.large-pr-fallback.outputs.conclusion == 'success'
         uses: actions/github-script@v7
         with:
           script: |
@@ -421,6 +499,7 @@ jobs:
           echo "- **Lines Added**: ${{ steps.changes.outputs.lines_added }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Lines Deleted**: ${{ steps.changes.outputs.lines_deleted }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commits**: ${{ steps.changes.outputs.commits }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Binary Files**: ${{ steps.changes.outputs.binary_files }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔍 Analysis Result" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.claude-analysis.outputs.conclusion }}" = "success" ] && [ "${{ steps.extract.conclusion }}" = "success" ]; then
