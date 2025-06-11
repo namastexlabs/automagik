@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import List, Dict, Any, Optional
 import json  # Add json import
 import re  # Move re import here
@@ -30,16 +31,258 @@ class AsyncRunResponse(BaseModel):
     
     
 class RunStatusResponse(BaseModel):
-    """Response for run status check."""
+    """Response for run status check with comprehensive progress tracking."""
     run_id: str = Field(..., description="Unique identifier for the run")
     status: str = Field(..., description="Current status: pending, running, completed, failed")
     agent_name: str = Field(..., description="Name of the agent")
     created_at: str = Field(..., description="When the run was created")
     started_at: Optional[str] = Field(None, description="When the run started")
     completed_at: Optional[str] = Field(None, description="When the run completed")
-    result: Optional[Dict[str, Any]] = Field(None, description="Run result if completed")
+    result: Optional[str] = Field(None, description="Final Claude response content")
     error: Optional[str] = Field(None, description="Error message if failed")
-    progress: Optional[Dict[str, Any]] = Field(None, description="Progress information")
+    progress: Optional[Dict[str, Any]] = Field(None, description="Rich progress information with all available metrics")
+
+
+def parse_log_file(log_file_path: str) -> Dict[str, Any]:
+    """
+    Parse Claude Code log file and extract ALL available rich data.
+    
+    Returns comprehensive data structure with:
+    - Execution phases and timestamps
+    - Performance metrics (duration, cost, token usage)
+    - Session information and confirmation status
+    - Claude response content and metadata
+    - Tool usage and container information
+    - Git and workflow context
+    - Real-time progress indicators
+    """
+    if not os.path.exists(log_file_path):
+        return {
+            "error": "Log file not found",
+            "phase": "unknown",
+            "available": False
+        }
+    
+    try:
+        with open(log_file_path, 'r') as f:
+            lines = f.readlines()
+        
+        # Initialize comprehensive data structure
+        data = {
+            "phase": "unknown",
+            "available": True,
+            "execution_summary": {},
+            "session_info": {},
+            "performance_metrics": {},
+            "claude_response": {},
+            "container_info": {},
+            "workflow_context": {},
+            "tool_usage": {},
+            "git_info": {},
+            "progress_tracking": {},
+            "timestamps": {},
+            "raw_events": []
+        }
+        
+        claude_responses = []
+        events_by_type = {}
+        
+        for line in lines:
+            try:
+                event = json.loads(line.strip())
+                data["raw_events"].append(event)
+                
+                # Categorize events by type
+                event_type = event.get("event_type", "unknown")
+                if event_type not in events_by_type:
+                    events_by_type[event_type] = []
+                events_by_type[event_type].append(event)
+                
+                # Extract data based on event type
+                event_data = event.get("data", {})
+                timestamp = event.get("timestamp")
+                
+                if event_type == "init":
+                    data["timestamps"]["init"] = timestamp
+                    data["phase"] = "initializing"
+                
+                elif event_type == "event":
+                    message = event_data.get("message", "")
+                    if "ClaudeCodeAgent.run() called" in message:
+                        data["workflow_context"].update({
+                            "workflow_name": event_data.get("workflow_name"),
+                            "input_length": event_data.get("input_length"),
+                            "has_multimodal": event_data.get("has_multimodal")
+                        })
+                    elif "Starting Claude CLI execution" in message:
+                        data["workflow_context"].update({
+                            "max_turns": event_data.get("request", {}).get("max_turns"),
+                            "git_branch": event_data.get("request", {}).get("git_branch"),
+                            "timeout": event_data.get("request", {}).get("timeout")
+                        })
+                    elif "completed" in message:
+                        data["phase"] = "completed"
+                        data["execution_summary"]["success"] = event_data.get("success")
+                        data["execution_summary"]["exit_code"] = event_data.get("exit_code")
+                        data["execution_summary"]["execution_time"] = event_data.get("execution_time")
+                        data["git_info"]["commits"] = event_data.get("git_commits")
+                        data["execution_summary"]["result_length"] = event_data.get("result_length")
+                
+                elif event_type == "raw_command":
+                    data["container_info"].update({
+                        "executable": event_data.get("executable"),
+                        "working_directory": event_data.get("working_directory"),
+                        "command_length": event_data.get("command_length"),
+                        "user_message_length": event_data.get("user_message_length"),
+                        "max_turns": event_data.get("max_turns"),
+                        "workflow": event_data.get("workflow")
+                    })
+                    data["session_info"]["session_details"] = event_data.get("session_details", {})
+                
+                elif event_type == "session_confirmed":
+                    data["session_info"].update({
+                        "claude_session_id": event_data.get("session_id"),
+                        "confirmed": event_data.get("confirmed"),
+                        "confirmation_time": timestamp
+                    })
+                    data["phase"] = "session_active"
+                
+                elif event_type == "claude_output":
+                    # Extract parsed data - check if parsing was successful first
+                    if event_data.get("parsed") is True:
+                        # Parse the message JSON string to get the actual data
+                        try:
+                            parsed_data = json.loads(event_data.get("message", "{}"))
+                        except (json.JSONDecodeError, TypeError):
+                            parsed_data = {}
+                    else:
+                        parsed_data = {}
+                    
+                    if parsed_data and parsed_data.get("type") == "result":
+                        # This is the final result
+                        data["claude_response"].update({
+                            "final_result": parsed_data.get("result"),
+                            "cost_usd": parsed_data.get("cost_usd"),
+                            "total_cost": parsed_data.get("total_cost"),
+                            "duration_ms": parsed_data.get("duration_ms"),
+                            "duration_api_ms": parsed_data.get("duration_api_ms"),
+                            "num_turns": parsed_data.get("num_turns"),
+                            "session_id": parsed_data.get("session_id"),
+                            "is_error": parsed_data.get("is_error")
+                        })
+                        data["performance_metrics"].update({
+                            "cost_usd": parsed_data.get("cost_usd"),
+                            "duration_ms": parsed_data.get("duration_ms"),
+                            "duration_api_ms": parsed_data.get("duration_api_ms"),
+                            "turns_used": parsed_data.get("num_turns")
+                        })
+                    elif parsed_data and parsed_data.get("type") == "assistant":
+                        # Assistant message
+                        message_data = parsed_data.get("message", {})
+                        content = message_data.get("content", [])
+                        if content and isinstance(content, list) and len(content) > 0:
+                            text_content = content[0].get("text", "")
+                            claude_responses.append({
+                                "content": text_content,
+                                "timestamp": timestamp,
+                                "usage": message_data.get("usage", {}),
+                                "stop_reason": message_data.get("stop_reason")
+                            })
+                    elif parsed_data and parsed_data.get("type") == "system":
+                        # System initialization with tools
+                        data["tool_usage"].update({
+                            "available_tools": parsed_data.get("tools", []),
+                            "mcp_servers": parsed_data.get("mcp_servers", []),
+                            "model": parsed_data.get("model"),
+                            "cwd": parsed_data.get("cwd")
+                        })
+                
+                elif event_type == "workflow_init":
+                    data["workflow_context"].update({
+                        "workspace": event_data.get("workspace"),
+                        "command_preview": event_data.get("command_preview"),
+                        "full_command_length": event_data.get("full_command_length")
+                    })
+                    data["phase"] = "workflow_starting"
+                
+                elif event_type == "process":
+                    data["container_info"]["pid"] = event_data.get("pid")
+                    data["container_info"]["command_args"] = event_data.get("command_args")
+                
+                elif event_type == "workflow_completion":
+                    data["phase"] = "completed"
+                    data["execution_summary"].update({
+                        "exit_code": event_data.get("exit_code"),
+                        "success": event_data.get("success"),
+                        "streaming_messages_count": event_data.get("streaming_messages_count"),
+                        "stdout_lines": event_data.get("stdout_lines"),
+                        "stderr_lines": event_data.get("stderr_lines"),
+                        "result_preview": event_data.get("final_result_preview")
+                    })
+                    data["timestamps"]["completion"] = timestamp
+                
+            except (json.JSONDecodeError, KeyError) as e:
+                # Skip malformed lines
+                continue
+        
+        # Process collected Claude responses
+        if claude_responses:
+            data["claude_response"]["messages"] = claude_responses
+            data["claude_response"]["message_count"] = len(claude_responses)
+            # Get the final response content
+            if claude_responses:
+                final_response = claude_responses[-1]
+                data["claude_response"]["final_content"] = final_response.get("content")
+        
+        # Calculate progress metrics
+        data["progress_tracking"] = {
+            "total_events": len(data["raw_events"]),
+            "events_by_type": {k: len(v) for k, v in events_by_type.items()},
+            "response_count": len(claude_responses),
+            "has_final_result": bool(data["claude_response"].get("final_result")),
+            "session_confirmed": data["session_info"].get("confirmed", False)
+        }
+        
+        # Final phase determination - check if we have completion events
+        if "workflow_completion" in events_by_type or data["claude_response"].get("final_result"):
+            data["phase"] = "completed"
+        
+        # Add tool analysis
+        available_tools = data["tool_usage"].get("available_tools", [])
+        if available_tools:
+            tool_categories = {
+                "file_operations": [t for t in available_tools if t in ["Read", "Write", "Edit", "MultiEdit"]],
+                "system_operations": [t for t in available_tools if t in ["Task", "Bash", "LS"]],
+                "search_operations": [t for t in available_tools if t in ["Grep", "Glob"]],
+                "mcp_tools": [t for t in available_tools if t.startswith("mcp__")],
+                "collaboration": [t for t in available_tools if "linear" in t.lower() or "slack" in t.lower()],
+                "git_operations": [t for t in available_tools if "git" in t.lower()]
+            }
+            data["tool_usage"]["tool_categories"] = tool_categories
+            data["tool_usage"]["total_tools"] = len(available_tools)
+        
+        return data
+        
+    except Exception as e:
+        return {
+            "error": f"Failed to parse log file: {str(e)}",
+            "phase": "error",
+            "available": False
+        }
+
+
+def find_claude_code_log(run_id: str) -> Optional[str]:
+    """Find Claude Code log file by run_id."""
+    log_dir = "/home/namastex/workspace/am-agents-labs/logs"
+    if not os.path.exists(log_dir):
+        return None
+    
+    # Look for log files matching the run_id pattern
+    for filename in os.listdir(log_dir):
+        if run_id in filename and filename.endswith('.log'):
+            return os.path.join(log_dir, filename)
+    
+    return None
 
 
 async def execute_agent_async(
@@ -490,28 +733,34 @@ async def run_agent_async(
            description="Check the status of an asynchronous agent run.")
 async def get_run_status(run_id: str):
     """
-    Get the status of an async run.
+    Get the comprehensive status of an async run with ALL available rich data.
     
-    **Status values:**
-    - `pending`: Run is queued but not started
-    - `running`: Run is currently executing
-    - `completed`: Run finished successfully
-    - `failed`: Run failed with an error
+    **Enhanced Status Response:**
+    - **Basic status**: pending, running, completed, failed
+    - **Execution metrics**: duration, cost, token usage, turn count
+    - **Session information**: Claude session ID, confirmation status
+    - **Real Claude response**: actual content (not just metadata)
+    - **Progress tracking**: phase, events, tool usage, container info
+    - **Performance data**: API response times, execution times
+    - **Workflow context**: workspace, git info, tool categories
     
     **Example:**
     ```
-    GET /run/123e4567-e89b-12d3-a456-426614174000/status
+    GET /run/run_3e78488309c5/status
     
-    # Returns:
+    # Returns rich data including:
     {
-      "run_id": "123e4567-e89b-12d3-a456-426614174000",
+      "run_id": "run_3e78488309c5",
       "status": "completed",
-      "agent_name": "alpha",
-      "created_at": "2024-01-01T00:00:00",
-      "started_at": "2024-01-01T00:00:01",
-      "completed_at": "2024-01-01T00:00:30",
-      "result": {...},
-      "error": null
+      "result": "Here are my top 3 most essential tools:\\n\\n1. **Read** - ...",
+      "progress": {
+        "phase": "completed",
+        "execution_summary": {"success": true, "execution_time": 35.39},
+        "performance_metrics": {"cost_usd": 0.0005248, "duration_ms": 30449},
+        "session_info": {"claude_session_id": "aea79791-...", "confirmed": true},
+        "tool_usage": {"total_tools": 81, "tool_categories": {...}},
+        "workflow_context": {"workflow_name": "test", "max_turns": 30}
+      }
     }
     ```
     """
@@ -535,28 +784,92 @@ async def get_run_status(run_id: str):
         from src.db.repository import message as message_repo
         messages = message_repo.list_messages(target_session.id)
         
-        # Get the latest assistant message
-        latest_message = None
-        assistant_messages = [msg for msg in messages if msg.role == 'assistant']
-        if assistant_messages:
-            latest = assistant_messages[-1]
-            latest_message = {
-                "content": latest.text_content,
-                "data": latest.raw_payload
-            }
+        # Try to find and parse Claude Code log file for rich data
+        log_file_path = find_claude_code_log(run_id)
+        log_data = {}
+        if log_file_path:
+            log_data = parse_log_file(log_file_path)
+            logger.info(f"Parsed log file for run {run_id}: {log_file_path}")
+        else:
+            logger.warning(f"No log file found for run {run_id}")
+        
+        # Extract result - prefer log data, fallback to database
+        result_content = None
+        if log_data.get("claude_response", {}).get("final_result"):
+            # Use Claude's actual final result from log
+            result_content = log_data["claude_response"]["final_result"]
+        elif log_data.get("claude_response", {}).get("final_content"):
+            # Use final content from assistant message
+            result_content = log_data["claude_response"]["final_content"]
+        else:
+            # Fallback to database message
+            assistant_messages = [msg for msg in messages if msg.role == 'assistant']
+            if assistant_messages:
+                latest = assistant_messages[-1]
+                result_content = latest.text_content
+        
+        # Determine status - prefer log data, fallback to metadata
+        status = "unknown"
+        if log_data.get("phase") == "completed":
+            if log_data.get("execution_summary", {}).get("success"):
+                status = "completed"
+            else:
+                status = "failed"
+        elif log_data.get("phase") in ["session_active", "workflow_starting"]:
+            status = "running"
+        elif log_data.get("phase") == "initializing":
+            status = "running"
+        else:
+            # Fallback to metadata
+            status = metadata.get('run_status', 'unknown')
+        
+        # Build comprehensive progress object with ALL rich data
+        progress = {
+            "message_count": len(messages),
+            "log_available": bool(log_file_path),
+            "log_file_path": log_file_path
+        }
+        
+        # Add all log data if available
+        if log_data.get("available"):
+            progress.update({
+                "phase": log_data.get("phase", "unknown"),
+                "execution_summary": log_data.get("execution_summary", {}),
+                "session_info": log_data.get("session_info", {}),
+                "performance_metrics": log_data.get("performance_metrics", {}),
+                "claude_response": {
+                    # Include response metadata but not raw content (that's in result field)
+                    "message_count": log_data.get("claude_response", {}).get("message_count", 0),
+                    "cost_usd": log_data.get("claude_response", {}).get("cost_usd"),
+                    "num_turns": log_data.get("claude_response", {}).get("num_turns"),
+                    "session_id": log_data.get("claude_response", {}).get("session_id"),
+                    "is_error": log_data.get("claude_response", {}).get("is_error")
+                },
+                "container_info": log_data.get("container_info", {}),
+                "workflow_context": log_data.get("workflow_context", {}),
+                "tool_usage": log_data.get("tool_usage", {}),
+                "git_info": log_data.get("git_info", {}),
+                "progress_tracking": log_data.get("progress_tracking", {}),
+                "timestamps": log_data.get("timestamps", {}),
+                "total_events": len(log_data.get("raw_events", []))
+            })
+        else:
+            # Log data not available, add error info
+            if log_data.get("error"):
+                progress["log_error"] = log_data["error"]
         
         return RunStatusResponse(
             run_id=run_id,
-            status=metadata.get('run_status', 'unknown'),
-            agent_name=metadata.get('agent_name', 'unknown'),
+            status=status,
+            agent_name=metadata.get('agent_name', log_data.get("workflow_context", {}).get("workflow_name", "unknown")),
             created_at=target_session.created_at.isoformat() if target_session.created_at else None,
-            started_at=metadata.get('started_at'),
-            completed_at=metadata.get('completed_at') or (
+            started_at=metadata.get('started_at') or log_data.get("timestamps", {}).get("init"),
+            completed_at=metadata.get('completed_at') or log_data.get("timestamps", {}).get("completion") or (
                 target_session.run_finished_at.isoformat() if target_session.run_finished_at else None
             ),
-            result=latest_message,
-            error=metadata.get('error'),
-            progress={"message_count": len(messages)}
+            result=result_content,  # Real Claude response content
+            error=metadata.get('error') or log_data.get("error"),
+            progress=progress  # Rich progress data with ALL metrics
         )
         
     except HTTPException:
