@@ -101,6 +101,31 @@ class TestClaudeCodeRunRequest:
             
         with pytest.raises(ValidationError):
             ClaudeCodeRunRequest(message="test", workflow_name="fix", timeout=7201)
+    
+    def test_repository_url_optional(self):
+        """Test repository_url is optional and defaults to None."""
+        # Without repository_url
+        request = ClaudeCodeRunRequest(
+            message="Fix the bug",
+            workflow_name="fix"
+        )
+        assert request.repository_url is None
+        
+        # With repository_url
+        request = ClaudeCodeRunRequest(
+            message="Fix the bug",
+            workflow_name="fix",
+            repository_url="https://github.com/myorg/myrepo.git"
+        )
+        assert request.repository_url == "https://github.com/myorg/myrepo.git"
+        
+        # SSH URL should also work
+        request = ClaudeCodeRunRequest(
+            message="Fix the bug",
+            workflow_name="fix",
+            repository_url="git@github.com:myorg/myrepo.git"
+        )
+        assert request.repository_url == "git@github.com:myorg/myrepo.git"
 
 
 class TestClaudeCodeRunResponse:

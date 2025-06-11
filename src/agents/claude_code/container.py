@@ -8,8 +8,12 @@ import asyncio
 import uuid
 import time
 import json
+import tempfile
+from pathlib import Path
 from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
+
+from .repository_utils import setup_repository
 
 try:
     import docker
@@ -51,6 +55,46 @@ class ContainerManager:
         self.docker_client = None
         
         logger.info(f"ContainerManager initialized with image: {docker_image}, timeout: {container_timeout}s")
+    
+    async def setup_repository_for_container(
+        self, 
+        session_id: str,
+        git_branch: Optional[str] = None,
+        repository_url: Optional[str] = None
+    ) -> tuple[Path, str]:
+        """Setup repository for container execution.
+        
+        Args:
+            session_id: Unique session identifier
+            git_branch: Git branch to use
+            repository_url: Optional remote repository URL
+            
+        Returns:
+            Tuple of (temp_workspace_path, repo_name)
+        """
+        # Create temporary workspace for repository setup
+        temp_workspace = Path(tempfile.mkdtemp(prefix=f"claude-workspace-{session_id}-"))
+        
+        try:
+            # Setup repository (copy local or clone remote)
+            repo_path = await setup_repository(
+                workspace=temp_workspace,
+                branch=git_branch,
+                repository_url=repository_url
+            )
+            
+            repo_name = repo_path.name
+            logger.info(f"Repository setup completed: {repo_path}")
+            return temp_workspace, repo_name
+            
+        except Exception as e:
+            # Cleanup on failure
+            import shutil
+            try:
+                shutil.rmtree(temp_workspace)
+            except Exception:
+                pass
+            raise RuntimeError(f"Failed to setup repository: {str(e)}")
     
     async def initialize(self) -> bool:
         """Initialize the Docker client and validate setup.
@@ -113,9 +157,15 @@ class ContainerManager:
                 if 'stream' in log:
                     logger.debug(f"Build: {log['stream'].strip()}")
     
-    async def create_container(self, session_id: str, workflow_name: str, 
-                              environment: Optional[Dict[str, str]] = None,
-                              volumes: Optional[Dict[str, Dict[str, str]]] = None) -> str:
+    async def create_container(
+        self, 
+        session_id: str, 
+        workflow_name: str, 
+        environment: Optional[Dict[str, str]] = None,
+        volumes: Optional[Dict[str, Dict[str, str]]] = None,
+        git_branch: Optional[str] = None,
+        repository_url: Optional[str] = None
+    ) -> str:
         """Create a new container for Claude CLI execution.
         
         Args:
@@ -123,6 +173,8 @@ class ContainerManager:
             workflow_name: Name of the workflow to execute
             environment: Environment variables for the container
             volumes: Volume mounts for the container
+            git_branch: Git branch to use
+            repository_url: Optional remote repository URL
             
         Returns:
             Container ID
@@ -136,9 +188,16 @@ class ContainerManager:
         try:
             container_id = f"claude-code-{session_id}-{uuid.uuid4().hex[:8]}"
             
+            # Setup repository (copy local or clone remote)
+            workspace_path, repo_name = await self.setup_repository_for_container(
+                session_id=session_id,
+                git_branch=git_branch,
+                repository_url=repository_url
+            )
+            
             # Prepare default volumes
             default_volumes = {
-                f"claude-workspace-{session_id}": {
+                str(workspace_path): {
                     'bind': '/workspace',
                     'mode': 'rw'
                 }
@@ -161,9 +220,11 @@ class ContainerManager:
             default_env = {
                 'SESSION_ID': session_id,
                 'WORKFLOW_NAME': workflow_name,
-                'GIT_BRANCH': 'NMSTX-187-langgraph-orchestrator-migration',
-                'WORKSPACE_DIR': '/workspace/am-agents-labs',
-                'WORKFLOW_DIR': '/workspace/workflow'
+                'GIT_BRANCH': git_branch or 'main',
+                'WORKSPACE_DIR': f'/workspace/{repo_name}',
+                'WORKFLOW_DIR': '/workspace/workflow',
+                'REPOSITORY_URL': repository_url or '',
+                'REPO_SETUP_TYPE': 'local_copy' if not repository_url else 'remote_clone'
             }
             
             if environment:
@@ -180,7 +241,7 @@ class ContainerManager:
                 mem_limit='2g',
                 cpuset_cpus='0-1',  # Set CPU limit for resource control
                 security_opt=['no-new-privileges:true'],
-                working_dir='/workspace/am-agents-labs',
+                working_dir=f'/workspace/{repo_name}',
                 # Container will run entrypoint.sh by default
                 command=None  # Will be set when starting execution
             )
@@ -192,7 +253,11 @@ class ContainerManager:
                 'workflow_name': workflow_name,
                 'created_at': datetime.utcnow(),
                 'status': 'created',
-                'last_heartbeat': time.time()
+                'last_heartbeat': time.time(),
+                'workspace_path': workspace_path,
+                'repo_name': repo_name,
+                'git_branch': git_branch,
+                'repository_url': repository_url
             }
             
             logger.info(f"Created container {container_id} for session {session_id}")
@@ -371,7 +436,8 @@ class ContainerManager:
         """
         try:
             if container_id in self.active_containers:
-                container = self.active_containers[container_id]['container']
+                container_info = self.active_containers[container_id]
+                container = container_info['container']
                 
                 # Stop container if still running
                 try:
@@ -385,6 +451,16 @@ class ContainerManager:
                     container.remove()
                 except Exception as e:
                     logger.warning(f"Error removing container {container_id}: {str(e)}")
+                
+                # Clean up workspace directory
+                workspace_path = container_info.get('workspace_path')
+                if workspace_path and workspace_path.exists():
+                    try:
+                        import shutil
+                        shutil.rmtree(workspace_path)
+                        logger.debug(f"Cleaned up workspace directory: {workspace_path}")
+                    except Exception as e:
+                        logger.warning(f"Error removing workspace directory {workspace_path}: {str(e)}")
                 
                 # Remove from tracking
                 del self.active_containers[container_id]

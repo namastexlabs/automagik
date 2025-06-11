@@ -15,6 +15,7 @@ try:
     from .agent import ClaudeCodeAgent
     from .container import ContainerManager
     from .docker_executor import DockerExecutor
+    from .log_manager import LogManager, get_log_manager
     from .models import (
         ClaudeCodeRunRequest,
         ClaudeCodeRunResponse, 
@@ -84,6 +85,8 @@ __all__ = [
     'ClaudeCodeAgent',
     'ContainerManager',
     'DockerExecutor',
+    'LogManager',
+    'get_log_manager',
     'ClaudeCodeRunRequest',
     'ClaudeCodeRunResponse',
     'ClaudeCodeStatusResponse', 
