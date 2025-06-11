@@ -33,9 +33,15 @@ from src.db.models import MCPConfigCreate
 from src.db.connection import execute_query, get_db_connection
 from src.config import settings
 
+# Import new centralized safety systems
+from src.config.feature_flags import get_feature_flags, MCPFeatureFlags
+from src.mcp.migration_monitor import MigrationMonitor, MonitoringLevel
+from src.mcp.safety_triggers import SafetyTriggerSystem
+
 logger = logging.getLogger(__name__)
 
 
+# Legacy FeatureFlags class - replaced by centralized MCPFeatureFlags
 class FeatureFlags:
     """Feature flag management for safe migration rollout."""
     
@@ -162,9 +168,29 @@ class MCPMigration:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.backup_data = {}
-        self.feature_flags = FeatureFlags()
-        self.monitor = MigrationMonitor()
-        self.auto_rollback_enabled = self.feature_flags.is_enabled("MCP_AUTO_ROLLBACK")
+        
+        # Use centralized feature flags system
+        self.feature_flags = get_feature_flags()
+        
+        # Use centralized monitoring system with intensive monitoring for migration
+        self.monitor = MigrationMonitor(monitoring_level=MonitoringLevel.INTENSIVE)
+        
+        # Initialize safety trigger system
+        self.safety_triggers = SafetyTriggerSystem()
+        self.safety_triggers.add_rollback_handler(self._handle_auto_rollback)
+        
+        self.auto_rollback_enabled = self.feature_flags.is_enabled("MCP_ENABLE_AUTO_ROLLBACK")
+    
+    def _handle_auto_rollback(self, trigger_event) -> None:
+        """Handle automatic rollback triggered by safety system."""
+        logger.critical(f"🚨 Auto-rollback triggered: {trigger_event.message}")
+        try:
+            # Clear the partially migrated data
+            if not self.dry_run:
+                execute_query("DELETE FROM mcp_configs", fetch=False)
+                logger.info("✅ Automatic rollback completed - cleared mcp_configs")
+        except Exception as e:
+            logger.error(f"❌ Automatic rollback failed: {e}")
         
     def backup_existing_data(self) -> Dict[str, Any]:
         """Export current mcp_servers and agent_mcp_servers data.
