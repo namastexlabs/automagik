@@ -311,7 +311,7 @@ class MCPManager:
                 env = server_config.get('environment', {})
                 
                 server = MCPServerStdio(
-                    command=command,
+                    args=command,  # First positional argument
                     env=env or None,
                     timeout=server_config.get('timeout', 30000) / 1000  # Convert ms to seconds
                 )
@@ -701,3 +701,16 @@ async def shutdown_mcp_manager() -> None:
 async def shutdown_mcp_client_manager() -> None:
     """Legacy function name - redirects to shutdown_mcp_manager()."""
     await shutdown_mcp_manager()
+
+
+# Compatibility function for legacy Sofia agent
+async def refresh_mcp_client_manager() -> None:
+    """Compatibility function for legacy agents like Sofia.
+    
+    This function was removed during MCP refactor (NMSTX-253) but Sofia agent
+    still imports it. Provides backward compatibility by delegating to the new
+    manager's reload functionality.
+    """
+    global _mcp_manager
+    if _mcp_manager is not None:
+        await _mcp_manager.reload_configurations()
