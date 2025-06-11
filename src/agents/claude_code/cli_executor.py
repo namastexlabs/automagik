@@ -179,7 +179,8 @@ class ClaudeSession:
         cmd.extend([
             "-p",  # Pretty output
             "--output-format", "stream-json",
-            "--max-turns", str(self.max_turns)
+            "--max-turns", str(self.max_turns),
+            "--model", "sonnet"  # Use Sonnet by default to avoid expensive models
         ])
         
         # Add MCP configuration if available
@@ -292,19 +293,41 @@ class StreamProcessor:
                         }
                     )
             
-            # Log only significant structured events (skip duplicate raw output)
-            elif data.get("type") in ["assistant", "result"] and self.log_writer:
+            # Log Claude responses with actual content
+            elif data.get("type") == "assistant" and self.log_writer:
+                # Extract the actual Claude response text
+                message = data.get("message", {})
+                content = message.get("content", [])
+                response_text = ""
+                if content and len(content) > 0 and content[0].get("type") == "text":
+                    response_text = content[0].get("text", "")
+                
                 await self.log_writer(
-                    f"Claude response: {data.get('type')}",
-                    "response_event",
+                    f"Claude response: {response_text[:200]}..." if len(response_text) > 200 else f"Claude response: {response_text}",
+                    "claude_response",
                     {
-                        "type": data.get("type"), 
+                        "type": "assistant",
+                        "response_text": response_text,
+                        "response_length": len(response_text),
+                        "model": message.get("model"),
+                        "message_id": message.get("id"),
+                        "usage": message.get("usage", {})
+                    }
+                )
+            
+            # Log result events
+            elif data.get("type") == "result" and self.log_writer:
+                await self.log_writer(
+                    f"Claude result: {data.get('subtype', 'unknown')}",
+                    "claude_result",
+                    {
+                        "type": "result", 
                         "subtype": data.get("subtype"),
-                        "has_content": bool(data.get("content") or data.get("message", {}).get("content")),
                         "result_length": len(str(data.get("result", ""))),
                         "cost_usd": data.get("cost_usd"),
                         "duration_ms": data.get("duration_ms"),
-                        "num_turns": data.get("num_turns")
+                        "num_turns": data.get("num_turns"),
+                        "is_error": data.get("is_error", False)
                     }
                 )
             
@@ -934,6 +957,272 @@ class ClaudeCLIExecutor:
         except Exception as e:
             logger.error(f"Failed to get git commits: {e}")
             return []
+    
+    async def execute_until_first_response(
+        self,
+        workflow: str,
+        message: str,
+        workspace: Path,
+        session_id: Optional[str] = None,
+        max_turns: int = 2,
+        timeout: Optional[int] = None,
+        run_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute Claude CLI and return after first substantial response.
+        
+        This method starts Claude CLI execution, waits for session confirmation
+        and first response, then returns immediately while allowing execution
+        to continue in background.
+        
+        Args:
+            workflow: Workflow name
+            message: User message
+            workspace: Workspace directory
+            session_id: Optional session ID to resume
+            max_turns: Maximum conversation turns
+            timeout: Optional custom timeout
+            run_id: Optional run ID for logging
+            
+        Returns:
+            Dictionary with first response data
+        """
+        async with self._semaphore:
+            return await self._execute_until_first_response_internal(
+                workflow, message, workspace, session_id, max_turns, timeout, run_id
+            )
+    
+    async def _execute_until_first_response_internal(
+        self,
+        workflow: str,
+        message: str,
+        workspace: Path,
+        session_id: Optional[str],
+        max_turns: int,
+        timeout: Optional[int],
+        run_id: Optional[str]
+    ) -> Dict[str, Any]:
+        """Internal implementation for execute_until_first_response."""
+        timeout = timeout or self.timeout
+        
+        # Create or get session
+        session = self._get_or_create_session(workflow, session_id, max_turns)
+        
+        # Setup log manager for this run
+        log_manager = get_log_manager()
+        actual_run_id = run_id or session.run_id
+        
+        # Setup workflow directory
+        workflow_dir = workspace / "workflow"
+        if not workflow_dir.exists():
+            workflow_src = Path(__file__).parent / "workflows" / workflow
+            if workflow_src.exists():
+                import shutil
+                shutil.copytree(workflow_src, workflow_dir)
+        
+        # Build command
+        cmd = session.build_command(message, workspace, workflow_dir)
+        
+        try:
+            # Setup environment
+            env = os.environ.copy()
+            env["CLAUDE_SESSION_ID"] = session.run_id
+            
+            if _CLAUDE_EXECUTABLE_PATH:
+                claude_dir = os.path.dirname(_CLAUDE_EXECUTABLE_PATH)
+                current_path = env.get("PATH", "")
+                if claude_dir not in current_path:
+                    env["PATH"] = f"{claude_dir}:{current_path}"
+            
+            # Start the Claude CLI process
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=str(workspace / "am-agents-labs"),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
+            
+            # Track active process
+            self.active_processes[session.run_id] = process
+            
+            # Create events for tracking progress
+            session_confirmed_event = asyncio.Event()
+            first_response_event = asyncio.Event()
+            first_response_text = None
+            claude_session_id = None
+            
+            # Log early start
+            async with log_manager.get_log_writer(actual_run_id) as log_writer:
+                await log_writer(
+                    f"Started execute_until_first_response for workflow '{workflow}'",
+                    "early_execution_start",
+                    {
+                        "workflow": workflow,
+                        "session_id": session_id,
+                        "run_id": actual_run_id,
+                        "pid": process.pid
+                    }
+                )
+            
+            # Create stream processor with events for early detection
+            async def early_callback(data):
+                nonlocal first_response_text, claude_session_id
+                
+                # Track session establishment
+                if data.get("type") == "system" and data.get("subtype") == "init":
+                    claude_session_id = data.get("session_id")
+                    session_confirmed_event.set()
+                
+                # Track first substantial response from Claude
+                elif data.get("type") == "assistant" and data.get("message"):
+                    if not first_response_event.is_set():
+                        # Extract content from Claude's message structure: message.content[0].text
+                        message = data.get("message", {})
+                        content = message.get("content", [])
+                        if content and len(content) > 0 and content[0].get("type") == "text":
+                            first_response_text = content[0].get("text", "")
+                            if first_response_text:  # Only set if we have actual content
+                                first_response_event.set()
+                
+                # Also check for result messages with substantial content
+                elif data.get("type") == "result" and data.get("result"):
+                    if not first_response_event.is_set():
+                        first_response_text = data.get("result", "")
+                        first_response_event.set()
+            
+            # Start background task to continue full execution
+            async def continue_full_execution():
+                try:
+                    # Wait a bit then let it complete normally
+                    await asyncio.sleep(1)  # Give time for first response detection
+                    await process.wait()
+                    
+                    # Clean up process tracking
+                    if session.run_id in self.active_processes:
+                        del self.active_processes[session.run_id]
+                        
+                except Exception as e:
+                    logger.error(f"Background execution error: {e}")
+                    # Clean up on error
+                    if session.run_id in self.active_processes:
+                        del self.active_processes[session.run_id]
+            
+            # Start background continuation task
+            background_task = asyncio.create_task(continue_full_execution())
+            
+            # Create simple stream processor for early detection
+            class EarlyStreamProcessor:
+                def __init__(self):
+                    self.session_id = None
+                    self.first_response = None
+                
+                async def process_line(self, line: str):
+                    line = line.strip()
+                    if not line:
+                        return
+                    
+                    try:
+                        data = json.loads(line)
+                        await early_callback(data)
+                        
+                        # Update our tracking
+                        if data.get("type") == "system" and data.get("subtype") == "init":
+                            self.session_id = data.get("session_id")
+                        elif data.get("type") == "assistant" and data.get("message"):
+                            if not self.first_response:
+                                # Extract content from Claude's message structure: message.content[0].text
+                                message = data.get("message", {})
+                                content = message.get("content", [])
+                                if content and len(content) > 0 and content[0].get("type") == "text":
+                                    self.first_response = content[0].get("text", "")
+                        elif data.get("type") == "result" and data.get("result"):
+                            if not self.first_response:
+                                self.first_response = data.get("result", "")
+                                
+                    except json.JSONDecodeError:
+                        pass  # Ignore non-JSON lines
+            
+            early_processor = EarlyStreamProcessor()
+            
+            # Read stdout until we get first response or timeout
+            try:
+                # Set a reasonable timeout for first response (30 seconds)
+                first_response_timeout = 30
+                
+                async def read_until_first_response():
+                    async for line in process.stdout:
+                        decoded = line.decode('utf-8', errors='replace')
+                        await early_processor.process_line(decoded)
+                        
+                        # Stop reading once we have first response
+                        if first_response_event.is_set():
+                            break
+                
+                # Wait for either session + first response or timeout
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        session_confirmed_event.wait(),
+                        read_until_first_response()
+                    ),
+                    timeout=first_response_timeout
+                )
+                
+                # Wait a bit more for first response if we only have session
+                if not first_response_event.is_set():
+                    try:
+                        await asyncio.wait_for(first_response_event.wait(), timeout=10)
+                    except asyncio.TimeoutError:
+                        pass  # Continue with what we have
+                
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout waiting for first response after {first_response_timeout}s")
+            
+            # Extract results
+            session_id_result = claude_session_id or early_processor.session_id
+            response_text = first_response_text or early_processor.first_response
+            
+            # Default response if nothing substantial found
+            if not response_text:
+                response_text = "Claude Code execution started. Processing your request..."
+            
+            # Log what we captured
+            async with log_manager.get_log_writer(actual_run_id) as log_writer:
+                await log_writer(
+                    f"Early response captured: {response_text[:100]}...",
+                    "early_response_captured",
+                    {
+                        "response_length": len(response_text),
+                        "claude_session_id": session_id_result,
+                        "session_confirmed": session_confirmed_event.is_set(),
+                        "first_response_found": first_response_event.is_set()
+                    }
+                )
+            
+            return {
+                "session_id": session_id_result,
+                "first_response": response_text,
+                "streaming_started": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in execute_until_first_response: {e}")
+            
+            # Clean up process if needed
+            if session.run_id in self.active_processes:
+                try:
+                    process = self.active_processes[session.run_id]
+                    process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except:
+                    pass
+                finally:
+                    del self.active_processes[session.run_id]
+            
+            return {
+                "session_id": session.session_id,
+                "first_response": f"Error starting execution: {str(e)}",
+                "streaming_started": False
+            }
     
     async def cancel_execution(self, run_id: str) -> bool:
         """Cancel a running execution.
