@@ -12,6 +12,10 @@ from src.api.memory_routes import memory_router
 main_router = APIRouter()
 
 # Include all sub-routers
+# IMPORTANT: claude_code_router must be included BEFORE agent_router
+# because it has more specific routes that would otherwise be matched
+# by the generic /agent/{agent_name}/run pattern in agent_router
+main_router.include_router(claude_code_router)
 main_router.include_router(agent_router)
 main_router.include_router(prompt_router)
 main_router.include_router(session_router)
@@ -19,4 +23,3 @@ main_router.include_router(user_router)
 main_router.include_router(memory_router)
 main_router.include_router(message_router)
 main_router.include_router(mcp_router)
-main_router.include_router(claude_code_router)
