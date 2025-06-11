@@ -10,44 +10,54 @@ if [ -f "$WORKFLOW_DIR/.env" ]; then
 fi
 
 # Set defaults
-GIT_BRANCH="${GIT_BRANCH:-NMSTX-187-langgraph-orchestrator-migration}"
-WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace/am-agents-labs}"
+GIT_BRANCH="${GIT_BRANCH:-main}"
+REPO_SETUP_TYPE="${REPO_SETUP_TYPE:-local_copy}"
 
 echo "🏗️ Initializing Claude Code container..."
 echo "   Workflow: $WORKFLOW_DIR"
 echo "   Branch: $GIT_BRANCH"
 echo "   Workspace: $WORKSPACE_DIR"
+echo "   Setup Type: $REPO_SETUP_TYPE"
 
-# Set repository URL (use environment variable or default)
-REPO_URL="${REPOSITORY_URL:-https://github.com/namastexlabs/am-agents-labs.git}"
-
-# Extract repository name from URL
-REPO_NAME=$(basename "$REPO_URL" .git)
-
-# Update workspace directory to use dynamic repo name
-WORKSPACE_DIR="/workspace/$REPO_NAME"
-
-# Clone repository if not exists
-if [ ! -d "$WORKSPACE_DIR" ]; then
-    echo "📦 Cloning repository from $REPO_URL..."
-    cd /workspace
+# Repository setup based on type
+if [ "$REPO_SETUP_TYPE" = "remote_clone" ] && [ -n "$REPOSITORY_URL" ]; then
+    # Remote clone mode (legacy behavior)
+    REPO_URL="$REPOSITORY_URL"
+    REPO_NAME=$(basename "$REPO_URL" .git)
+    WORKSPACE_DIR="/workspace/$REPO_NAME"
     
-    if [ -n "$GITHUB_TOKEN" ]; then
-        # Parse URL and insert token
-        REPO_URL_WITH_TOKEN=$(echo "$REPO_URL" | sed "s|https://|https://oauth2:${GITHUB_TOKEN}@|")
-        git clone -b "$GIT_BRANCH" "$REPO_URL_WITH_TOKEN" "$REPO_NAME"
+    if [ ! -d "$WORKSPACE_DIR" ]; then
+        echo "📦 Cloning repository from $REPO_URL..."
+        cd /workspace
+        
+        if [ -n "$GITHUB_TOKEN" ]; then
+            # Parse URL and insert token
+            REPO_URL_WITH_TOKEN=$(echo "$REPO_URL" | sed "s|https://|https://oauth2:${GITHUB_TOKEN}@|")
+            git clone -b "$GIT_BRANCH" "$REPO_URL_WITH_TOKEN" "$REPO_NAME"
+        else
+            git clone -b "$GIT_BRANCH" "$REPO_URL" "$REPO_NAME"
+        fi
+        
+        cd "$WORKSPACE_DIR"
+        git config user.name "Claude Code Agent"
+        git config user.email "claude@automagik-agents.ai"
+        
+        echo "✅ Repository cloned and configured"
     else
-        git clone -b "$GIT_BRANCH" "$REPO_URL" "$REPO_NAME"
+        echo "📁 Using existing repository at $WORKSPACE_DIR"
+        cd "$WORKSPACE_DIR"
     fi
-    
-    cd "$WORKSPACE_DIR"
-    git config user.name "Claude Code Agent"
-    git config user.email "claude@automagik-agents.ai"
-    
-    echo "✅ Repository cloned and configured"
 else
-    echo "📁 Using existing repository at $WORKSPACE_DIR"
+    # Local copy mode (new default)
+    echo "📁 Using local copy at $WORKSPACE_DIR"
     cd "$WORKSPACE_DIR"
+    
+    # Ensure git configuration is set (may not be set in copied repo)
+    git config user.name "Claude Code Agent" 2>/dev/null || true
+    git config user.email "claude@automagik-agents.ai" 2>/dev/null || true
+    git config commit.gpgsign false 2>/dev/null || true
+    
+    echo "✅ Repository ready for use"
 fi
 
 # Set up environment from workflow
