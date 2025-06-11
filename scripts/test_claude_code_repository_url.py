@@ -1,153 +1,196 @@
 #!/usr/bin/env python3
-"""Test script for Claude Code API with custom repository URL.
+"""Test script to verify Claude Code API repository URL support.
 
-This script demonstrates the new repository_url parameter that allows
-Claude Code to work with any Git repository.
+This script tests that the Claude Code API correctly handles:
+1. Default repository (when no URL is provided)
+2. HTTPS repository URLs
+3. SSH repository URLs
 """
+
 import asyncio
+import httpx
 import json
 import time
-import httpx
-from typing import Dict, Any
-from datetime import datetime
+from typing import Dict, Any, Optional
 
-# Configuration
-API_BASE = "http://localhost:8881/api/v1"
-API_KEY = "test-api-key-123"  # Replace with your actual API key
+# API Configuration
+API_BASE_URL = "http://localhost:8881/api/v1"
+API_KEY = "test-api-key"  # Update if needed
 
-# Test repositories to try
-TEST_REPOSITORIES = [
-    {
-        "url": "https://github.com/namastexlabs/am-agents-labs.git",
-        "branch": "main",
-        "message": "List all Python files in the src directory"
-    },
-    {
-        "url": "https://github.com/pydantic/pydantic.git", 
-        "branch": "main",
-        "message": "Show me the main Pydantic model classes"
-    }
-]
+# Color codes for output
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+RESET = "\033[0m"
 
 
-async def test_repository_url():
-    """Test Claude Code with different repository URLs."""
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        headers = {"x-api-key": API_KEY}
+def print_colored(message: str, color: str = RESET):
+    """Print message with color."""
+    print(f"{color}{message}{RESET}")
+
+
+async def test_repository_url(
+    test_name: str,
+    repository_url: Optional[str] = None,
+    expected_success: bool = True
+) -> bool:
+    """Test Claude Code with specific repository URL.
+    
+    Args:
+        test_name: Name of the test
+        repository_url: Repository URL to test (None for default)
+        expected_success: Whether we expect the test to succeed
         
-        # First, check if Claude Code is available
-        print("🔍 Checking Claude Code health...")
+    Returns:
+        True if test passed, False otherwise
+    """
+    print_colored(f"\n{'='*60}", BLUE)
+    print_colored(f"Test: {test_name}", BLUE)
+    print_colored(f"Repository URL: {repository_url or 'DEFAULT'}", BLUE)
+    print_colored(f"{'='*60}", BLUE)
+    
+    async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(
-                f"{API_BASE}/agent/claude-code/health",
-                headers=headers
+            # 1. Start workflow run
+            print_colored("\n1. Starting workflow run...", YELLOW)
+            
+            request_data = {
+                "message": "Say hello and show the current repository name",
+                "max_turns": 1,
+                "timeout": 120
+            }
+            
+            # Add repository URL if provided
+            if repository_url:
+                request_data["repository_url"] = repository_url
+            
+            response = await client.post(
+                f"{API_BASE_URL}/agent/claude-code/architect/run",
+                json=request_data,
+                headers={"X-API-Key": API_KEY}
             )
-            health = response.json()
             
-            if not health.get("feature_enabled", False):
-                print("❌ Claude Code is not enabled. Make sure Claude CLI is installed.")
-                return
+            if response.status_code != 200:
+                print_colored(f"❌ Failed to start workflow: {response.status_code}", RED)
+                print_colored(f"Response: {response.text}", RED)
+                return False
             
-            print("✅ Claude Code is available")
-            print(f"   Agent Available: {health.get('agent_available')}")
-            print(f"   Workflows: {list(health.get('workflows', {}).keys())}")
+            run_data = response.json()
+            run_id = run_data["run_id"]
+            print_colored(f"✅ Started run: {run_id}", GREEN)
             
-        except Exception as e:
-            print(f"❌ Failed to check health: {e}")
-            return
-        
-        # Test each repository
-        for i, test_repo in enumerate(TEST_REPOSITORIES, 1):
-            print(f"\n📦 Test {i}/{len(TEST_REPOSITORIES)}: {test_repo['url']}")
-            print(f"   Branch: {test_repo['branch']}")
-            print(f"   Task: {test_repo['message']}")
+            # 2. Poll for completion
+            print_colored("\n2. Polling for completion...", YELLOW)
             
-            # Start the run
-            print("\n🚀 Starting Claude Code run...")
-            try:
-                run_data = {
-                    "message": test_repo["message"],
-                    "git_branch": test_repo["branch"],
-                    "repository_url": test_repo["url"],
-                    "max_turns": 5,  # Keep it small for testing
-                    "timeout": 300   # 5 minutes
-                }
-                
-                response = await client.post(
-                    f"{API_BASE}/agent/claude-code/architect/run",
-                    headers=headers,
-                    json=run_data
+            max_attempts = 30  # 30 seconds timeout
+            for attempt in range(max_attempts):
+                response = await client.get(
+                    f"{API_BASE_URL}/agent/claude-code/run/{run_id}/status",
+                    headers={"X-API-Key": API_KEY}
                 )
                 
                 if response.status_code != 200:
-                    print(f"❌ Failed to start run: {response.status_code}")
-                    print(f"   Error: {response.text}")
-                    continue
-                    
-                run_info = response.json()
-                run_id = run_info["run_id"]
-                print(f"✅ Run started: {run_id}")
+                    print_colored(f"❌ Failed to get status: {response.status_code}", RED)
+                    return False
                 
-                # Poll for status
-                print("\n⏳ Waiting for completion...")
-                max_polls = 60  # 5 minutes with 5-second intervals
-                polls = 0
+                status_data = response.json()
+                status = status_data["status"]
                 
-                while polls < max_polls:
-                    await asyncio.sleep(5)
-                    polls += 1
+                if status in ["completed", "failed"]:
+                    break
+                
+                print(f"   Status: {status} (attempt {attempt + 1}/{max_attempts})")
+                await asyncio.sleep(1)
+            
+            # 3. Check final result
+            print_colored("\n3. Checking final result...", YELLOW)
+            
+            if status == "completed":
+                print_colored("✅ Run completed successfully", GREEN)
+                
+                # Check if logs contain expected repository
+                if "logs" in status_data and status_data["logs"]:
+                    logs = status_data["logs"]
                     
-                    response = await client.get(
-                        f"{API_BASE}/agent/claude-code/run/{run_id}/status",
-                        headers=headers
-                    )
+                    # Extract repository name from URL
+                    if repository_url:
+                        expected_repo = repository_url.rstrip('/').split('/')[-1]
+                        if expected_repo.endswith('.git'):
+                            expected_repo = expected_repo[:-4]
+                    else:
+                        expected_repo = "am-agents-labs"
                     
-                    if response.status_code != 200:
-                        print(f"❌ Failed to get status: {response.status_code}")
-                        break
-                        
-                    status_info = response.json()
-                    status = status_info["status"]
-                    
-                    print(f"   Status: {status} (poll {polls}/{max_polls})")
-                    
-                    if status in ["completed", "failed"]:
-                        print(f"\n{'✅' if status == 'completed' else '❌'} Run {status}")
-                        
-                        if status == "completed":
-                            print(f"\n📝 Result:")
-                            print("-" * 50)
-                            result = status_info.get("result", "No result")
-                            # Truncate long results
-                            if len(result) > 500:
-                                print(result[:500] + "...\n[Output truncated]")
-                            else:
-                                print(result)
-                            print("-" * 50)
-                            
-                            # Show execution details
-                            print(f"\n📊 Execution Details:")
-                            print(f"   Container ID: {status_info.get('container_id', 'N/A')}")
-                            print(f"   Execution Time: {status_info.get('execution_time', 'N/A')}s")
-                            print(f"   Exit Code: {status_info.get('exit_code', 'N/A')}")
-                            print(f"   Git Commits: {len(status_info.get('git_commits', []))}")
-                        else:
-                            print(f"\n❌ Error: {status_info.get('error', 'Unknown error')}")
-                            
-                        break
-                        
-                if polls >= max_polls:
-                    print(f"\n⏱️ Timeout waiting for run to complete")
-                    
-            except Exception as e:
-                print(f"❌ Error during test: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        print("\n✅ All tests completed!")
+                    if expected_repo in logs:
+                        print_colored(f"✅ Found expected repository: {expected_repo}", GREEN)
+                    else:
+                        print_colored(f"⚠️  Did not find expected repository: {expected_repo}", YELLOW)
+                
+                return expected_success
+            else:
+                print_colored(f"❌ Run failed with status: {status}", RED)
+                if "error" in status_data:
+                    print_colored(f"Error: {status_data['error']}", RED)
+                return not expected_success
+                
+        except Exception as e:
+            print_colored(f"❌ Test failed with exception: {str(e)}", RED)
+            return False
+
+
+async def main():
+    """Run all repository URL tests."""
+    print_colored("\n🧪 Claude Code Repository URL Test Suite", BLUE)
+    print_colored("=" * 60, BLUE)
+    
+    # Check if API is healthy first
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{API_BASE_URL}/agent/claude-code/health")
+            if response.status_code != 200:
+                print_colored("❌ API is not healthy. Please start the server first.", RED)
+                return
+            
+            health_data = response.json()
+            if not health_data.get("feature_enabled", False):
+                print_colored("❌ Claude CLI not available. Please install it first.", RED)
+                print_colored("Run: npm install -g @anthropic-ai/claude-cli", YELLOW)
+                return
+                
+        except Exception as e:
+            print_colored(f"❌ Cannot connect to API: {str(e)}", RED)
+            print_colored("Please ensure the server is running on port 8881", YELLOW)
+            return
+    
+    # Run tests
+    tests = [
+        ("Default Repository", None, True),
+        ("HTTPS URL", "https://github.com/anthropics/anthropic-sdk-python.git", True),
+        ("SSH URL", "git@github.com:anthropics/anthropic-sdk-python.git", True),
+        ("Invalid URL", "not-a-valid-url", False),
+    ]
+    
+    results = []
+    for test_name, repo_url, expected in tests:
+        passed = await test_repository_url(test_name, repo_url, expected)
+        results.append((test_name, passed))
+    
+    # Print summary
+    print_colored("\n" + "=" * 60, BLUE)
+    print_colored("Test Summary", BLUE)
+    print_colored("=" * 60, BLUE)
+    
+    for test_name, passed in results:
+        status = "✅ PASSED" if passed else "❌ FAILED"
+        color = GREEN if passed else RED
+        print_colored(f"{test_name}: {status}", color)
+    
+    total_passed = sum(1 for _, passed in results if passed)
+    total_tests = len(results)
+    
+    print_colored(f"\nTotal: {total_passed}/{total_tests} tests passed", 
+                  GREEN if total_passed == total_tests else YELLOW)
 
 
 if __name__ == "__main__":
-    print("🧪 Claude Code Repository URL Test")
-    print("=" * 50)
-    asyncio.run(test_repository_url())
+    asyncio.run(main())
