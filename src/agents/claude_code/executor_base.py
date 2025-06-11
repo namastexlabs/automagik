@@ -47,6 +47,31 @@ class ExecutorBase(ABC):
         pass
     
     @abstractmethod
+    async def execute_until_first_response(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute Claude CLI and return after first response.
+        
+        This method starts execution and returns as soon as Claude provides
+        the first substantial response, rather than waiting for completion.
+        
+        Args:
+            request: Execution request with task details
+            agent_context: Agent context including session info
+            
+        Returns:
+            Dictionary with first response data:
+            {
+                'session_id': str,
+                'first_response': str,
+                'streaming_started': bool
+            }
+        """
+        pass
+    
+    @abstractmethod
     async def get_execution_logs(self, execution_id: str) -> str:
         """Get execution logs.
         
