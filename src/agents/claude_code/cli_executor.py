@@ -262,14 +262,12 @@ class StreamProcessor:
         if not line:
             return None
         
-        # Log raw output to file immediately
-        if self.log_writer:
-            await self.log_writer(line, "raw_output")
-            
+        # Skip raw output logging to reduce duplicate JSON
+        
         try:
             data = json.loads(line)
             
-            # Extract session ID from init message
+            # Extract session ID from init message and log session establishment
             if data.get("type") == "system" and data.get("subtype") == "init":
                 # Session ID is directly in the init message
                 self.session_id = data.get("session_id")
@@ -280,38 +278,60 @@ class StreamProcessor:
                 if self.session_event:
                     self.session_event.set()
                 
-                # Log session confirmation
+                # Log consolidated session establishment (replaces session_confirmed + claude_output for init)
                 if self.log_writer:
                     await self.log_writer(
-                        f"Claude session started: {self.session_id}",
-                        "session_confirmed",
-                        {"session_id": self.session_id, "confirmed": True}
+                        f"Session established: {self.session_id}",
+                        "session_established",
+                        {
+                            "claude_session_id": self.session_id,
+                            "tools_available": len(data.get("tools", [])),
+                            "mcp_servers": [server.get("name") for server in data.get("mcp_servers", [])],
+                            "model": data.get("model"),
+                            "working_directory": data.get("cwd")
+                        }
                     )
             
-            # Log structured data
-            if self.log_writer:
+            # Log only significant structured events (skip duplicate raw output)
+            elif data.get("type") in ["assistant", "result"] and self.log_writer:
                 await self.log_writer(
-                    json.dumps(data),
-                    "claude_output",
-                    {"parsed": True, "type": data.get("type"), "subtype": data.get("subtype")}
+                    f"Claude response: {data.get('type')}",
+                    "response_event",
+                    {
+                        "type": data.get("type"), 
+                        "subtype": data.get("subtype"),
+                        "has_content": bool(data.get("content") or data.get("message", {}).get("content")),
+                        "result_length": len(str(data.get("result", ""))),
+                        "cost_usd": data.get("cost_usd"),
+                        "duration_ms": data.get("duration_ms"),
+                        "num_turns": data.get("num_turns")
+                    }
                 )
             
             # Accumulate result text
             if data.get("type") == "text" and data.get("content"):
                 self.result_text += data["content"]
             
-            # Detect completion
+            # Detect completion and log execution summary
             if data.get("type") == "result":
                 self.completed = True
                 if data.get("result"):
                     self.result_text = data["result"]
                 
-                # Log completion
+                # Log enhanced execution completion (replaces generic completion event)
                 if self.log_writer:
                     await self.log_writer(
-                        f"Workflow completed with result: {self.result_text[:200]}...",
-                        "event",
-                        {"completed": True, "result_length": len(self.result_text)}
+                        f"Execution completed: {data.get('subtype', 'unknown')}",
+                        "execution_complete",
+                        {
+                            "status": "completed" if not data.get("is_error") else "failed",
+                            "exit_code": 0 if not data.get("is_error") else 1,
+                            "duration_ms": data.get("duration_ms"),
+                            "total_cost_usd": data.get("cost_usd"),
+                            "turns_used": data.get("num_turns"),
+                            "final_result": self.result_text[:200] + "..." if len(self.result_text) > 200 else self.result_text,
+                            "session_id": self.session_id
+                        }
                     )
             
             # Store message
@@ -324,13 +344,13 @@ class StreamProcessor:
             return data
             
         except json.JSONDecodeError:
-            # Log non-JSON lines (might be errors or warnings)
-            if line and not line.startswith("{"):
+            # Log significant non-JSON lines only (errors, warnings)
+            if line and not line.startswith("{") and any(keyword in line.lower() for keyword in ["error", "warning", "failed", "exception"]):
                 logger.debug(f"Non-JSON output: {line}")
                 
-                # Still log non-JSON output to file
+                # Log only significant non-JSON output
                 if self.log_writer:
-                    await self.log_writer(line, "non_json_output")
+                    await self.log_writer(line.strip(), "stderr_event", {"stream": "stderr", "significant": True})
             return None
     
     def get_final_result(self) -> str:
@@ -424,25 +444,77 @@ class ClaudeCLIExecutor:
         # Build command
         cmd = session.build_command(message, workspace, workflow_dir)
         
-        # Log complete raw command with all variables injected
+        # Log enhanced command debug structure (replace bloated raw_command event)
         async with log_manager.get_log_writer(actual_run_id) as log_writer:
+            # Build config file info
+            mcp_config_file = None
+            system_prompt_file = None
+            allowed_tools_file = None
+            
+            # Extract config files from command
+            for i, arg in enumerate(cmd):
+                if arg == "--mcp-config" and i + 1 < len(cmd):
+                    mcp_config_file = cmd[i + 1]
+                elif arg == "--append-system-prompt" and i + 1 < len(cmd):
+                    # Check if it's a file path or inline content
+                    next_arg = cmd[i + 1]
+                    if len(next_arg) < 500 and not "\n" in next_arg:
+                        system_prompt_file = next_arg
+                    else:
+                        system_prompt_file = "<inline_content>"  # Indicate inline content
+                elif arg == "--allowedTools" and i + 1 < len(cmd):
+                    allowed_tools_file = "<inline_tools_list>"
+            
+            # Build command reconstruction (for debugging)
+            reconstruction_parts = [cmd[0]]  # Executable
+            i = 1
+            while i < len(cmd):
+                arg = cmd[i]
+                if arg in ["-p", "--output-format", "--max-turns", "--verbose"]:
+                    if i + 1 < len(cmd) and not cmd[i + 1].startswith("-"):
+                        reconstruction_parts.extend([arg, cmd[i + 1]])
+                        i += 2
+                    else:
+                        reconstruction_parts.append(arg)
+                        i += 1
+                elif arg == "--mcp-config":
+                    reconstruction_parts.extend([arg, "workflow/.mcp.json"])
+                    i += 2
+                elif arg == "--allowedTools":
+                    reconstruction_parts.extend([arg, "<tools_list>"])
+                    i += 2
+                elif arg == "--append-system-prompt":
+                    if system_prompt_file == "<inline_content>":
+                        reconstruction_parts.extend([arg, "@workflow/prompt.md"])
+                    else:
+                        reconstruction_parts.extend([arg, f"@{system_prompt_file}"])
+                    i += 2
+                elif arg in ["-r"] and i + 1 < len(cmd):
+                    reconstruction_parts.extend([arg, cmd[i + 1]])
+                    i += 2
+                else:
+                    # This is likely the user message (last arg)
+                    reconstruction_parts.append(f'"<user_message>"')
+                    break
+            
             await log_writer(
-                "Complete Claude CLI command with all variables injected",
-                "raw_command",
+                "Command debug information with clean structure",
+                "command_debug",
                 {
-                    "full_command": cmd,
-                    "command_length": len(cmd),
                     "executable": cmd[0] if cmd else None,
+                    "args": [arg for arg in cmd[1:] if not (len(str(arg)) > 1000)],  # Exclude large content
+                    "config_files": {
+                        "mcp_config": mcp_config_file,
+                        "system_prompt": system_prompt_file,
+                        "allowed_tools": allowed_tools_file
+                    },
+                    "command_reconstruction": " ".join(reconstruction_parts),
                     "working_directory": str(workspace / "am-agents-labs"),
-                    "user_message": message,
                     "user_message_length": len(message),
                     "max_turns": max_turns,
                     "workflow": workflow,
-                    "session_details": {
-                        "session_id": session.session_id,
-                        "claude_session_id": session.claude_session_id,
-                        "run_id": session.run_id
-                    }
+                    "session_id": session.session_id,
+                    "run_id": session.run_id
                 }
             )
         
@@ -521,22 +593,20 @@ class ClaudeCLIExecutor:
         # Use log manager for this execution
         async with log_manager.get_log_writer(run_id) as log_writer:
             
-            # Log execution start with comprehensive details
+            # Enhanced workflow initialization (consolidated from multiple init events)
             await log_writer(
-                f"Starting Claude CLI execution for workflow '{session.workflow_name}'",
-                "workflow_init",
+                f"Workflow execution initialized: {session.workflow_name}",
+                "execution_init",
                 {
                     "run_id": run_id,
                     "workflow": session.workflow_name,
                     "max_turns": session.max_turns,
-                    "command_preview": " ".join(cmd[:5]) + "..." if len(cmd) > 5 else " ".join(cmd),
-                    "full_command_length": len(cmd),
                     "workspace": str(workspace),
-                    "session_details": {
-                        "session_id": session.session_id,
-                        "claude_session_id": session.claude_session_id,
-                        "created_at": session.created_at.isoformat() if session.created_at else None
-                    }
+                    "claude_executable": _CLAUDE_EXECUTABLE_PATH,
+                    "session_id": session.session_id,
+                    "claude_session_id": session.claude_session_id,
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "command_args_count": len(cmd)
                 }
             )
             
@@ -556,16 +626,7 @@ class ClaudeCLIExecutor:
                         {"claude_dir": claude_dir, "path_modified": True}
                     )
             
-            # Log environment setup
-            await log_writer(
-                "Environment prepared for Claude CLI execution",
-                "environment",
-                {
-                    "claude_executable": _CLAUDE_EXECUTABLE_PATH,
-                    "working_directory": str(workspace / "am-agents-labs"),
-                    "claude_session_env": session.run_id
-                }
-            )
+            # Skip redundant environment logging - already in execution_init
             
             # Create process
             process = await asyncio.create_subprocess_exec(
@@ -576,11 +637,14 @@ class ClaudeCLIExecutor:
                 env=env
             )
             
-            # Log process creation
+            # Enhanced process creation with timing
             await log_writer(
-                f"Claude CLI process created with PID {process.pid}",
-                "process",
-                {"pid": process.pid, "command_args": len(cmd)}
+                f"Process started with PID {process.pid}",
+                "process_start",
+                {
+                    "pid": process.pid, 
+                    "timeout": timeout
+                }
             )
             
             # Track active process
@@ -673,13 +737,21 @@ class ClaudeCLIExecutor:
                 raise
                 
             finally:
-                # Clean up session task
+                # Clean up session task and log final status
                 if not session_task.done():
                     session_task.cancel()
                     try:
                         await session_task
                     except asyncio.CancelledError:
                         pass
+                
+                # Log any stderr content if present
+                if stderr_lines and any(line.strip() for line in stderr_lines):
+                    await log_writer(
+                        "Stderr content detected",
+                        "stderr_summary",
+                        {"stderr_lines": len(stderr_lines), "content_preview": ''.join(stderr_lines)[:200]}
+                    )
                 
                 # Clean up
                 del self.active_processes[session.run_id]
@@ -688,37 +760,22 @@ class ClaudeCLIExecutor:
             stdout_text = ''.join(stdout_lines)
             stderr_text = ''.join(stderr_lines)
             
-            # Log completion with comprehensive details
+            # Enhanced final summary (consolidates workflow_completion and session_confirmation)
             await log_writer(
-                f"Claude CLI execution completed with exit code {process.returncode}",
-                "workflow_completion",
+                f"Process completed with exit code {process.returncode}",
+                "process_complete",
                 {
                     "exit_code": process.returncode,
                     "success": process.returncode == 0,
-                    "session_id": processor.session_id,
+                    "claude_session_id": processor.session_id,
                     "session_confirmed": processor.session_confirmed,
                     "result_length": len(processor.get_final_result()),
-                    "completed": processor.completed,
                     "streaming_messages_count": len(processor.messages),
-                    "stdout_lines": len(stdout_lines),
-                    "stderr_lines": len(stderr_lines),
-                    "final_result_preview": processor.get_final_result()[:200] + "..." if len(processor.get_final_result()) > 200 else processor.get_final_result()
+                    "has_stderr": len(stderr_lines) > 0
                 }
             )
             
-            # Log session confirmation status
-            if processor.session_confirmed:
-                await log_writer(
-                    f"Session ID confirmed: {processor.session_id}",
-                    "session_confirmation",
-                    {"session_id": processor.session_id, "confirmed": True}
-                )
-            else:
-                await log_writer(
-                    "Session ID was not confirmed during execution",
-                    "session_confirmation", 
-                    {"confirmed": False, "reason": "not_received_or_process_ended"}
-                )
+            # Skip redundant session confirmation - already in process_complete
             
             # Update Claude session ID if extracted
             if processor.session_id:
