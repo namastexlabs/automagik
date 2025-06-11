@@ -12,7 +12,23 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 from datetime import datetime
 
+from .repository_utils import setup_repository, get_current_git_branch
+
 logger = logging.getLogger(__name__)
+
+
+async def get_current_git_branch_fallback() -> str:
+    """Get the current git branch with fallback.
+    
+    Returns:
+        Current git branch name, or 'main' as fallback
+    """
+    try:
+        branch = await get_current_git_branch()
+        return branch if branch else "main"
+    except Exception as e:
+        logger.warning(f"Failed to get current git branch: {e}, defaulting to 'main'")
+        return "main"
 
 
 class CLIEnvironmentManager:
@@ -32,7 +48,7 @@ class CLIEnvironmentManager:
             repository_cache: Path to cached repository for faster cloning
         """
         self.base_path = Path(base_path)
-        self.config_source = config_source or Path("/root/workspace/am-agents-labs")
+        self.config_source = config_source or Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
         self.repository_cache = repository_cache
         self.active_workspaces: Dict[str, Path] = {}
         
@@ -74,102 +90,31 @@ class CLIEnvironmentManager:
     async def setup_repository(
         self, 
         workspace: Path, 
-        branch: str,
-        repository_url: str = "https://github.com/namastexlabs/am-agents-labs.git"
+        branch: Optional[str],
+        repository_url: Optional[str] = None
     ) -> Path:
-        """Clone and checkout branch in workspace.
+        """Setup repository in workspace - copy local or clone remote.
         
         Args:
             workspace: Workspace directory path
-            branch: Git branch to checkout
-            repository_url: Repository URL to clone
+            branch: Git branch to checkout (defaults to current branch if None)
+            repository_url: Repository URL to clone (defaults to local copy if None)
             
         Returns:
-            Path to the cloned repository
+            Path to the repository in workspace
             
         Raises:
-            subprocess.CalledProcessError: If git operations fail
+            RuntimeError: If repository setup fails
         """
-        repo_path = workspace / "am-agents-labs"
-        
         try:
-            # Use repository cache if available for faster cloning
-            if self.repository_cache and self.repository_cache.exists():
-                logger.info(f"Using repository cache from {self.repository_cache}")
-                clone_cmd = [
-                    "git", "clone", 
-                    "--reference", str(self.repository_cache),
-                    "--dissociate",
-                    repository_url,
-                    str(repo_path)
-                ]
-            else:
-                # Standard clone with depth limit for performance
-                clone_cmd = [
-                    "git", "clone",
-                    "--depth", "1",
-                    "--branch", branch,
-                    repository_url,
-                    str(repo_path)
-                ]
-            
-            # Execute clone
-            process = await asyncio.create_subprocess_exec(
-                *clone_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            # Use the new setup_repository function from repository_utils
+            repo_path = await setup_repository(
+                workspace=workspace,
+                branch=branch,
+                repository_url=repository_url
             )
-            stdout, stderr = await process.communicate()
             
-            if process.returncode != 0:
-                error_msg = stderr.decode('utf-8')
-                logger.error(f"Git clone failed: {error_msg}")
-                raise RuntimeError(f"Git clone failed: {error_msg}")
-            
-            # If we cloned with --depth 1, we need to fetch the branch
-            if "--depth" in clone_cmd:
-                # Fetch the specific branch with full history
-                fetch_cmd = ["git", "fetch", "origin", f"{branch}:{branch}"]
-                process = await asyncio.create_subprocess_exec(
-                    *fetch_cmd,
-                    cwd=str(repo_path),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                await process.communicate()
-                
-                # Checkout the branch
-                checkout_cmd = ["git", "checkout", branch]
-                process = await asyncio.create_subprocess_exec(
-                    *checkout_cmd,
-                    cwd=str(repo_path),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode != 0:
-                    error_msg = stderr.decode('utf-8')
-                    logger.error(f"Git checkout failed: {error_msg}")
-                    raise RuntimeError(f"Git checkout failed: {error_msg}")
-            
-            # Configure git user for commits
-            git_config_cmds = [
-                ["git", "config", "user.name", "Claude Code Agent"],
-                ["git", "config", "user.email", "claude@automagik-agents.com"],
-                ["git", "config", "commit.gpgsign", "false"]
-            ]
-            
-            for cmd in git_config_cmds:
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    cwd=str(repo_path),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                await process.communicate()
-            
-            logger.info(f"Repository setup complete at {repo_path} on branch {branch}")
+            logger.info(f"Repository setup complete at {repo_path}")
             return repo_path
             
         except Exception as e:
@@ -297,13 +242,22 @@ class CLIEnvironmentManager:
             "file_count": len(list(workspace.rglob("*")))
         }
         
-        # Check for repository
-        repo_path = workspace / "am-agents-labs"
-        if repo_path.exists():
+        # Check for repository - find first directory that looks like a git repo
+        repo_path = None
+        for item in workspace.iterdir():
+            if item.is_dir() and (item / ".git").exists():
+                repo_path = item
+                break
+        
+        if not repo_path:
+            # Fallback to default
+            repo_path = workspace / "am-agents-labs"
+            
+        if repo_path and repo_path.exists():
             try:
                 # Get current branch
                 process = await asyncio.create_subprocess_exec(
-                    "git", "branch", "--show-current",
+                    "git", "rev-parse", "--abbrev-ref", "HEAD",
                     cwd=str(repo_path),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE

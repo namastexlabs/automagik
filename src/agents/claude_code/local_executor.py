@@ -74,7 +74,8 @@ class LocalExecutor(ExecutorBase):
             # Setup repository
             await self.env_manager.setup_repository(
                 workspace_path,
-                request.git_branch
+                request.git_branch,
+                request.repository_url  # Pass repository URL from request
             )
             
             # Copy workflow configs
