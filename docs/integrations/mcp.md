@@ -32,11 +32,13 @@ The MCP integration includes new database tables:
 
 ```python
 # ✅ CORRECT: Import from src.mcp package
-from src.mcp import MCPClientManager, MCPServerConfig, MCPServerStatus, MCPServerType
+from src.mcp.client import get_mcp_manager
+from src.db.repository.mcp import get_mcp_config_by_name, list_mcp_configs
+from src.db.models import MCPConfig
 
 # ✅ CORRECT: Initialize client manager
-manager = MCPClientManager()
-await manager.initialize()  # Auto-loads configurations from database
+manager = await get_mcp_manager()
+# Configurations are auto-loaded from database
 ```
 
 ### Server Configuration
@@ -220,9 +222,12 @@ curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers/filesy
 # ❌ WRONG: These imports will fail
 from src.mcp.client import MCPClient  # MCPClient doesn't exist
 from mcp import MCPClientManager  # Wrong package
+from src.mcp import MCPClientManager  # Old import pattern
 
 # ✅ CORRECT: Use these imports
-from src.mcp import MCPClientManager, MCPServerConfig, MCPServerStatus
+from src.mcp.client import get_mcp_manager
+from src.db.repository.mcp import get_mcp_config_by_name, list_mcp_configs
+from src.db.models import MCPConfig
 ```
 
 **Problem**: Module not found errors
