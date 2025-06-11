@@ -6,12 +6,15 @@ This script migrates from the complex 2-table MCP system to the simplified
 single-table architecture with JSON configuration storage.
 
 IMPORTANT: This script includes backup and rollback functionality.
+FEATURE FLAGS: Supports safe production rollout with automatic safety triggers.
 """
 
 import asyncio
 import json
 import logging
+import os
 import sys
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -28,8 +31,129 @@ from src.db import (
 )
 from src.db.models import MCPConfigCreate
 from src.db.connection import execute_query, get_db_connection
+from src.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class FeatureFlags:
+    """Feature flag management for safe migration rollout."""
+    
+    def __init__(self):
+        self.flags = {
+            "MCP_USE_NEW_SYSTEM": self._get_env_bool("MCP_USE_NEW_SYSTEM", False),
+            "MCP_MIGRATION_ENABLED": self._get_env_bool("MCP_MIGRATION_ENABLED", False),
+            "MCP_SAFETY_CHECKS": self._get_env_bool("MCP_SAFETY_CHECKS", True),
+            "MCP_AUTO_ROLLBACK": self._get_env_bool("MCP_AUTO_ROLLBACK", True),
+            "MCP_MONITORING_ENABLED": self._get_env_bool("MCP_MONITORING_ENABLED", True),
+        }
+    
+    def _get_env_bool(self, key: str, default: bool) -> bool:
+        """Get boolean value from environment variable."""
+        value = os.environ.get(key, str(default)).lower()
+        return value in ("true", "1", "yes", "on")
+    
+    def is_enabled(self, flag: str) -> bool:
+        """Check if a feature flag is enabled."""
+        return self.flags.get(flag, False)
+    
+    def enable(self, flag: str):
+        """Enable a feature flag."""
+        self.flags[flag] = True
+        os.environ[flag] = "true"
+    
+    def disable(self, flag: str):
+        """Disable a feature flag."""
+        self.flags[flag] = False
+        os.environ[flag] = "false"
+
+
+class MigrationMonitor:
+    """Monitors migration progress and triggers safety measures."""
+    
+    def __init__(self):
+        self.start_time = None
+        self.errors = []
+        self.warnings = []
+        self.performance_metrics = {}
+        self.safety_thresholds = {
+            "max_errors": 5,
+            "max_duration_minutes": 30,
+            "min_success_rate": 0.8,
+            "max_response_time_ms": 5000,
+        }
+    
+    def start_monitoring(self):
+        """Start monitoring the migration process."""
+        self.start_time = time.time()
+        logger.info("🔍 Migration monitoring started")
+    
+    def record_error(self, error: str, context: str = ""):
+        """Record an error during migration."""
+        error_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "error": error,
+            "context": context
+        }
+        self.errors.append(error_entry)
+        logger.error(f"❌ Migration error: {error} (Context: {context})")
+        
+        # Check if we've hit the error threshold
+        if len(self.errors) >= self.safety_thresholds["max_errors"]:
+            raise SafetyThresholdExceeded(f"Too many errors: {len(self.errors)}")
+    
+    def record_warning(self, warning: str, context: str = ""):
+        """Record a warning during migration."""
+        warning_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "warning": warning,
+            "context": context
+        }
+        self.warnings.append(warning_entry)
+        logger.warning(f"⚠️ Migration warning: {warning} (Context: {context})")
+    
+    def check_duration_threshold(self):
+        """Check if migration is taking too long."""
+        if self.start_time:
+            duration_minutes = (time.time() - self.start_time) / 60
+            if duration_minutes > self.safety_thresholds["max_duration_minutes"]:
+                raise SafetyThresholdExceeded(f"Migration exceeded time limit: {duration_minutes:.1f} minutes")
+    
+    def test_response_time(self) -> float:
+        """Test system response time after migration changes."""
+        start = time.time()
+        try:
+            # Simple database query to test response time
+            execute_query("SELECT 1", fetch=True)
+            response_time_ms = (time.time() - start) * 1000
+            
+            if response_time_ms > self.safety_thresholds["max_response_time_ms"]:
+                self.record_warning(
+                    f"High response time: {response_time_ms:.1f}ms",
+                    "post_migration_test"
+                )
+            
+            return response_time_ms
+        except Exception as e:
+            self.record_error(f"Response time test failed: {e}", "post_migration_test")
+            return float('inf')
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get monitoring summary."""
+        duration = (time.time() - self.start_time) if self.start_time else 0
+        return {
+            "duration_minutes": duration / 60,
+            "total_errors": len(self.errors),
+            "total_warnings": len(self.warnings),
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "performance_metrics": self.performance_metrics
+        }
+
+
+class SafetyThresholdExceeded(Exception):
+    """Raised when safety thresholds are exceeded during migration."""
+    pass
 
 
 class MCPMigration:
@@ -38,6 +162,9 @@ class MCPMigration:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.backup_data = {}
+        self.feature_flags = FeatureFlags()
+        self.monitor = MigrationMonitor()
+        self.auto_rollback_enabled = self.feature_flags.is_enabled("MCP_AUTO_ROLLBACK")
         
     def backup_existing_data(self) -> Dict[str, Any]:
         """Export current mcp_servers and agent_mcp_servers data.
@@ -172,6 +299,41 @@ class MCPMigration:
             logger.warning(f"⚠️  Could not get agent names for server {server_id}: {e}")
             return []
     
+    def pre_migration_checks(self) -> bool:
+        """Perform safety checks before starting migration."""
+        logger.info("🔍 Running pre-migration safety checks...")
+        
+        try:
+            # Check feature flags
+            if not self.feature_flags.is_enabled("MCP_MIGRATION_ENABLED"):
+                logger.error("❌ Migration is disabled by feature flag MCP_MIGRATION_ENABLED")
+                return False
+            
+            # Test database connectivity
+            execute_query("SELECT 1", fetch=True)
+            logger.info("✅ Database connectivity test passed")
+            
+            # Check if new table exists
+            try:
+                execute_query("SELECT COUNT(*) FROM mcp_configs", fetch=True)
+                logger.info("✅ New mcp_configs table exists")
+            except Exception as e:
+                self.monitor.record_error(f"mcp_configs table not found: {e}", "pre_migration_check")
+                return False
+            
+            # Check system performance baseline
+            response_time = self.monitor.test_response_time()
+            if response_time == float('inf'):
+                return False
+            
+            logger.info(f"✅ Baseline response time: {response_time:.1f}ms")
+            
+            return True
+            
+        except Exception as e:
+            self.monitor.record_error(f"Pre-migration check failed: {e}", "pre_migration_check")
+            return False
+    
     def migrate_to_new_schema(self) -> bool:
         """Transform old data to new format and create mcp_configs entries.
         
@@ -180,45 +342,88 @@ class MCPMigration:
         """
         logger.info("🔄 Migrating to new MCP config schema...")
         
+        # Start monitoring
+        if self.feature_flags.is_enabled("MCP_MONITORING_ENABLED"):
+            self.monitor.start_monitoring()
+        
+        # Pre-migration safety checks
+        if self.feature_flags.is_enabled("MCP_SAFETY_CHECKS"):
+            if not self.pre_migration_checks():
+                logger.error("❌ Pre-migration safety checks failed")
+                return False
+        
         if not self.backup_data:
-            logger.error("❌ No backup data available for migration")
+            self.monitor.record_error("No backup data available for migration", "migration_start")
             return False
         
         success_count = 0
         error_count = 0
         
-        for server_data in self.backup_data["mcp_servers"]:
-            try:
-                # Get agent names for this server
-                agent_names = self.get_agent_names_for_server(server_data["id"])
-                
-                # Transform to new config format
-                config = self.transform_server_config(server_data, agent_names)
-                
-                # Create new config entry
-                if not self.dry_run:
-                    config_create = MCPConfigCreate(
-                        name=config["name"],
-                        config=config
-                    )
+        try:
+            for server_data in self.backup_data["mcp_servers"]:
+                try:
+                    # Check monitoring thresholds periodically
+                    if self.feature_flags.is_enabled("MCP_MONITORING_ENABLED"):
+                        self.monitor.check_duration_threshold()
                     
-                    config_id = create_mcp_config(config_create)
-                    if config_id:
-                        logger.info(f"✅ Migrated server '{config['name']}' to config ID {config_id}")
-                        success_count += 1
+                    # Get agent names for this server
+                    agent_names = self.get_agent_names_for_server(server_data["id"])
+                    
+                    # Transform to new config format
+                    config = self.transform_server_config(server_data, agent_names)
+                    
+                    # Create new config entry
+                    if not self.dry_run:
+                        config_create = MCPConfigCreate(
+                            name=config["name"],
+                            config=config
+                        )
+                        
+                        config_id = create_mcp_config(config_create)
+                        if config_id:
+                            logger.info(f"✅ Migrated server '{config['name']}' to config ID {config_id}")
+                            success_count += 1
+                            
+                            # Test system performance after each migration
+                            if self.feature_flags.is_enabled("MCP_MONITORING_ENABLED"):
+                                response_time = self.monitor.test_response_time()
+                                self.monitor.performance_metrics[config['name']] = response_time
+                        else:
+                            error_msg = f"Failed to create config for server '{config['name']}'"
+                            self.monitor.record_error(error_msg, f"server_{config['name']}")
+                            error_count += 1
                     else:
-                        logger.error(f"❌ Failed to create config for server '{config['name']}'")
-                        error_count += 1
-                else:
-                    logger.info(f"🔍 [DRY RUN] Would migrate server '{config['name']}' with config: {json.dumps(config, indent=2)}")
-                    success_count += 1
-                    
-            except Exception as e:
-                logger.error(f"❌ Error migrating server '{server_data.get('name', 'unknown')}': {e}")
-                error_count += 1
-        
-        logger.info(f"📊 Migration summary: {success_count} successful, {error_count} errors")
-        return error_count == 0
+                        logger.info(f"🔍 [DRY RUN] Would migrate server '{config['name']}' with config: {json.dumps(config, indent=2)}")
+                        success_count += 1
+                        
+                except Exception as e:
+                    error_msg = f"Error migrating server '{server_data.get('name', 'unknown')}': {e}"
+                    self.monitor.record_error(error_msg, f"server_{server_data.get('name', 'unknown')}")
+                    error_count += 1
+            
+            logger.info(f"📊 Migration summary: {success_count} successful, {error_count} errors")
+            
+            # Final safety check
+            if self.feature_flags.is_enabled("MCP_MONITORING_ENABLED"):
+                final_response_time = self.monitor.test_response_time()
+                logger.info(f"📊 Final response time: {final_response_time:.1f}ms")
+            
+            return error_count == 0
+            
+        except SafetyThresholdExceeded as e:
+            logger.error(f"🚨 Safety threshold exceeded: {e}")
+            
+            # Automatic rollback if enabled
+            if self.auto_rollback_enabled and not self.dry_run:
+                logger.warning("🔙 Triggering automatic rollback due to safety threshold")
+                try:
+                    # Clear the partially migrated data
+                    execute_query("DELETE FROM mcp_configs", fetch=False)
+                    logger.info("✅ Automatic rollback completed")
+                except Exception as rollback_error:
+                    logger.error(f"❌ Automatic rollback failed: {rollback_error}")
+            
+            return False
     
     def validate_migration(self) -> bool:
         """Validate that migration was successful.
@@ -317,6 +522,10 @@ def main():
     parser.add_argument("--backup-file", default="./data/mcp_backup.json", help="Path to save/load backup file")
     parser.add_argument("--rollback", action="store_true", help="Rollback migration using backup file")
     parser.add_argument("--validate-only", action="store_true", help="Only validate existing migration")
+    parser.add_argument("--enable-migration", action="store_true", help="Enable migration feature flag")
+    parser.add_argument("--disable-safety", action="store_true", help="Disable safety checks (dangerous!)")
+    parser.add_argument("--disable-monitoring", action="store_true", help="Disable performance monitoring")
+    parser.add_argument("--disable-auto-rollback", action="store_true", help="Disable automatic rollback")
     
     args = parser.parse_args()
     
@@ -327,6 +536,29 @@ def main():
     )
     
     migration = MCPMigration(dry_run=args.dry_run)
+    
+    # Apply command line flag overrides
+    if args.enable_migration:
+        migration.feature_flags.enable("MCP_MIGRATION_ENABLED")
+        logger.info("🚩 Migration enabled via command line flag")
+    
+    if args.disable_safety:
+        migration.feature_flags.disable("MCP_SAFETY_CHECKS")
+        logger.warning("⚠️ Safety checks disabled via command line flag")
+    
+    if args.disable_monitoring:
+        migration.feature_flags.disable("MCP_MONITORING_ENABLED")
+        logger.warning("⚠️ Monitoring disabled via command line flag")
+    
+    if args.disable_auto_rollback:
+        migration.feature_flags.disable("MCP_AUTO_ROLLBACK")
+        logger.warning("⚠️ Auto-rollback disabled via command line flag")
+    
+    # Display current feature flag status
+    logger.info("🚩 Feature flags status:")
+    for flag, enabled in migration.feature_flags.flags.items():
+        status = "ENABLED" if enabled else "DISABLED"
+        logger.info(f"   {flag}: {status}")
     
     try:
         if args.rollback:
@@ -352,6 +584,17 @@ def main():
             if success and not args.dry_run:
                 success = migration.validate_migration()
         
+        # Display monitoring summary
+        if migration.feature_flags.is_enabled("MCP_MONITORING_ENABLED"):
+            summary = migration.monitor.get_summary()
+            logger.info("📊 Migration monitoring summary:")
+            logger.info(f"   Duration: {summary['duration_minutes']:.1f} minutes")
+            logger.info(f"   Errors: {summary['total_errors']}")
+            logger.info(f"   Warnings: {summary['total_warnings']}")
+            if summary['performance_metrics']:
+                avg_response_time = sum(summary['performance_metrics'].values()) / len(summary['performance_metrics'])
+                logger.info(f"   Average response time: {avg_response_time:.1f}ms")
+        
         if success:
             if args.dry_run:
                 logger.info("✅ Dry run completed successfully - no changes made")
@@ -360,6 +603,15 @@ def main():
             sys.exit(0)
         else:
             logger.error("❌ Migration failed")
+            # Save monitoring data for analysis
+            if migration.feature_flags.is_enabled("MCP_MONITORING_ENABLED"):
+                summary_file = args.backup_file.replace('.json', '_monitoring.json')
+                try:
+                    with open(summary_file, 'w') as f:
+                        json.dump(migration.monitor.get_summary(), f, indent=2)
+                    logger.info(f"📊 Monitoring data saved to {summary_file}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not save monitoring data: {e}")
             sys.exit(1)
             
     except Exception as e:
