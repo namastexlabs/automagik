@@ -188,15 +188,25 @@ class DockerExecutor(ExecutorBase):
         Returns:
             Dictionary of environment variables
         """
+        # Extract repository name from URL for workspace directory
+        repo_url = request.repository_url or "https://github.com/namastexlabs/am-agents-labs.git"
+        repo_name = repo_url.rstrip('/').split('/')[-1]
+        if repo_name.endswith('.git'):
+            repo_name = repo_name[:-4]
+        
         env = {
             'SESSION_ID': request.session_id or '',
             'WORKFLOW_NAME': request.workflow_name,
             'GIT_BRANCH': request.git_branch,
             'CLAUDE_MESSAGE': request.message,
             'MAX_TURNS': str(request.max_turns),
-            'WORKSPACE_DIR': '/workspace/am-agents-labs',
+            'WORKSPACE_DIR': f'/workspace/{repo_name}',
             'WORKFLOW_DIR': '/workspace/workflow'
         }
+        
+        # Add repository URL if specified
+        if request.repository_url:
+            env['REPOSITORY_URL'] = request.repository_url
         
         # Add agent context variables
         if agent_context:

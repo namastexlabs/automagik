@@ -21,6 +21,7 @@ from src.memory.message_history import MessageHistory
 from .container import ContainerManager
 from .executor_factory import ExecutorFactory
 from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
+from .log_manager import get_log_manager
 
 logger = logging.getLogger(__name__)
 
@@ -129,11 +130,32 @@ class ClaudeCodeAgent(AutomagikAgent):
         try:
             # Get workflow from context or use default
             workflow_name = self.context.get("workflow_name", self.config.get("default_workflow"))
+            run_id = self.context.get("run_id")  # Get run_id from context for logging
+            
+            # Setup log manager if we have a run_id
+            log_manager = get_log_manager() if run_id else None
+            if log_manager and run_id:
+                async with log_manager.get_log_writer(run_id) as log_writer:
+                    await log_writer(
+                        f"ClaudeCodeAgent.run() called for workflow '{workflow_name}'",
+                        "event",
+                        {
+                            "workflow_name": workflow_name,
+                            "run_id": run_id,
+                            "input_length": len(input_text),
+                            "has_multimodal": multimodal_content is not None
+                        }
+                    )
             
             # Validate workflow exists
             if not await self._validate_workflow(workflow_name):
+                error_msg = f"Workflow '{workflow_name}' not found or invalid"
+                if log_manager and run_id:
+                    async with log_manager.get_log_writer(run_id) as log_writer:
+                        await log_writer(error_msg, "error", {"workflow_name": workflow_name})
+                
                 return AgentResponse(
-                    text=f"Workflow '{workflow_name}' not found or invalid",
+                    text=error_msg,
                     success=False,
                     error_message=f"Invalid workflow: {workflow_name}"
                 )
@@ -145,7 +167,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 workflow_name=workflow_name,
                 max_turns=int(self.config.get("max_turns", "30")),
                 git_branch=self.config.get("git_branch"),
-                timeout=self.config.get("container_timeout")
+                timeout=self.config.get("container_timeout"),
+                repository_url=self.context.get("repository_url")  # Pass repository URL from context
             )
             
             # Store session metadata in database
@@ -154,7 +177,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 "workflow_name": workflow_name,
                 "git_branch": request.git_branch,
                 "container_timeout": request.timeout,
-                "started_at": datetime.utcnow().isoformat()
+                "started_at": datetime.utcnow().isoformat(),
+                "run_id": run_id
             }
             
             # Update context with metadata
@@ -166,11 +190,42 @@ class ClaudeCodeAgent(AutomagikAgent):
             
             logger.info(f"Starting Claude CLI execution for workflow '{workflow_name}'")
             
+            if log_manager and run_id:
+                async with log_manager.get_log_writer(run_id) as log_writer:
+                    await log_writer(
+                        f"Starting Claude CLI execution with {request.max_turns} max turns",
+                        "event",
+                        {
+                            "request": {
+                                "workflow_name": request.workflow_name,
+                                "max_turns": request.max_turns,
+                                "git_branch": request.git_branch,
+                                "timeout": request.timeout
+                            }
+                        }
+                    )
+            
             # Execute Claude CLI in container
             execution_result = await self.executor.execute_claude_task(
                 request=request,
                 agent_context=self.context
             )
+            
+            # Log execution completion
+            if log_manager and run_id:
+                async with log_manager.get_log_writer(run_id) as log_writer:
+                    await log_writer(
+                        f"Claude CLI execution completed",
+                        "event",
+                        {
+                            "success": execution_result.get("success", False),
+                            "exit_code": execution_result.get("exit_code"),
+                            "execution_time": execution_result.get("execution_time"),
+                            "session_id": execution_result.get("session_id"),
+                            "result_length": len(execution_result.get("result", "")),
+                            "git_commits": len(execution_result.get("git_commits", []))
+                        }
+                    )
             
             # Store execution results in message history if provided
             if message_history_obj:
@@ -184,36 +239,68 @@ class ClaudeCodeAgent(AutomagikAgent):
                 message_history_obj.add_message(user_message)
                 
                 # Store agent response with execution metadata
+                # Extract the actual Claude result text
+                claude_result_text = execution_result.get("result", "Task completed")
+                
                 agent_message = {
                     "role": "assistant",
-                    "content": execution_result.get("result", "Task completed"),
+                    "content": claude_result_text,
                     "agent_id": self.db_id,
                     "raw_payload": {
                         "execution": execution_result,
                         "workflow": workflow_name,
-                        "request": request.dict()
+                        "request": request.dict(),
+                        "run_id": run_id,
+                        "log_file": f"./logs/run_{run_id}.log" if run_id else None
                     },
                     "context": {
                         "container_id": execution_result.get("container_id"),
                         "execution_time": execution_result.get("execution_time"),
                         "exit_code": execution_result.get("exit_code"),
-                        "git_commits": execution_result.get("git_commits", [])
+                        "git_commits": execution_result.get("git_commits", []),
+                        "claude_session_id": execution_result.get("session_id"),
+                        "streaming_messages": len(execution_result.get("streaming_messages", []))
                     }
                 }
                 message_history_obj.add_message(agent_message)
             
             # Create response based on execution result
             if execution_result.get("success", False):
+                response_text = execution_result.get("result", "Task completed successfully")
+                
+                # Log successful response
+                if log_manager and run_id:
+                    async with log_manager.get_log_writer(run_id) as log_writer:
+                        await log_writer(
+                            f"Returning successful response: {response_text[:100]}...",
+                            "event",
+                            {"response_length": len(response_text)}
+                        )
+                
                 return AgentResponse(
-                    text=execution_result.get("result", "Task completed successfully"),
+                    text=response_text,
                     success=True,
                     raw_message=execution_result,
                     tool_calls=[],  # Claude CLI handles its own tools
                     tool_outputs=[]
                 )
             else:
+                error_msg = f"Task failed: {execution_result.get('error', 'Unknown error')}"
+                
+                # Log error response
+                if log_manager and run_id:
+                    async with log_manager.get_log_writer(run_id) as log_writer:
+                        await log_writer(
+                            error_msg,
+                            "error",
+                            {
+                                "error": execution_result.get("error"),
+                                "exit_code": execution_result.get("exit_code")
+                            }
+                        )
+                
                 return AgentResponse(
-                    text=f"Task failed: {execution_result.get('error', 'Unknown error')}",
+                    text=error_msg,
                     success=False,
                     error_message=execution_result.get("error"),
                     raw_message=execution_result
