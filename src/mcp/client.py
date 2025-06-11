@@ -310,8 +310,17 @@ class MCPManager:
                 command = server_config.get('command', [])
                 env = server_config.get('environment', {})
                 
+                # FIX: MCPServerStdio requires separate command and args parameters
+                # Split command array into main command (str) and arguments (list)
+                if not command:
+                    raise MCPError(f"Server {config.name}: 'command' is required for stdio servers")
+                
+                main_command = command[0]  # First element is the executable
+                args = command[1:] if len(command) > 1 else []  # Rest are arguments
+                
                 server = MCPServerStdio(
-                    args=command,  # First positional argument
+                    command=main_command,  # Required: main command as string
+                    args=args,             # Required: arguments as list  
                     env=env or None,
                     timeout=server_config.get('timeout', 30000) / 1000  # Convert ms to seconds
                 )
@@ -328,13 +337,14 @@ class MCPManager:
             else:
                 raise MCPError(f"Unsupported server type: {server_type}")
             
-            # Start the server
-            await server.start()
+            # PydanticAI MCP servers are context managers, not persistent objects
+            # For now, just validate that we can create the server object
+            # The actual connection will be managed when tools are called
             
             # Store in our registry
             self._servers[config.name] = server
             
-            logger.info(f"Started {server_type} MCP server: {config.name}")
+            logger.info(f"Created {server_type} MCP server: {config.name}")
             
         except Exception as e:
             logger.error(f"Failed to create/start server {config.name}: {str(e)}")
@@ -475,7 +485,7 @@ class MCPManager:
                 'type': config.get_server_type() if config else 'unknown',
                 'status': 'running',  # If it's in _servers, it's running
                 'tools_count': len(server.get_tools()) if hasattr(server, 'get_tools') else 0,
-                'config_source': 'database' if hasattr(config, 'id') and not config.id.startswith('file-') else 'file'
+                'config_source': 'database' if hasattr(config, 'id') and not str(config.id).startswith('file-') else 'file'
             }
             servers.append(server_info)
         
