@@ -423,3 +423,168 @@ class SimpleAgent(AutomagikAgent):
         self.tool_registry.register_default_tools(self.context)
         
         logger.info(f"Simple agent {self.__class__.__name__} initialized")
+    
+    async def run(self, input_text: str, **kwargs) -> Any:
+        """Run the agent with simplified interface."""
+        return await self._run_agent(input_text, **kwargs)
+
+
+class MultimodalAgent(AutomagikAgent):
+    """Base class for agents with enhanced multimodal support.
+    
+    Features:
+    - Automatic model switching to vision-capable models
+    - Built-in multimodal analysis tools
+    - Media-aware prompt enhancement
+    - Simplified access to attached media
+    
+    Example:
+        class ImageAnalyzer(MultimodalAgent):
+            def __init__(self, config):
+                super().__init__(
+                    config, 
+                    prompt="You analyze images and provide insights.",
+                    vision_model="openai:gpt-4o"
+                )
+    """
+    
+    def __init__(
+        self, 
+        config: Dict[str, str], 
+        prompt: str,
+        vision_model: str = "openai:gpt-4o",
+        supported_media: List[str] = None,
+        auto_enhance_prompts: bool = True
+    ) -> None:
+        """Initialize multimodal agent.
+        
+        Args:
+            config: Agent configuration dictionary
+            prompt: The agent prompt text
+            vision_model: Model to use when media is present
+            supported_media: List of supported media types ['image', 'audio', 'document']
+            auto_enhance_prompts: Whether to automatically enhance prompts with media context
+        """
+        # Initialize base agent
+        super().__init__(config, framework_type=FrameworkType.PYDANTIC_AI)
+        
+        # Set prompt
+        self._code_prompt_text = prompt
+        
+        # Store configuration
+        self.vision_model = vision_model
+        self.supported_media = supported_media or ['image', 'audio', 'document']
+        self.auto_enhance_prompts = auto_enhance_prompts
+        self._original_model = None
+        
+        # Initialize dependencies
+        self.dependencies = self.create_default_dependencies()
+        
+        # Set agent ID if available
+        if self.db_id:
+            self.dependencies.set_agent_id(self.db_id)
+        
+        # Register default tools
+        self.tool_registry.register_default_tools(self.context)
+        
+        # Register multimodal tools
+        self._register_multimodal_tools()
+        
+        logger.info(f"Multimodal agent {self.__class__.__name__} initialized with vision model: {vision_model}")
+    
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools."""
+        
+        deps = self.dependencies
+        
+        def analyze_image_wrapper(*args, question: str = "What do you see in this image?", **kwargs) -> str:
+            """Analyze attached images with a specific question or prompt."""
+            if not deps.has_media('image'):
+                return "No images are attached to analyze."
+            
+            # Agent can prompt to extract whatever is needed from the image
+            return f"Image analysis requested: {question}"
+        
+        self.tool_registry.register_tool(analyze_image_wrapper)
+    
+    async def _run_agent(self, input_text: str, multimodal_content: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
+        """Run agent with automatic multimodal enhancements."""
+        multimodal_content = multimodal_content or {}
+        
+        # Auto-switch to vision model if media is present
+        if multimodal_content and any(multimodal_content.values()):
+            if self._original_model is None:
+                self._original_model = self.dependencies.model_name
+            
+            # Check if current model supports vision
+            current_model = self.dependencies.model_name
+            needs_vision = (
+                multimodal_content.get('images') or 
+                multimodal_content.get('documents')
+            )
+            
+            if needs_vision and 'vision' not in current_model and 'gpt-4o' not in current_model:
+                self.dependencies.model_name = self.vision_model
+                logger.info(f"Switched to vision model: {self.vision_model}")
+        
+        # Auto-enhance system prompt if enabled and media present
+        if self.auto_enhance_prompts and multimodal_content and any(multimodal_content.values()):
+            if 'system_prompt' in kwargs:
+                kwargs['system_prompt'] = self._enhance_system_prompt(
+                    kwargs.get('system_prompt', ''), 
+                    multimodal_content
+                )
+        
+        # Run the agent with standard processing
+        result = await super()._run_agent(input_text, multimodal_content=multimodal_content, **kwargs)
+        
+        # Restore original model if switched
+        if self._original_model is not None:
+            self.dependencies.model_name = self._original_model
+            self._original_model = None
+        
+        return result
+    
+    def _enhance_input_for_media(self, input_text: str, mc: Dict) -> str:
+        """Add context about available media to input."""
+        # Handle None input_text
+        if input_text is None:
+            input_text = ""
+            
+        if not any(mc.values()):
+            return input_text
+        
+        media_context = []
+        if mc.get('images'):
+            count = len(mc['images'])
+            media_context.append(f"[Attached: {count} image{'s' if count > 1 else ''}]")
+        if mc.get('audio'):
+            count = len(mc['audio'])
+            media_context.append(f"[Attached: {count} audio file{'s' if count > 1 else ''}]")
+        if mc.get('documents'):
+            count = len(mc['documents'])
+            media_context.append(f"[Attached: {count} document{'s' if count > 1 else ''}]")
+        
+        # Add context at the beginning
+        return f"{' '.join(media_context)}\n\n{input_text}"
+    
+    def _enhance_system_prompt(self, prompt: str, mc: Dict) -> str:
+        """Enhance system prompt with multimodal context."""
+        # Handle None prompt
+        if prompt is None:
+            prompt = ""
+            
+        if not any(mc.values()):
+            return prompt
+        
+        enhancement = "\n\nYou have access to analyze the following media types in this conversation:"
+        
+        if mc.get('images'):
+            enhancement += "\n- Images: You can see and analyze visual content"
+        if mc.get('audio'):
+            enhancement += "\n- Audio: You can process audio content"
+        if mc.get('documents'):
+            enhancement += "\n- Documents: You can read and analyze documents"
+        
+        return prompt + enhancement
+    
