@@ -7,13 +7,12 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.log_manager import get_log_manager
-from src.auth import get_api_key as verify_api_key
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
 
@@ -32,6 +31,7 @@ class ClaudeCodeRunRequest(BaseModel):
     timeout: Optional[int] = Field(default=7200, ge=60, le=14400, description="Execution timeout in seconds")
     user_id: Optional[str] = Field(None, description="User ID for the request")
     session_name: Optional[str] = Field(None, description="Optional session name")
+    repository_url: Optional[str] = Field(None, description="Git repository URL to clone (defaults to current repository if not specified)")
 
 
 class ClaudeCodeRunResponse(BaseModel):
@@ -104,6 +104,8 @@ async def execute_claude_code_async(
         agent.context["workflow_name"] = workflow_name
         agent.context["session_id"] = session_id
         agent.context["run_id"] = run_id  # Pass run_id for log management
+        if request.repository_url:
+            agent.context["repository_url"] = request.repository_url
         
         # Execute the Claude-Code agent
         result = await agent.run(
@@ -150,8 +152,7 @@ async def execute_claude_code_async(
 async def run_claude_code_workflow(
     workflow_name: str,
     request: ClaudeCodeRunRequest,
-    background_tasks: BackgroundTasks,
-    api_key: str = Depends(verify_api_key)
+    background_tasks: BackgroundTasks
 ) -> ClaudeCodeRunResponse:
     """
     Start a Claude-Code workflow execution asynchronously.
@@ -172,7 +173,8 @@ async def run_claude_code_workflow(
     {
         "message": "Fix the session timeout issue in agent controller",
         "git_branch": "fix/session-timeout",
-        "max_turns": 50
+        "max_turns": 50,
+        "repository_url": "https://github.com/myorg/myrepo.git"
     }
     ```
     
@@ -262,8 +264,7 @@ async def run_claude_code_workflow(
 
 @claude_code_router.get("/run/{run_id}/status", response_model=ClaudeCodeStatusResponse)
 async def get_claude_code_run_status(
-    run_id: str,
-    api_key: str = Depends(verify_api_key)
+    run_id: str
 ) -> ClaudeCodeStatusResponse:
     """
     Get the status of a Claude-Code run.
@@ -396,9 +397,7 @@ async def get_claude_code_run_status(
 
 
 @claude_code_router.get("/workflows", response_model=List[WorkflowInfo])
-async def list_claude_code_workflows(
-    api_key: str = Depends(verify_api_key)
-) -> List[WorkflowInfo]:
+async def list_claude_code_workflows() -> List[WorkflowInfo]:
     """
     List all available Claude-Code workflows.
     
@@ -439,9 +438,7 @@ async def list_claude_code_workflows(
 
 
 @claude_code_router.get("/health")
-async def claude_code_health(
-    api_key: str = Depends(verify_api_key)
-) -> Dict[str, Any]:
+async def claude_code_health() -> Dict[str, Any]:
     """
     Check Claude-Code agent health and status.
     
@@ -516,8 +513,7 @@ async def claude_code_health(
 async def get_claude_code_run_logs(
     run_id: str,
     lines: Optional[int] = None,
-    follow: bool = False,
-    api_key: str = Depends(verify_api_key)
+    follow: bool = False
 ):
     """
     Get or stream logs for a Claude-Code run.
@@ -562,8 +558,7 @@ async def get_claude_code_run_logs(
 
 @claude_code_router.get("/run/{run_id}/logs/summary")
 async def get_claude_code_run_log_summary(
-    run_id: str,
-    api_key: str = Depends(verify_api_key)
+    run_id: str
 ) -> Dict[str, Any]:
     """
     Get log summary for a Claude-Code run.
@@ -582,9 +577,7 @@ async def get_claude_code_run_log_summary(
 
 
 @claude_code_router.get("/logs")
-async def list_claude_code_logs(
-    api_key: str = Depends(verify_api_key)
-) -> Dict[str, Any]:
+async def list_claude_code_logs() -> Dict[str, Any]:
     """
     List all available Claude-Code run logs.
     

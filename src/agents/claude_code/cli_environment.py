@@ -75,14 +75,14 @@ class CLIEnvironmentManager:
         self, 
         workspace: Path, 
         branch: str,
-        repository_url: str = "https://github.com/namastexlabs/am-agents-labs.git"
+        repository_url: Optional[str] = None
     ) -> Path:
         """Clone and checkout branch in workspace.
         
         Args:
             workspace: Workspace directory path
             branch: Git branch to checkout
-            repository_url: Repository URL to clone
+            repository_url: Repository URL to clone (defaults to current repository if None)
             
         Returns:
             Path to the cloned repository
@@ -90,7 +90,16 @@ class CLIEnvironmentManager:
         Raises:
             subprocess.CalledProcessError: If git operations fail
         """
-        repo_path = workspace / "am-agents-labs"
+        # Default to current repository if not specified
+        if not repository_url:
+            repository_url = "https://github.com/namastexlabs/am-agents-labs.git"
+        
+        # Extract repository name from URL to create directory
+        repo_name = repository_url.rstrip('/').split('/')[-1]
+        if repo_name.endswith('.git'):
+            repo_name = repo_name[:-4]
+        
+        repo_path = workspace / repo_name
         
         try:
             # Use repository cache if available for faster cloning
@@ -297,9 +306,18 @@ class CLIEnvironmentManager:
             "file_count": len(list(workspace.rglob("*")))
         }
         
-        # Check for repository
-        repo_path = workspace / "am-agents-labs"
-        if repo_path.exists():
+        # Check for repository - find first directory that looks like a git repo
+        repo_path = None
+        for item in workspace.iterdir():
+            if item.is_dir() and (item / ".git").exists():
+                repo_path = item
+                break
+        
+        if not repo_path:
+            # Fallback to default
+            repo_path = workspace / "am-agents-labs"
+            
+        if repo_path and repo_path.exists():
             try:
                 # Get current branch
                 process = await asyncio.create_subprocess_exec(
