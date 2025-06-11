@@ -200,8 +200,9 @@ class TestCrossAgentParity:
             assert tool_name in simple_tools, f"Simple agent missing tool: {tool_name}"
             assert tool_name in sofia_tools, f"Sofia agent missing tool: {tool_name}"
         
-        # Sofia should have more tools (superset)
-        assert len(sofia_tools) >= len(simple_tools)
+        # Simple should have more tools (includes multimodal capabilities)
+        # SimpleAgent has multimodal enhancements that SofiaAgent doesn't have
+        assert len(simple_tools) >= len(sofia_tools)
     
     def test_agent_configuration_consistency(self, simple_agent, sofia_agent):
         """Test that both agents handle configuration consistently."""
