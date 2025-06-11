@@ -122,6 +122,62 @@ class LocalExecutor(ExecutorBase):
                 'workspace_path': None
             }
     
+    async def execute_until_first_response(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute Claude CLI and return after first response.
+        
+        This method starts execution but returns early after Claude's first response.
+        The execution continues in the background.
+        
+        Args:
+            request: Execution request with task details
+            agent_context: Agent context including session info
+            
+        Returns:
+            Dictionary with first response data
+        """
+        run_id = agent_context.get('run_id', str(int(time.time())))
+        
+        try:
+            # Create workspace using environment manager  
+            workspace_path = await self.env_manager.create_workspace(run_id)
+            
+            # Setup repository
+            await self.env_manager.setup_repository(
+                workspace_path,
+                request.git_branch,
+                request.repository_url
+            )
+            
+            # Copy workflow configs
+            workflow_src = Path(__file__).parent / "workflows" / request.workflow_name
+            await self.env_manager.copy_configs(workflow_src, workspace_path)
+            
+            # Start Claude CLI execution and capture first response
+            # This is the key difference - we don't wait for completion
+            first_response_data = await self.cli_executor.execute_until_first_response(
+                workflow=request.workflow_name,
+                message=request.message,
+                workspace=workspace_path,
+                session_id=request.session_id,
+                max_turns=request.max_turns,
+                timeout=request.timeout,
+                run_id=run_id
+            )
+            
+            return first_response_data
+            
+        except Exception as e:
+            logger.error(f"Error in execute_until_first_response: {str(e)}")
+            return {
+                'session_id': request.session_id,
+                'first_response': f"Error starting execution: {str(e)}",
+                'streaming_started': False
+            }
+    
     async def get_execution_logs(self, execution_id: str) -> str:
         """Get execution logs.
         
