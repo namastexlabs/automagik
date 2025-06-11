@@ -96,8 +96,16 @@ async def initialize_all_agents():
         AgentFactory.discover_agents()
         
         # Get the list of available agents
-        available_agents = AgentFactory.list_available_agents()
-        logger.info(f"Found {len(available_agents)} available agents: {', '.join(available_agents)}")
+        discovered_agents = AgentFactory.list_available_agents()
+        
+        # Filter out error agents - these are placeholder agents created during failed imports
+        # They should not be registered in the database or exposed via API
+        available_agents = [agent for agent in discovered_agents if not agent.endswith('_error')]
+        
+        logger.info(f"Discovered {len(discovered_agents)} agents, filtered to {len(available_agents)} valid agents: {', '.join(available_agents)}")
+        if len(discovered_agents) > len(available_agents):
+            error_agents = [agent for agent in discovered_agents if agent.endswith('_error')]
+            logger.warning(f"Filtered out {len(error_agents)} error agents: {', '.join(error_agents)}")
         
         # Import database functions
         from src.db.repository.agent import create_agent, get_agent_by_name, list_agents, update_agent

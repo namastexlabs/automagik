@@ -270,7 +270,30 @@ class AutomagikAgentsDependencies(BaseDependencies):
     # Performance configuration
     test_mode: bool = False  # Skip expensive operations during testing
     disable_memory_operations: bool = False  # Skip Graphiti memory operations
-    mock_external_apis: bool = False  # Use mocked responses for external APIs
+    mock_external_apis: bool = False
+    
+    def __init__(self, model_name: Optional[str] = None, model_settings: Optional[Dict[str, Any]] = None, **kwargs):
+        # Call parent with only compatible kwargs
+        super().__init__(**{k: v for k, v in kwargs.items() if k in ['user_id', 'session_id', 'api_keys', 'db_connection']})
+        
+        # Set our specific fields
+        self.model_name = model_name or DEFAULT_MODEL
+        self.model_settings = model_settings or {}
+        
+        # Initialize private fields
+        self._user_context: Optional[Dict[str, Any]] = None
+        self._template_vars: Optional[Dict[str, Any]] = None
+        self._usage_limits: Optional[UsageLimits] = None
+        self._graphiti_client: Optional[Any] = None
+        self._user_id: Optional[int] = None
+        self._agent_id: Optional[int] = None
+        self._http_client: Optional[httpx.AsyncClient] = None
+        self._mcp_servers: Optional[List[Any]] = None
+        self._mock_mode: bool = False
+        self._context: Optional[Dict[str, Any]] = None  # Add context storage
+        
+        # WhatsApp Evolution payload support
+        self.evolution_payload: Optional[Any] = None
     
     def get_http_client(self) -> Any:
         """Get or initialize the HTTP client.
@@ -294,6 +317,18 @@ class AutomagikAgentsDependencies(BaseDependencies):
         if HTTPX_AVAILABLE and self.http_client is not None:
             await self.http_client.aclose()
             self.http_client = None
+    
+    def set_evolution_payload(self, payload: Any) -> None:
+        """Set the WhatsApp Evolution payload for the agent.
+        
+        Args:
+            payload: Evolution payload containing WhatsApp context
+        """
+        self.evolution_payload = payload
+        # Also store in context for backward compatibility
+        if self._context is None:
+            self._context = {}
+        self._context["evolution_payload"] = payload
     
     def set_message_history(self, message_history: List[Any]) -> None:
         """Set the message history for the agent.
@@ -432,4 +467,76 @@ class AutomagikAgentsDependencies(BaseDependencies):
             context: Dictionary containing the agent's context (user_id, agent_id, etc.)
         """
         self.context = context
-        logger.debug(f"Set context in dependencies: {context.keys()}") 
+        logger.debug(f"Set context in dependencies: {context.keys()}")
+    
+    def update_context(self, context: Dict[str, Any]) -> None:
+        """Update the dependencies context."""
+        if self._context is None:
+            self._context = {}
+        self._context.update(context)
+        
+    # Multimodal Support Properties
+    @property
+    def multimodal_content(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get multimodal content from current context."""
+        if self._context:
+            return self._context.get('multimodal_content', {})
+        return {}
+    
+    @property
+    def current_images(self) -> List[Dict[str, Any]]:
+        """Get images from current context."""
+        return self.multimodal_content.get('images', [])
+    
+    @property
+    def current_audio(self) -> List[Dict[str, Any]]:
+        """Get audio files from current context."""
+        return self.multimodal_content.get('audio', [])
+    
+    @property
+    def current_documents(self) -> List[Dict[str, Any]]:
+        """Get documents from current context."""
+        return self.multimodal_content.get('documents', [])
+    
+    def has_media(self, media_type: str = 'any') -> bool:
+        """Check if specific media type is present.
+        
+        Args:
+            media_type: 'any', 'image', 'audio', 'document'
+            
+        Returns:
+            True if media is present
+        """
+        if media_type == 'any':
+            return bool(self.current_images or self.current_audio or self.current_documents)
+        elif media_type == 'image':
+            return bool(self.current_images)
+        elif media_type == 'audio':
+            return bool(self.current_audio)
+        elif media_type == 'document':
+            return bool(self.current_documents)
+        return False
+    
+    def get_media_count(self) -> Dict[str, int]:
+        """Get count of each media type."""
+        return {
+            'images': len(self.current_images),
+            'audio': len(self.current_audio),
+            'documents': len(self.current_documents)
+        }
+    
+    def describe_media(self) -> str:
+        """Get human-readable description of available media."""
+        counts = self.get_media_count()
+        descriptions = []
+        
+        if counts['images'] > 0:
+            descriptions.append(f"{counts['images']} image{'s' if counts['images'] > 1 else ''}")
+        if counts['audio'] > 0:
+            descriptions.append(f"{counts['audio']} audio file{'s' if counts['audio'] > 1 else ''}")
+        if counts['documents'] > 0:
+            descriptions.append(f"{counts['documents']} document{'s' if counts['documents'] > 1 else ''}")
+        
+        if descriptions:
+            return f"Available media: {', '.join(descriptions)}"
+        return "No media attached" 
