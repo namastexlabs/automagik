@@ -9,8 +9,20 @@ from fastapi.concurrency import run_in_threadpool
 
 from src.agents.models.agent_factory import AgentFactory
 from src.memory.message_history import MessageHistory
-from src.api.models import AgentInfo, AgentRunRequest, AgentRunResponse, OrchestrationStatus, UserCreate
-from src.db import get_agent_by_name, get_user, create_user, User, ensure_default_user_exists
+from src.api.models import (
+    AgentInfo,
+    AgentRunRequest,
+    AgentRunResponse,
+    OrchestrationStatus,
+    UserCreate,
+)
+from src.db import (
+    get_agent_by_name,
+    get_user,
+    create_user,
+    User,
+    ensure_default_user_exists,
+)
 from src.db.models import Session
 from src.db.connection import generate_uuid, safe_uuid
 from src.db.repository.session import get_session_by_name, create_session
@@ -29,18 +41,22 @@ def is_langgraph_agent(agent_name: str) -> bool:
 def should_use_orchestration(agent_name: str, request: AgentRunRequest) -> bool:
     """Determine if a request should use LangGraph orchestration."""
     return (
-        is_langgraph_agent(agent_name) or
-        request.orchestration_config is not None or
-        request.target_agents is not None
+        is_langgraph_agent(agent_name)
+        or request.orchestration_config is not None
+        or request.target_agents is not None
     )
 
 
-async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunRequest) -> AgentRunResponse:
+async def handle_orchestrated_agent_run(
+    agent_name: str, request: AgentRunRequest
+) -> AgentRunResponse:
     """Handle orchestrated agent execution (DISABLED - LangGraph implementation removed)."""
-    logger.warning(f"Orchestration requested for {agent_name} but LangGraph implementation has been removed")
-    
+    logger.warning(
+        f"Orchestration requested for {agent_name} but LangGraph implementation has been removed"
+    )
+
     execution_time = 0.0
-    
+
     # Return error response indicating orchestration is unavailable
     return AgentRunResponse(
         status="error",
@@ -49,13 +65,15 @@ async def handle_orchestrated_agent_run(agent_name: str, request: AgentRunReques
         agent_name=agent_name,
         execution_time=execution_time,
         orchestration=OrchestrationStatus(is_orchestrated=False, phase="disabled"),
-        errors=["Orchestration disabled - awaiting NMSTX-230 PydanticAI implementation"]
+        errors=[
+            "Orchestration disabled - awaiting NMSTX-230 PydanticAI implementation"
+        ],
     )
 
 
 async def list_registered_agents() -> List[AgentInfo]:
     """
-    List all registered agents from the database.
+    List all registered agents from the database, excluding claude_code from standard listings.
     Removes duplicates by normalizing agent names and grouping them by base name.
     Only returns agents that are marked as active in the database.
     """
@@ -63,70 +81,87 @@ async def list_registered_agents() -> List[AgentInfo]:
         # Get all registered agents from the database
         # Off-load blocking DB call to threadpool
         registered_agents = await run_in_threadpool(list_db_agents, active_only=True)
-        
+
         # Group agents by their name to handle duplicates
         unique_agents = {}
-        
+
         for agent in registered_agents:
             # Use agent name as-is, no normalization
             agent_name = agent.name
-            
+
+            # Skip claude_code in standard listings
+            if agent_name == "claude_code":
+                continue
+
             # Skip if we already have this agent with a newer ID (likely more up-to-date)
             if agent_name in unique_agents and unique_agents[agent_name].id > agent.id:
-                logger.info(f"Skipping duplicate agent {agent.name} (ID: {agent.id}) in favor of newer entry (ID: {unique_agents[agent_name].id})")
+                logger.info(
+                    f"Skipping duplicate agent {agent.name} (ID: {agent.id}) in favor of newer entry (ID: {unique_agents[agent_name].id})"
+                )
                 continue
-                
+
             # Store this agent as the canonical version for this name
             unique_agents[agent_name] = agent
-            
-        logger.info(f"Found {len(registered_agents)} agents, {len(unique_agents)} unique agents")
-        
+
+        logger.info(
+            f"Found {len(registered_agents)} agents, {len(unique_agents)} unique agents (claude_code excluded)"
+        )
+
         # Convert to list of AgentInfo objects
         agent_infos = []
         for agent_name, agent in unique_agents.items():
             # Get agent class to fetch docstring
             factory = AgentFactory()
             agent_class = factory.get_agent_class(agent_name)
-            docstring = inspect.getdoc(agent_class) if agent_class else agent.description or ""
-            
+            docstring = (
+                inspect.getdoc(agent_class) if agent_class else agent.description or ""
+            )
+
             # Create agent info including the ID
-            agent_infos.append(AgentInfo(
-                id=agent.id,
-                name=agent_name,  # Return the actual agent name
-                description=docstring
-            ))
-            
+            agent_infos.append(
+                AgentInfo(
+                    id=agent.id,
+                    name=agent_name,  # Return the actual agent name
+                    description=docstring,
+                )
+            )
+
         # Sort by name for consistent ordering
         agent_infos.sort(key=lambda x: x.name)
-            
+
         return agent_infos
     except Exception as e:
         logger.error(f"Error listing registered agents: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list registered agents: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list registered agents: {str(e)}"
+        )
 
 
-async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, user_data: Optional[UserCreate] = None) -> Optional[uuid.UUID]:
+async def get_or_create_user(
+    user_id: Optional[Union[uuid.UUID, str]] = None,
+    user_data: Optional[UserCreate] = None,
+) -> Optional[uuid.UUID]:
     """
     Get or create a user based on the provided ID and data.
-    
+
     Args:
         user_id: Optional user ID
         user_data: Optional user data for creation/update
-        
+
     Returns:
         UUID of the existing or newly created user
     """
     # Import UserCreate here as well to ensure it's available
-    
+
     # If no user ID or data, use the default user
     if not user_id and not user_data:
         # Try to find the first user in the database (the default user)
         users, _ = await run_in_threadpool(list_users, page=1, page_size=1)
-        
+
         if users and len(users) > 0:
             logger.debug(f"Using default user with ID: {users[0].id}")
             return users[0].id
-            
+
         # If no users exist, ensure the default user exists and return its ID
         try:
             # Use the UUID from the example in models.py
@@ -137,11 +172,11 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
                 return default_user_id
         except Exception as e:
             logger.error(f"Error ensuring default user exists: {str(e)}")
-            
+
         # If we still don't have a user, log an error
         logger.error("Failed to get or create default user")
         return None
-        
+
     # Try to get existing user first
     user = None
     if user_id:
@@ -152,28 +187,29 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
                     user_id = uuid.UUID(user_id)
                 except ValueError:
                     logger.warning(f"Invalid UUID format for user_id: {user_id}")
-                    
+
             # Try to get user by ID
             user = await run_in_threadpool(get_user, user_id)
         except Exception as e:
             logger.error(f"Error getting user by ID {user_id}: {str(e)}")
-    
+
     # If user exists and we have user_data, update user
     if user and user_data:
         # Update user with provided data
         user.email = user_data.email or user.email
         user.phone_number = user_data.phone_number or user.phone_number
-        
+
         # Merge user_data if provided
         if user_data.user_data:
             user.user_data = user.user_data or {}
             user.user_data.update(user_data.user_data)
-            
+
         # Update user in database
         from src.db import update_user
+
         updated_id = await run_in_threadpool(update_user, user)
         return updated_id
-        
+
     # If user doesn't exist but we have user_data, create new user
     elif user_data:
         # Create new user
@@ -181,18 +217,18 @@ async def get_or_create_user(user_id: Optional[Union[uuid.UUID, str]] = None, us
             id=user_id if user_id else generate_uuid(),
             email=user_data.email,
             phone_number=user_data.phone_number,
-            user_data=user_data.user_data
+            user_data=user_data.user_data,
         )
         created_id = await run_in_threadpool(create_user, new_user)
         return created_id
-        
+
     # If user doesn't exist and we don't have user_data, create minimal user
     elif user_id and not user:
         # Create minimal user with just the ID
         new_user = User(id=user_id)
         created_id = await run_in_threadpool(create_user, new_user)
         return created_id
-        
+
     # User exists but no updates needed
     return user.id if user else None
 
@@ -203,12 +239,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
     """
     session_id = None
     message_history = None
-    
+
     try:
         # Ensure agent_name is a string
         if not isinstance(agent_name, str):
             agent_name = str(agent_name)
-        
+
         # Check if this should use LangGraph orchestration
         if should_use_orchestration(agent_name, request):
             logger.info(f"Routing to orchestrated execution for agent: {agent_name}")
@@ -220,90 +256,104 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 "session_id": response.session_id,
                 "agent_name": response.agent_name,
                 "execution_time": response.execution_time,
-                "orchestration": response.orchestration.model_dump() if response.orchestration else None,
+                "orchestration": response.orchestration.model_dump()
+                if response.orchestration
+                else None,
                 "data": response.data,
-                "errors": response.errors
+                "errors": response.errors,
             }
-        
+
         # Continue with regular agent execution for non-orchestrated agents
         logger.info(f"Using regular execution for agent: {agent_name}")
-        
+
         # Early check for nonexistent agents to bail out before creating any DB entries
         if "nonexistent" in agent_name:
-            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Agent not found: {agent_name}"
+            )
+
         # Validate agent name and normalize if it's a variation
         # Get all registered agents from the database
         registered_agents = await run_in_threadpool(list_db_agents, active_only=False)
-        
+
         # Check if this agent name is a variation of an existing agent
         normalized_agent_name = agent_name
         for existing_agent in registered_agents:
             # Check for common variations
-            if (agent_name.lower() == f"{existing_agent.name.lower()}agent" or
-                agent_name.lower() == f"{existing_agent.name.lower()}-agent" or
-                agent_name.lower() == f"{existing_agent.name.lower()}_agent"):
+            if (
+                agent_name.lower() == f"{existing_agent.name.lower()}agent"
+                or agent_name.lower() == f"{existing_agent.name.lower()}-agent"
+                or agent_name.lower() == f"{existing_agent.name.lower()}_agent"
+            ):
                 # Use the base agent name instead
                 normalized_agent_name = existing_agent.name
-                logger.info(f"Normalized agent name '{agent_name}' to '{normalized_agent_name}'")
+                logger.info(
+                    f"Normalized agent name '{agent_name}' to '{normalized_agent_name}'"
+                )
                 break
-        
+
         # Use normalized name for all operations
         agent_name = normalized_agent_name
-        
+
         # Get or create user
         user_id = await get_or_create_user(request.user_id, request.user)
-            
+
         # Use agent name as-is for database lookup
         db_agent_name = agent_name
-        
+
         # Try to get the agent from the database to get its ID
         agent_db = await run_in_threadpool(get_agent_by_name, db_agent_name)
         agent_id = agent_db.id if agent_db else None
-        
+
         # Get or create session based on request parameters
         session_id, message_history = await get_or_create_session(
-            session_id=request.session_id, 
-            session_name=request.session_name, 
+            session_id=request.session_id,
+            session_name=request.session_name,
             agent_id=agent_id,
-            user_id=user_id
+            user_id=user_id,
         )
-        
+
         # For agents that don't exist, avoid creating any messages in the database
         if agent_name.startswith("nonexistent_") or "_nonexistent_" in agent_name:
-            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
-            
+            raise HTTPException(
+                status_code=404, detail=f"Agent not found: {agent_name}"
+            )
+
         # Initialize the agent - use agent name as-is
         factory = AgentFactory()
         agent_type = agent_name
-        
+
         # Use get_agent instead of create_agent to reuse existing instances
         try:
             agent = factory.get_agent(agent_type)
-            
+
             # Check if agent exists
             if not agent or agent.__class__.__name__ == "PlaceholderAgent":
-                raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
-                
+                raise HTTPException(
+                    status_code=404, detail=f"Agent not found: {agent_name}"
+                )
+
             # Set the agent ID from database if available
             if agent_id and not agent.db_id:
                 agent.db_id = agent_id
                 logger.info(f"Set agent {agent_name} database ID to {agent_id}")
-                
+
             # Update the agent with the request parameters if provided
             if request.parameters:
                 agent.update_config(request.parameters)
         except Exception as e:
             logger.error(f"Error getting agent {agent_name}: {str(e)}")
-            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
+            raise HTTPException(
+                status_code=404, detail=f"Agent not found: {agent_name}"
+            )
 
         # Extract content and content type from the request
         content = request.message_content
-        
+
         # Apply system prompt override if provided
         if request.system_prompt:
             agent.system_prompt = request.system_prompt
-        
+
         # Link the agent to the session in the database if we have a persistent session
         if session_id and not getattr(message_history, "no_auto_create", False):
             # This will register the agent in the database and assign it a db_id
@@ -314,103 +364,128 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 if agent_db:
                     # Set the db_id directly on the agent object
                     agent.db_id = agent_db.id
-                    logger.info(f"Updated agent {agent_name} with database ID {agent_db.id}")
+                    logger.info(
+                        f"Updated agent {agent_name} with database ID {agent_db.id}"
+                    )
             else:
-                logger.warning(f"Failed to link agent {agent_name} to session {session_id}")
+                logger.warning(
+                    f"Failed to link agent {agent_name} to session {session_id}"
+                )
                 # Continue anyway, as this is not a critical error
-        
+
         # Process multimodal content (if any)
         multimodal_content = {}
-        
+
         if request.media_contents:
-            logger.debug(f"Processing {len(request.media_contents)} media content items")
+            logger.debug(
+                f"Processing {len(request.media_contents)} media content items"
+            )
             for content_item in request.media_contents:
                 try:
                     mime_type = content_item.mime_type
                     logger.debug(f"Processing media item with MIME type: {mime_type}")
-                    
+
                     if mime_type.startswith("image/"):
                         if "images" not in multimodal_content:
                             multimodal_content["images"] = []
-                        
+
                         # Get data from either URL or binary data field
                         data_content = None
-                        if hasattr(content_item, 'data') and content_item.data:
+                        if hasattr(content_item, "data") and content_item.data:
                             data_content = content_item.data
-                        elif hasattr(content_item, 'media_url') and content_item.media_url:
+                        elif (
+                            hasattr(content_item, "media_url")
+                            and content_item.media_url
+                        ):
                             data_content = content_item.media_url
-                        
+
                         if data_content:
-                            multimodal_content["images"].append({
-                                "data": data_content,
-                                "mime_type": mime_type
-                            })
-                            logger.debug(f"Added image to multimodal content: {mime_type}")
+                            multimodal_content["images"].append(
+                                {"data": data_content, "mime_type": mime_type}
+                            )
+                            logger.debug(
+                                f"Added image to multimodal content: {mime_type}"
+                            )
                         else:
-                            logger.warning("Image content item has no data or media_url")
-                            
+                            logger.warning(
+                                "Image content item has no data or media_url"
+                            )
+
                     elif mime_type.startswith("audio/"):
                         if "audio" not in multimodal_content:
                             multimodal_content["audio"] = []
-                        
+
                         # Get data from either URL or binary data field
                         data_content = None
-                        if hasattr(content_item, 'data') and content_item.data:
+                        if hasattr(content_item, "data") and content_item.data:
                             data_content = content_item.data
-                        elif hasattr(content_item, 'media_url') and content_item.media_url:
+                        elif (
+                            hasattr(content_item, "media_url")
+                            and content_item.media_url
+                        ):
                             data_content = content_item.media_url
-                        
+
                         if data_content:
-                            multimodal_content["audio"].append({
-                                "data": data_content,
-                                "mime_type": mime_type
-                            })
-                            logger.debug(f"Added audio to multimodal content: {mime_type}")
+                            multimodal_content["audio"].append(
+                                {"data": data_content, "mime_type": mime_type}
+                            )
+                            logger.debug(
+                                f"Added audio to multimodal content: {mime_type}"
+                            )
                         else:
-                            logger.warning("Audio content item has no data or media_url")
-                            
+                            logger.warning(
+                                "Audio content item has no data or media_url"
+                            )
+
                     elif mime_type.startswith(("application/", "text/")):
                         if "documents" not in multimodal_content:
                             multimodal_content["documents"] = []
-                        
+
                         # Get data from either URL or binary data field
                         data_content = None
-                        if hasattr(content_item, 'data') and content_item.data:
+                        if hasattr(content_item, "data") and content_item.data:
                             data_content = content_item.data
-                        elif hasattr(content_item, 'media_url') and content_item.media_url:
+                        elif (
+                            hasattr(content_item, "media_url")
+                            and content_item.media_url
+                        ):
                             data_content = content_item.media_url
-                        
+
                         if data_content:
-                            multimodal_content["documents"].append({
-                                "data": data_content,
-                                "mime_type": mime_type
-                            })
-                            logger.debug(f"Added document to multimodal content: {mime_type}")
+                            multimodal_content["documents"].append(
+                                {"data": data_content, "mime_type": mime_type}
+                            )
+                            logger.debug(
+                                f"Added document to multimodal content: {mime_type}"
+                            )
                         else:
-                            logger.warning("Document content item has no data or media_url")
+                            logger.warning(
+                                "Document content item has no data or media_url"
+                            )
                     else:
                         logger.warning(f"Unsupported MIME type: {mime_type}")
-                        
+
                 except Exception as e:
                     logger.error(f"Error processing media content item: {str(e)}")
                     continue
-            
+
             logger.debug(f"Final multimodal_content: {multimodal_content}")
-        
 
         # Add multimodal content to the message
         combined_content = {"text": content}
         if multimodal_content:
             combined_content.update(multimodal_content)
-        
+
         # Process the message history
         if request.messages:
             # Use provided messages
             pass
         elif message_history:
             # Use message history
-            history_messages, _ = await run_in_threadpool(message_history.get_messages, 1, 100, False)
-        
+            history_messages, _ = await run_in_threadpool(
+                message_history.get_messages, 1, 100, False
+            )
+
         # -----------------------------------------------
         # Prepare context (system prompt + multimodal)
         # -----------------------------------------------
@@ -423,20 +498,20 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Attach multimodal content so downstream agent can detect it
         if multimodal_content:
             context["multimodal_content"] = multimodal_content
-        
+
         # Run the agent
         response_content = None
         try:
             if content:
                 response_content = await agent.process_message(
-                    user_message=content, 
+                    user_message=content,
                     session_id=session_id,
                     agent_id=agent_id,
                     user_id=user_id,
                     message_history=message_history if message_history else None,
                     channel_payload=request.channel_payload,
                     context=context,
-                    message_limit=request.message_limit
+                    message_limit=request.message_limit,
                 )
             else:
                 # No content, run with empty string but still pass context for multimodal content
@@ -448,12 +523,14 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     message_history=message_history if message_history else None,
                     channel_payload=request.channel_payload,
                     context=context,
-                    message_limit=request.message_limit
+                    message_limit=request.message_limit,
                 )
         except Exception as e:
             logger.error(f"Agent execution error: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}")
-        
+            raise HTTPException(
+                status_code=500, detail=f"Agent execution failed: {str(e)}"
+            )
+
         # Process the response
         if isinstance(response_content, str):
             # Simple string response
@@ -465,12 +542,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             # Complex response from agent
             try:
                 # Check if response_content is an object with attributes or a dict
-                if hasattr(response_content, 'text'):
+                if hasattr(response_content, "text"):
                     # Object with attributes (AgentResponse)
                     response_text = response_content.text
-                    success = getattr(response_content, 'success', True)
-                    tool_calls = getattr(response_content, 'tool_calls', [])
-                    tool_outputs = getattr(response_content, 'tool_outputs', [])
+                    success = getattr(response_content, "success", True)
+                    tool_calls = getattr(response_content, "tool_calls", [])
+                    tool_outputs = getattr(response_content, "tool_outputs", [])
                 else:
                     # Dictionary
                     response_text = response_content.get("text", str(response_content))
@@ -483,7 +560,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 success = True
                 tool_calls = []
                 tool_outputs = []
-        
+
         # Format response according to the original API
         # Ensure session_id is always a string
         return {
@@ -497,32 +574,42 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         raise
     except Exception as e:
         logger.error(f"Error running agent: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to run agent: {str(e)}") 
-    
-    
-async def get_or_create_session(session_id=None, session_name=None, agent_id=None, user_id=None):
+        raise HTTPException(status_code=500, detail=f"Failed to run agent: {str(e)}")
+
+
+async def get_or_create_session(
+    session_id=None, session_name=None, agent_id=None, user_id=None
+):
     """Helper function to get or create a session based on provided parameters"""
     if session_id:
         # Validate and use existing session by ID
         if not safe_uuid(session_id):
-            raise HTTPException(status_code=400, detail=f"Invalid session ID format: {session_id}")
-        
-        history = await run_in_threadpool(lambda: MessageHistory(session_id=session_id, user_id=user_id))
-        
+            raise HTTPException(
+                status_code=400, detail=f"Invalid session ID format: {session_id}"
+            )
+
+        history = await run_in_threadpool(
+            lambda: MessageHistory(session_id=session_id, user_id=user_id)
+        )
+
         # Verify session exists
         if not await run_in_threadpool(history.get_session_info):
-            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Session not found: {session_id}"
+            )
+
         return session_id, history
 
     elif session_name:
         # Try to find existing session by name
         session = await run_in_threadpool(get_session_by_name, session_name)
-        
+
         if session:
             # Use existing session
             session_id = str(session.id)
-            return session_id, await run_in_threadpool(lambda: MessageHistory(session_id=session_id, user_id=user_id))
+            return session_id, await run_in_threadpool(
+                lambda: MessageHistory(session_id=session_id, user_id=user_id)
+            )
         else:
             # Create new named session
             session_id = generate_uuid()
@@ -530,17 +617,23 @@ async def get_or_create_session(session_id=None, session_name=None, agent_id=Non
                 id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
                 name=session_name,
                 agent_id=agent_id,
-                user_id=user_id
+                user_id=user_id,
             )
-            
+
             if not await run_in_threadpool(create_session, session):
                 logger.error(f"Failed to create session with name {session_name}")
                 raise HTTPException(status_code=500, detail="Failed to create session")
-            
-            return str(session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(session_id), user_id=user_id))
+
+            return str(session_id), await run_in_threadpool(
+                lambda: MessageHistory(session_id=str(session_id), user_id=user_id)
+            )
 
     else:
         # Create temporary in-memory session (don't persist to database for performance)
         temp_session_id = str(uuid.uuid4())
         logger.debug(f"Creating temporary in-memory session: {temp_session_id}")
-        return str(temp_session_id), await run_in_threadpool(lambda: MessageHistory(session_id=str(temp_session_id), user_id=user_id, no_auto_create=True))
+        return str(temp_session_id), await run_in_threadpool(
+            lambda: MessageHistory(
+                session_id=str(temp_session_id), user_id=user_id, no_auto_create=True
+            )
+        )
