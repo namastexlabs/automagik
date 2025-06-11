@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -72,94 +72,16 @@ class WorkflowInfo(BaseModel):
     valid: bool = Field(..., description="Whether the workflow is valid")
 
 
-async def execute_claude_code_async(
-    run_id: str,
-    request: ClaudeCodeRunRequest,
-    session_id: str
-) -> None:
-    """Execute Claude-Code agent in background."""
-    try:
-        logger.info(f"Starting async Claude-Code execution for run {run_id}")
-        
-        # Get the claude-code agent
-        agent = AgentFactory.get_agent("claude_code")
-        if not agent:
-            raise HTTPException(status_code=404, detail="Claude-Code agent not found")
-        
-        # Update session metadata to mark as running
-        session = session_repo.get_session(uuid.UUID(session_id))
-        if session:
-            metadata = session.metadata or {}
-            metadata.update({
-                "run_id": run_id,
-                "run_status": "running",
-                "started_at": datetime.utcnow().isoformat(),
-                "workflow_name": request.workflow_name,
-                "container_id": None  # Will be updated by agent
-            })
-            session.metadata = metadata
-            session_repo.update_session(session)
-        
-        # Set workflow context for the agent
-        agent.context["workflow_name"] = request.workflow_name
-        agent.context["session_id"] = session_id
-        agent.context["run_id"] = run_id  # Pass run_id for log management
-        if request.repository_url:
-            agent.context["repository_url"] = request.repository_url
-        if request.git_branch:
-            agent.config["git_branch"] = request.git_branch
-        
-        # Execute the Claude-Code agent
-        result = await agent.run(
-            input_text=request.message,
-            message_history_obj=None  # Agent handles its own message storage
-        )
-        
-        # Update session with completion status
-        if session:
-            metadata = session.metadata or {}
-            metadata.update({
-                "run_id": run_id,
-                "run_status": "completed" if result.success else "failed",
-                "completed_at": datetime.utcnow().isoformat(),
-                "result": result.text if result.success else None,
-                "error": result.error_message if not result.success else None
-            })
-            session.metadata = metadata
-            session_repo.update_session(session)
-        
-        logger.info(f"Claude-Code execution completed for run {run_id}, success: {result.success}")
-        
-    except Exception as e:
-        logger.error(f"Claude-Code async execution failed for run {run_id}: {e}")
-        
-        # Update session with error status
-        try:
-            session = session_repo.get_session(uuid.UUID(session_id))
-            if session:
-                metadata = session.metadata or {}
-                metadata.update({
-                    "run_id": run_id,
-                    "run_status": "failed",
-                    "completed_at": datetime.utcnow().isoformat(),
-                    "error": str(e)
-                })
-                session.metadata = metadata
-                session_repo.update_session(session)
-        except Exception as update_error:
-            logger.error(f"Failed to update session after error: {update_error}")
-
 
 @claude_code_router.post("/run", response_model=ClaudeCodeRunResponse)
 async def run_claude_code_workflow(
-    request: ClaudeCodeRunRequest,
-    background_tasks: BackgroundTasks
+    request: ClaudeCodeRunRequest
 ) -> ClaudeCodeRunResponse:
     """
-    Start a Claude-Code workflow execution asynchronously.
+    Start a Claude-Code workflow execution and return first response.
     
     This endpoint starts a containerized Claude CLI execution for the specified workflow
-    and returns immediately with a run_id for status tracking.
+    and waits for the first Claude response before returning.
     
     **Supported Workflows:**
     - `architect`: Design system architecture
@@ -184,7 +106,7 @@ async def run_claude_code_workflow(
     ```
     
     **Returns:**
-    Immediate response with run_id for status polling.
+    Response with first Claude message and run_id for continued status polling.
     """
     try:
         # Validate workflow exists
@@ -242,21 +164,39 @@ async def run_claude_code_workflow(
         )
         session_id = session_repo.create_session(session)
         
-        # Start background execution
-        background_tasks.add_task(
-            execute_claude_code_async,
-            run_id,
-            request,
-            str(session_id)
+        # Execute synchronously until first response
+        result = await agent.execute_until_first_response(
+            input_text=request.message,
+            workflow_name=request.workflow_name,
+            session_id=str(session_id),
+            git_branch=request.git_branch,
+            max_turns=request.max_turns,
+            timeout=request.timeout,
+            repository_url=request.repository_url
         )
         
+        # Update session metadata with execution results
+        if session:
+            metadata = session.metadata or {}
+            metadata.update({
+                "run_id": result.get("run_id"),
+                "run_status": result.get("status"),
+                "started_at": result.get("started_at"),
+                "workflow_name": request.workflow_name,
+                "claude_session_id": result.get("claude_session_id"),
+                "git_branch": result.get("git_branch")
+            })
+            session.metadata = metadata
+            session_repo.update_session(session)
+        
+        # Return response with actual Claude message
         return ClaudeCodeRunResponse(
-            run_id=run_id,
-            status="pending",
-            message=f"Claude-Code {request.workflow_name} workflow started",
+            run_id=result.get("run_id", run_id),
+            status=result.get("status", "failed"),
+            message=result.get("message", f"Failed to start {request.workflow_name} workflow"),
             session_id=str(session_id),
             workflow_name=request.workflow_name,
-            started_at=datetime.utcnow()
+            started_at=datetime.fromisoformat(result.get("started_at")) if result.get("started_at") else datetime.utcnow()
         )
         
     except HTTPException:
