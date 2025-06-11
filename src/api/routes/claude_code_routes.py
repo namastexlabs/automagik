@@ -7,11 +7,12 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.models.agent_factory import AgentFactory
-from src.auth import get_api_key as verify_api_key
+from src.agents.claude_code.log_manager import get_log_manager
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
 
@@ -23,13 +24,15 @@ claude_code_router = APIRouter(prefix="/agent/claude-code", tags=["Claude-Code"]
 
 class ClaudeCodeRunRequest(BaseModel):
     """Request for Claude-Code agent execution."""
+    workflow_name: str = Field(..., description="Workflow to execute (e.g., 'architect', 'implement', 'test')")
     message: str = Field(..., description="Task description for Claude to execute")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuation")
     max_turns: int = Field(default=30, ge=1, le=100, description="Maximum number of turns")
-    git_branch: str = Field(default="NMSTX-187-langgraph-orchestrator-migration", description="Git branch to work on")
+    git_branch: Optional[str] = Field(None, description="Git branch to work on (defaults to current branch)")
     timeout: Optional[int] = Field(default=7200, ge=60, le=14400, description="Execution timeout in seconds")
     user_id: Optional[str] = Field(None, description="User ID for the request")
     session_name: Optional[str] = Field(None, description="Optional session name")
+    repository_url: Optional[str] = Field(None, description="Git repository URL to clone (defaults to current repository if not specified)")
 
 
 class ClaudeCodeRunResponse(BaseModel):
@@ -71,7 +74,6 @@ class WorkflowInfo(BaseModel):
 
 async def execute_claude_code_async(
     run_id: str,
-    workflow_name: str,
     request: ClaudeCodeRunRequest,
     session_id: str
 ) -> None:
@@ -92,15 +94,20 @@ async def execute_claude_code_async(
                 "run_id": run_id,
                 "run_status": "running",
                 "started_at": datetime.utcnow().isoformat(),
-                "workflow_name": workflow_name,
+                "workflow_name": request.workflow_name,
                 "container_id": None  # Will be updated by agent
             })
             session.metadata = metadata
             session_repo.update_session(session)
         
         # Set workflow context for the agent
-        agent.context["workflow_name"] = workflow_name
+        agent.context["workflow_name"] = request.workflow_name
         agent.context["session_id"] = session_id
+        agent.context["run_id"] = run_id  # Pass run_id for log management
+        if request.repository_url:
+            agent.context["repository_url"] = request.repository_url
+        if request.git_branch:
+            agent.config["git_branch"] = request.git_branch
         
         # Execute the Claude-Code agent
         result = await agent.run(
@@ -143,12 +150,10 @@ async def execute_claude_code_async(
             logger.error(f"Failed to update session after error: {update_error}")
 
 
-@claude_code_router.post("/{workflow_name}/run", response_model=ClaudeCodeRunResponse)
+@claude_code_router.post("/run", response_model=ClaudeCodeRunResponse)
 async def run_claude_code_workflow(
-    workflow_name: str,
     request: ClaudeCodeRunRequest,
-    background_tasks: BackgroundTasks,
-    api_key: str = Depends(verify_api_key)
+    background_tasks: BackgroundTasks
 ) -> ClaudeCodeRunResponse:
     """
     Start a Claude-Code workflow execution asynchronously.
@@ -157,19 +162,24 @@ async def run_claude_code_workflow(
     and returns immediately with a run_id for status tracking.
     
     **Supported Workflows:**
-    - `bug-fixer`: Fix bugs and issues in code
-    - `feature-dev`: Develop new features
-    - `code-review`: Review code changes
     - `architect`: Design system architecture
     - `implement`: Implement features from architecture
+    - `test`: Write and run tests
+    - `review`: Review code changes
+    - `fix`: Fix bugs and issues
+    - `refactor`: Refactor code
+    - `document`: Create documentation
+    - `pr`: Prepare pull requests
     
     **Example:**
     ```bash
-    POST /api/v1/agent/claude-code/bug-fixer/run
+    POST /api/v1/agent/claude-code/run
     {
+        "workflow_name": "fix",
         "message": "Fix the session timeout issue in agent controller",
-        "git_branch": "fix/session-timeout",
-        "max_turns": 50
+        "git_branch": "fix/session-timeout",  // Optional - defaults to current branch
+        "max_turns": 50,
+        "repository_url": "https://github.com/myorg/myrepo.git"
     }
     ```
     
@@ -184,19 +194,19 @@ async def run_claude_code_workflow(
         
         # Get available workflows
         workflows = await agent.get_available_workflows()
-        if workflow_name not in workflows:
+        if request.workflow_name not in workflows:
             available = list(workflows.keys())
             raise HTTPException(
                 status_code=404, 
-                detail=f"Workflow '{workflow_name}' not found. Available: {available}"
+                detail=f"Workflow '{request.workflow_name}' not found. Available: {available}"
             )
         
         # Validate workflow is valid
-        workflow_info = workflows[workflow_name]
+        workflow_info = workflows[request.workflow_name]
         if not workflow_info.get("valid", False):
             raise HTTPException(
                 status_code=400,
-                detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}"
+                detail=f"Workflow '{request.workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}"
             )
         
         # Generate run ID
@@ -218,13 +228,13 @@ async def run_claude_code_workflow(
         from src.db.models import Session
         session = Session(
             agent_id=None,  # Will be set when agent is loaded
-            name=request.session_name or f"claude-code-{workflow_name}-{run_id}",
+            name=request.session_name or f"claude-code-{request.workflow_name}-{run_id}",
             platform="claude-code-api",
             user_id=uuid.UUID(user_id) if user_id else None,
             metadata={
                 "run_id": run_id,
                 "run_status": "pending",
-                "workflow_name": workflow_name,
+                "workflow_name": request.workflow_name,
                 "created_at": datetime.utcnow().isoformat(),
                 "request": request.dict(),
                 "agent_type": "claude-code"
@@ -236,7 +246,6 @@ async def run_claude_code_workflow(
         background_tasks.add_task(
             execute_claude_code_async,
             run_id,
-            workflow_name,
             request,
             str(session_id)
         )
@@ -244,23 +253,22 @@ async def run_claude_code_workflow(
         return ClaudeCodeRunResponse(
             run_id=run_id,
             status="pending",
-            message=f"Claude-Code {workflow_name} workflow started",
+            message=f"Claude-Code {request.workflow_name} workflow started",
             session_id=str(session_id),
-            workflow_name=workflow_name,
+            workflow_name=request.workflow_name,
             started_at=datetime.utcnow()
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error starting Claude-Code workflow {workflow_name}: {e}")
+        logger.error(f"Error starting Claude-Code workflow {request.workflow_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start workflow: {str(e)}")
 
 
 @claude_code_router.get("/run/{run_id}/status", response_model=ClaudeCodeStatusResponse)
 async def get_claude_code_run_status(
-    run_id: str,
-    api_key: str = Depends(verify_api_key)
+    run_id: str
 ) -> ClaudeCodeStatusResponse:
     """
     Get the status of a Claude-Code run.
@@ -310,7 +318,32 @@ async def get_claude_code_run_status(
         container_id = metadata.get('container_id')
         git_commits = metadata.get('git_commits', [])
         exit_code = metadata.get('exit_code')
-        logs = metadata.get('logs')
+        
+        # Get live logs from log manager
+        log_manager = get_log_manager()
+        log_entries = await log_manager.get_logs(run_id, follow=False)  # Get all logs
+        
+        # Convert log entries to text format for API response
+        logs = ""
+        if log_entries:
+            log_lines = []
+            for entry in log_entries[-1000:]:  # Last 1000 entries to avoid huge responses
+                timestamp = entry.get('timestamp', '')
+                event_type = entry.get('event_type', 'log')
+                data = entry.get('data', {})
+                
+                # Extract message from data
+                if isinstance(data, dict):
+                    message = data.get('message', str(data))
+                else:
+                    message = str(data)
+                
+                log_lines.append(f"{timestamp} [{event_type}] {message}")
+            
+            logs = "\n".join(log_lines)
+        
+        # Get log summary for additional metadata
+        log_summary = await log_manager.get_log_summary(run_id)
         
         # Calculate execution time if we have start/end times
         started_at_str = metadata.get('started_at')
@@ -319,6 +352,14 @@ async def get_claude_code_run_status(
             try:
                 start_time = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
                 end_time = datetime.fromisoformat(completed_at_str.replace('Z', '+00:00'))
+                execution_time = (end_time - start_time).total_seconds()
+            except Exception:
+                pass
+        elif log_summary.get("start_time") and log_summary.get("end_time"):
+            # Fallback to log timestamps
+            try:
+                start_time = datetime.fromisoformat(log_summary["start_time"].replace('Z', '+00:00'))
+                end_time = datetime.fromisoformat(log_summary["end_time"].replace('Z', '+00:00'))
                 execution_time = (end_time - start_time).total_seconds()
             except Exception:
                 pass
@@ -360,9 +401,7 @@ async def get_claude_code_run_status(
 
 
 @claude_code_router.get("/workflows", response_model=List[WorkflowInfo])
-async def list_claude_code_workflows(
-    api_key: str = Depends(verify_api_key)
-) -> List[WorkflowInfo]:
+async def list_claude_code_workflows() -> List[WorkflowInfo]:
     """
     List all available Claude-Code workflows.
     
@@ -403,9 +442,7 @@ async def list_claude_code_workflows(
 
 
 @claude_code_router.get("/health")
-async def claude_code_health(
-    api_key: str = Depends(verify_api_key)
-) -> Dict[str, Any]:
+async def claude_code_health() -> Dict[str, Any]:
     """
     Check Claude-Code agent health and status.
     
@@ -422,15 +459,28 @@ async def claude_code_health(
             "feature_enabled": False
         }
         
-        # Check if claude CLI is available by looking for credentials
+        # Check if claude CLI is available
+        from src.agents.claude_code.cli_executor import is_claude_available, get_claude_path
+        claude_available = is_claude_available()
+        claude_path = get_claude_path()
+        
+        health_status["feature_enabled"] = claude_available
+        health_status["claude_cli_path"] = claude_path
+        
+        if not claude_available:
+            health_status["status"] = "disabled"
+            health_status["message"] = (
+                "Claude CLI not found. Please install it with: npm install -g @anthropic-ai/claude-cli\n"
+                "Make sure Node.js is installed and the claude command is in your PATH."
+            )
+            return health_status
+        
+        # Also check for credentials
         from pathlib import Path
         claude_credentials = Path.home() / ".claude" / ".credentials.json"
-        health_status["feature_enabled"] = claude_credentials.exists()
-        
-        if not health_status["feature_enabled"]:
-            health_status["status"] = "disabled"
-            health_status["message"] = f"Claude CLI not configured (no credentials at {claude_credentials})"
-            return health_status
+        if not claude_credentials.exists():
+            health_status["status"] = "warning"
+            health_status["message"] = f"Claude CLI found at {claude_path} but no credentials at {claude_credentials}"
         
         # Check agent availability
         try:
@@ -461,3 +511,5 @@ async def claude_code_health(
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e)
         }
+
+

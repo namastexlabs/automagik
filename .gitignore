@@ -204,6 +204,10 @@ mem0/
 .claude/scripts/sessions/
 .mcp.json
 
+# Claude Code workflow workspaces (should be in /tmp, not in project)
+src/agents/claude_code/workflows/*/workflow/
+src/agents/claude_code/workflows/*/am-agents-labs/
+
 # Makefile artifacts
 .make/
 .makefile-state

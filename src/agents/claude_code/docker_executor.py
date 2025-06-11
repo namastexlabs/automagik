@@ -74,7 +74,9 @@ class DockerExecutor(ExecutorBase):
                 session_id=session_id,
                 workflow_name=request.workflow_name,
                 environment=environment,
-                volumes=volumes
+                volumes=volumes,
+                git_branch=request.git_branch,
+                repository_url=request.repository_url
             )
             
             # Build Claude command
@@ -188,15 +190,40 @@ class DockerExecutor(ExecutorBase):
         Returns:
             Dictionary of environment variables
         """
+        # Import here to avoid circular import
+        from .repository_utils import get_current_git_branch, find_repo_root
+        
+        # Determine repository name
+        if request.repository_url:
+            # Remote repository - extract name from URL
+            repo_url = request.repository_url
+            repo_name = repo_url.rstrip('/').split('/')[-1]
+            if repo_name.endswith('.git'):
+                repo_name = repo_name[:-4]
+        else:
+            # Local repository - get name from current repo
+            repo_root = await find_repo_root()
+            repo_name = repo_root.name if repo_root else "am-agents-labs"
+        
+        # Determine git branch
+        git_branch = request.git_branch
+        if not git_branch:
+            git_branch = await get_current_git_branch() or "main"
+        
         env = {
             'SESSION_ID': request.session_id or '',
             'WORKFLOW_NAME': request.workflow_name,
-            'GIT_BRANCH': request.git_branch,
+            'GIT_BRANCH': git_branch,
             'CLAUDE_MESSAGE': request.message,
             'MAX_TURNS': str(request.max_turns),
-            'WORKSPACE_DIR': '/workspace/am-agents-labs',
-            'WORKFLOW_DIR': '/workspace/workflow'
+            'WORKSPACE_DIR': f'/workspace/{repo_name}',
+            'WORKFLOW_DIR': '/workspace/workflow',
+            'REPO_SETUP_TYPE': 'remote_clone' if request.repository_url else 'local_copy'
         }
+        
+        # Add repository URL if specified
+        if request.repository_url:
+            env['REPOSITORY_URL'] = request.repository_url
         
         # Add agent context variables
         if agent_context:
