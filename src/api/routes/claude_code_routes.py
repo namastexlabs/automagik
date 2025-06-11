@@ -8,9 +8,11 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.models.agent_factory import AgentFactory
+from src.agents.claude_code.log_manager import get_log_manager
 from src.auth import get_api_key as verify_api_key
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
@@ -101,6 +103,7 @@ async def execute_claude_code_async(
         # Set workflow context for the agent
         agent.context["workflow_name"] = workflow_name
         agent.context["session_id"] = session_id
+        agent.context["run_id"] = run_id  # Pass run_id for log management
         
         # Execute the Claude-Code agent
         result = await agent.run(
@@ -310,7 +313,32 @@ async def get_claude_code_run_status(
         container_id = metadata.get('container_id')
         git_commits = metadata.get('git_commits', [])
         exit_code = metadata.get('exit_code')
-        logs = metadata.get('logs')
+        
+        # Get live logs from log manager
+        log_manager = get_log_manager()
+        log_entries = await log_manager.get_logs(run_id, follow=False)  # Get all logs
+        
+        # Convert log entries to text format for API response
+        logs = ""
+        if log_entries:
+            log_lines = []
+            for entry in log_entries[-1000:]:  # Last 1000 entries to avoid huge responses
+                timestamp = entry.get('timestamp', '')
+                event_type = entry.get('event_type', 'log')
+                data = entry.get('data', {})
+                
+                # Extract message from data
+                if isinstance(data, dict):
+                    message = data.get('message', str(data))
+                else:
+                    message = str(data)
+                
+                log_lines.append(f"{timestamp} [{event_type}] {message}")
+            
+            logs = "\n".join(log_lines)
+        
+        # Get log summary for additional metadata
+        log_summary = await log_manager.get_log_summary(run_id)
         
         # Calculate execution time if we have start/end times
         started_at_str = metadata.get('started_at')
@@ -319,6 +347,14 @@ async def get_claude_code_run_status(
             try:
                 start_time = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
                 end_time = datetime.fromisoformat(completed_at_str.replace('Z', '+00:00'))
+                execution_time = (end_time - start_time).total_seconds()
+            except Exception:
+                pass
+        elif log_summary.get("start_time") and log_summary.get("end_time"):
+            # Fallback to log timestamps
+            try:
+                start_time = datetime.fromisoformat(log_summary["start_time"].replace('Z', '+00:00'))
+                end_time = datetime.fromisoformat(log_summary["end_time"].replace('Z', '+00:00'))
                 execution_time = (end_time - start_time).total_seconds()
             except Exception:
                 pass
@@ -422,15 +458,28 @@ async def claude_code_health(
             "feature_enabled": False
         }
         
-        # Check if claude CLI is available by looking for credentials
+        # Check if claude CLI is available
+        from src.agents.claude_code.cli_executor import is_claude_available, get_claude_path
+        claude_available = is_claude_available()
+        claude_path = get_claude_path()
+        
+        health_status["feature_enabled"] = claude_available
+        health_status["claude_cli_path"] = claude_path
+        
+        if not claude_available:
+            health_status["status"] = "disabled"
+            health_status["message"] = (
+                "Claude CLI not found. Please install it with: npm install -g @anthropic-ai/claude-cli\n"
+                "Make sure Node.js is installed and the claude command is in your PATH."
+            )
+            return health_status
+        
+        # Also check for credentials
         from pathlib import Path
         claude_credentials = Path.home() / ".claude" / ".credentials.json"
-        health_status["feature_enabled"] = claude_credentials.exists()
-        
-        if not health_status["feature_enabled"]:
-            health_status["status"] = "disabled"
-            health_status["message"] = f"Claude CLI not configured (no credentials at {claude_credentials})"
-            return health_status
+        if not claude_credentials.exists():
+            health_status["status"] = "warning"
+            health_status["message"] = f"Claude CLI found at {claude_path} but no credentials at {claude_credentials}"
         
         # Check agent availability
         try:
@@ -461,3 +510,93 @@ async def claude_code_health(
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e)
         }
+
+
+@claude_code_router.get("/run/{run_id}/logs")
+async def get_claude_code_run_logs(
+    run_id: str,
+    lines: Optional[int] = None,
+    follow: bool = False,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get or stream logs for a Claude-Code run.
+    
+    **Parameters:**
+    - `lines`: Number of lines to return (None for all)
+    - `follow`: If true, stream new log entries as they arrive
+    
+    **Example:**
+    ```bash
+    GET /api/v1/agent/claude-code/run/run_abc123/logs?lines=100
+    GET /api/v1/agent/claude-code/run/run_abc123/logs?follow=true
+    ```
+    
+    **Returns:**
+    Log content as text or streaming response if follow=true.
+    """
+    try:
+        log_manager = get_log_manager()
+        
+        if follow:
+            # Return streaming response
+            async def stream_logs():
+                async for entry in log_manager.get_logs(run_id, follow=True):
+                    # Convert log entry to text format
+                    yield f"{entry.get('timestamp', '')} [{entry.get('event_type', 'log')}] {entry.get('data', {}).get('message', entry.get('data', ''))}\n"
+            
+            return StreamingResponse(
+                stream_logs(),
+                media_type="text/plain",
+                headers={"Cache-Control": "no-cache"}
+            )
+        else:
+            # Return static logs
+            logs = await log_manager.get_logs(run_id, follow=False)
+            return {"run_id": run_id, "logs": logs}
+            
+    except Exception as e:
+        logger.error(f"Error getting logs for run {run_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
+
+
+@claude_code_router.get("/run/{run_id}/logs/summary")
+async def get_claude_code_run_log_summary(
+    run_id: str,
+    api_key: str = Depends(verify_api_key)
+) -> Dict[str, Any]:
+    """
+    Get log summary for a Claude-Code run.
+    
+    **Returns:**
+    Log summary with metrics like size, line count, and timestamps.
+    """
+    try:
+        log_manager = get_log_manager()
+        summary = await log_manager.get_log_summary(run_id)
+        return {"run_id": run_id, "summary": summary}
+        
+    except Exception as e:
+        logger.error(f"Error getting log summary for run {run_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get log summary: {str(e)}")
+
+
+@claude_code_router.get("/logs")
+async def list_claude_code_logs(
+    api_key: str = Depends(verify_api_key)
+) -> Dict[str, Any]:
+    """
+    List all available Claude-Code run logs.
+    
+    **Returns:**
+    List of run IDs with available log files.
+    """
+    try:
+        log_manager = get_log_manager()
+        log_files = log_manager.list_all_logs()
+        run_ids = [log_file['run_id'] for log_file in log_files]
+        return {"run_ids": run_ids, "count": len(run_ids), "log_files": log_files}
+        
+    except Exception as e:
+        logger.error(f"Error listing log files: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list logs: {str(e)}")
