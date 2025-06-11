@@ -521,29 +521,16 @@ class ClaudeCodeAgent(AutomagikAgent):
                     "session_id": session_id
                 }
             
-            # Execute Claude CLI and wait for session confirmation
-            # This uses the existing session detection infrastructure
-            execution_result = await self.executor.execute_claude_task(
+            # Execute Claude CLI until first response (not full completion)
+            # This creates a background task but returns early
+            first_response_data = await self.executor.execute_until_first_response(
                 request=request,
                 agent_context=self.context
             )
             
             # Extract session information and first response
-            claude_session_id = execution_result.get("session_id")
-            streaming_messages = execution_result.get("streaming_messages", [])
-            
-            # Get first substantial message from Claude (not just init)
-            first_response = None
-            for msg in streaming_messages:
-                if (msg.get("type") == "text" and 
-                    msg.get("content") and 
-                    len(msg["content"].strip()) > 50):  # Substantial content
-                    first_response = msg["content"]
-                    break
-            
-            # If no substantial text found, use the accumulated result
-            if not first_response and execution_result.get("result"):
-                first_response = execution_result["result"]
+            claude_session_id = first_response_data.get("session_id")
+            first_response = first_response_data.get("first_response")
             
             # Default response if nothing found
             if not first_response:
@@ -558,7 +545,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                         {
                             "response_length": len(first_response),
                             "claude_session_id": claude_session_id,
-                            "streaming_messages_count": len(streaming_messages)
+                            "streaming_started": first_response_data.get("streaming_started", False)
                         }
                     )
             
