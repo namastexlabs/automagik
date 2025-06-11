@@ -25,6 +25,28 @@ from .log_manager import get_log_manager
 
 logger = logging.getLogger(__name__)
 
+
+async def get_current_git_branch() -> str:
+    """Get the current git branch.
+    
+    Returns:
+        Current git branch name, or 'main' as fallback
+    """
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        branch = result.stdout.strip()
+        return branch if branch else "main"
+    except Exception as e:
+        logger.warning(f"Failed to get current git branch: {e}, defaulting to 'main'")
+        return "main"
+
+
 class ClaudeCodeAgent(AutomagikAgent):
     """ClaudeCodeAgent implementation using Docker containers.
     
@@ -68,7 +90,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             "max_concurrent_sessions": int(config.get("max_concurrent_sessions", "10")),
             "workspace_volume_prefix": config.get("workspace_volume_prefix", "claude-code-workspace"),
             "default_workflow": config.get("default_workflow", "bug-fixer"),
-            "git_branch": config.get("git_branch", "NMSTX-187-langgraph-orchestrator-migration")
+            "git_branch": config.get("git_branch")  # None by default, will use current branch
         })
         
         # Determine execution mode
@@ -160,13 +182,18 @@ class ClaudeCodeAgent(AutomagikAgent):
                     error_message=f"Invalid workflow: {workflow_name}"
                 )
             
+            # Get git branch - use current branch if not specified
+            git_branch = self.config.get("git_branch")
+            if git_branch is None:
+                git_branch = await get_current_git_branch()
+            
             # Create execution request
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=self.context.get("session_id"),
                 workflow_name=workflow_name,
                 max_turns=int(self.config.get("max_turns", "30")),
-                git_branch=self.config.get("git_branch"),
+                git_branch=git_branch,
                 timeout=self.config.get("container_timeout"),
                 repository_url=self.context.get("repository_url")  # Pass repository URL from context
             )
