@@ -75,7 +75,7 @@ class LogManager:
 
         Args:
             run_id: Unique run identifier
-            event_type: Type of event (init, progress, completion, error)
+            event_type: Type of event (execution_init, session_established, etc.)
             data: Event data (can be string, dict, or any JSON-serializable type)
         """
         file_lock = await self._get_file_lock(run_id)
@@ -83,11 +83,12 @@ class LogManager:
         async with file_lock:
             log_path = self.get_log_path(run_id)
 
-            # Create log entry in required format
+            # Create log entry in enhanced format
             log_entry = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "run_id": run_id,
                 "event_type": event_type,
+                "event_category": self._get_event_category(event_type),
                 "data": data,
             }
 
@@ -101,6 +102,32 @@ class LogManager:
             except Exception as e:
                 logger.error(f"Failed to write log entry for run {run_id}: {e}")
                 raise
+    
+    def _get_event_category(self, event_type: str) -> str:
+        """Categorize event types for better log analysis.
+        
+        Args:
+            event_type: The event type string
+            
+        Returns:
+            Category name for grouping similar events
+        """
+        # Map event types to categories
+        category_map = {
+            "execution_init": "lifecycle",
+            "command_debug": "debug",
+            "process_start": "lifecycle",
+            "session_established": "session",
+            "response_event": "claude",
+            "execution_complete": "lifecycle", 
+            "process_complete": "lifecycle",
+            "error": "error",
+            "stderr_event": "error",
+            "stderr_summary": "error",
+            "timeout": "error"
+        }
+        
+        return category_map.get(event_type, "other")
 
     async def get_logs(
         self, run_id: str, follow: bool = False
@@ -264,17 +291,21 @@ class LogManager:
             # Parse all log entries
             logs = await self._read_all_logs(run_id)
 
-            # Calculate metrics
+            # Calculate enhanced metrics
             event_types = {}
+            event_categories = {}
             error_count = 0
             start_time = None
             end_time = None
 
             for entry in logs:
                 event_type = entry.get("event_type", "unknown")
+                event_category = entry.get("event_category", "other")
+                
                 event_types[event_type] = event_types.get(event_type, 0) + 1
+                event_categories[event_category] = event_categories.get(event_category, 0) + 1
 
-                if event_type == "error":
+                if event_category == "error" or event_type in ["error", "stderr_event"]:
                     error_count += 1
 
                 timestamp = entry.get("timestamp")
@@ -305,6 +336,7 @@ class LogManager:
                 "end_time": end_time,
                 "duration_seconds": duration_seconds,
                 "event_types": event_types,
+                "event_categories": event_categories,
                 "error_count": error_count,
                 "last_activity": end_time,
                 "file_path": str(log_path),
@@ -462,9 +494,20 @@ class LogManager:
             if metadata:
                 # Sanitize metadata to ensure JSON serializability
                 try:
+                    # Test serialization and filter out large content
+                    sanitized_metadata = {}
+                    for key, value in metadata.items():
+                        # Skip very large values to reduce log bloat
+                        if isinstance(value, str) and len(value) > 2000:
+                            sanitized_metadata[key] = f"<large_content:{len(value)}_chars>"
+                        elif isinstance(value, list) and len(str(value)) > 2000:
+                            sanitized_metadata[key] = f"<large_list:{len(value)}_items>"
+                        else:
+                            sanitized_metadata[key] = value
+                    
                     # Test serialization
-                    json.dumps(metadata)
-                    log_data.update(metadata)
+                    json.dumps(sanitized_metadata)
+                    log_data.update(sanitized_metadata)
                 except (TypeError, ValueError) as e:
                     # If metadata is not serializable, log the error and continue with just the message
                     logger.warning(f"Metadata not JSON serializable for event_type '{event_type}': {e}")
@@ -472,8 +515,7 @@ class LogManager:
             await self.log_event(run_id, event_type, log_data)
         
         try:
-            # Initialize log file for this run
-            await self.log_event(run_id, "init", {"status": "log_writer_created"})
+            # Skip redundant init event - will be logged by execution_init
             yield log_writer
         finally:
             # Optional cleanup could go here
