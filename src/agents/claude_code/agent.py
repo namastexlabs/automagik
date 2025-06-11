@@ -444,6 +444,148 @@ class ClaudeCodeAgent(AutomagikAgent):
             logger.error(f"Error getting available workflows: {str(e)}")
             return workflows
     
+    async def execute_until_first_response(self, input_text: str, workflow_name: str, 
+                                         session_id: str, **kwargs) -> Dict[str, Any]:
+        """Execute Claude Code workflow and wait for first response from Claude.
+        
+        This method replaces background execution - it waits for the session to be
+        confirmed and potentially the first substantial response from Claude.
+        
+        Args:
+            input_text: Text input for the agent
+            workflow_name: Name of the workflow to execute
+            session_id: Session ID for this execution
+            **kwargs: Additional execution parameters
+            
+        Returns:
+            Dictionary with first response data including session_id and initial message
+        """
+        try:
+            # Generate unique run ID
+            run_id = f"run_{uuid.uuid4().hex[:12]}"
+            
+            # Get git branch - use current branch if not specified
+            git_branch = kwargs.get("git_branch") or self.config.get("git_branch")
+            if git_branch is None:
+                git_branch = await get_current_git_branch()
+            
+            # Create execution request
+            request = ClaudeCodeRunRequest(
+                message=input_text,
+                session_id=session_id,
+                workflow_name=workflow_name,
+                max_turns=kwargs.get("max_turns", 30),
+                git_branch=git_branch,
+                timeout=kwargs.get("timeout", self.config.get("container_timeout")),
+                repository_url=kwargs.get("repository_url")
+            )
+            
+            # Set context for execution
+            self.context.update({
+                "workflow_name": workflow_name,
+                "session_id": session_id,
+                "run_id": run_id
+            })
+            if kwargs.get("repository_url"):
+                self.context["repository_url"] = kwargs["repository_url"]
+            
+            # Setup log manager
+            log_manager = get_log_manager()
+            
+            # Log start of execution
+            if log_manager:
+                async with log_manager.get_log_writer(run_id) as log_writer:
+                    await log_writer(
+                        f"Starting execution until first response for workflow '{workflow_name}'",
+                        "event",
+                        {
+                            "workflow_name": workflow_name,
+                            "run_id": run_id,
+                            "session_id": session_id,
+                            "input_length": len(input_text)
+                        }
+                    )
+            
+            # Validate workflow exists
+            if not await self._validate_workflow(workflow_name):
+                error_msg = f"Workflow '{workflow_name}' not found or invalid"
+                if log_manager:
+                    async with log_manager.get_log_writer(run_id) as log_writer:
+                        await log_writer(error_msg, "error", {"workflow_name": workflow_name})
+                
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "status": "failed",
+                    "run_id": run_id,
+                    "session_id": session_id
+                }
+            
+            # Execute Claude CLI and wait for session confirmation
+            # This uses the existing session detection infrastructure
+            execution_result = await self.executor.execute_claude_task(
+                request=request,
+                agent_context=self.context
+            )
+            
+            # Extract session information and first response
+            claude_session_id = execution_result.get("session_id")
+            streaming_messages = execution_result.get("streaming_messages", [])
+            
+            # Get first substantial message from Claude (not just init)
+            first_response = None
+            for msg in streaming_messages:
+                if (msg.get("type") == "text" and 
+                    msg.get("content") and 
+                    len(msg["content"].strip()) > 50):  # Substantial content
+                    first_response = msg["content"]
+                    break
+            
+            # If no substantial text found, use the accumulated result
+            if not first_response and execution_result.get("result"):
+                first_response = execution_result["result"]
+            
+            # Default response if nothing found
+            if not first_response:
+                first_response = "Claude Code execution started. Processing your request..."
+            
+            # Log first response capture
+            if log_manager:
+                async with log_manager.get_log_writer(run_id) as log_writer:
+                    await log_writer(
+                        f"Captured first response: {first_response[:100]}...",
+                        "event",
+                        {
+                            "response_length": len(first_response),
+                            "claude_session_id": claude_session_id,
+                            "streaming_messages_count": len(streaming_messages)
+                        }
+                    )
+            
+            return {
+                "success": True,
+                "message": first_response,
+                "status": "running",
+                "run_id": run_id,
+                "session_id": session_id,
+                "claude_session_id": claude_session_id,
+                "workflow_name": workflow_name,
+                "started_at": datetime.utcnow().isoformat(),
+                "git_branch": git_branch
+            }
+            
+        except Exception as e:
+            logger.error(f"Error executing until first response: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "status": "failed",
+                "run_id": run_id if 'run_id' in locals() else None,
+                "session_id": session_id
+            }
+    
     async def create_async_run(self, input_text: str, workflow_name: str, 
                               **kwargs) -> ClaudeCodeRunResponse:
         """Create an async run and return immediately with run_id.
