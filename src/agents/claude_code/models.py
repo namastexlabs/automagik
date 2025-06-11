@@ -30,6 +30,10 @@ class ClaudeCodeRunRequest(BaseModel):
         default_factory=dict,
         description="Additional environment variables for execution"
     )
+    repository_url: Optional[str] = Field(
+        None,
+        description="Git repository URL to clone (defaults to current repository if not specified)"
+    )
     
     @validator('message')
     def message_not_empty(cls, v):
@@ -56,7 +60,8 @@ class ClaudeCodeRunRequest(BaseModel):
                 "timeout": 3600,
                 "environment": {
                     "CUSTOM_VAR": "value"
-                }
+                },
+                "repository_url": "https://github.com/myorg/myrepo.git"
             }
         }
     )

@@ -61,6 +61,7 @@ dependencies = [
     "psutil>=6.0.0",
     "docker>=7.1.0",
     "langgraph-checkpoint-postgres>=2.0.21",
+    "aiofiles>=24.1.0",
 ]
 
 [project.urls]
