@@ -24,6 +24,7 @@ claude_code_router = APIRouter(prefix="/agent/claude-code", tags=["Claude-Code"]
 
 class ClaudeCodeRunRequest(BaseModel):
     """Request for Claude-Code agent execution."""
+    workflow_name: str = Field(..., description="Workflow to execute (e.g., 'architect', 'implement', 'test')")
     message: str = Field(..., description="Task description for Claude to execute")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuation")
     max_turns: int = Field(default=30, ge=1, le=100, description="Maximum number of turns")
@@ -73,7 +74,6 @@ class WorkflowInfo(BaseModel):
 
 async def execute_claude_code_async(
     run_id: str,
-    workflow_name: str,
     request: ClaudeCodeRunRequest,
     session_id: str
 ) -> None:
@@ -94,14 +94,14 @@ async def execute_claude_code_async(
                 "run_id": run_id,
                 "run_status": "running",
                 "started_at": datetime.utcnow().isoformat(),
-                "workflow_name": workflow_name,
+                "workflow_name": request.workflow_name,
                 "container_id": None  # Will be updated by agent
             })
             session.metadata = metadata
             session_repo.update_session(session)
         
         # Set workflow context for the agent
-        agent.context["workflow_name"] = workflow_name
+        agent.context["workflow_name"] = request.workflow_name
         agent.context["session_id"] = session_id
         agent.context["run_id"] = run_id  # Pass run_id for log management
         if request.repository_url:
@@ -148,9 +148,8 @@ async def execute_claude_code_async(
             logger.error(f"Failed to update session after error: {update_error}")
 
 
-@claude_code_router.post("/{workflow_name}/run", response_model=ClaudeCodeRunResponse)
+@claude_code_router.post("/run", response_model=ClaudeCodeRunResponse)
 async def run_claude_code_workflow(
-    workflow_name: str,
     request: ClaudeCodeRunRequest,
     background_tasks: BackgroundTasks
 ) -> ClaudeCodeRunResponse:
@@ -161,16 +160,20 @@ async def run_claude_code_workflow(
     and returns immediately with a run_id for status tracking.
     
     **Supported Workflows:**
-    - `bug-fixer`: Fix bugs and issues in code
-    - `feature-dev`: Develop new features
-    - `code-review`: Review code changes
     - `architect`: Design system architecture
     - `implement`: Implement features from architecture
+    - `test`: Write and run tests
+    - `review`: Review code changes
+    - `fix`: Fix bugs and issues
+    - `refactor`: Refactor code
+    - `document`: Create documentation
+    - `pr`: Prepare pull requests
     
     **Example:**
     ```bash
-    POST /api/v1/agent/claude-code/bug-fixer/run
+    POST /api/v1/agent/claude-code/run
     {
+        "workflow_name": "fix",
         "message": "Fix the session timeout issue in agent controller",
         "git_branch": "fix/session-timeout",
         "max_turns": 50,
@@ -189,19 +192,19 @@ async def run_claude_code_workflow(
         
         # Get available workflows
         workflows = await agent.get_available_workflows()
-        if workflow_name not in workflows:
+        if request.workflow_name not in workflows:
             available = list(workflows.keys())
             raise HTTPException(
                 status_code=404, 
-                detail=f"Workflow '{workflow_name}' not found. Available: {available}"
+                detail=f"Workflow '{request.workflow_name}' not found. Available: {available}"
             )
         
         # Validate workflow is valid
-        workflow_info = workflows[workflow_name]
+        workflow_info = workflows[request.workflow_name]
         if not workflow_info.get("valid", False):
             raise HTTPException(
                 status_code=400,
-                detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}"
+                detail=f"Workflow '{request.workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}"
             )
         
         # Generate run ID
@@ -223,13 +226,13 @@ async def run_claude_code_workflow(
         from src.db.models import Session
         session = Session(
             agent_id=None,  # Will be set when agent is loaded
-            name=request.session_name or f"claude-code-{workflow_name}-{run_id}",
+            name=request.session_name or f"claude-code-{request.workflow_name}-{run_id}",
             platform="claude-code-api",
             user_id=uuid.UUID(user_id) if user_id else None,
             metadata={
                 "run_id": run_id,
                 "run_status": "pending",
-                "workflow_name": workflow_name,
+                "workflow_name": request.workflow_name,
                 "created_at": datetime.utcnow().isoformat(),
                 "request": request.dict(),
                 "agent_type": "claude-code"
@@ -241,7 +244,6 @@ async def run_claude_code_workflow(
         background_tasks.add_task(
             execute_claude_code_async,
             run_id,
-            workflow_name,
             request,
             str(session_id)
         )
@@ -249,16 +251,16 @@ async def run_claude_code_workflow(
         return ClaudeCodeRunResponse(
             run_id=run_id,
             status="pending",
-            message=f"Claude-Code {workflow_name} workflow started",
+            message=f"Claude-Code {request.workflow_name} workflow started",
             session_id=str(session_id),
-            workflow_name=workflow_name,
+            workflow_name=request.workflow_name,
             started_at=datetime.utcnow()
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error starting Claude-Code workflow {workflow_name}: {e}")
+        logger.error(f"Error starting Claude-Code workflow {request.workflow_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start workflow: {str(e)}")
 
 
@@ -509,87 +511,3 @@ async def claude_code_health() -> Dict[str, Any]:
         }
 
 
-@claude_code_router.get("/run/{run_id}/logs")
-async def get_claude_code_run_logs(
-    run_id: str,
-    lines: Optional[int] = None,
-    follow: bool = False
-):
-    """
-    Get or stream logs for a Claude-Code run.
-    
-    **Parameters:**
-    - `lines`: Number of lines to return (None for all)
-    - `follow`: If true, stream new log entries as they arrive
-    
-    **Example:**
-    ```bash
-    GET /api/v1/agent/claude-code/run/run_abc123/logs?lines=100
-    GET /api/v1/agent/claude-code/run/run_abc123/logs?follow=true
-    ```
-    
-    **Returns:**
-    Log content as text or streaming response if follow=true.
-    """
-    try:
-        log_manager = get_log_manager()
-        
-        if follow:
-            # Return streaming response
-            async def stream_logs():
-                async for entry in log_manager.get_logs(run_id, follow=True):
-                    # Convert log entry to text format
-                    yield f"{entry.get('timestamp', '')} [{entry.get('event_type', 'log')}] {entry.get('data', {}).get('message', entry.get('data', ''))}\n"
-            
-            return StreamingResponse(
-                stream_logs(),
-                media_type="text/plain",
-                headers={"Cache-Control": "no-cache"}
-            )
-        else:
-            # Return static logs
-            logs = await log_manager.get_logs(run_id, follow=False)
-            return {"run_id": run_id, "logs": logs}
-            
-    except Exception as e:
-        logger.error(f"Error getting logs for run {run_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
-
-
-@claude_code_router.get("/run/{run_id}/logs/summary")
-async def get_claude_code_run_log_summary(
-    run_id: str
-) -> Dict[str, Any]:
-    """
-    Get log summary for a Claude-Code run.
-    
-    **Returns:**
-    Log summary with metrics like size, line count, and timestamps.
-    """
-    try:
-        log_manager = get_log_manager()
-        summary = await log_manager.get_log_summary(run_id)
-        return {"run_id": run_id, "summary": summary}
-        
-    except Exception as e:
-        logger.error(f"Error getting log summary for run {run_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get log summary: {str(e)}")
-
-
-@claude_code_router.get("/logs")
-async def list_claude_code_logs() -> Dict[str, Any]:
-    """
-    List all available Claude-Code run logs.
-    
-    **Returns:**
-    List of run IDs with available log files.
-    """
-    try:
-        log_manager = get_log_manager()
-        log_files = log_manager.list_all_logs()
-        run_ids = [log_file['run_id'] for log_file in log_files]
-        return {"run_ids": run_ids, "count": len(run_ids), "log_files": log_files}
-        
-    except Exception as e:
-        logger.error(f"Error listing log files: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list logs: {str(e)}")
