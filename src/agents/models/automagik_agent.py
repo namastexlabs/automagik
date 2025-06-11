@@ -547,16 +547,18 @@ class AutomagikAgent(ABC, Generic[T]):
             
         try:
             # Import multimodal types
-            from pydantic_ai import ImageUrl
+            from pydantic_ai import ImageUrl, AudioUrl, DocumentUrl, BinaryContent
             
             # Build multimodal input list
-            input_list = [input_text]
+            input_list = [input_text] if input_text else []
             
             # Process images
             if isinstance(multimodal_content, dict) and "images" in multimodal_content:
                 images = multimodal_content.get("images", [])
                 for image_data in images:
-                    if isinstance(image_data, dict):
+                    if hasattr(image_data, 'url'):  # Already a pydantic-ai object
+                        input_list.append(image_data)
+                    elif isinstance(image_data, dict):
                         data_content = image_data.get("data")
                         mime_type = image_data.get("mime_type", "")
                         
@@ -565,8 +567,38 @@ class AutomagikAgent(ABC, Generic[T]):
                                 input_list.append(ImageUrl(url=data_content))
                             else:
                                 input_list.append(image_data)  # Keep as-is for base64
+            
+            # Process audio
+            if isinstance(multimodal_content, dict) and "audio" in multimodal_content:
+                audio_files = multimodal_content.get("audio", [])
+                for audio_data in audio_files:
+                    if hasattr(audio_data, 'url'):  # Already a pydantic-ai AudioUrl object
+                        input_list.append(audio_data)
+                    elif isinstance(audio_data, dict):
+                        if "url" in audio_data:
+                            input_list.append(AudioUrl(url=audio_data["url"]))
+                        elif "data" in audio_data and "media_type" in audio_data:
+                            input_list.append(BinaryContent(
+                                data=audio_data["data"],
+                                media_type=audio_data["media_type"]
+                            ))
+            
+            # Process documents
+            if isinstance(multimodal_content, dict) and "documents" in multimodal_content:
+                documents = multimodal_content.get("documents", [])
+                for doc_data in documents:
+                    if hasattr(doc_data, 'url'):  # Already a pydantic-ai object
+                        input_list.append(doc_data)
+                    elif isinstance(doc_data, dict):
+                        if "url" in doc_data:
+                            input_list.append(DocumentUrl(url=doc_data["url"]))
+                        elif "data" in doc_data and "media_type" in doc_data:
+                            input_list.append(BinaryContent(
+                                data=doc_data["data"],
+                                media_type=doc_data["media_type"]
+                            ))
                         
-            return input_list if len(input_list) > 1 else input_text
+            return input_list if len(input_list) > 1 else (input_text or "")
             
         except Exception as e:
             logger.warning(f"Error processing multimodal content: {e}")
