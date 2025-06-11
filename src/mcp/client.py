@@ -15,10 +15,22 @@ Key Features:
 import json
 import logging
 import asyncio
+import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 from contextlib import asynccontextmanager
+
+# Optional dependency for file watching
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    Observer = None
+    FileSystemEventHandler = None
+    WATCHDOG_AVAILABLE = False
 
 from pydantic_ai.mcp import MCPServerStdio, MCPServerHTTP
 from pydantic_ai.tools import Tool as PydanticTool
@@ -28,6 +40,42 @@ from src.db.models import MCPConfig
 from src.db.repository.mcp import list_mcp_configs, get_agent_mcp_configs
 
 logger = logging.getLogger(__name__)
+
+
+if WATCHDOG_AVAILABLE:
+    class MCPConfigFileHandler(FileSystemEventHandler):
+        """File system event handler for .mcp.json hot reload."""
+        
+        def __init__(self, mcp_manager: 'MCPManager'):
+            self.mcp_manager = mcp_manager
+            self.last_reload = 0
+            self.reload_debounce = 2.0  # Wait 2 seconds between reloads
+            
+        def on_modified(self, event):
+            """Handle file modification events."""
+            if event.is_directory:
+                return
+                
+            if event.src_path.endswith('.mcp.json'):
+                current_time = time.time()
+                if current_time - self.last_reload > self.reload_debounce:
+                    self.last_reload = current_time
+                    logger.info(f"🔄 .mcp.json file changed, triggering hot reload")
+                    
+                    # Schedule async reload
+                    asyncio.create_task(self._handle_file_change())
+        
+        async def _handle_file_change(self):
+            """Handle configuration file changes asynchronously."""
+            try:
+                await self.mcp_manager.hot_reload_config()
+            except Exception as e:
+                logger.error(f"❌ Error during hot reload: {e}")
+else:
+    # Fallback class when watchdog is not available
+    class MCPConfigFileHandler:
+        def __init__(self, mcp_manager: 'MCPManager'):
+            self.mcp_manager = mcp_manager
 
 
 class MCPManager:
@@ -48,6 +96,12 @@ class MCPManager:
         self._agent_tools_cache: Dict[str, List[PydanticTool]] = {}
         self._initialized = False
         self._config_file_path = Path(".mcp.json")
+        self._file_observer: Optional[Observer] = None
+        self._file_handler: Optional[MCPConfigFileHandler] = None
+        self._hot_reload_enabled = (
+            WATCHDOG_AVAILABLE and 
+            os.environ.get("MCP_HOT_RELOAD_ENABLED", "true").lower() in ("true", "1", "yes")
+        )
         
     async def initialize(self) -> None:
         """Initialize the MCP manager and load configurations."""
@@ -68,8 +122,13 @@ class MCPManager:
             # Start enabled servers
             await self._start_enabled_servers()
             
+            # Setup file watching for hot reload
+            if self._hot_reload_enabled:
+                await self._setup_file_watching()
+            
             self._initialized = True
-            logger.info(f"MCP manager initialized with {len(self._servers)} servers")
+            logger.info(f"MCP manager initialized with {len(self._servers)} servers" + 
+                       (f" (hot reload enabled)" if self._hot_reload_enabled else ""))
             
         except Exception as e:
             logger.error(f"Failed to initialize MCP manager: {str(e)}")
@@ -78,6 +137,14 @@ class MCPManager:
     async def shutdown(self) -> None:
         """Shutdown all MCP servers and cleanup resources."""
         logger.info("Shutting down MCP manager")
+        
+        # Stop file watching
+        if self._file_observer:
+            self._file_observer.stop()
+            self._file_observer.join()
+            self._file_observer = None
+            self._file_handler = None
+            logger.debug("Stopped MCP file watcher")
         
         # Stop all servers
         for server_name, server in self._servers.items():
@@ -433,6 +500,160 @@ class MCPManager:
         except Exception as e:
             logger.error(f"Error using server {server_name}: {str(e)}")
             raise
+    
+    async def _setup_file_watching(self) -> None:
+        """Setup file system watching for .mcp.json hot reload."""
+        if not WATCHDOG_AVAILABLE:
+            logger.warning("⚠️ Watchdog not available, file watching disabled. Install with: pip install watchdog")
+            self._hot_reload_enabled = False
+            return
+            
+        try:
+            if not self._config_file_path.exists():
+                logger.info("📁 .mcp.json file not found, creating empty config for watching")
+                # Create empty config file to watch
+                self._config_file_path.write_text('{"mcpServers": {}}')
+            
+            # Setup watchdog observer
+            self._file_handler = MCPConfigFileHandler(self)
+            self._file_observer = Observer()
+            
+            # Watch the directory containing .mcp.json
+            watch_path = str(self._config_file_path.parent.absolute())
+            self._file_observer.schedule(self._file_handler, watch_path, recursive=False)
+            self._file_observer.start()
+            
+            logger.info(f"🔍 File watcher started for {self._config_file_path}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not setup file watching: {e}")
+            self._hot_reload_enabled = False
+    
+    async def hot_reload_config(self) -> None:
+        """Hot reload configuration from .mcp.json file."""
+        if not self._hot_reload_enabled:
+            logger.warning("Hot reload is disabled")
+            return
+        
+        logger.info("🔄 Starting hot reload of MCP configuration")
+        
+        try:
+            # Track changes
+            old_server_names = set(self._servers.keys())
+            
+            # Reload .mcp.json configuration
+            if self._config_file_path.exists():
+                await self._load_mcp_json_file()
+            else:
+                logger.warning("⚠️ .mcp.json file not found during reload")
+                return
+            
+            # Determine what changed
+            new_config_names = set(config.name for config in self._config_cache.values() 
+                                 if hasattr(config, 'id') and config.id.startswith('file-'))
+            
+            # Find servers to stop (removed from config)
+            servers_to_stop = old_server_names - new_config_names
+            
+            # Find servers to start (added to config)
+            servers_to_start = new_config_names - old_server_names
+            
+            # Find servers to restart (still in config, may have changed)
+            servers_to_restart = old_server_names & new_config_names
+            
+            # Stop removed servers
+            for server_name in servers_to_stop:
+                await self._stop_server(server_name)
+                logger.info(f"🔻 Stopped removed server: {server_name}")
+            
+            # Restart existing servers (to pick up config changes)
+            for server_name in servers_to_restart:
+                await self._stop_server(server_name)
+                config = self._config_cache.get(server_name)
+                if config and config.is_enabled():
+                    await self._start_server(config)
+                    logger.info(f"🔄 Restarted server: {server_name}")
+            
+            # Start new servers
+            for server_name in servers_to_start:
+                config = self._config_cache.get(server_name)
+                if config and config.is_enabled():
+                    await self._start_server(config)
+                    logger.info(f"🔺 Started new server: {server_name}")
+            
+            # Clear agent tools cache to force reload
+            self._agent_tools_cache.clear()
+            
+            # Sync updated config to database
+            await self._sync_config_to_database()
+            
+            logger.info(f"✅ Hot reload completed: {len(self._servers)} servers active")
+            
+        except Exception as e:
+            logger.error(f"❌ Hot reload failed: {e}")
+            # Don't raise - continue with existing config
+    
+    async def _stop_server(self, server_name: str) -> None:
+        """Stop a specific MCP server."""
+        server = self._servers.get(server_name)
+        if server:
+            try:
+                if hasattr(server, 'stop'):
+                    await server.stop()
+                del self._servers[server_name]
+                logger.debug(f"Stopped server: {server_name}")
+            except Exception as e:
+                logger.warning(f"Error stopping server {server_name}: {e}")
+    
+    async def _sync_config_to_database(self) -> None:
+        """Sync .mcp.json configurations to database."""
+        try:
+            from src.db.repository.mcp import create_mcp_config, get_mcp_config_by_name
+            from src.db.models import MCPConfigCreate
+            
+            for config in self._config_cache.values():
+                # Only sync file-based configs
+                if hasattr(config, 'id') and config.id.startswith('file-'):
+                    try:
+                        # Check if config already exists in database
+                        existing = await get_mcp_config_by_name(config.name)
+                        if not existing:
+                            # Create new database entry
+                            config_create = MCPConfigCreate(
+                                name=config.name,
+                                config=config.config
+                            )
+                            await create_mcp_config(config_create)
+                            logger.debug(f"Synced config to database: {config.name}")
+                    except Exception as e:
+                        logger.warning(f"Could not sync config {config.name} to database: {e}")
+            
+        except Exception as e:
+            logger.warning(f"Database sync failed during hot reload: {e}")
+    
+    def is_hot_reload_enabled(self) -> bool:
+        """Check if hot reload is enabled."""
+        return self._hot_reload_enabled
+    
+    def enable_hot_reload(self) -> None:
+        """Enable hot reload functionality."""
+        if not self._hot_reload_enabled:
+            self._hot_reload_enabled = True
+            if self._initialized:
+                # Setup file watching if manager is already initialized
+                asyncio.create_task(self._setup_file_watching())
+            logger.info("🔄 Hot reload enabled")
+    
+    def disable_hot_reload(self) -> None:
+        """Disable hot reload functionality."""
+        if self._hot_reload_enabled:
+            self._hot_reload_enabled = False
+            if self._file_observer:
+                self._file_observer.stop()
+                self._file_observer.join()
+                self._file_observer = None
+                self._file_handler = None
+            logger.info("⏸️ Hot reload disabled")
 
 
 # Compatibility alias for existing code that expects MCPClientManager
