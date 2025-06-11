@@ -1,0 +1,7 @@
+{
+  "workflow_name": "test",
+  "message": "List the main files in the repository root and tell me what kind of project this is.",
+  "max_turns": 1,
+  "repository_url": "https://github.com/anthropics/anthropic-sdk-python.git",
+  "session_name": "test-external-repo"
+}
