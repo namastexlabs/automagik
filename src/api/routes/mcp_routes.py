@@ -87,7 +87,7 @@ class MCPConfigListResponse(BaseModel):
 
 
 def validate_mcp_config_request(config_request: MCPConfigRequest) -> None:
-    """Validate MCP configuration request.
+    """Validate MCP configuration request against architecture requirements.
     
     Args:
         config_request: The configuration request to validate
@@ -109,12 +109,31 @@ def validate_mcp_config_request(config_request: MCPConfigRequest) -> None:
                 status_code=400,
                 detail="command is required for stdio servers"
             )
+        if not isinstance(config_request.command, list) or len(config_request.command) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="command must be a non-empty array for stdio servers"
+            )
     elif config_request.server_type == "http":
         if not config_request.url:
             raise HTTPException(
                 status_code=400,
                 detail="url is required for http servers"
             )
+        # Basic URL validation
+        if not config_request.url.startswith(("http://", "https://")):
+            raise HTTPException(
+                status_code=400,
+                detail="url must be a valid HTTP/HTTPS URL"
+            )
+    
+    # Validate name format (alphanumeric, hyphens, underscores only)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', config_request.name):
+        raise HTTPException(
+            status_code=400,
+            detail="name must contain only alphanumeric characters, hyphens, and underscores"
+        )
     
     # Validate agents list
     if not config_request.agents:
@@ -123,18 +142,66 @@ def validate_mcp_config_request(config_request: MCPConfigRequest) -> None:
             detail="agents list cannot be empty"
         )
     
-    # Validate timeout and retry values
-    if config_request.timeout and config_request.timeout < 1000:
-        raise HTTPException(
-            status_code=400,
-            detail="timeout must be at least 1000ms"
-        )
+    # Validate agent names (wildcard or valid agent names)
+    for agent in config_request.agents:
+        if agent != "*" and not re.match(r'^[a-zA-Z0-9_-]+$', agent):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid agent name '{agent}'. Use '*' for wildcard or alphanumeric names."
+            )
     
-    if config_request.retry_count and config_request.retry_count < 0:
-        raise HTTPException(
-            status_code=400,
-            detail="retry_count must be non-negative"
-        )
+    # Validate tools configuration
+    if config_request.tools:
+        if not isinstance(config_request.tools, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="tools must be a dictionary with 'include' and/or 'exclude' keys"
+            )
+        
+        for key in config_request.tools.keys():
+            if key not in ["include", "exclude"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid tools key '{key}'. Only 'include' and 'exclude' are allowed."
+                )
+        
+        # Validate tool patterns
+        for filter_type, patterns in config_request.tools.items():
+            if not isinstance(patterns, list):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"tools.{filter_type} must be a list of tool patterns"
+                )
+    
+    # Validate timeout and retry values
+    if config_request.timeout is not None:
+        if config_request.timeout < 1000 or config_request.timeout > 300000:
+            raise HTTPException(
+                status_code=400,
+                detail="timeout must be between 1000ms (1s) and 300000ms (5m)"
+            )
+    
+    if config_request.retry_count is not None:
+        if config_request.retry_count < 0 or config_request.retry_count > 10:
+            raise HTTPException(
+                status_code=400,
+                detail="retry_count must be between 0 and 10"
+            )
+    
+    # Validate environment variables
+    if config_request.environment:
+        if not isinstance(config_request.environment, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="environment must be a dictionary of key-value pairs"
+            )
+        
+        for key, value in config_request.environment.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise HTTPException(
+                    status_code=400,
+                    detail="environment variables must be string key-value pairs"
+                )
 
 
 @router.get("/configs", response_model=MCPConfigListResponse)
@@ -300,6 +367,79 @@ async def update_mcp_config_endpoint(
     except Exception as e:
         logger.error(f"Failed to update MCP config '{name}': {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update configuration: {str(e)}")
+
+
+@router.get("/configs/{name}", response_model=MCPConfigResponse)
+async def get_mcp_config_endpoint(
+    name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get a specific MCP configuration by name.
+    
+    Args:
+        name: Name of the configuration to retrieve
+        api_key: API key for authentication
+        
+    Returns:
+        The MCP configuration
+    """
+    try:
+        config = get_mcp_config_by_name(name)
+        if not config:
+            raise HTTPException(
+                status_code=404,
+                detail=f"MCP configuration '{name}' not found"
+            )
+        
+        logger.info(f"Retrieved MCP config '{name}'")
+        return MCPConfigResponse.from_mcp_config(config)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get MCP config '{name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve configuration: {str(e)}")
+
+
+@router.get("/agents/{agent_name}/configs", response_model=MCPConfigListResponse)
+async def get_agent_mcp_configs_endpoint(
+    agent_name: str,
+    enabled_only: bool = Query(True, description="Only return enabled configurations"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get all MCP configurations assigned to a specific agent.
+    
+    Args:
+        agent_name: Name of the agent to get configurations for
+        enabled_only: Whether to only return enabled configurations  
+        api_key: API key for authentication
+        
+    Returns:
+        List of MCP configurations assigned to the agent
+    """
+    try:
+        configs = get_agent_mcp_configs(agent_name)
+        
+        # Apply enabled filter if requested
+        if enabled_only:
+            configs = [config for config in configs if config.is_enabled()]
+        
+        response_configs = [
+            MCPConfigResponse.from_mcp_config(config) 
+            for config in configs
+        ]
+        
+        logger.info(f"Retrieved {len(response_configs)} MCP configs for agent '{agent_name}' (enabled_only={enabled_only})")
+        
+        return MCPConfigListResponse(
+            configs=response_configs,
+            total=len(response_configs),
+            filtered_by_agent=agent_name
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get MCP configs for agent '{agent_name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve agent configurations: {str(e)}")
 
 
 @router.delete("/configs/{name}", status_code=204)
