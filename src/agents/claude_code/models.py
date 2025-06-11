@@ -16,9 +16,9 @@ class ClaudeCodeRunRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Optional session ID for continuity")
     workflow_name: str = Field("bug-fixer", description="Name of the workflow to execute")
     max_turns: int = Field(default=30, ge=1, le=100, description="Maximum number of Claude turns")
-    git_branch: str = Field(
-        default="NMSTX-187-langgraph-orchestrator-migration", 
-        description="Git branch to work on"
+    git_branch: Optional[str] = Field(
+        None, 
+        description="Git branch to work on (defaults to current branch)"
     )
     timeout: Optional[int] = Field(
         default=3600, 
@@ -218,9 +218,9 @@ class ClaudeCodeConfig(BaseModel):
         description="Prefix for workspace volumes"
     )
     default_workflow: str = Field(default="bug-fixer", description="Default workflow to use")
-    git_branch: str = Field(
-        default="NMSTX-187-langgraph-orchestrator-migration",
-        description="Default git branch"
+    git_branch: Optional[str] = Field(
+        None,
+        description="Default git branch (defaults to current branch)"
     )
     enabled: bool = Field(default=False, description="Whether claude-code agent is enabled")
     

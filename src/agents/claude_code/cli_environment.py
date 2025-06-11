@@ -15,6 +15,27 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+async def get_current_git_branch() -> str:
+    """Get the current git branch.
+    
+    Returns:
+        Current git branch name, or 'main' as fallback
+    """
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        branch = result.stdout.strip()
+        return branch if branch else "main"
+    except Exception as e:
+        logger.warning(f"Failed to get current git branch: {e}, defaulting to 'main'")
+        return "main"
+
+
 class CLIEnvironmentManager:
     """Manages isolated CLI execution environments."""
     
@@ -74,14 +95,14 @@ class CLIEnvironmentManager:
     async def setup_repository(
         self, 
         workspace: Path, 
-        branch: str,
+        branch: Optional[str],
         repository_url: Optional[str] = None
     ) -> Path:
         """Clone and checkout branch in workspace.
         
         Args:
             workspace: Workspace directory path
-            branch: Git branch to checkout
+            branch: Git branch to checkout (defaults to current branch if None)
             repository_url: Repository URL to clone (defaults to current repository if None)
             
         Returns:
@@ -90,6 +111,9 @@ class CLIEnvironmentManager:
         Raises:
             subprocess.CalledProcessError: If git operations fail
         """
+        # Get current branch if not specified
+        if branch is None:
+            branch = await get_current_git_branch()
         # Default to current repository if not specified
         if not repository_url:
             repository_url = "https://github.com/namastexlabs/am-agents-labs.git"
