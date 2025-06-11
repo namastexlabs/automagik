@@ -28,7 +28,7 @@ class ClaudeCodeRunRequest(BaseModel):
     message: str = Field(..., description="Task description for Claude to execute")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuation")
     max_turns: int = Field(default=30, ge=1, le=100, description="Maximum number of turns")
-    git_branch: str = Field(default="NMSTX-187-langgraph-orchestrator-migration", description="Git branch to work on")
+    git_branch: Optional[str] = Field(None, description="Git branch to work on (defaults to current branch)")
     timeout: Optional[int] = Field(default=7200, ge=60, le=14400, description="Execution timeout in seconds")
     user_id: Optional[str] = Field(None, description="User ID for the request")
     session_name: Optional[str] = Field(None, description="Optional session name")
@@ -106,6 +106,8 @@ async def execute_claude_code_async(
         agent.context["run_id"] = run_id  # Pass run_id for log management
         if request.repository_url:
             agent.context["repository_url"] = request.repository_url
+        if request.git_branch:
+            agent.config["git_branch"] = request.git_branch
         
         # Execute the Claude-Code agent
         result = await agent.run(
@@ -175,7 +177,7 @@ async def run_claude_code_workflow(
     {
         "workflow_name": "fix",
         "message": "Fix the session timeout issue in agent controller",
-        "git_branch": "fix/session-timeout",
+        "git_branch": "fix/session-timeout",  // Optional - defaults to current branch
         "max_turns": 50,
         "repository_url": "https://github.com/myorg/myrepo.git"
     }
