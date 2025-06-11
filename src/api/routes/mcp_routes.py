@@ -16,6 +16,7 @@ from src.db.repository.mcp import (
     get_agent_mcp_configs
 )
 from src.db.models import MCPConfig, MCPConfigCreate, MCPConfigUpdate
+from src.mcp.client import get_mcp_manager
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,20 @@ class MCPConfigListResponse(BaseModel):
     configs: List[MCPConfigResponse]
     total: int
     filtered_by_agent: Optional[str] = None
+
+
+async def trigger_hot_reload():
+    """Trigger MCP hot reload after configuration changes."""
+    try:
+        mcp_manager = await get_mcp_manager()
+        if mcp_manager.is_hot_reload_enabled():
+            await mcp_manager.hot_reload_config()
+            logger.info("🔄 Triggered MCP hot reload after API change")
+        else:
+            logger.debug("Hot reload is disabled, skipping reload trigger")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to trigger hot reload: {e}")
+        # Don't raise - hot reload failure shouldn't break API operations
 
 
 def validate_mcp_config_request(config_request: MCPConfigRequest) -> None:
@@ -290,6 +305,9 @@ async def create_mcp_config_endpoint(
         
         logger.info(f"Created MCP config '{config_request.name}' with ID {config_id}")
         
+        # Trigger hot reload to apply the new configuration
+        await trigger_hot_reload()
+        
         return MCPConfigResponse.from_mcp_config(created_config)
         
     except HTTPException:
@@ -357,6 +375,9 @@ async def update_mcp_config_endpoint(
             )
         
         logger.info(f"Updated MCP config '{name}'")
+        
+        # Trigger hot reload to apply configuration changes
+        await trigger_hot_reload()
         
         return MCPConfigResponse.from_mcp_config(updated_config)
         
@@ -474,6 +495,9 @@ async def delete_mcp_config_endpoint(
             )
         
         logger.info(f"Deleted MCP config '{name}'")
+        
+        # Trigger hot reload to remove the configuration from active servers
+        await trigger_hot_reload()
         
         # Return 204 No Content (no response body)
         return None
