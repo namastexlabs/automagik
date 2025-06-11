@@ -12,9 +12,7 @@ from src.api.memory_routes import memory_router
 main_router = APIRouter()
 
 # Include all sub-routers
-# IMPORTANT: claude_code_router must be included BEFORE agent_router
-# because it has more specific routes that would otherwise be matched
-# by the generic /agent/{agent_name}/run pattern in agent_router
+# The order no longer matters since paths don't conflict
 main_router.include_router(claude_code_router)
 main_router.include_router(agent_router)
 main_router.include_router(prompt_router)
