@@ -7,7 +7,6 @@ import logging
 from typing import Dict
 
 from src.agents.common.specialized_agents import MultimodalAgent
-from src.agents.common.tool_wrapper_factory import ToolWrapperFactory
 from src.tools.flashed.tool import (
     get_user_data, get_user_score, get_user_roadmap, 
     get_user_objectives, get_last_card_round, get_user_energy
@@ -49,20 +48,15 @@ class FlashinhoPro(MultimodalAgent):
     
     def _register_flashed_tools(self) -> None:
         """Register all 6 Flashed API tools for educational gaming functionality."""
-        flashed_tools = {
-            'get_user_data': get_user_data,
-            'get_user_score': get_user_score,
-            'get_user_roadmap': get_user_roadmap,
-            'get_user_objectives': get_user_objectives,
-            'get_last_card_round': get_last_card_round,
-            'get_user_energy': get_user_energy
-        }
+        # Register tools using the tool registry (same method used by MultimodalAgent)
+        self.tool_registry.register_tool(get_user_data)
+        self.tool_registry.register_tool(get_user_score)
+        self.tool_registry.register_tool(get_user_roadmap)
+        self.tool_registry.register_tool(get_user_objectives)
+        self.tool_registry.register_tool(get_last_card_round)
+        self.tool_registry.register_tool(get_user_energy)
         
-        for tool_name, tool_func in flashed_tools.items():
-            wrapper = ToolWrapperFactory.create_context_wrapper(tool_func, self.context)
-            self.tool_registry.register_tool(wrapper)
-        
-        logger.debug("Registered 6 Flashed API tools for educational integration")
+        logger.debug("Registered 6 Flashed API tools using tool registry")
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoPro:
