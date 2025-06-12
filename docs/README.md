@@ -24,33 +24,35 @@ Deep dive into system design, patterns, and decision-making.
 ### 🛠️ [Development](./development/)
 Guides for building and extending the agent system.
 
+- **[Development Guide](./development/README.md)** - Epic development standards and guidelines
 - **[Agents Overview](./development/agents-overview.md)** - Agent system architecture and patterns
-- **[Agent Mocking](./development/agent-mocking.md)** - Testing strategies and mock frameworks
-- **[Prompt Management](./development/prompt-management.md)** - Prompt engineering and management
-- **[API Reference](./development/api.md)** - REST API endpoints and usage
+- **[Epic Template](./development/epic-template.md)** - Standardized epic documentation template
+- **[Documentation Reference](./development/docs-reference-guide.md)** - How to reference existing docs
+- **[Implementation Roadmap](./development/IMPLEMENTATION_ROADMAP.md)** - Project implementation roadmap
 
 ### 🔌 [Integrations](./integrations/)
 External services and protocol integrations.
 
-- **[Slack](./integrations/slack.md)** - Complete Slack bot and orchestration integration
-- **[Slack Prompts](./integrations/slack-prompts.md)** - MCP Slack prompt engineering guide
-- **[MCP](./integrations/mcp.md)** - Model Context Protocol server integration
+- **[MCP Integration](./integrations/mcp.md)** - Model Context Protocol server integration
+- **[MCP Configuration](./integrations/mcp-config-spec.md)** - MCP configuration specification
+- **[Slack](./integrations/slack.md)** - Complete Slack bot integration (if available)
 - **[WhatsApp](./integrations/whatsapp.md)** - Evolution API WhatsApp integration
 - **[Multimodal](./integrations/multimodal.md)** - Image and vision processing capabilities
 
 ### ⚙️ [Operations](./operations/)
 DevOps, deployment, and operational procedures.
 
-- **[Docker](./operations/docker.md)** - Container best practices and standardization
+- **[Breaking Changes](./operations/BREAKING_CHANGES.md)** - Breaking changes log and migration notes
+- **[Docker](./operations/docker.md)** - Container best practices and standardization  
 - **[Makefile Reference](./operations/makefile-reference.md)** - Complete guide to make commands
 - **[Environment](./operations/environment.md)** - Environment variable management
-- **[Orchestration Features](./operations/orchestration-features.md)** - Advanced orchestration capabilities
 
 ### 🧪 [Testing](./testing/)
 Testing frameworks, performance evaluation, and quality assurance.
 
 - **[Benchmarking](./testing/benchmarking.md)** - Performance testing and optimization
 - **[Stress Testing](./testing/stress-testing.md)** - Load testing and reliability validation
+- **[Test Reports](./testing/reports/)** - Historical test reports and analysis
 
 ## 🗺️ Quick Navigation
 

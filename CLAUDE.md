@@ -82,6 +82,13 @@ uv run ruff format src/
 
 ## 🛠️ Common Development Commands
 
+### Supported LLM Models
+The project supports advanced models including:
+- **Default Model**: `openai:gpt-4.1-mini` (newer model, not gpt-4o)
+- **Vision Model**: `openai:gpt-4.1` (advanced multimodal model)
+- **Other Providers**: Gemini 1.5 Pro/Flash, Claude 3 Opus/Sonnet, Groq models
+- **Model Configuration**: See `AM_DEFAULT_MODEL` and `AM_VISION_MODEL` env vars
+
 ### Testing
 ```bash
 # Run all tests
@@ -151,6 +158,8 @@ automagik agents db init --force
 automagik agents db clear --yes
 
 # Note: Migration system automatically applies SQL files from src/db/migrations/
+# Migrations are automatically made idempotent and use savepoints for safety
+# Migration naming: YYYYMMDD_HHMMSS_description.sql
 ```
 
 ### Agent Management
@@ -440,6 +449,13 @@ self.tool_registry.register_default_tools(self.context)
 async def my_custom_tool(ctx: RunContext, param: str) -> str:
     """Tool description"""
     return f"Result: {param}"
+
+# Tool registry methods:
+# - register_tool(): Basic tool registration
+# - register_tool_with_context(): Auto-injects context as first parameter
+# - register_agent_as_tool(): Register specialized agents
+# - register_evolution_tools(): WhatsApp/Evolution API tools
+# - register_mcp_tools(): Dynamic MCP tool registration
 ```
 
 ### Channel Handler System
@@ -555,6 +571,24 @@ export AM_LOG_SQL=true
 
 ## ⚡ Quick Recipes
 
+### Additional Make Commands
+```bash
+# System prerequisites check
+make check-system          # Check what's needed
+make verify-prerequisites  # Verify after installation
+make install-prerequisites # Auto-install system deps
+
+# Database installation
+make install-postgres     # Install PostgreSQL
+make install-neo4j        # Install Neo4j
+make install-graphiti     # Install Graphiti
+
+# Service management
+make install-service      # Install as systemd service
+make start-service        # Start and show logs
+make stop-service         # Stop service
+```
+
 ### Run Tests for Modified Files Only
 ```bash
 # Using git to find changed files
@@ -619,6 +653,14 @@ feat(NMSTX-789-api): add Discord webhook endpoints
 feat(NMSTX-789-tools): integrate Discord API client
 ```
 
+### IMPORTANT: Co-Author Requirement
+**ALL commits MUST include Automagik Genie as co-author**:
+```bash
+# Commit format with co-author
+git commit -m "feat(NMSTX-123): implement feature
+
+Co-Authored-By: Automagik Genie <automagik@namastex.ai>"
+
 ### Git Operations with MCP
 ```python
 # Check status
@@ -630,10 +672,10 @@ mcp__git__git_add(
     files=["src/agents/pydanticai/discord/", "tests/agents/test_discord.py"]
 )
 
-# Commit with Linear reference
+# Commit with Linear reference AND co-author
 mcp__git__git_commit(
     repo_path="/root/prod/am-agents-labs",
-    message="feat(NMSTX-123): implement Discord agent base functionality"
+    message="feat(NMSTX-123): implement Discord agent base functionality\n\nCo-Authored-By: Automagik Genie <automagik@namastex.ai>"
 )
 
 # Check differences
@@ -862,6 +904,8 @@ When previous attempts failed:
 8. **Respect workflow boundaries** - Each workflow has specific responsibilities
 9. **Use thread-based Slack** - All epic communication in dedicated threads
 10. **Report system issues** - Use WhatsApp for critical tool failures
+11. **Co-author all commits** - Every commit must include `Co-Authored-By: Automagik Genie <automagik@namastex.ai>`
+12. **Use gpt-4.1 models** - Default model is `gpt-4.1-mini`, vision model is `gpt-4.1` (newer models unknown to most LLMs)
 
 ## 📚 Additional Resources
 
@@ -880,6 +924,13 @@ OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=...
 ANTHROPIC_API_KEY=...
 GROQ_API_KEY=...
+
+# Default Model Configuration
+# IMPORTANT: The project uses 'gpt-4.1' and 'gpt-4.1-mini' as newer models
+# These are advanced models not known to most LLMs
+# DO NOT change to gpt-4o or other models unless explicitly requested
+AM_DEFAULT_MODEL=openai:gpt-4.1-mini    # Default for most operations
+AM_VISION_MODEL=openai:gpt-4.1          # For multimodal/vision tasks
 
 # Application Configuration
 AM_PORT=8881                    # API server port
@@ -907,6 +958,11 @@ POSTGRES_POOL_MAX=25
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
+
+# MCP Server Configuration
+# MCP servers are configured via .mcp.json files
+# Supports agent-based filtering and tool prefixes
+# Hot reload if watchdog is installed
 ```
 
 ## 🎭 Parallel Development Architecture
