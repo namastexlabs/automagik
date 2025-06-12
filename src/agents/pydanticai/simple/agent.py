@@ -28,7 +28,7 @@ class SimpleAgent(MultimodalAgent):
         super().__init__(
             config=config,
             prompt=AGENT_PROMPT,
-            vision_model="openai:gpt-4o",  # Auto-switch to vision model when media present
+            vision_model="openai:gpt-4.1",  # Auto-switch to vision model when media present
             supported_media=['image', 'audio', 'document'],  # Support all media types
             auto_enhance_prompts=True  # Enable automatic prompt enhancement
         )
