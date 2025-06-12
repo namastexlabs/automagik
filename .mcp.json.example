@@ -1,0 +1,48 @@
+{
+  "mcpServers": {
+    "agent-memory": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8000/sse",
+      "agent_names": ["simple", "genie"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "linear": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@tacticlaunch/mcp-linear"
+      ],
+      "env": {
+        "LINEAR_API_TOKEN": "${LINEAR_API_TOKEN}"
+      },
+      "agent_names": ["simple", "genie"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "automagik": {
+      "command": "uvx",
+      "args": ["automagik-tools@latest", "tool", "automagik"],
+      "env": {
+        "AUTOMAGIK_API_KEY": "${AUTOMAGIK_API_KEY}",
+        "AUTOMAGIK_BASE_URL": "http://localhost:28881"
+      },
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git"
+      ],
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    }
+  }
+}
