@@ -2,19 +2,41 @@
 
 This package provides MCP (Model Context Protocol) client integration,
 allowing agents to connect to and use MCP servers for extended functionality.
+
+NMSTX-256 Integration: Completely refactored to use PydanticAI's native MCP classes
+with the simplified single-table architecture for better maintainability
+and standards compliance.
 """
 
-from .client import MCPClientManager
+# New PydanticAI-based implementation (NMSTX-256)
+from .client import (
+    MCPManager, 
+    get_mcp_manager, 
+    shutdown_mcp_manager,
+    MCPClientManager,  # Compatibility alias
+    get_mcp_client_manager,  # Compatibility function
+    shutdown_mcp_client_manager  # Compatibility function
+)
+
+# Common models and exceptions
 from .models import MCPServerConfig, MCPServerStatus, MCPServerType
-from .server import MCPServerManager
 from .exceptions import MCPError, MCPServerError, MCPConnectionError
 
 __all__ = [
+    # Main MCP interface (NMSTX-256)
+    "MCPManager",
+    "get_mcp_manager", 
+    "shutdown_mcp_manager",
+    
+    # Compatibility aliases for existing code
     "MCPClientManager",
+    "get_mcp_client_manager",
+    "shutdown_mcp_client_manager",
+    
+    # Models and exceptions
     "MCPServerConfig", 
     "MCPServerStatus",
     "MCPServerType",
-    "MCPServerManager",
     "MCPError",
     "MCPServerError", 
     "MCPConnectionError",

@@ -1,578 +1,509 @@
-"""API routes for MCP server management."""
+"""Streamlined API routes for MCP configuration management."""
 
+import json
 import logging
-from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import ValidationError
+from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel, ValidationError, Field
 
 from src.auth import get_api_key as verify_api_key
-from src.mcp.client import get_mcp_client_manager, refresh_mcp_client_manager
-from src.mcp.models import (
-    MCPServerConfig,
-    MCPServerCreateRequest,
-    MCPServerUpdateRequest,
-    MCPServerListResponse,
-    MCPToolCallRequest,
-    MCPToolCallResponse,
-    MCPResourceAccessRequest,
-    MCPResourceAccessResponse,
-    MCPHealthResponse,
-    MCPServerState,
-    MCPServerType
+from src.db.repository.mcp import (
+    get_mcp_config_by_name,
+    list_mcp_configs,
+    create_mcp_config,
+    update_mcp_config_by_name,
+    delete_mcp_config_by_name,
+    get_agent_mcp_configs
 )
-from src.mcp.exceptions import MCPError
-
-# Add security imports
-from src.mcp.security import (
-    build_secure_command, 
-    validate_server_name,
-    validate_mcp_config,
-    SecurityError,
-    ValidationError as SecurityValidationError
-)
+from src.db.models import MCPConfig, MCPConfigCreate, MCPConfigUpdate
+from src.mcp.client import get_mcp_manager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/mcp", tags=["MCP"])
 
 
-@router.post("/configure", response_model=MCPServerListResponse)
-async def configure_mcp_servers(
-    servers_config: Dict[str, Any],
+# Request/Response Models
+class MCPConfigRequest(BaseModel):
+    """Request model for creating/updating MCP configurations."""
+    name: str = Field(..., description="Unique server identifier")
+    server_type: str = Field(..., description="Server type: 'stdio' or 'http'")
+    command: Optional[List[str]] = Field(None, description="Command array for stdio servers")
+    url: Optional[str] = Field(None, description="URL for HTTP servers")
+    agents: List[str] = Field(default=["*"], description="List of agent names or ['*'] for all")
+    tools: Optional[Dict[str, List[str]]] = Field(default={"include": ["*"]}, description="Tool filters with include/exclude lists")
+    environment: Optional[Dict[str, str]] = Field(default={}, description="Environment variables")
+    timeout: Optional[int] = Field(default=30000, description="Timeout in milliseconds")
+    retry_count: Optional[int] = Field(default=3, description="Maximum retry attempts")
+    enabled: Optional[bool] = Field(default=True, description="Whether the server is enabled")
+    auto_start: Optional[bool] = Field(default=True, description="Whether to auto-start the server")
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        """Convert to configuration dictionary for storage."""
+        config = {
+            "name": self.name,
+            "server_type": self.server_type,
+            "agents": self.agents,
+            "tools": self.tools or {"include": ["*"]},
+            "environment": self.environment or {},
+            "timeout": self.timeout,
+            "retry_count": self.retry_count,
+            "enabled": self.enabled,
+            "auto_start": self.auto_start
+        }
+        
+        if self.server_type == "stdio" and self.command:
+            config["command"] = self.command
+        elif self.server_type == "http" and self.url:
+            config["url"] = self.url
+            
+        return config
+
+
+class MCPConfigResponse(BaseModel):
+    """Response model for MCP configurations."""
+    id: str
+    name: str
+    config: Dict[str, Any]
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def from_mcp_config(cls, mcp_config: MCPConfig) -> "MCPConfigResponse":
+        """Create response from MCPConfig model."""
+        return cls(
+            id=str(mcp_config.id),
+            name=mcp_config.name,
+            config=mcp_config.config,
+            created_at=mcp_config.created_at.isoformat(),
+            updated_at=mcp_config.updated_at.isoformat()
+        )
+
+
+class MCPConfigListResponse(BaseModel):
+    """Response model for listing MCP configurations."""
+    configs: List[MCPConfigResponse]
+    total: int
+    filtered_by_agent: Optional[str] = None
+
+
+async def trigger_hot_reload():
+    """Trigger MCP hot reload after configuration changes."""
+    try:
+        mcp_manager = await get_mcp_manager()
+        if mcp_manager.is_hot_reload_enabled():
+            await mcp_manager.hot_reload_config()
+            logger.info("🔄 Triggered MCP hot reload after API change")
+        else:
+            logger.debug("Hot reload is disabled, skipping reload trigger")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to trigger hot reload: {e}")
+        # Don't raise - hot reload failure shouldn't break API operations
+
+
+def validate_mcp_config_request(config_request: MCPConfigRequest) -> None:
+    """Validate MCP configuration request against architecture requirements.
+    
+    Args:
+        config_request: The configuration request to validate
+        
+    Raises:
+        HTTPException: If validation fails
+    """
+    # Validate server type
+    if config_request.server_type not in ["stdio", "http"]:
+        raise HTTPException(
+            status_code=400,
+            detail="server_type must be 'stdio' or 'http'"
+        )
+    
+    # Validate type-specific requirements
+    if config_request.server_type == "stdio":
+        if not config_request.command:
+            raise HTTPException(
+                status_code=400,
+                detail="command is required for stdio servers"
+            )
+        if not isinstance(config_request.command, list) or len(config_request.command) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="command must be a non-empty array for stdio servers"
+            )
+    elif config_request.server_type == "http":
+        if not config_request.url:
+            raise HTTPException(
+                status_code=400,
+                detail="url is required for http servers"
+            )
+        # Basic URL validation
+        if not config_request.url.startswith(("http://", "https://")):
+            raise HTTPException(
+                status_code=400,
+                detail="url must be a valid HTTP/HTTPS URL"
+            )
+    
+    # Validate name format (alphanumeric, hyphens, underscores only)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', config_request.name):
+        raise HTTPException(
+            status_code=400,
+            detail="name must contain only alphanumeric characters, hyphens, and underscores"
+        )
+    
+    # Validate agents list
+    if not config_request.agents:
+        raise HTTPException(
+            status_code=400,
+            detail="agents list cannot be empty"
+        )
+    
+    # Validate agent names (wildcard or valid agent names)
+    for agent in config_request.agents:
+        if agent != "*" and not re.match(r'^[a-zA-Z0-9_-]+$', agent):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid agent name '{agent}'. Use '*' for wildcard or alphanumeric names."
+            )
+    
+    # Validate tools configuration
+    if config_request.tools:
+        if not isinstance(config_request.tools, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="tools must be a dictionary with 'include' and/or 'exclude' keys"
+            )
+        
+        for key in config_request.tools.keys():
+            if key not in ["include", "exclude"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid tools key '{key}'. Only 'include' and 'exclude' are allowed."
+                )
+        
+        # Validate tool patterns
+        for filter_type, patterns in config_request.tools.items():
+            if not isinstance(patterns, list):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"tools.{filter_type} must be a list of tool patterns"
+                )
+    
+    # Validate timeout and retry values
+    if config_request.timeout is not None:
+        if config_request.timeout < 1000 or config_request.timeout > 300000:
+            raise HTTPException(
+                status_code=400,
+                detail="timeout must be between 1000ms (1s) and 300000ms (5m)"
+            )
+    
+    if config_request.retry_count is not None:
+        if config_request.retry_count < 0 or config_request.retry_count > 10:
+            raise HTTPException(
+                status_code=400,
+                detail="retry_count must be between 0 and 10"
+            )
+    
+    # Validate environment variables
+    if config_request.environment:
+        if not isinstance(config_request.environment, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="environment must be a dictionary of key-value pairs"
+            )
+        
+        for key, value in config_request.environment.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise HTTPException(
+                    status_code=400,
+                    detail="environment variables must be string key-value pairs"
+                )
+
+
+@router.get("/configs", response_model=MCPConfigListResponse)
+async def list_mcp_configs_endpoint(
+    agent_name: Optional[str] = Query(None, description="Filter configs by agent name"),
+    enabled_only: bool = Query(True, description="Only return enabled configurations"),
     api_key: str = Depends(verify_api_key)
 ):
-    """Configure multiple MCP servers using the mcpServers format.
+    """List all MCP configurations.
     
-    Accepts JSON in the format:
-    {
-        "mcpServers": {
-            "filesystem": {
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
-            },
-            "weather": {
-                "command": "node",
-                "args": ["weather-server.js"]
-            }
-        }
-    }
+    Args:
+        agent_name: Optional agent name to filter configurations
+        enabled_only: Whether to only return enabled configurations
+        api_key: API key for authentication
+        
+    Returns:
+        List of MCP configurations
     """
     try:
-        client_manager = await get_mcp_client_manager()
+        configs = list_mcp_configs(enabled_only=enabled_only, agent_name=agent_name)
         
-        # Extract mcpServers from the config
-        mcp_servers = servers_config.get("mcpServers", {})
+        response_configs = [
+            MCPConfigResponse.from_mcp_config(config) 
+            for config in configs
+        ]
         
-        created_servers = []
+        logger.info(f"Listed {len(response_configs)} MCP configs (agent_filter={agent_name}, enabled_only={enabled_only})")
         
-        for server_name, server_config in mcp_servers.items():
-            # Convert the simplified format to MCPServerConfig with security validation
-            command = []
-            
-            # Handle command and args format with security validation
-            if "command" in server_config:
-                base_command = server_config["command"]
-                args = server_config.get("args", [])
-                
-                # Security validation first
-                try:
-                    validate_server_name(server_name)
-                    validate_mcp_config({
-                        "command": base_command,
-                        "args": args,
-                        "env": server_config.get("env", {})
-                    })
-                except (SecurityError, SecurityValidationError) as e:
-                    logger.error(f"Security validation failed for server {server_name}: {str(e)}")
-                    raise HTTPException(status_code=400, detail=f"Security validation failed: {str(e)}")
-                
-                # Build secure command
-                try:
-                    secure_command, filtered_env = build_secure_command(
-                        base_command=base_command,
-                        args=args,
-                        env=server_config.get("env", {})
-                    )
-                    command = secure_command
-                    
-                    # Update server_config with filtered environment
-                    server_config["env"] = filtered_env
-                    
-                    logger.info(f"Built secure command for server {server_name}: {command[0]} with {len(command)-1} args")
-                    
-                except (SecurityError, SecurityValidationError) as e:
-                    logger.error(f"Command security validation failed for server {server_name}: {str(e)}")
-                    raise HTTPException(status_code=400, detail=f"Command not allowed: {str(e)}")
-                except Exception as e:
-                    logger.error(f"Failed to build secure command for server {server_name}: {str(e)}")
-                    raise HTTPException(status_code=500, detail=f"Failed to build secure command: {str(e)}")
-            
-            # Create MCPServerConfig
-            config = MCPServerConfig(
-                name=server_name,
-                server_type=MCPServerType.STDIO,
-                description=server_config.get("description", f"MCP server {server_name}"),
-                command=command,
-                env=server_config.get("env", {}),
-                auto_start=server_config.get("auto_start", True),
-                max_retries=server_config.get("max_retries", 3),
-                timeout_seconds=server_config.get("timeout_seconds", 30),
-                tags=server_config.get("tags", []),
-                priority=server_config.get("priority", 0),
-                agent_names=server_config.get("agent_names", [])
+        return MCPConfigListResponse(
+            configs=response_configs,
+            total=len(response_configs),
+            filtered_by_agent=agent_name
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to list MCP configs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list configurations: {str(e)}")
+
+
+@router.post("/configs", response_model=MCPConfigResponse, status_code=201)
+async def create_mcp_config_endpoint(
+    config_request: MCPConfigRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Create a new MCP configuration.
+    
+    Args:
+        config_request: The MCP configuration to create
+        api_key: API key for authentication
+        
+    Returns:
+        The created MCP configuration
+    """
+    try:
+        # Validate the request
+        validate_mcp_config_request(config_request)
+        
+        # Check if config with this name already exists
+        existing = get_mcp_config_by_name(config_request.name)
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"MCP configuration with name '{config_request.name}' already exists"
             )
-            
-            # Add server if it doesn't exist, update if it does
-            try:
-                await client_manager.add_server(config)
-                logger.info(f"Added MCP server: {server_name}")
-            except MCPError as e:
-                if "already exists" in str(e):
-                    # Update existing server
-                    existing_server = client_manager.get_server(server_name)
-                    if existing_server:
-                        # Stop if running
-                        if existing_server.is_running:
-                            await existing_server.stop()
-                        
-                        # Update config
-                        existing_server.config = config
-                        await client_manager._save_server_config(config)
-                        
-                        # Start if auto_start
-                        if config.auto_start:
-                            await existing_server.start()
-                        
-                        logger.info(f"Updated MCP server: {server_name}")
-                else:
-                    raise
-            
-            # Get server state
-            server = client_manager.get_server(server_name)
-            if server:
-                created_servers.append(server.state)
         
-        return MCPServerListResponse(
-            servers=created_servers,
-            total=len(created_servers)
+        # Create the configuration
+        config_data = MCPConfigCreate(
+            name=config_request.name,
+            config=config_request.to_config_dict()
         )
         
-    except ValidationError as e:
-        raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to configure MCP servers: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to configure servers: {str(e)}")
-
-
-@router.get("/health", response_model=MCPHealthResponse)
-async def get_mcp_health():
-    """Get health status of MCP system."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        return await client_manager.get_health()
-    except Exception as e:
-        logger.error(f"Failed to get MCP health: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
-
-
-@router.get("/servers", response_model=MCPServerListResponse)
-async def list_mcp_servers(
-    api_key: str = Depends(verify_api_key)
-):
-    """List all MCP servers and their states."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        servers = client_manager.list_servers()
+        config_id = create_mcp_config(config_data)
+        if not config_id:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create MCP configuration"
+            )
         
-        return MCPServerListResponse(
-            servers=servers,
-            total=len(servers)
-        )
-    except Exception as e:
-        logger.error(f"Failed to list MCP servers: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list servers: {str(e)}")
-
-
-@router.post("/servers", response_model=MCPServerState)
-async def create_mcp_server(
-    request: MCPServerCreateRequest,
-    api_key: str = Depends(verify_api_key)
-):
-    """Create a new MCP server configuration."""
-    try:
-        client_manager = await get_mcp_client_manager()
+        # Retrieve and return the created config
+        created_config = get_mcp_config_by_name(config_request.name)
+        if not created_config:
+            raise HTTPException(
+                status_code=500,
+                detail="Configuration created but not found"
+            )
         
-        # Security validation first
-        try:
-            validate_server_name(request.name)
-            
-            # Validate command configuration if provided
-            if request.command:
-                command = request.command[0] if request.command else None
-                args = request.command[1:] if len(request.command) > 1 else []
-                
-                if command:
-                    validate_mcp_config({
-                        "command": command,
-                        "args": args,
-                        "env": request.env or {}
-                    })
-                    
-                    # Build secure command
-                    secure_command, filtered_env = build_secure_command(
-                        base_command=command,
-                        args=args,
-                        env=request.env or {}
-                    )
-                    
-                    # Update request with secure command and filtered env
-                    request.command = secure_command
-                    request.env = filtered_env
-                    
-        except (SecurityError, SecurityValidationError) as e:
-            logger.error(f"Security validation failed for server {request.name}: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Security validation failed: {str(e)}")
+        logger.info(f"Created MCP config '{config_request.name}' with ID {config_id}")
         
-        # Create server config from request
-        request_data = request.model_dump() if request else {}
-        if not request_data:
-            raise HTTPException(status_code=400, detail="Invalid request data")
-        config = MCPServerConfig(**request_data)
+        # Trigger hot reload to apply the new configuration
+        await trigger_hot_reload()
         
-        # Add server
-        await client_manager.add_server(config)
-        
-        # Get and return server state
-        server = client_manager.get_server(config.name)
-        if not server:
-            raise HTTPException(status_code=500, detail="Server created but not found")
-        
-        return server.state
-        
-    except ValidationError as e:
-        raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to create MCP server: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create server: {str(e)}")
-
-
-@router.get("/servers/{server_name}", response_model=MCPServerState)
-async def get_mcp_server(
-    server_name: str,
-    api_key: str = Depends(verify_api_key)
-):
-    """Get details of a specific MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        server = client_manager.get_server(server_name)
-        
-        if not server:
-            raise HTTPException(status_code=404, detail=f"Server {server_name} not found")
-        
-        return server.state
+        return MCPConfigResponse.from_mcp_config(created_config)
         
     except HTTPException:
-        # Re-raise HTTPExceptions (like 404) without modification
         raise
-    except Exception as e:
-        logger.error(f"Failed to get MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get server: {str(e)}")
-
-
-@router.put("/servers/{server_name}", response_model=MCPServerState)
-async def update_mcp_server(
-    server_name: str,
-    request: MCPServerUpdateRequest,
-    api_key: str = Depends(verify_api_key)
-):
-    """Update an MCP server configuration."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        server = client_manager.get_server(server_name)
-        
-        if not server:
-            raise HTTPException(status_code=404, detail=f"Server {server_name} not found")
-        
-        # Update configuration
-        update_data = request.model_dump(exclude_none=True)
-        for key, value in update_data.items():
-            if hasattr(server.config, key):
-                setattr(server.config, key, value)
-        
-        # Save updated configuration to database
-        await client_manager._save_server_config(server.config)
-        
-        # Restart server if it was running to apply changes
-        if server.is_running:
-            await server.restart()
-        
-        # Refresh client manager to reload configurations
-        await refresh_mcp_client_manager()
-        
-        return server.state
-        
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to update MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to update server: {str(e)}")
+        logger.error(f"Failed to create MCP config: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create configuration: {str(e)}")
 
 
-@router.delete("/servers/{server_name}")
-async def delete_mcp_server(
-    server_name: str,
+@router.put("/configs/{name}", response_model=MCPConfigResponse)
+async def update_mcp_config_endpoint(
+    name: str,
+    config_request: MCPConfigRequest,
     api_key: str = Depends(verify_api_key)
 ):
-    """Delete an MCP server."""
+    """Update an existing MCP configuration.
+    
+    Args:
+        name: Name of the configuration to update
+        config_request: The updated MCP configuration
+        api_key: API key for authentication
+        
+    Returns:
+        The updated MCP configuration
+    """
     try:
-        client_manager = await get_mcp_client_manager()
-        await client_manager.remove_server(server_name)
+        # Validate the request
+        validate_mcp_config_request(config_request)
         
-        return {"status": "success", "message": f"Server {server_name} deleted successfully"}
+        # Check if config exists
+        existing_config = get_mcp_config_by_name(name)
+        if not existing_config:
+            raise HTTPException(
+                status_code=404,
+                detail=f"MCP configuration '{name}' not found"
+            )
         
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Ensure name consistency (can't change name via this endpoint)
+        if config_request.name != name:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot change configuration name via update. Name in URL must match name in payload."
+            )
+        
+        # Update the configuration
+        update_data = MCPConfigUpdate(
+            config=config_request.to_config_dict()
+        )
+        
+        success = update_mcp_config_by_name(name, update_data)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update MCP configuration"
+            )
+        
+        # Retrieve and return the updated config
+        updated_config = get_mcp_config_by_name(name)
+        if not updated_config:
+            raise HTTPException(
+                status_code=500,
+                detail="Configuration updated but not found"
+            )
+        
+        logger.info(f"Updated MCP config '{name}'")
+        
+        # Trigger hot reload to apply configuration changes
+        await trigger_hot_reload()
+        
+        return MCPConfigResponse.from_mcp_config(updated_config)
+        
+    except HTTPException:
+        raise
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
     except Exception as e:
-        logger.error(f"Failed to delete MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete server: {str(e)}")
+        logger.error(f"Failed to update MCP config '{name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {str(e)}")
 
 
-@router.post("/servers/{server_name}/start")
-async def start_mcp_server(
-    server_name: str,
+@router.get("/configs/{name}", response_model=MCPConfigResponse)
+async def get_mcp_config_endpoint(
+    name: str,
     api_key: str = Depends(verify_api_key)
 ):
-    """Start an MCP server."""
+    """Get a specific MCP configuration by name.
+    
+    Args:
+        name: Name of the configuration to retrieve
+        api_key: API key for authentication
+        
+    Returns:
+        The MCP configuration
+    """
     try:
-        client_manager = await get_mcp_client_manager()
-        await client_manager.start_server(server_name)
+        config = get_mcp_config_by_name(name)
+        if not config:
+            raise HTTPException(
+                status_code=404,
+                detail=f"MCP configuration '{name}' not found"
+            )
         
-        return {"status": "success", "message": f"Server {server_name} started successfully"}
+        logger.info(f"Retrieved MCP config '{name}'")
+        return MCPConfigResponse.from_mcp_config(config)
         
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to start MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to start server: {str(e)}")
+        logger.error(f"Failed to get MCP config '{name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve configuration: {str(e)}")
 
 
-@router.post("/servers/{server_name}/stop")
-async def stop_mcp_server(
-    server_name: str,
-    api_key: str = Depends(verify_api_key)
-):
-    """Stop an MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        await client_manager.stop_server(server_name)
-        
-        return {"status": "success", "message": f"Server {server_name} stopped successfully"}
-        
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to stop MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to stop server: {str(e)}")
-
-
-@router.post("/servers/{server_name}/restart")
-async def restart_mcp_server(
-    server_name: str,
-    api_key: str = Depends(verify_api_key)
-):
-    """Restart an MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        await client_manager.restart_server(server_name)
-        
-        return {"status": "success", "message": f"Server {server_name} restarted successfully"}
-        
-    except MCPError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to restart MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to restart server: {str(e)}")
-
-
-@router.post("/tools/call", response_model=MCPToolCallResponse)
-async def call_mcp_tool(
-    request: MCPToolCallRequest,
-    api_key: str = Depends(verify_api_key)
-):
-    """Call a tool on an MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        
-        import time
-        start_time = time.time()
-        
-        result = await client_manager.call_tool(
-            server_name=request.server_name,
-            tool_name=request.tool_name,
-            arguments=request.arguments
-        )
-        
-        execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-        
-        return MCPToolCallResponse(
-            success=True,
-            result=result,
-            execution_time_ms=execution_time,
-            tool_name=request.tool_name,
-            server_name=request.server_name
-        )
-        
-    except MCPError as e:
-        return MCPToolCallResponse(
-            success=False,
-            error=str(e),
-            tool_name=request.tool_name,
-            server_name=request.server_name
-        )
-    except Exception as e:
-        logger.error(f"Failed to call MCP tool {request.tool_name}: {str(e)}")
-        return MCPToolCallResponse(
-            success=False,
-            error=f"Tool call failed: {str(e)}",
-            tool_name=request.tool_name,
-            server_name=request.server_name
-        )
-
-
-@router.post("/resources/access", response_model=MCPResourceAccessResponse)
-async def access_mcp_resource(
-    request: MCPResourceAccessRequest,
-    api_key: str = Depends(verify_api_key)
-):
-    """Access a resource on an MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        
-        result = await client_manager.access_resource(
-            server_name=request.server_name,
-            uri=request.uri
-        )
-        
-        # Extract content and mime type from result
-        content = None
-        mime_type = None
-        
-        if isinstance(result, dict):
-            content = result.get('content')
-            mime_type = result.get('mime_type')
-        elif isinstance(result, str):
-            content = result
-        else:
-            content = str(result)
-        
-        return MCPResourceAccessResponse(
-            success=True,
-            content=content,
-            mime_type=mime_type,
-            uri=request.uri,
-            server_name=request.server_name
-        )
-        
-    except MCPError as e:
-        return MCPResourceAccessResponse(
-            success=False,
-            error=str(e),
-            uri=request.uri,
-            server_name=request.server_name
-        )
-    except Exception as e:
-        logger.error(f"Failed to access MCP resource {request.uri}: {str(e)}")
-        return MCPResourceAccessResponse(
-            success=False,
-            error=f"Resource access failed: {str(e)}",
-            uri=request.uri,
-            server_name=request.server_name
-        )
-
-
-@router.get("/servers/{server_name}/tools")
-async def list_mcp_server_tools(
-    server_name: str,
-    api_key: str = Depends(verify_api_key)
-):
-    """List tools available on an MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        server = client_manager.get_server(server_name)
-        
-        if not server:
-            raise HTTPException(status_code=404, detail=f"Server {server_name} not found")
-        
-        return {
-            "server_name": server_name,
-            "tools": server.tools,
-            "total": len(server.tools)
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to list tools for MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
-
-
-@router.get("/servers/{server_name}/resources")
-async def list_mcp_server_resources(
-    server_name: str,
-    api_key: str = Depends(verify_api_key)
-):
-    """List resources available on an MCP server."""
-    try:
-        client_manager = await get_mcp_client_manager()
-        server = client_manager.get_server(server_name)
-        
-        if not server:
-            raise HTTPException(status_code=404, detail=f"Server {server_name} not found")
-        
-        return {
-            "server_name": server_name,
-            "resources": server.resources,
-            "total": len(server.resources)
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to list resources for MCP server {server_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list resources: {str(e)}")
-
-
-@router.get("/agents/{agent_name}/tools")
-async def list_agent_mcp_tools(
+@router.get("/agents/{agent_name}/configs", response_model=MCPConfigListResponse)
+async def get_agent_mcp_configs_endpoint(
     agent_name: str,
+    enabled_only: bool = Query(True, description="Only return enabled configurations"),
     api_key: str = Depends(verify_api_key)
 ):
-    """List MCP tools available to a specific agent."""
+    """Get all MCP configurations assigned to a specific agent.
+    
+    Args:
+        agent_name: Name of the agent to get configurations for
+        enabled_only: Whether to only return enabled configurations  
+        api_key: API key for authentication
+        
+    Returns:
+        List of MCP configurations assigned to the agent
+    """
     try:
-        client_manager = await get_mcp_client_manager()
-        servers = client_manager.get_servers_for_agent(agent_name)
+        configs = get_agent_mcp_configs(agent_name)
         
-        tools = []
-        for server in servers:
-            if server.is_running:
-                for tool in server.tools:
-                    tools.append({
-                        "server_name": server.name,
-                        "tool_name": tool.name,
-                        "description": tool.description,
-                        "input_schema": tool.input_schema,
-                        "output_schema": tool.output_schema
-                    })
+        # Apply enabled filter if requested
+        if enabled_only:
+            configs = [config for config in configs if config.is_enabled()]
         
-        return {
-            "agent_name": agent_name,
-            "tools": tools,
-            "total": len(tools),
-            "servers": [s.name for s in servers]
-        }
+        response_configs = [
+            MCPConfigResponse.from_mcp_config(config) 
+            for config in configs
+        ]
+        
+        logger.info(f"Retrieved {len(response_configs)} MCP configs for agent '{agent_name}' (enabled_only={enabled_only})")
+        
+        return MCPConfigListResponse(
+            configs=response_configs,
+            total=len(response_configs),
+            filtered_by_agent=agent_name
+        )
         
     except Exception as e:
-        logger.error(f"Failed to list MCP tools for agent {agent_name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list agent tools: {str(e)}")
+        logger.error(f"Failed to get MCP configs for agent '{agent_name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve agent configurations: {str(e)}")
+
+
+@router.delete("/configs/{name}", status_code=204)
+async def delete_mcp_config_endpoint(
+    name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Delete an MCP configuration.
+    
+    Args:
+        name: Name of the configuration to delete
+        api_key: API key for authentication
+        
+    Returns:
+        No content (204) on successful deletion
+    """
+    try:
+        # Check if config exists
+        existing_config = get_mcp_config_by_name(name)
+        if not existing_config:
+            raise HTTPException(
+                status_code=404,
+                detail=f"MCP configuration '{name}' not found"
+            )
+        
+        # Delete the configuration
+        success = delete_mcp_config_by_name(name)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to delete MCP configuration"
+            )
+        
+        logger.info(f"Deleted MCP config '{name}'")
+        
+        # Trigger hot reload to remove the configuration from active servers
+        await trigger_hot_reload()
+        
+        # Return 204 No Content (no response body)
+        return None
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete MCP config '{name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete configuration: {str(e)}")
