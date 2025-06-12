@@ -13,31 +13,26 @@ import traceback
 logger = logging.getLogger(__name__)
 
 
-try:
-    from .agent import SofiaAgent
-    from src.agents.models.placeholder import PlaceholderAgent
+def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
+    """Create a SofiaAgent instance with proper error handling.
     
-    # Standardized create_agent function
-    def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
-        """Create a SofiaAgent instance.
+    Args:
+        config: Optional configuration dictionary
         
-        Args:
-            config: Optional configuration dictionary
-            
-        Returns:
-            SofiaAgent instance
-        """
-        if config is None:
-            config = {}
-        
+    Returns:
+        SofiaAgent instance or PlaceholderAgent on error
+    """
+    if config is None:
+        config = {}
+    
+    try:
+        from .agent import SofiaAgent
         return SofiaAgent(config)
-    
-except Exception as e:
-    logger.error(f"Failed to initialize SofiaAgent module: {str(e)}")
-    logger.error(f"Traceback: {traceback.format_exc()}")
-    
-    # Create a placeholder function that returns an error agent
-    def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
-        """Create a placeholder agent due to initialization error."""
+    except Exception as e:
+        logger.error(f"Failed to create SofiaAgent: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Import PlaceholderAgent inside exception handler to ensure it's available
+        from src.agents.models.placeholder import PlaceholderAgent
         return PlaceholderAgent({"name": "sofia_agent_error", "error": str(e)})
     
