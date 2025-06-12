@@ -32,11 +32,13 @@ The MCP integration includes new database tables:
 
 ```python
 # ✅ CORRECT: Import from src.mcp package
-from src.mcp import MCPClientManager, MCPServerConfig, MCPServerStatus, MCPServerType
+from src.mcp.client import get_mcp_manager
+from src.db.repository.mcp import get_mcp_config_by_name, list_mcp_configs
+from src.db.models import MCPConfig
 
 # ✅ CORRECT: Initialize client manager
-manager = MCPClientManager()
-await manager.initialize()  # Auto-loads configurations from database
+manager = await get_mcp_manager()
+# Configurations are auto-loaded from database
 ```
 
 ### Server Configuration
@@ -69,43 +71,102 @@ X-API-Key: namastex888
 
 ### Available Endpoints
 
-#### Health Check
+**⚠️ IMPORTANT**: These are the **actual implemented endpoints** (verified against source code).
+
+#### Configuration Management
+
+##### List All MCP Configurations
 ```bash
-# GET /api/v1/mcp/health (no authentication required)
-curl http://localhost:8881/api/v1/mcp/health
+# GET /api/v1/mcp/configs (list all configurations)
+curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/configs
+
+# Optional query parameters:
+# ?agent_name=simple (filter by agent)
+# ?enabled_only=true (only enabled configs)
 
 # Response:
 {
-  "status": "healthy",
-  "servers_total": 2,
-  "servers_running": 2,
-  "servers_error": 0,
-  "tools_available": 22,
-  "resources_available": 0
+  "configs": [
+    {
+      "id": "1",
+      "name": "filesystem",
+      "config": {
+        "server_type": "stdio",
+        "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem"],
+        "agents": ["*"],
+        "enabled": true
+      },
+      "created_at": "2025-01-15T10:30:00Z",
+      "updated_at": "2025-01-15T10:30:00Z"
+    }
+  ],
+  "total": 1,
+  "filtered_by_agent": null
 }
 ```
 
-#### Server Management
+##### Create MCP Configuration
 ```bash
-# GET /api/v1/mcp/servers (list all servers)
-curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers
-
-# GET /api/v1/mcp/servers/{server_name} (get specific server)
-curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers/filesystem
-
-# Response includes server status, tools, and configuration
-```
-
-#### Tool Management
-```bash
-# GET /api/v1/mcp/tools (list all available tools)
-curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/tools
-
-# POST /api/v1/mcp/tools/{tool_name}/call (execute tool)
+# POST /api/v1/mcp/configs (create new configuration)
 curl -X POST -H "X-API-Key: namastex888" \
      -H "Content-Type: application/json" \
-     -d '{"arguments": {"path": "/home/namastex/workspace/am-agents-labs"}}' \
-     http://localhost:8881/api/v1/mcp/tools/list_directory/call
+     -d '{
+       "name": "my-server",
+       "server_type": "stdio",
+       "command": ["python", "-m", "my_mcp_server"],
+       "agents": ["simple", "sofia"],
+       "tools": {"include": ["*"]},
+       "environment": {"API_KEY": "secret"},
+       "enabled": true,
+       "auto_start": true
+     }' \
+     http://localhost:8881/api/v1/mcp/configs
+
+# Response: Created configuration object
+```
+
+##### Get Specific Configuration
+```bash
+# GET /api/v1/mcp/configs/{name} (get specific configuration)
+curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/configs/filesystem
+
+# Response: Single configuration object
+```
+
+##### Update Configuration
+```bash
+# PUT /api/v1/mcp/configs/{name} (update configuration)
+curl -X PUT -H "X-API-Key: namastex888" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "name": "filesystem",
+       "server_type": "stdio",
+       "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+       "agents": ["simple"],
+       "enabled": true
+     }' \
+     http://localhost:8881/api/v1/mcp/configs/filesystem
+
+# Response: Updated configuration object
+```
+
+##### Get Agent-Specific Configurations
+```bash
+# GET /api/v1/mcp/agents/{agent_name}/configs (get configs for specific agent)
+curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/agents/simple/configs
+
+# Optional query parameters:
+# ?enabled_only=true (only enabled configs)
+
+# Response: List of configurations assigned to the agent
+```
+
+##### Delete Configuration
+```bash
+# DELETE /api/v1/mcp/configs/{name} (delete configuration)
+curl -X DELETE -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/configs/my-server
+
+# Response: 204 No Content (successful deletion)
 ```
 
 ## Testing Results
@@ -130,12 +191,42 @@ Authentication: X-API-Key header required
 Health Status: Fully operational
 ```
 
-### Verified Integrations
+### Configuration Types
 
-1. **Filesystem MCP Server**: Provides file system access with directory restrictions
-2. **Test Filesystem Server**: Development/testing server
-3. **Agent Integration**: All agents can access MCP tools via tool registry
-4. **API Access**: Full REST API for external integrations
+#### STDIO Server Configuration
+```json
+{
+  "name": "filesystem",
+  "server_type": "stdio",
+  "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+  "agents": ["simple", "sofia"],
+  "tools": {
+    "include": ["read_file", "write_file", "list_directory"]
+  },
+  "environment": {
+    "NODE_ENV": "production"
+  },
+  "timeout": 30000,
+  "retry_count": 3,
+  "enabled": true,
+  "auto_start": true
+}
+```
+
+#### HTTP Server Configuration
+```json
+{
+  "name": "remote-server",
+  "server_type": "http",
+  "url": "https://api.example.com/mcp",
+  "agents": ["*"],
+  "tools": {
+    "exclude": ["dangerous_operation"]
+  },
+  "timeout": 60000,
+  "enabled": true
+}
+```
 
 ## Error Handling
 
@@ -190,27 +281,28 @@ echo $AM_API_KEY
 # Verify it matches the key being sent in requests
 ```
 
-### Server Connection Issues
+### Configuration Issues
 
-**Problem**: MCP servers not starting
+**Problem**: Configuration not loading
 ```bash
-# Check server status via API
-curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers
-# Look for "status": "error" in response
+# Check configuration exists
+curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/configs/my-server
+# Should return configuration object
 
-# Check application logs
-automagik agents dev
-# Look for MCP server startup messages
+# Check agent-specific configs
+curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/agents/simple/configs
+# Should show configs assigned to 'simple' agent
 ```
 
-**Problem**: Tools not available
+**Problem**: Server not working after configuration
 ```bash
-# Verify tools are discovered
-curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/tools
-# Should return list of available tools
+# Verify configuration is enabled
+curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/configs/my-server
+# Check "enabled": true in response
 
-# Check individual server status
-curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers/filesystem
+# Check application logs for MCP startup messages
+automagik agents dev
+# Look for "MCP configuration loaded" messages
 ```
 
 ### Import Issues
@@ -220,9 +312,12 @@ curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers/filesy
 # ❌ WRONG: These imports will fail
 from src.mcp.client import MCPClient  # MCPClient doesn't exist
 from mcp import MCPClientManager  # Wrong package
+from src.mcp import MCPClientManager  # Old import pattern
 
 # ✅ CORRECT: Use these imports
-from src.mcp import MCPClientManager, MCPServerConfig, MCPServerStatus
+from src.mcp.client import get_mcp_manager
+from src.db.repository.mcp import get_mcp_config_by_name, list_mcp_configs
+from src.db.models import MCPConfig
 ```
 
 **Problem**: Module not found errors

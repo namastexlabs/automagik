@@ -29,7 +29,7 @@ def setup_module():
             new_agent = Agent(
                 name=agent_name,
                 type=FrameworkType.default().value,
-                model="openai:gpt-4o",
+                model="openai:gpt-4.1",
                 config={"created_by": "test_setup"},
                 description=f"Test agent: {agent_name}",
                 active=True
