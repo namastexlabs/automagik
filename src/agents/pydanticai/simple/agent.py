@@ -25,7 +25,6 @@ class SimpleAgent(AutomagikAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize with automatic multimodal setup."""
-<<<<<<< HEAD
         # inject multimodal defaults
         if config is None:
             config = {}
@@ -58,18 +57,6 @@ class SimpleAgent(AutomagikAgent):
 
         analyze_image.__name__ = "analyze_image"
         self.tool_registry.register_tool(analyze_image)
-=======
-        super().__init__(
-            config=config,
-            prompt=AGENT_PROMPT,
-            vision_model="openai:gpt-4.1",  # Auto-switch to vision model when media present
-            supported_media=['image', 'audio', 'document'],  # Support all media types
-            auto_enhance_prompts=True  # Enable automatic prompt enhancement
-        )
-        
-        # Register Evolution tools for backward compatibility with tests
-        self.tool_registry.register_evolution_tools(self.context)
->>>>>>> ccdad8a9210690aca356e3fce16b1bb4f28823ec
 
 
 def create_agent(config: Dict[str, str]) -> SimpleAgent:
