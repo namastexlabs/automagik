@@ -1,57 +1,48 @@
 {
-  "version": "1.0",
-  "description": "MCP server configurations for automagik-agents",
-  "configs": [
-    {
-      "name": "agent-memory",
-      "server_type": "stdio",
-      "command": ["python", "-m", "agent_memory.server"],
-      "agents": ["*"],
+  "mcpServers": {
+    "agent-memory": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8000/sse",
+      "agent_names": ["simple", "genie"],
       "tools": {
         "include": ["*"]
-      },
-      "environment": {
-        "DEBUG": "false"
-      },
-      "timeout": 30000,
-      "retry_count": 3,
-      "enabled": true,
-      "auto_start": true
+      }
     },
-    {
-      "name": "linear",
-      "server_type": "stdio", 
-      "command": ["python", "-m", "linear_mcp"],
-      "agents": ["genie", "simple", "stan"],
+    "linear": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@tacticlaunch/mcp-linear"
+      ],
+      "env": {
+        "LINEAR_API_TOKEN": "${LINEAR_API_TOKEN}"
+      },
+      "agent_names": ["simple", "genie"],
       "tools": {
-        "include": ["*"],
-        "exclude": ["delete_*", "admin_*"]
-      },
-      "environment": {
-        "LINEAR_API_KEY": "${LINEAR_API_KEY}",
-        "LINEAR_TEAM_ID": "${LINEAR_TEAM_ID}"
-      },
-      "timeout": 45000,
-      "retry_count": 2,
-      "enabled": true,
-      "auto_start": true
+        "include": ["*"]
+      }
     },
-    {
-      "name": "slack-integration",
-      "server_type": "http",
-      "url": "https://api.slack.com/mcp",
-      "agents": ["genie", "discord"],
+    "automagik": {
+      "command": "uvx",
+      "args": ["automagik-tools@latest", "tool", "automagik"],
+      "env": {
+        "AUTOMAGIK_API_KEY": "${AUTOMAGIK_API_KEY}",
+        "AUTOMAGIK_BASE_URL": "http://localhost:28881"
+      },
+      "agent_names": ["simple"],
       "tools": {
-        "include": ["send_message", "get_channels", "post_*"],
-        "exclude": ["admin_*"]
-      },
-      "environment": {
-        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}"
-      },
-      "timeout": 60000,
-      "retry_count": 3,
-      "enabled": false,
-      "auto_start": false
+        "include": ["*"]
+      }
+    },
+    "git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git"
+      ],
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
     }
-  ]
+  }
 }

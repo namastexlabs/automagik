@@ -100,7 +100,7 @@ for name, config in mcp_configs.items():
     servers.append(server)
 
 # Agent with MCP servers
-agent = Agent('openai:gpt-4o', mcp_servers=servers)
+agent = Agent('openai:gpt-4.1', mcp_servers=servers)
 ```
 
 ### 3. Agent Tool Filtering
