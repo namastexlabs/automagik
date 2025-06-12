@@ -4,6 +4,7 @@ from typing import Dict, Optional, Union, Any, TypeVar, Generic, Type, List
 from abc import ABC
 import uuid
 import asyncio
+import os
 
 from src.agents.models.dependencies import BaseDependencies
 from src.agents.models.response import AgentResponse
@@ -21,6 +22,7 @@ from src.agents.common.memory_handler import MemoryHandler
 from src.agents.common.tool_registry import ToolRegistry
 from src.agents.common.session_manager import validate_agent_id
 from src.agents.common.dependencies_helper import close_http_client
+from src.agents.common.multi_prompt_manager import MultiPromptManager
 
 # Import functions that tests expect to mock at module level
 try:
@@ -181,6 +183,39 @@ class AutomagikAgent(ABC, Generic[T]):
             # FrameworkType.LANGGRAPH.value: LangGraphFramework,
         }
         
+        # Multimodal configuration defaults (overridable via `config` or `update_config`).
+        self.vision_model: str = self.config.get("vision_model", "openai:gpt-4o")
+        # List of supported media types – kept for possible future gating
+        self.supported_media: List[str] = self.config.get(
+            "supported_media", ["image", "audio", "document"]
+        )
+        # Whether to enhance prompts automatically when media is present
+        self.auto_enhance_prompts: bool = bool(
+            self.config.get("auto_enhance_prompts", True)
+        )
+        # Internal tracker for temporary vision-model switch
+        self._original_model: Optional[str] = None
+        
+        # --------------------------------------------------------
+        # Multi-prompt support (status-based prompt switching)
+        # --------------------------------------------------------
+        self.enable_multi_prompt: bool = bool(self.config.get("enable_multi_prompt", False))
+        self.prompt_manager = None  # type: Optional["MultiPromptManager"]
+
+        if self.enable_multi_prompt:
+            try:
+                # Default directory is <agent module path>/prompts unless caller overrides
+                default_prompt_dir = os.path.join(
+                    os.path.dirname(self.__class__.__module__.replace(".", "/")),
+                    self.config.get("prompt_directory", "prompts"),
+                )
+                package_name = self.__class__.__module__.rsplit(".", 1)[0]
+
+                self.prompt_manager = MultiPromptManager(self, default_prompt_dir, package_name)
+            except Exception as e:
+                logger.error(f"Failed to initialise MultiPromptManager: {e}")
+                self.enable_multi_prompt = False
+        
         logger.debug(f"Initialized {self.__class__.__name__} with framework: {self.framework_type}")
     
     def create_default_dependencies(self):
@@ -335,6 +370,27 @@ class AutomagikAgent(ABC, Generic[T]):
             # Process multimodal input
             processed_input = await self._process_multimodal_input(input_text, multimodal_content)
             
+            # Multimodal: auto-switch to a vision-capable model when media is present.
+            if multimodal_content and any(multimodal_content.values()):
+                # Switch to vision-capable model if not already using one
+                try:
+                    if self._original_model is None and self.dependencies and hasattr(self.dependencies, "model_name"):
+                        self._original_model = self.dependencies.model_name
+
+                    current_model = getattr(self.dependencies, "model_name", "")
+                    needs_vision = multimodal_content.get("images") or multimodal_content.get("documents")
+
+                    if needs_vision and current_model and ("vision" not in current_model and "gpt-4o" not in current_model):
+                        if self.dependencies:
+                            self.dependencies.model_name = self.vision_model
+                            logger.info(f"Switched to vision model: {self.vision_model}")
+                except Exception as e:
+                    logger.warning(f"Unable to auto-switch vision model: {e}")
+
+                # Auto-enhance prompt if enabled
+                if self.auto_enhance_prompts and system_prompt:
+                    system_prompt = self._enhance_system_prompt(system_prompt, multimodal_content)
+            
             # 7. Update dependencies with context
             if hasattr(self.dependencies, 'set_context'):
                 self.dependencies.set_context(self.context)
@@ -395,6 +451,14 @@ class AutomagikAgent(ABC, Generic[T]):
                 
                 # 9. Postprocess response using channel handler
                 result = await self._postprocess_response(result)
+                
+                # Restore original model if we temporarily switched
+                try:
+                    if self._original_model and self.dependencies and hasattr(self.dependencies, "model_name"):
+                        self.dependencies.model_name = self._original_model
+                        logger.info("Restored original model after multimodal run")
+                finally:
+                    self._original_model = None
                 
                 return result
             
@@ -842,7 +906,16 @@ class AutomagikAgent(ABC, Generic[T]):
     
     async def initialize_prompts(self) -> bool:
         """Initialize agent prompts during server startup."""
-        # Check if the agent has the required attributes
+        # If multi-prompt enabled, delegate to manager.
+        if getattr(self, "enable_multi_prompt", False) and self.prompt_manager:
+            try:
+                await self.prompt_manager.register_all_prompts()
+                return True
+            except Exception as exc:
+                logger.error(f"Multi-prompt registration failed: {exc}")
+                return False
+
+        # Check if the agent has the required attributes (single-prompt path)
         has_prompt_text = hasattr(self, '_code_prompt_text') and self._code_prompt_text is not None
         has_registration_flag = hasattr(self, '_prompt_registered')
         
@@ -1186,3 +1259,32 @@ class AutomagikAgent(ABC, Generic[T]):
         else:
             logger.debug("Legacy initialize_graphiti called - skipping in refactored framework")
             return True
+
+    # Helper: append media context information to a system prompt.
+    def _enhance_system_prompt(self, prompt: str, mc: Dict) -> str:
+        """Return prompt appended with information about attached media."""
+        try:
+            if not mc or not any(mc.values()):
+                return prompt or ""
+
+            enhancement = "\n\nYou have access to analyze the following media types in this conversation:"
+
+            if mc.get("images"):
+                enhancement += "\n- Images: You can see and analyze visual content"
+            if mc.get("audio"):
+                enhancement += "\n- Audio: You can process audio content"
+            if mc.get("documents"):
+                enhancement += "\n- Documents: You can read and analyze documents"
+
+            return (prompt or "") + enhancement
+        except Exception as e:
+            logger.warning(f"Failed to enhance system prompt: {e}")
+            return prompt or ""
+
+    async def load_prompt_by_status(self, status: str) -> bool:
+        """Load a prompt by status (multi-prompt mode), fallback to single-prompt."""
+        if getattr(self, "enable_multi_prompt", False) and self.prompt_manager:
+            return await self.prompt_manager.load_prompt_by_status(status)
+
+        # Single-prompt behaviour: just load active template for given status key
+        return await self.load_active_prompt_template(status_key=str(status))
