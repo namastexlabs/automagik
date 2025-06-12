@@ -12,7 +12,7 @@ try:
     
     # Standardized create_agent function
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
-        """Factory function to create Flashinho Pro agent instance.
+        """Factory function to create Flashinho Pro agent instance. 
         
         Creates an advanced multimodal Brazilian educational assistant powered by
         Google Gemini 2.5 Pro with full Flashed API integration.
