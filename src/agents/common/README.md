@@ -115,25 +115,28 @@ await self.prompt_manager.register_all_prompts()
 await self.prompt_manager.load_prompt_by_status("APPROVED")
 ```
 
-### 4. Specialized Base Classes (`specialized_agents.py`)
+### 4. Unified Agent Architecture
 
-Pre-configured base classes for common agent patterns:
+All agents now inherit directly from `AutomagikAgent` with feature flags:
 
 ```python
-# Evolution/WhatsApp agents
-class MyEvolutionAgent(EvolutionAgent):
+# Standard agent with multimodal support (default)
+class MyAgent(AutomagikAgent):
     def __init__(self, config):
-        super().__init__(config, AGENT_PROMPT)  # Pre-configured
+        super().__init__(config)
+        self._code_prompt_text = AGENT_PROMPT
+        self.dependencies = self.create_default_dependencies()
+        self.tool_registry.register_default_tools(self.context)
 
-# Multi-prompt agents (like Stan)
-class MyMultiPromptAgent(MultiPromptAgent):
+# Multi-prompt agent (like Stan)
+class MyMultiPromptAgent(AutomagikAgent):
     def __init__(self, config):
-        super().__init__(config)  # Auto-discovers prompts
-
-# BlackPearl integration agents
-class MyBlackPearlAgent(BlackPearlAgent):
-    def __init__(self, config):
-        super().__init__(config)  # Pre-configured tools and prompts
+        if config is None:
+            config = {}
+        config.setdefault("enable_multi_prompt", True)
+        super().__init__(config)
+        self._code_prompt_text = AGENT_PROMPT
+        # Auto-discovers prompts when enable_multi_prompt=True
 ```
 
 ### 5. Decorator System (`agent_decorators.py`)
@@ -156,19 +159,19 @@ class MyAgent(AutomagikAgent):
 ### Simple Agent Enhancement
 
 ```python
-# Before (original)
-class SimpleAgent(AutomagikAgent):
+# Before (with specialized inheritance)
+class SimpleAgent(MultimodalAgent):
     def __init__(self, config: dict[str, str]) -> None:
-        super().__init__(config, framework_type="pydantic_ai")
+        super().__init__(config)
+        # Complex multimodal setup...
+
+# After (unified architecture)
+class SimpleAgent(AutomagikAgent):
+    def __init__(self, config: Dict[str, str]) -> None:
+        super().__init__(config)  # Multimodal enabled by default
         self._code_prompt_text = AGENT_PROMPT
         self.dependencies = self.create_default_dependencies()
         self.tool_registry.register_default_tools(self.context)
-        self.tool_registry.register_evolution_tools(self.context)
-
-# After (enhanced)
-class SimpleAgentEnhanced(SimpleAgent):
-    def __init__(self, config: Dict[str, str]) -> None:
-        super().__init__(config, AGENT_PROMPT)
 ```
 
 ### Complex Agent Enhancement
@@ -184,16 +187,17 @@ For agents with specialized business logic (like Stan), the framework handles:
 
 ## Migration Guide
 
-### Step 1: Identify Agent Type
-- **Simple agents**: Use `SimpleAgent` base class
-- **WhatsApp/Evolution**: Use `EvolutionAgent` base class  
-- **Multi-prompt agents**: Use `MultiPromptAgent` base class
-- **BlackPearl integration**: Use `BlackPearlAgent` base class
+### Step 1: Identify Required Features
+- **Basic functionality**: Use `AutomagikAgent` (multimodal enabled by default)
+- **Multi-prompt support**: Set `enable_multi_prompt=True` in config
+- **WhatsApp/Evolution**: Built-in via channel handlers
+- **BlackPearl integration**: Copy helper methods locally (see StanAgent example)
 
-### Step 2: Replace Boilerplate
-- Move tool registration to `_register_[agent]_tools()` method
+### Step 2: Configure Features
+- Set `enable_multi_prompt=True` if status-based prompts needed
+- Configure multimodal settings if custom vision model required
 - Use `ToolWrapperFactory` for wrapper creation
-- Replace manual prompt registration with `MultiPromptManager`
+- Set `self._code_prompt_text = AGENT_PROMPT` for agent prompt
 
 ### Step 3: Preserve Business Logic
 - Keep domain-specific methods (like BlackPearl contact management)
@@ -202,8 +206,9 @@ For agents with specialized business logic (like Stan), the framework handles:
 
 ### Step 4: Test Compatibility
 - Run existing tests to ensure no regressions
-- Verify tool functionality
-- Check prompt loading and memory integration
+- Verify multimodal functionality works
+- Check tool registration and memory integration
+- Test multi-prompt loading if enabled
 
 ## Performance Impact
 
@@ -217,11 +222,12 @@ The enhancement framework provides:
 
 ## Best Practices
 
-1. **Always extend appropriate base class**: Choose the right specialized base class
-2. **Preserve business logic**: Don't eliminate domain-specific functionality
-3. **Use factory methods**: Leverage `ToolWrapperFactory` for consistency
-4. **Test thoroughly**: Enhanced agents should pass all existing tests
-5. **Document customizations**: Note any deviations from standard patterns
+1. **Always extend AutomagikAgent**: Single base class with feature flags
+2. **Configure features appropriately**: Enable multi-prompt, configure multimodal as needed
+3. **Preserve business logic**: Don't eliminate domain-specific functionality
+4. **Use factory methods**: Leverage `ToolWrapperFactory` for consistency
+5. **Test thoroughly**: Agents should pass all existing tests
+6. **Document customizations**: Note any deviations from standard patterns
 
 ## Architecture Benefits
 
