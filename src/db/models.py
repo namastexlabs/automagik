@@ -334,3 +334,184 @@ class AgentMCPServerDB(BaseDBModel):
         if not row:
             return None
         return cls(**row)
+
+
+# New Simplified MCP Config Models (NMSTX-253 Refactor)
+class MCPConfigBase(BaseDBModel):
+    """Base class for MCP Config models."""
+    
+    name: str = Field(..., description="Unique server identifier")
+    config: Dict[str, Any] = Field(..., description="Complete JSON configuration")
+
+
+class MCPConfigCreate(MCPConfigBase):
+    """Data needed to create a new MCP Config."""
+    pass
+
+
+class MCPConfigUpdate(BaseModel):
+    """Data for updating an existing MCP Config."""
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        validate_assignment=True,
+    )
+    
+    config: Optional[Dict[str, Any]] = Field(default=None, description="Updated configuration")
+
+
+class MCPConfig(MCPConfigBase):
+    """Complete MCP Config model, including database fields."""
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, description="Unique identifier")
+    created_at: datetime = Field(..., description="Timestamp when config was created")
+    updated_at: datetime = Field(..., description="Timestamp when config was last updated")
+    
+    DB_TABLE: ClassVar[str] = "mcp_configs"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "MCPConfig":
+        """Create an MCPConfig instance from a database row.
+        
+        Args:
+            row: Database row as dictionary
+            
+        Returns:
+            MCPConfig instance
+        """
+        if not row:
+            return None
+            
+        return cls(
+            id=row["id"],
+            name=row["name"],
+            config=row["config"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"]
+        )
+
+    def get_server_type(self) -> str:
+        """Get the server type from config."""
+        return self.config.get("server_type", "stdio")
+    
+    def get_command(self) -> List[str]:
+        """Get the command array for stdio servers."""
+        return self.config.get("command", [])
+    
+    def get_agents(self) -> List[str]:
+        """Get the list of agents assigned to this MCP server."""
+        agents = self.config.get("agents", [])
+        return agents if isinstance(agents, list) else []
+    
+    def is_assigned_to_agent(self, agent_name: str) -> bool:
+        """Check if this MCP server is assigned to a specific agent.
+        
+        Args:
+            agent_name: Name of the agent to check
+            
+        Returns:
+            True if assigned, False otherwise. Returns True for "*" wildcard.
+        """
+        agents = self.get_agents()
+        return "*" in agents or agent_name in agents
+    
+    def get_tools_config(self) -> Dict[str, Any]:
+        """Get the tools configuration (include/exclude filters)."""
+        return self.config.get("tools", {})
+    
+    def should_include_tool(self, tool_name: str) -> bool:
+        """Check if a tool should be included based on filters.
+        
+        Args:
+            tool_name: Name of the tool to check
+            
+        Returns:
+            True if tool should be included, False if excluded
+        """
+        tools_config = self.get_tools_config()
+        
+        # Check exclude list first
+        exclude_list = tools_config.get("exclude", [])
+        if isinstance(exclude_list, list):
+            for pattern in exclude_list:
+                if pattern == "*" or tool_name == pattern or (pattern.endswith("*") and tool_name.startswith(pattern[:-1])):
+                    return False
+        
+        # Check include list
+        include_list = tools_config.get("include", ["*"])
+        if isinstance(include_list, list):
+            for pattern in include_list:
+                if pattern == "*" or tool_name == pattern or (pattern.endswith("*") and tool_name.startswith(pattern[:-1])):
+                    return True
+        
+        # Default to exclude if no include patterns match
+        return False
+    
+    def get_environment(self) -> Dict[str, str]:
+        """Get environment variables for the server."""
+        env = self.config.get("environment", {})
+        return env if isinstance(env, dict) else {}
+    
+    def get_timeout(self) -> int:
+        """Get the timeout in milliseconds."""
+        return self.config.get("timeout", 30000)
+    
+    def get_retry_count(self) -> int:
+        """Get the maximum retry count."""
+        return self.config.get("retry_count", 3)
+    
+    def is_enabled(self) -> bool:
+        """Check if the server is enabled."""
+        return self.config.get("enabled", True)
+    
+    def is_auto_start(self) -> bool:
+        """Check if the server should auto-start."""
+        return self.config.get("auto_start", True)
+    
+    def get_url(self) -> Optional[str]:
+        """Get the URL for HTTP servers."""
+        return self.config.get("url")
+    
+    def validate_config(self) -> bool:
+        """Validate the configuration is complete and consistent.
+        
+        Returns:
+            True if valid, False otherwise
+        """
+        # Check required fields
+        if not self.config.get("name"):
+            return False
+        
+        server_type = self.get_server_type()
+        if server_type not in ["stdio", "http"]:
+            return False
+        
+        # Check type-specific requirements
+        if server_type == "stdio" and not self.get_command():
+            return False
+        
+        if server_type == "http" and not self.get_url():
+            return False
+        
+        return True
+    
+    def to_legacy_format(self) -> Dict[str, Any]:
+        """Convert to legacy mcp_servers table format for migration compatibility.
+        
+        Returns:
+            Dictionary matching old mcp_servers schema
+        """
+        return {
+            "name": self.name,
+            "server_type": self.get_server_type(),
+            "description": self.config.get("description"),
+            "command": self.get_command() if self.get_server_type() == "stdio" else None,
+            "env": self.get_environment(),
+            "http_url": self.get_url(),
+            "auto_start": self.is_auto_start(),
+            "max_retries": self.get_retry_count(),
+            "timeout_seconds": self.get_timeout() // 1000,  # Convert ms to seconds
+            "tags": self.config.get("tags", []),
+            "priority": self.config.get("priority", 0),
+            "enabled": self.is_enabled()
+        }
