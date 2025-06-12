@@ -19,7 +19,7 @@ from src.agents.pydanticai.genie.models import (
 def genie_config():
     """Basic configuration for Genie agent testing."""
     return {
-        "model_name": "openai:gpt-4o-mini",
+        "model_name": "openai:gpt-4.1-mini",
         "model_provider": "openai", 
         "temperature": "0.1",
         "max_tokens": "1000",
@@ -35,7 +35,7 @@ def mock_dependencies():
         test_mode=True,
         disable_memory_operations=True,
         mock_external_apis=True,
-        model_name="openai:gpt-4o-mini",
+        model_name="openai:gpt-4.1-mini",
         model_settings={"temperature": 0.0}
     )
     return deps
