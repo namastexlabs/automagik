@@ -59,7 +59,7 @@ class GenieAgent(AutomagikAgent):
         
         # Initialize dependencies like Sofia does
         self.dependencies = AutomagikAgentsDependencies(
-            model_name=config.get("model_name", "openai:gpt-4o"),
+            model_name=config.get("model_name", "openai:gpt-4.1"),
             model_settings={},
             session_id=config.get("session_id", str(uuid.uuid4())),
             user_id=config.get("user_id")

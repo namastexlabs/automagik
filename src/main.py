@@ -121,7 +121,7 @@ async def initialize_all_agents():
                 new_agent = Agent(
                     name=agent_name,
                     type=FrameworkType.default().value,  # Use enum for consistency
-                    model="openai:gpt-4o",  # Default model
+                    model="openai:gpt-4.1",  # Default model
                     config={"created_by": "auto_discovery"},
                     description=f"Auto-discovered {agent_name} agent",
                     active=True  # Default to active
