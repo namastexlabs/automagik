@@ -30,21 +30,29 @@ class FlashinhoPro(MultimodalAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize Flashinho Pro with multimodal and Gemini configuration."""
+        # Ensure config has the Gemini model specified before calling super()
+        if config is None:
+            config = {}
+        
+        # Set the Gemini model in config before initialization
+        config['model'] = "google-gla:gemini-2.5-pro-preview-06-05"
+        
         super().__init__(
             config=config,
             prompt=AGENT_PROMPT,  # Brazilian educational coaching prompt
-            vision_model="google-gla:gemini-2.5-pro-preview-06-05",  # Gemini 2.5 Pro
+            vision_model="google-gla:gemini-2.5-pro-preview-06-05",  # Gemini 2.5 Pro for vision
             supported_media=['image', 'audio', 'document'],  # Full multimodal support
             auto_enhance_prompts=True  # Enable automatic prompt enhancement
         )
         
-        # Configure Gemini 2.5 Pro as primary model
-        self.dependencies.model_name = "google-gla:gemini-2.5-pro-preview-06-05"
+        # Double-check the model is set correctly after initialization
+        if hasattr(self.dependencies, 'model_name'):
+            self.dependencies.model_name = "google-gla:gemini-2.5-pro-preview-06-05"
         
         # Register Flashed API tools for educational context
         self._register_flashed_tools()
         
-        logger.info("Flashinho Pro initialized with Gemini 2.5 Pro and multimodal support")
+        logger.info("Flashinho Pro initialized with Gemini 2.5 Pro model and multimodal support")
     
     def _register_flashed_tools(self) -> None:
         """Register all 6 Flashed API tools for educational gaming functionality."""
