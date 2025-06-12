@@ -3,11 +3,12 @@
 This module provides the API client implementation for interacting with the Flashed API.
 """
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import aiohttp
 # from src.tools.blackpearl.interface import validate_api_response, handle_api_error, format_api_request, filter_none_params
 from src.tools.flashed.interface import format_api_request, filter_none_params
 from src.config import settings
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,11 @@ class FlashedProvider():
         if not self.auth_token:
             raise ValueError("Auth token not set. Provide a token or set the FLASHED_API_KEY environment variable.")
 
+        # Mock data for testing - in production this would be a real API client
+        self._mock_pro_users = [
+            "123e4567-e89b-12d3-a456-426614174000",  # Test Pro user
+            "550e8400-e29b-41d4-a716-446655440000",  # Another test Pro user
+        ]
         
     async def __aenter__(self):
         """Create aiohttp session when entering context."""
@@ -255,12 +261,127 @@ class FlashedProvider():
         return await self._request("GET", f"/user-plays/{user_uuid}", header={"Authorization": self.auth_token})
     
     async def get_user_energy(self, user_uuid: str) -> Dict[str, Any]:
-        """Get the energy value for a given user.
+        """Get user energy information.
         
         Args:
             user_uuid: User UUID
             
         Returns:
-            User's energy value
+            User energy data
         """
-        return await self._request("GET", f"/check-energy/{user_uuid}", header={"Authorization": self.auth_token})
+        return await self._request("GET", f"/user-energy/{user_uuid}", header={"Authorization": self.auth_token})
+    
+    async def check_user_pro_status(self, user_id: Optional[str] = None) -> bool:
+        """Check if user has Pro status.
+        
+        Args:
+            user_id: User ID to check
+            
+        Returns:
+            bool: True if user has Pro status, False otherwise
+        """
+        if not user_id:
+            return False
+            
+        try:
+            # Convert string UUID to UUID object if needed
+            if isinstance(user_id, str):
+                try:
+                    user_id_obj = str(uuid.UUID(user_id))
+                except ValueError:
+                    logger.error(f"Invalid UUID format for user_id: {user_id}")
+                    return False
+            else:
+                user_id_obj = str(user_id)
+                
+            # For testing purposes, we'll mock some Pro users
+            # In production, this would be a call to the subscription API
+            is_pro = user_id_obj in self._mock_pro_users
+            
+            if is_pro:
+                logger.info(f"User {user_id} has Pro subscription")
+            else:
+                logger.info(f"User {user_id} has Free subscription")
+                
+            return is_pro
+                
+        except Exception as e:
+            logger.error(f"Error checking Pro status: {e}")
+            # Default to non-Pro on error
+            return False
+    
+    async def search_users(self, email: str = None, phone: str = None, name: str = None) -> Dict[str, Any]:
+        """Search for users by email, phone, or name.
+        
+        Args:
+            email: User email address (optional)
+            phone: User phone number (optional)
+            name: User name (optional)
+            
+        Returns:
+            List of matching users or empty list if none found
+        """
+        params = {}
+        if email:
+            params["email"] = email
+        if phone:
+            params["phone"] = phone
+        if name:
+            params["name"] = name
+            
+        return await self._request(
+            "GET", 
+            "/users/search", 
+            params=params,
+            header={"Authorization": self.auth_token}
+        )
+        
+    async def get_user_by_email(self, email: str) -> Dict[str, Any]:
+        """Find a user by their email address.
+        
+        Args:
+            email: User email address
+            
+        Returns:
+            First matching user or None if not found
+        """
+        try:
+            result = await self.search_users(email=email)
+            users = result.get("users", [])
+            return users[0] if users else None
+        except Exception as e:
+            logger.error(f"Error finding user by email: {str(e)}")
+            return None
+
+    async def get_user_preferences(self, user_id: str) -> Dict[str, Any]:
+        """Get user preferences.
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Dict[str, Any]: User preferences
+        """
+        # Mock implementation - in production this would fetch from an API
+        return {
+            "language": "en",
+            "theme": "light",
+            "notifications": True
+        }
+    
+    async def get_user_history(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get user interaction history.
+        
+        Args:
+            user_id: User ID
+            limit: Maximum number of history items to return
+            
+        Returns:
+            List[Dict[str, Any]]: User history
+        """
+        # Mock implementation - in production this would fetch from an API
+        return [
+            {"timestamp": "2023-01-01T12:00:00Z", "action": "login"},
+            {"timestamp": "2023-01-01T12:05:00Z", "action": "search", "query": "math help"},
+            {"timestamp": "2023-01-01T12:10:00Z", "action": "view_lesson", "lesson_id": "algebra-101"}
+        ]

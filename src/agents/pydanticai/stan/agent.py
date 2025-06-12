@@ -6,7 +6,7 @@ reducing boilerplate code using the enhancement framework.
 import logging
 from typing import Dict, Optional, Any
 
-from src.agents.common.specialized_agents import BlackPearlAgent
+from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.common.tool_wrapper_factory import ToolWrapperFactory
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
@@ -24,7 +24,7 @@ from src.tools.blackpearl import verificar_cnpj
 logger = logging.getLogger(__name__)
 
 
-class StanAgent(BlackPearlAgent):
+class StanAgent(AutomagikAgent):
     """Enhanced Stan Agent maintaining full business logic with reduced verbosity.
     
     This version reduces the original 454-line implementation while preserving
@@ -36,7 +36,17 @@ class StanAgent(BlackPearlAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize Stan Agent with automatic setup."""
-        super().__init__(config)  # Handles all standard setup
+        if config is None:
+            config = {}
+        config.setdefault("enable_multi_prompt", True)
+
+        super().__init__(config)
+
+        # dependencies and prompt default (will be filled by prompts)
+        self.dependencies = self.create_default_dependencies()
+        if self.db_id:
+            self.dependencies.set_agent_id(self.db_id)
+        self.tool_registry.register_default_tools(self.context)
         
         # Register Stan-specific tools (replaces 50+ lines of tool registration)
         self._register_stan_tools()
@@ -62,6 +72,43 @@ class StanAgent(BlackPearlAgent):
                 wrapper = ToolWrapperFactory.create_context_wrapper(tool_func, self.context)
             
             self.tool_registry.register_tool(wrapper)
+    
+    async def handle_contact_management(
+        self,
+        channel_payload: Optional[Dict],
+        user_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        if not channel_payload:
+            return None
+
+        try:
+            user_number = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+            user_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
+
+            if not user_number:
+                logger.debug("No user number found; skipping BlackPearl contact management")
+                return None
+
+            contact = await self._get_or_create_blackpearl_contact(user_number, user_name, user_id)
+
+            if contact:
+                self._update_context_with_contact_info(contact)
+
+                status = contact.get("status_aprovacao", "NOT_REGISTERED")
+                await self.load_prompt_by_status(status)
+
+                await self._store_user_memory(user_id, user_name, user_number, contact)
+
+                logger.info(f"BlackPearl Contact: {contact.get('id')} - {user_name}")
+                return contact
+
+            # fallback
+            await self.load_prompt_by_status("NOT_REGISTERED")
+        except Exception as exc:
+            logger.error(f"BlackPearl contact management error: {exc}")
+            await self.load_prompt_by_status("NOT_REGISTERED")
+
+        return None
     
     async def _get_or_create_blackpearl_contact(
         self, 

@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Optional, List
 
-from src.agents.common.specialized_agents import EvolutionAgent
+from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.common.tool_wrapper_factory import ToolWrapperFactory
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
@@ -48,7 +48,7 @@ class WhitelistConfig:
         return self._whitelist.copy()
 
 
-class EstruturarAgent(EvolutionAgent):
+class EstruturarAgent(AutomagikAgent):
     """Enhanced Estruturar Agent with WhatsApp contact management.
     
     Leverages ChannelHandler system for Evolution payload processing and
@@ -57,8 +57,17 @@ class EstruturarAgent(EvolutionAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize Estruturar Agent with whitelist configuration."""
-        # Initialize with ChannelHandler system
-        super().__init__(config, ESTRUTURAR_AGENT_PROMPT)
+        if config is None:
+            config = {}
+        super().__init__(config)
+
+        self._code_prompt_text = ESTRUTURAR_AGENT_PROMPT
+
+        # dependencies
+        self.dependencies = self.create_default_dependencies()
+        if self.db_id:
+            self.dependencies.set_agent_id(self.db_id)
+        self.tool_registry.register_default_tools(self.context)
         
         # Initialize whitelist configuration
         self.whitelist_config = WhitelistConfig()

@@ -6,7 +6,7 @@ boilerplate while maintaining all Flashed API integration functionality.
 import logging
 from typing import Dict
 
-from src.agents.common.specialized_agents import SimpleAgent as BaseSimpleAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent as BaseSimpleAgent
 from src.agents.common.tool_wrapper_factory import ToolWrapperFactory
 from src.tools.flashed.tool import (
     get_user_data, get_user_score, get_user_roadmap, 
