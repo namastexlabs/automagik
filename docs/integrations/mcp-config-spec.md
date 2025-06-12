@@ -287,7 +287,7 @@ def create_agent_with_mcp(agent_name: str) -> Agent:
             )
         mcp_servers.append(server)
     
-    return Agent(model="openai:gpt-4o", mcp_servers=mcp_servers)
+    return Agent(model="openai:gpt-4.1", mcp_servers=mcp_servers)
 ```
 
 ### Hot Reload Support
