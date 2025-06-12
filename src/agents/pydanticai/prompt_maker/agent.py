@@ -1,7 +1,7 @@
 """Enhanced Prompt Maker Agent using framework patterns."""
 from typing import Dict
 
-from src.agents.common.specialized_agents import SimpleAgent as BaseSimpleAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent as BaseSimpleAgent
 from .prompts.prompt import AGENT_PROMPT
 
 

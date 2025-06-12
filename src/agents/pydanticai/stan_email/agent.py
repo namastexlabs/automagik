@@ -9,7 +9,7 @@ import asyncio
 from typing import Dict, Optional, Any
 
 from pydantic import BaseModel, Field
-from src.agents.common.specialized_agents import BlackPearlAgent
+from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.common.tool_wrapper_factory import ToolWrapperFactory
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
@@ -49,7 +49,7 @@ class ExtractedLeadEmailInfo(BaseModel):
     )
 
 
-class StanEmailAgent(BlackPearlAgent):
+class StanEmailAgent(AutomagikAgent):
     """Enhanced StanEmail Agent with specialized email processing capabilities.
     
     Dramatically reduces verbosity from 679 lines while maintaining all
@@ -62,7 +62,21 @@ class StanEmailAgent(BlackPearlAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize StanEmail Agent with automatic setup."""
-        super().__init__(config, AGENT_PROMPT)
+        if config is None:
+            config = {}
+
+        config.setdefault("enable_multi_prompt", True)
+
+        super().__init__(config)
+
+        # set primary prompt; MultiPromptManager will load by status later
+        self._code_prompt_text = AGENT_PROMPT
+
+        # dependencies & default tools
+        self.dependencies = self.create_default_dependencies()
+        if self.db_id:
+            self.dependencies.set_agent_id(self.db_id)
+        self.tool_registry.register_default_tools(self.context)
         
         # Register specialized email processing tools
         self._register_email_tools()
@@ -403,6 +417,97 @@ class StanEmailAgent(BlackPearlAgent):
                 error_message=str(e),
                 raw_message={"context": self.context}
             )
+
+    # ------------------------------------------------------------------
+    # BlackPearl helpers (shared with StanAgent)
+    # ------------------------------------------------------------------
+
+    async def handle_contact_management(
+        self,
+        channel_payload: Optional[Dict],
+        user_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        if not channel_payload:
+            return None
+
+        try:
+            user_number = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+            user_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
+
+            if not user_number:
+                logger.debug("No user number found; skipping BlackPearl contact management")
+                return None
+
+            contact = await self._get_or_create_blackpearl_contact(user_number, user_name, user_id)
+
+            if contact:
+                self._update_context_with_contact_info(contact)
+
+                status = contact.get("status_aprovacao", "NOT_REGISTERED")
+                await self.load_prompt_by_status(status)
+
+                await self._store_user_memory(user_id, user_name, user_number, contact)
+
+                logger.info(f"BlackPearl Contact: {contact.get('id')} - {user_name}")
+                return contact
+
+            await self.load_prompt_by_status("NOT_REGISTERED")
+        except Exception as exc:
+            logger.error(f"BlackPearl contact management error: {exc}")
+            await self.load_prompt_by_status("NOT_REGISTERED")
+
+        return None
+
+    async def _get_or_create_blackpearl_contact(
+        self,
+        user_number: str,
+        user_name: Optional[str],
+        user_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        # delegate to existing util
+        return await blackpearl.get_or_create_contact(
+            self.context,
+            user_number,
+            user_name,
+            user_id,
+            self.db_id,
+        )
+
+    def _update_context_with_contact_info(self, contact: Dict[str, Any]) -> None:
+        self.context["blackpearl_contact_id"] = contact.get("id")
+
+    async def _store_user_memory(
+        self,
+        user_id: Optional[str],
+        user_name: Optional[str],
+        user_number: Optional[str],
+        contact: Dict[str, Any],
+    ) -> None:
+        if not self.db_id:
+            return
+
+        try:
+            info = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "user_number": user_number,
+                "blackpearl_contact_id": contact.get("id"),
+            }
+
+            from src.db.models import Memory
+            from src.db.repository import create_memory
+
+            memory = Memory(
+                name="user_information",
+                content=str({k: v for k, v in info.items() if v is not None}),
+                user_id=user_id,
+                read_mode="system_prompt",
+                access="read_write",
+                agent_id=self.db_id,
+            )
+            create_memory(memory=memory)
+        except Exception as exc:
+            logger.error(f"Error storing StanEmail memory: {exc}")
 
 
 def create_agent(config: Dict[str, str]) -> StanEmailAgent:
