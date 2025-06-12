@@ -38,6 +38,7 @@ from pydantic_ai.tools import Tool as PydanticTool
 from .exceptions import MCPError
 from src.db.models import MCPConfig
 from src.db.repository.mcp import list_mcp_configs, get_agent_mcp_configs
+from src.config.feature_flags import get_feature_flags, use_new_mcp_system, is_hot_reload_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +99,8 @@ class MCPManager:
         self._config_file_path = Path(".mcp.json")
         self._file_observer: Optional[Observer] = None
         self._file_handler: Optional[MCPConfigFileHandler] = None
-        self._hot_reload_enabled = (
-            WATCHDOG_AVAILABLE and 
-            os.environ.get("MCP_HOT_RELOAD_ENABLED", "true").lower() in ("true", "1", "yes")
-        )
+        # Use centralized feature flags for hot reload setting
+        self._hot_reload_enabled = WATCHDOG_AVAILABLE and is_hot_reload_enabled()
         
     async def initialize(self) -> None:
         """Initialize the MCP manager and load configurations."""
