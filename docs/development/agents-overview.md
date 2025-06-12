@@ -6,7 +6,7 @@ This document provides an overview of the agent system within the Automagik Agen
 
 The agent system is designed to execute tasks autonomously or semi-autonomously using Large Language Models (LLMs) and a set of predefined tools. Key concepts include:
 
-- **Agents:** Independent units responsible for processing input, maintaining state (memory), deciding on actions (which may involve calling tools or generating responses), and interacting with users or other systems. (e.g., `SimpleAgent` located in `src/agents/pydanticai/simple/`).
+- **Agents:** Independent units responsible for processing input, maintaining state (memory), deciding on actions (which may involve calling tools or generating responses), and interacting with users or other systems. All agents extend `AutomagikAgent` with optional feature flags.
 - **Memory:** Agents maintain state and conversation history. This is managed by the `MemoryHandler` (`src/agents/common/memory_handler.py`) which likely interacts with the database via `src/memory/`. See [Memory Management](../architecture/memory.md).
 - **Tools:** Reusable functions or integrations that agents can invoke to perform specific actions beyond simple text generation (e.g., web search, database queries, API calls). Tool availability and usage are managed by the `ToolRegistry` (`src/agents/common/tool_registry.py`) and implemented in `src/tools/`.
 - **Sessions & Context:** Interactions are typically managed within sessions (`SessionManager` in `src/agents/common/session_manager.py`), each having a unique ID. Context might include user ID, agent ID, session ID, and run ID.
@@ -25,7 +25,7 @@ The agent-related code is primarily organized within the `src/agents/` directory
   - `tool_registry.py`: Manages registration and lookup of available tools.
   - `dependencies_helper.py`: Assists with model settings, usage limits, etc.
   - `__init__.py`: Exports common utilities.
-- `src/agents/models/`: Likely contains Pydantic models specific to agent data structures.
+- `src/agents/models/`: Contains Pydantic models and the base `AutomagikAgent` class.
 - `src/agents/pydanticai/<agent_name>/` (e.g., `src/agents/pydanticai/simple/`): Each subdirectory typically contains the specific implementation logic for a particular agent.
   - This might include the agent's main class, specific prompt templates, or custom logic.
 
@@ -52,7 +52,7 @@ A typical agent interaction might follow these steps:
 
 ## Creating a New Agent
 
-Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on the existing patterns:
+Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on the current architecture:
 
 1.  **Create Directory Structure:**
     Create a new directory for your agent within `src/agents/pydanticai/` (or another applicable category):
@@ -87,150 +87,127 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
 4.  **Implement the Agent Class (`agent.py`):**
     *   Import necessary components, including `AutomagikAgent` and your specific prompt.
     *   Define your class, inheriting from `AutomagikAgent`.
-    *   Implement the `__init__` method:
-        *   Call `super().__init__(config, MY_AGENT_PROMPT)`.
-        *   Configure `AutomagikAgentsDependencies`, setting at least the `model_name`.
-        *   Register tools using `self.tool_registry.register_default_tools()` and `self.tool_registry.register_tool(custom_tool)` for any custom tools needed (imported from `src/tools/`).
-    *   Implement `_initialize_pydantic_agent` (can often be adapted directly from `SimpleAgent`).
-    *   Implement the `run` method (can often be adapted directly from `SimpleAgent`, ensuring input preparation and response processing match your agent's needs).
+    *   Configure optional features via constructor parameters.
+    *   Register tools using `self.tool_registry.register_default_tools()` and custom tools as needed.
 
     ```python
     # src/agents/pydanticai/my_new/agent.py
     import logging
-    from typing import Dict, Any, Optional
-    
-    from pydantic_ai import Agent # PydanticAI's agent
-    from src.agents.models.automagik_agent import AutomagikAgent # Base class
-    from src.agents.models.dependencies import AutomagikAgentsDependencies
+    from typing import Dict, Optional
+
+    from src.agents.models.automagik_agent import AutomagikAgent
     from src.agents.models.response import AgentResponse
     from src.memory.message_history import MessageHistory
-    from src.agents.common.dependencies_helper import get_model_name, parse_model_settings, create_model_settings, add_system_message_to_history
-    from src.agents.common.message_parser import extract_all_messages, extract_tool_calls, extract_tool_outputs
-    
+
     # Import this agent's specific prompt
     from .prompts.prompt import MY_AGENT_PROMPT
-    
-    # (Import any custom tools if needed from src.tools)
-    # from src.tools.my_custom_tool import my_custom_tool 
-    
+
     logger = logging.getLogger(__name__)
-    
+
     class MyNewAgent(AutomagikAgent):
         def __init__(self, config: Dict[str, str]) -> None:
-            super().__init__(config, MY_AGENT_PROMPT)
-            self._agent_instance: Optional[Agent] = None
+            if config is None:
+                config = {}
             
-            self.dependencies = AutomagikAgentsDependencies(
-                model_name=get_model_name(config, default_model="openai:gpt-4.1-mini"), # Specify desired model
-                model_settings=parse_model_settings(config)
-            )
-            if self.db_id: self.dependencies.set_agent_id(self.db_id)
+            # Configure optional features
+            config.setdefault("enable_multi_prompt", False)  # Enable if needed
+            # Multimodal is enabled by default with vision_model="openai:gpt-4o"
+            
+            super().__init__(config)
+            
+            # Set the agent prompt
+            self._code_prompt_text = MY_AGENT_PROMPT
+            
+            # Initialize dependencies
+            self.dependencies = self.create_default_dependencies()
+            if self.db_id:
+                self.dependencies.set_agent_id(self.db_id)
             
             # Register tools
-            self.tool_registry.register_default_tools(self.context) 
-            # self.tool_registry.register_tool(my_custom_tool) # Uncomment to add custom tools
+            self.tool_registry.register_default_tools(self.context)
+            # Add custom tools if needed:
+            # self.tool_registry.register_tool(my_custom_tool)
             
             logger.info("MyNewAgent initialized")
 
-        async def _initialize_pydantic_agent(self) -> None:
-            if self._agent_instance is not None: return
+        async def run(
+            self, 
+            input_text: str, 
+            *, 
+            multimodal_content=None, 
+            system_message=None, 
+            message_history_obj: Optional[MessageHistory] = None,
+            channel_payload: Optional[dict] = None,
+            message_limit: Optional[int] = 20
+        ) -> AgentResponse:
+            """Run the agent with the provided input."""
             
-            model_name = self.dependencies.model_name
-            model_settings = create_model_settings(self.dependencies.model_settings)
-            tools = self.tool_registry.convert_to_pydantic_tools()
+            # Initialize prompts if using multi-prompt
+            if not self.prompt_manager.is_registered() and self.db_id:
+                await self.initialize_prompts()
             
-            try:
-                self._agent_instance = Agent(
-                    model=model_name,
-                    system_prompt=self.system_prompt, # Uses the base class prompt
-                    tools=tools,
-                    model_settings=model_settings,
-                    deps_type=AutomagikAgentsDependencies
-                )
-                logger.info(f"Initialized MyNewAgent PydanticAI instance with {len(tools)} tools")
-            except Exception as e:
-                logger.error(f"Failed to initialize MyNewAgent PydanticAI instance: {e}")
-                raise
-        
-        async def run(self, input_text: str, *, message_history_obj: Optional[MessageHistory] = None, message_limit: Optional[int] = 20, **kwargs) -> AgentResponse:
-            if self.db_id: await self.initialize_memory_variables(getattr(self.dependencies, 'user_id', None))
-            await self._initialize_pydantic_agent()
-            
-            pydantic_message_history = []
-            if message_history_obj: pydantic_message_history = message_history_obj.get_formatted_pydantic_messages(limit=message_limit)
-            
-            filled_system_prompt = await self.get_filled_system_prompt(user_id=getattr(self.dependencies, 'user_id', None))
-            if filled_system_prompt: pydantic_message_history = add_system_message_to_history(pydantic_message_history, filled_system_prompt)
-                
-            if hasattr(self.dependencies, 'set_context'): self.dependencies.set_context(self.context)
+            # Use the base class implementation which handles:
+            # - Multimodal processing (automatic vision model switching)
+            # - Channel payload processing (WhatsApp/Evolution)
+            # - Memory template variable substitution
+            # - Tool execution and response formatting
+            return await self._run_agent(
+                input_text=input_text,
+                system_prompt=system_message,
+                message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit) if message_history_obj else [],
+                multimodal_content=multimodal_content,
+                channel_payload=channel_payload,
+                message_limit=message_limit
+            )
 
-            try:
-                result = await self._agent_instance.run(
-                    input_text, # Assuming text input for simplicity
-                    message_history=pydantic_message_history,
-                    usage_limits=getattr(self.dependencies, "usage_limits", None),
-                    deps=self.dependencies
-                )
-                
-                all_messages = extract_all_messages(result)
-                tool_calls = [call for msg in all_messages for call in extract_tool_calls(msg)]
-                tool_outputs = [output for msg in all_messages for output in extract_tool_outputs(msg)]
-                
-                return AgentResponse(
-                    text=result.data,
-                    success=True,
-                    tool_calls=tool_calls,
-                    tool_outputs=tool_outputs,
-                    raw_message=all_messages,
-                    system_prompt=filled_system_prompt,
-                )
-            except Exception as e:
-                logger.error(f"Error running MyNewAgent: {e}", exc_info=True)
-                return AgentResponse(text=f"Error: {e}", success=False, error_message=str(e))
+    def create_agent(config: Dict[str, str]) -> MyNewAgent:
+        """Factory function to create the agent."""
+        try:
+            return MyNewAgent(config)
+        except Exception as e:
+            logger.error(f"Failed to create MyNewAgent: {e}")
+            from src.agents.models.placeholder import PlaceholderAgent
+            return PlaceholderAgent(config)
     ```
 
 5.  **Make Agent Discoverable:**
-    How the application finds new agents isn't explicitly defined in the code snippets reviewed. It might involve:
-    *   Adding an import for your new agent class in `src/agents/pydanticai/__init__.py` or a central registry.
-    *   Relying on naming conventions and dynamic loading based on the directory structure.
-    *   Updating the `AM_AGENTS_NAMES` environment variable if pre-loading is used.
-    *(Further investigation or checking project conventions is needed for this step)*.
+    Add your agent to the re-exports in `src/agents/pydanticai/__init__.py`:
+    ```python
+    from .my_new.agent import MyNewAgent
+    ```
 
 6.  **Testing:**
     Test your new agent thoroughly using the CLI or API (see [Running the Project](../getting-started/running.md)). Ensure it handles prompts, uses tools (if any), and manages memory correctly.
 
-*(This guide provides a template based on SimpleAgent. Specific implementations might require adjustments.)*
-
 ## Available Agents
 
-The Automagik Agents framework currently includes two main agents with synchronized features:
+The Automagik Agents framework includes several agents, all built on the unified `AutomagikAgent` base class with feature flags:
 
-### Agent Comparison
+### Agent Architecture
 
-| Feature | Simple Agent | Sofia Agent | Description |
-|---------|--------------|-------------|-------------|
-| **Base Framework** | ✅ AutomagikAgent | ✅ AutomagikAgent | Both extend the same base class |
-| **Multimodal Processing** | ✅ Full Support | ✅ Full Support | Process images alongside text |
-| **WhatsApp Integration** | ✅ Full Support | ✅ Full Support | Evolution API integration |
-| **Reliability Features** | ✅ Retry Logic | ✅ Retry Logic | Exponential backoff and semaphore control |
-| **Memory Integration** | ✅ Template Variables | ✅ Template Variables | Graphiti knowledge graph |
-| **MCP Server Support** | ❌ Intentionally Excluded | ✅ Full Support | Dynamic tool loading |
-| **Sub-Agent Patterns** | ❌ Minimal Design | ✅ Airtable Integration | Wrapper patterns for specialized agents |
-| **Tool Registry** | ✅ Basic Tools | ✅ Extended Tools | Default + specialized tools |
-| **Design Philosophy** | **Minimal & Focused** | **Full-Featured** | Different use cases |
+All agents now inherit directly from `AutomagikAgent` and configure features through constructor parameters:
+
+| Feature | Configuration | Description |
+|---------|---------------|-------------|
+| **Multimodal Processing** | `vision_model`, `supported_media`, `auto_enhance_prompts` | Process images alongside text (enabled by default) |
+| **Multi-Prompt Support** | `enable_multi_prompt=True` | Status-based prompt switching |
+| **WhatsApp Integration** | Built-in via channel handlers | Evolution API integration |
+| **Memory Templates** | Built-in | Dynamic variable substitution in prompts |
+| **Tool Registry** | Built-in | Default and custom tool registration |
 
 ### Simple Agent
 
 **Location**: `src/agents/pydanticai/simple/`  
 **Philosophy**: Minimal, focused agent for straightforward tasks
 
-**Key Features**:
-- ✅ **Multimodal processing** - Handle images and text
-- ✅ **WhatsApp integration** - Evolution API support
-- ✅ **Reliability features** - Retry logic and concurrency control
-- ✅ **Memory templates** - Dynamic prompt variables
-- ❌ **No MCP servers** - Maintains simplicity
-- ❌ **No sub-agents** - Single-purpose design
+**Configuration**:
+```python
+config = {
+    "vision_model": "openai:gpt-4o",  # Default multimodal
+    "supported_media": ["image", "audio", "document"],
+    "auto_enhance_prompts": True
+}
+```
 
 **Best For**:
 - Direct user interactions
@@ -238,90 +215,157 @@ The Automagik Agents framework currently includes two main agents with synchroni
 - Image analysis tasks
 - Simple automation workflows
 
+### FlashinhoPro Agent
+
+**Location**: `src/agents/pydanticai/flashinho/`  
+**Philosophy**: Pro/Free tier agent with multimodal and multi-prompt support
+
+**Configuration**:
+```python
+config = {
+    "enable_multi_prompt": True,  # Status-based prompts
+    "vision_model": "openai:gpt-4o",
+    "auto_enhance_prompts": True
+}
+```
+
+**Features**:
+- Pro/Free model switching logic
+- Multi-prompt management
+- Full multimodal support
+- Image analysis tools
+
+### Stan Agent
+
+**Location**: `src/agents/pydanticai/stan/`  
+**Philosophy**: Business integration agent with BlackPearl CRM
+
+**Configuration**:
+```python
+config = {
+    "enable_multi_prompt": True,  # Status-based prompts
+    "vision_model": "openai:gpt-4o"
+}
+```
+
+**Features**:
+- BlackPearl CRM integration
+- Contact management
+- Status-based prompt loading
+- Specialized business tools (product, backoffice, order agents)
+
 ### Sofia Agent
 
 **Location**: `src/agents/pydanticai/sofia/`  
-**Philosophy**: Full-featured agent with advanced capabilities
+**Philosophy**: Full-featured agent with MCP server integration
 
-**Key Features**:
-- ✅ **All Simple agent features** - Complete feature parity
-- ✅ **MCP server integration** - Dynamic tool loading
-- ✅ **Sub-agent patterns** - Airtable agent wrapper
-- ✅ **Extended tool registry** - Specialized integrations
-- ✅ **Advanced workflows** - Complex task orchestration
+**Features**:
+- MCP server integration
+- Advanced tool loading
+- Complex workflow orchestration
+- Extended integrations
 
-**Best For**:
-- Complex business workflows
-- Multi-system integrations
-- Project management tasks
-- Advanced automation scenarios
+## Feature Details
 
-## Synchronized Features
+### Multimodal Processing (All Agents)
 
-Both agents now share core capabilities through the Agent Feature Synchronization project:
-
-### Multimodal Processing
-
-Both agents support image processing with:
-- HTTP/HTTPS image URLs
+All agents support multimodal processing by default:
+- Automatic vision model switching when images are present
+- Support for HTTP/HTTPS image URLs
 - Multiple images per request
-- PydanticAI ImageUrl conversion
-- Graceful fallback handling
+- Auto-enhanced system prompts with media context
 
-**Documentation**: [Multimodal Processing Guide](../integrations/multimodal.md)
+**Configuration**:
+```python
+config = {
+    "vision_model": "openai:gpt-4o",  # Model for vision tasks
+    "supported_media": ["image", "audio", "document"],
+    "auto_enhance_prompts": True  # Auto-enhance prompts for media
+}
+```
 
-### WhatsApp Integration
+### Multi-Prompt Support (Optional)
 
-Both agents include Evolution API integration:
-- Send/receive WhatsApp messages
+Agents can enable status-based prompt switching:
+```python
+config = {"enable_multi_prompt": True}
+```
+
+This enables:
+- Automatic prompt directory discovery
+- Status-based prompt loading (`load_prompt_by_status()`)
+- Dynamic prompt switching based on user state
+
+### WhatsApp Integration (Built-in)
+
+All agents include Evolution API integration through the channel handler system:
+- Automatic user information extraction
 - Context-aware tool wrappers
 - Group chat support
-- User information persistence
+- Message formatting and delivery
 
-**Documentation**: [WhatsApp Integration Guide](../integrations/whatsapp.md)
+### Memory Templates (Built-in)
 
-### Reliability Features
+All agents support dynamic variable substitution in prompts:
+```python
+PROMPT = """
+You are an agent.
+User: {{user_name}}
+Preferences: {{user_preferences}}
+Context: {{recent_context}}
+"""
+```
 
-Both agents implement robust error handling:
-- Exponential backoff retry logic
-- LLM semaphore concurrency control
-- Configurable retry attempts
-- Comprehensive error logging
+Variables are automatically populated from the knowledge graph.
 
-### Memory Integration
+## Migration from Specialized Classes
 
-Both agents support memory templates:
-- Dynamic variable substitution
-- User preference storage
-- Context-aware responses
-- Graphiti knowledge graph integration
+The framework previously used specialized inheritance classes that have been consolidated:
 
-## MCP Server Integration (Sofia Only)
+### Removed Classes
+- `EvolutionAgent` → Use `AutomagikAgent` (WhatsApp support is built-in)
+- `MultiPromptAgent` → Use `AutomagikAgent` with `enable_multi_prompt=True`
+- `BlackPearlAgent` → Use `AutomagikAgent` and copy helper methods locally
+- `MultimodalAgent` → Use `AutomagikAgent` (multimodal is default)
+- `APIIntegrationAgent` → Use `AutomagikAgent` with custom tools
+- `DiscordAgent` → Use `AutomagikAgent` with Discord tools
 
-Sofia agent includes Model Context Protocol support:
-- Dynamic server loading
-- Tool discovery and registration
-- Server lifecycle management
-- Linear, PostgreSQL, and Memory servers
+### Migration Pattern
+```python
+# Before
+class MyAgent(SpecializedAgent):
+    def __init__(self, config):
+        super().__init__(config)
 
-**Documentation**: [MCP Integration Guide](../integrations/mcp.md)
+# After  
+class MyAgent(AutomagikAgent):
+    def __init__(self, config):
+        if config is None:
+            config = {}
+        config.setdefault("enable_multi_prompt", True)  # If needed
+        super().__init__(config)
+        self._code_prompt_text = AGENT_PROMPT
+        self.dependencies = self.create_default_dependencies()
+        self.tool_registry.register_default_tools(self.context)
+```
 
 ## Capabilities and Limitations
 
 ### Capabilities
+- **Unified Architecture**: Single base class with feature flags
 - **Multimodal Understanding**: Process images alongside text using vision-capable models
 - **WhatsApp Integration**: Send/receive messages through Evolution API
 - **External Tool Access**: Interact with databases, APIs, and external services
 - **Memory Persistence**: Store and retrieve user information and preferences
 - **Reliable Execution**: Retry logic and concurrency control for robust operation
-- **Dynamic Tool Loading**: (Sofia) Load tools from MCP servers dynamically
+- **Dynamic Prompts**: Template variables and multi-prompt support
 
 ### Limitations
 - **Model Dependency**: Performance depends on underlying LLM capabilities
 - **Tool Quality**: Effectiveness limited by available tool implementations
 - **Memory Complexity**: Long-term memory and context management challenges
 - **Hallucination Risk**: Standard LLM limitations apply
-- **Resource Usage**: Vision models and MCP servers require additional resources
+- **Resource Usage**: Vision models require additional resources
 
 ## Further Reading
 
@@ -329,7 +373,6 @@ Sofia agent includes Model Context Protocol support:
 - [Memory Management](../architecture/memory.md)
 - [Database Documentation](../architecture/database.md)
 - [API Documentation](./api.md)
-- [MCP Integration](../integrations/mcp.md)
 
 ### Feature Guides
 - [Multimodal Processing](../integrations/multimodal.md)
