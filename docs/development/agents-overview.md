@@ -6,7 +6,7 @@ This document provides an overview of the agent system within the Automagik Agen
 
 The agent system is designed to execute tasks autonomously or semi-autonomously using Large Language Models (LLMs) and a set of predefined tools. Key concepts include:
 
-- **Agents:** Independent units responsible for processing input, maintaining state (memory), deciding on actions (which may involve calling tools or generating responses), and interacting with users or other systems. (e.g., `SimpleAgent` located in `src/agents/simple/`).
+- **Agents:** Independent units responsible for processing input, maintaining state (memory), deciding on actions (which may involve calling tools or generating responses), and interacting with users or other systems. (e.g., `SimpleAgent` located in `src/agents/pydanticai/simple/`).
 - **Memory:** Agents maintain state and conversation history. This is managed by the `MemoryHandler` (`src/agents/common/memory_handler.py`) which likely interacts with the database via `src/memory/`. See [Memory Management](../architecture/memory.md).
 - **Tools:** Reusable functions or integrations that agents can invoke to perform specific actions beyond simple text generation (e.g., web search, database queries, API calls). Tool availability and usage are managed by the `ToolRegistry` (`src/agents/common/tool_registry.py`) and implemented in `src/tools/`.
 - **Sessions & Context:** Interactions are typically managed within sessions (`SessionManager` in `src/agents/common/session_manager.py`), each having a unique ID. Context might include user ID, agent ID, session ID, and run ID.
@@ -26,7 +26,7 @@ The agent-related code is primarily organized within the `src/agents/` directory
   - `dependencies_helper.py`: Assists with model settings, usage limits, etc.
   - `__init__.py`: Exports common utilities.
 - `src/agents/models/`: Likely contains Pydantic models specific to agent data structures.
-- `src/agents/<agent_name>/` (e.g., `src/agents/simple/`): Each subdirectory typically contains the specific implementation logic for a particular agent.
+- `src/agents/pydanticai/<agent_name>/` (e.g., `src/agents/pydanticai/simple/`): Each subdirectory typically contains the specific implementation logic for a particular agent.
   - This might include the agent's main class, specific prompt templates, or custom logic.
 
 ## Agent Lifecycle (Conceptual)
@@ -55,23 +55,23 @@ A typical agent interaction might follow these steps:
 Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on the existing patterns:
 
 1.  **Create Directory Structure:**
-    Create a new directory for your agent within `src/agents/simple/` (or another applicable category):
+    Create a new directory for your agent within `src/agents/pydanticai/` (or another applicable category):
     ```bash
-    mkdir src/agents/simple/my_new
-    mkdir src/agents/simple/my_new/prompts
+    mkdir src/agents/pydanticai/my_new
+    mkdir src/agents/pydanticai/my_new/prompts
     ```
 
 2.  **Create Core Files:**
     Inside the new directory, create the following Python files:
-    *   `src/agents/simple/my_new/__init__.py` (Can potentially import and export the agent class)
-    *   `src/agents/simple/my_new/agent.py` (Will contain the main agent class)
-    *   `src/agents/simple/my_new/prompts/__init__.py` (Empty)
-    *   `src/agents/simple/my_new/prompts/prompt.py` (Will define the agent's system prompt)
+    *   `src/agents/pydanticai/my_new/__init__.py` (Can potentially import and export the agent class)
+    *   `src/agents/pydanticai/my_new/agent.py` (Will contain the main agent class)
+    *   `src/agents/pydanticai/my_new/prompts/__init__.py` (Empty)
+    *   `src/agents/pydanticai/my_new/prompts/prompt.py` (Will define the agent's system prompt)
 
 3.  **Define the Agent Prompt (`prompts/prompt.py`):**
     Define the core instructions for your agent as a Python string. You can use `{{variable_name}}` for dynamic content injection from structured memory.
     ```python
-    # src/agents/simple/my_new/prompts/prompt.py
+    # src/agents/pydanticai/my_new/prompts/prompt.py
     MY_AGENT_PROMPT = """
     You are MyNewAgent. Your goal is to [... specific instructions ...].
     
@@ -95,7 +95,7 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
     *   Implement the `run` method (can often be adapted directly from `SimpleAgent`, ensuring input preparation and response processing match your agent's needs).
 
     ```python
-    # src/agents/simple/my_new/agent.py
+    # src/agents/pydanticai/my_new/agent.py
     import logging
     from typing import Dict, Any, Optional
     
@@ -191,7 +191,7 @@ Follow these steps to create a new custom agent (e.g., `MyNewAgent`) based on th
 
 5.  **Make Agent Discoverable:**
     How the application finds new agents isn't explicitly defined in the code snippets reviewed. It might involve:
-    *   Adding an import for your new agent class in `src/agents/simple/__init__.py` or a central registry.
+    *   Adding an import for your new agent class in `src/agents/pydanticai/__init__.py` or a central registry.
     *   Relying on naming conventions and dynamic loading based on the directory structure.
     *   Updating the `AM_AGENTS_NAMES` environment variable if pre-loading is used.
     *(Further investigation or checking project conventions is needed for this step)*.
@@ -221,7 +221,7 @@ The Automagik Agents framework currently includes two main agents with synchroni
 
 ### Simple Agent
 
-**Location**: `src/agents/simple/simple/`  
+**Location**: `src/agents/pydanticai/simple/`  
 **Philosophy**: Minimal, focused agent for straightforward tasks
 
 **Key Features**:
@@ -240,7 +240,7 @@ The Automagik Agents framework currently includes two main agents with synchroni
 
 ### Sofia Agent
 
-**Location**: `src/agents/simple/sofia/`  
+**Location**: `src/agents/pydanticai/sofia/`  
 **Philosophy**: Full-featured agent with advanced capabilities
 
 **Key Features**:

@@ -444,7 +444,7 @@ class MultimodalAgent(AutomagikAgent):
                 super().__init__(
                     config, 
                     prompt="You analyze images and provide insights.",
-                    vision_model="openai:gpt-4o"
+                    vision_model="openai:gpt-4.1"
                 )
     """
     
@@ -452,7 +452,7 @@ class MultimodalAgent(AutomagikAgent):
         self, 
         config: Dict[str, str], 
         prompt: str,
-        vision_model: str = "openai:gpt-4o",
+        vision_model: str = "openai:gpt-4.1",
         supported_media: List[str] = None,
         auto_enhance_prompts: bool = True
     ) -> None:
@@ -523,7 +523,7 @@ class MultimodalAgent(AutomagikAgent):
                 multimodal_content.get('documents')
             )
             
-            if needs_vision and 'vision' not in current_model and 'gpt-4o' not in current_model:
+            if needs_vision and 'vision' not in current_model and 'gpt-4.1' not in current_model:
                 self.dependencies.model_name = self.vision_model
                 logger.info(f"Switched to vision model: {self.vision_model}")
         
