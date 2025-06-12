@@ -1,9 +1,7 @@
-"""User repository functions for database operations."""
-
-import json
+"""User repository module"""
 import logging
 import uuid
-from typing import List, Optional, Dict, Any, Tuple, Union
+from typing import Dict, List, Any, Optional, Tuple, Union
 import copy
 
 from src.db.connection import execute_query, safe_uuid, generate_uuid
@@ -34,10 +32,10 @@ def get_user(user_id: Union[uuid.UUID, str]) -> Optional[User]:
 
 
 def get_user_by_email(email: str) -> Optional[User]:
-    """Get a user by email.
+    """Get a user by their email.
     
     Args:
-        email: The user email
+        email: The user's email address
         
     Returns:
         User object if found, None otherwise
@@ -50,6 +48,26 @@ def get_user_by_email(email: str) -> Optional[User]:
         return User.from_db_row(result[0]) if result else None
     except Exception as e:
         logger.error(f"Error getting user by email {email}: {str(e)}")
+        return None
+
+
+def get_user_by_phone(phone: str) -> Optional[User]:
+    """Get a user by their phone number.
+    
+    Args:
+        phone: The user's phone number
+        
+    Returns:
+        User object if found, None otherwise
+    """
+    try:
+        result = execute_query(
+            "SELECT * FROM users WHERE phone = %s",
+            (phone,)
+        )
+        return User.from_db_row(result[0]) if result else None
+    except Exception as e:
+        logger.error(f"Error getting user by phone {phone}: {str(e)}")
         return None
 
 

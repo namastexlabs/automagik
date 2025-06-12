@@ -6,7 +6,7 @@ meeting tools, MCP servers) while dramatically reducing boilerplate code.
 import logging
 from typing import Dict, Optional
 
-from src.agents.common.specialized_agents import SimpleAgent as BaseSimpleAgent
+from src.agents.pydanticai.simple.agent import SimpleAgent as BaseSimpleAgent
 from src.agents.common.tool_wrapper_factory import ToolWrapperFactory
 from src.tools.meeting.tool import join_meeting_with_url, MeetingService
 from .prompts.prompt import AGENT_PROMPT

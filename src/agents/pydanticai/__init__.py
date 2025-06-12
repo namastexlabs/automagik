@@ -8,6 +8,7 @@ import os
 import importlib
 import logging
 from pathlib import Path
+from importlib import import_module
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -80,3 +81,18 @@ def create_agent(agent_name=None):
         raise ValueError(f"Could not import agent module for {base_name}: {str(e)}")
     except Exception as e:
         raise ValueError(f"Error creating agent {base_name}: {str(e)}")
+
+# Canonical exports for common agent classes
+SimpleAgent = import_module("src.agents.pydanticai.simple.agent").SimpleAgent  # type: ignore
+FlashinhoAgent = import_module("src.agents.pydanticai.flashinho.agent").FlashinhoAgent  # type: ignore
+FlashinhoProAgent = import_module("src.agents.pydanticai.flashinho_pro.agent").FlashinhoPro  # type: ignore
+StanAgent = import_module("src.agents.pydanticai.stan.agent").StanAgent  # type: ignore
+StanEmailAgent = import_module("src.agents.pydanticai.stan_email.agent").StanEmailAgent  # type: ignore
+
+__all__ = [
+    "SimpleAgent",
+    "FlashinhoAgent",
+    "FlashinhoProAgent",
+    "StanAgent",
+    "StanEmailAgent",
+]
