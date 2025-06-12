@@ -436,3 +436,353 @@ class MCPServerManager:
         finally:
             # Optionally implement auto-stop logic here
             pass
+
+
+class MCPManager:
+    """
+    Centralized manager for all MCP servers in the automagik-agents framework.
+    
+    This class provides a unified interface for managing multiple MCP servers,
+    including initialization, lifecycle management, tool discovery, and execution.
+    """
+    
+    def __init__(self):
+        """Initialize the MCP manager."""
+        self._servers: Dict[str, MCPServerManager] = {}
+        self._initialized = False
+        
+    @property
+    def initialized(self) -> bool:
+        """Check if the manager has been initialized."""
+        return self._initialized
+        
+    @property
+    def server_count(self) -> int:
+        """Get the number of registered servers."""
+        return len(self._servers)
+    
+    async def initialize_servers(self, configs: List[MCPServerConfig]) -> None:
+        """
+        Initialize all MCP servers from configurations.
+        
+        Args:
+            configs: List of MCP server configurations
+        """
+        logger.info(f"Initializing {len(configs)} MCP servers...")
+        
+        for config in configs:
+            try:
+                server_manager = MCPServerManager(config)
+                self._servers[config.name] = server_manager
+                logger.info(f"Registered MCP server: {config.name}")
+            except Exception as e:
+                logger.error(f"Failed to register MCP server {config.name}: {str(e)}")
+        
+        # Start all servers
+        failed_servers = []
+        for name, server in self._servers.items():
+            try:
+                await server.start()
+                logger.info(f"Started MCP server: {name}")
+            except Exception as e:
+                logger.error(f"Failed to start MCP server {name}: {str(e)}")
+                failed_servers.append(name)
+        
+        # Remove failed servers
+        for name in failed_servers:
+            del self._servers[name]
+        
+        self._initialized = True
+        logger.info(f"MCP manager initialized with {len(self._servers)} active servers")
+    
+    async def shutdown_servers(self) -> None:
+        """Shutdown all MCP servers."""
+        logger.info("Shutting down all MCP servers...")
+        
+        for name, server in self._servers.items():
+            try:
+                await server.stop()
+                logger.info(f"Stopped MCP server: {name}")
+            except Exception as e:
+                logger.error(f"Error stopping MCP server {name}: {str(e)}")
+        
+        self._servers.clear()
+        self._initialized = False
+        logger.info("All MCP servers shut down")
+    
+    def get_server_status(self, server_name: str) -> Optional[MCPServerState]:
+        """
+        Get the status of a specific server.
+        
+        Args:
+            server_name: Name of the server
+            
+        Returns:
+            Server state or None if server not found
+        """
+        server = self._servers.get(server_name)
+        return server.state if server else None
+    
+    def list_servers(self) -> List[str]:
+        """
+        Get list of all server names.
+        
+        Returns:
+            List of server names
+        """
+        return list(self._servers.keys())
+    
+    def get_server(self, server_name: str) -> Optional[MCPServerManager]:
+        """
+        Get a specific server manager.
+        
+        Args:
+            server_name: Name of the server
+            
+        Returns:
+            Server manager or None if not found
+        """
+        return self._servers.get(server_name)
+    
+    async def create_server(self, config: MCPServerConfig) -> bool:
+        """
+        Create and start a new MCP server.
+        
+        Args:
+            config: Server configuration
+            
+        Returns:
+            True if server was created successfully
+        """
+        if config.name in self._servers:
+            logger.warning(f"Server {config.name} already exists")
+            return False
+        
+        try:
+            server_manager = MCPServerManager(config)
+            await server_manager.start()
+            self._servers[config.name] = server_manager
+            logger.info(f"Created and started MCP server: {config.name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create MCP server {config.name}: {str(e)}")
+            return False
+    
+    async def update_server(self, server_name: str, config: MCPServerConfig) -> bool:
+        """
+        Update an existing server configuration.
+        
+        Args:
+            server_name: Name of the server to update
+            config: New configuration
+            
+        Returns:
+            True if server was updated successfully
+        """
+        if server_name not in self._servers:
+            logger.warning(f"Server {server_name} not found")
+            return False
+        
+        try:
+            # Stop existing server
+            await self._servers[server_name].stop()
+            
+            # Create new server with updated config
+            server_manager = MCPServerManager(config)
+            await server_manager.start()
+            self._servers[server_name] = server_manager
+            
+            logger.info(f"Updated MCP server: {server_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update MCP server {server_name}: {str(e)}")
+            return False
+    
+    async def delete_server(self, server_name: str) -> bool:
+        """
+        Delete a server.
+        
+        Args:
+            server_name: Name of the server to delete
+            
+        Returns:
+            True if server was deleted successfully
+        """
+        if server_name not in self._servers:
+            logger.warning(f"Server {server_name} not found")
+            return False
+        
+        try:
+            await self._servers[server_name].stop()
+            del self._servers[server_name]
+            logger.info(f"Deleted MCP server: {server_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete MCP server {server_name}: {str(e)}")
+            return False
+    
+    async def start_server(self, server_name: str) -> bool:
+        """
+        Start a specific server.
+        
+        Args:
+            server_name: Name of the server to start
+            
+        Returns:
+            True if server was started successfully
+        """
+        server = self._servers.get(server_name)
+        if not server:
+            logger.warning(f"Server {server_name} not found")
+            return False
+        
+        try:
+            await server.start()
+            logger.info(f"Started MCP server: {server_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to start MCP server {server_name}: {str(e)}")
+            return False
+    
+    async def stop_server(self, server_name: str) -> bool:
+        """
+        Stop a specific server.
+        
+        Args:
+            server_name: Name of the server to stop
+            
+        Returns:
+            True if server was stopped successfully
+        """
+        server = self._servers.get(server_name)
+        if not server:
+            logger.warning(f"Server {server_name} not found")
+            return False
+        
+        try:
+            await server.stop()
+            logger.info(f"Stopped MCP server: {server_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to stop MCP server {server_name}: {str(e)}")
+            return False
+    
+    async def restart_server(self, server_name: str) -> bool:
+        """
+        Restart a specific server.
+        
+        Args:
+            server_name: Name of the server to restart
+            
+        Returns:
+            True if server was restarted successfully
+        """
+        server = self._servers.get(server_name)
+        if not server:
+            logger.warning(f"Server {server_name} not found")
+            return False
+        
+        try:
+            await server.restart()
+            logger.info(f"Restarted MCP server: {server_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to restart MCP server {server_name}: {str(e)}")
+            return False
+    
+    async def call_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+        """
+        Call a tool on a specific server.
+        
+        Args:
+            server_name: Name of the server
+            tool_name: Name of the tool to call
+            arguments: Arguments to pass to the tool
+            
+        Returns:
+            Tool execution result
+            
+        Raises:
+            MCPToolError: If tool call fails
+        """
+        server = self._servers.get(server_name)
+        if not server:
+            raise MCPToolError(f"Server {server_name} not found", tool_name, server_name)
+        
+        return await server.call_tool(tool_name, arguments)
+    
+    def list_tools(self, server_name: Optional[str] = None) -> List[MCPToolInfo]:
+        """
+        List tools from all servers or a specific server.
+        
+        Args:
+            server_name: Name of specific server, or None for all servers
+            
+        Returns:
+            List of tool information
+        """
+        if server_name:
+            server = self._servers.get(server_name)
+            return server.tools if server else []
+        
+        # Return tools from all servers
+        all_tools = []
+        for server in self._servers.values():
+            all_tools.extend(server.tools)
+        return all_tools
+    
+    def list_resources(self, server_name: Optional[str] = None) -> List[MCPResourceInfo]:
+        """
+        List resources from all servers or a specific server.
+        
+        Args:
+            server_name: Name of specific server, or None for all servers
+            
+        Returns:
+            List of resource information
+        """
+        if server_name:
+            server = self._servers.get(server_name)
+            return server.resources if server else []
+        
+        # Return resources from all servers
+        all_resources = []
+        for server in self._servers.values():
+            all_resources.extend(server.resources)
+        return all_resources
+    
+    async def read_resource(self, server_name: str, uri: str) -> Any:
+        """
+        Read a resource from a specific server.
+        
+        Args:
+            server_name: Name of the server
+            uri: URI of the resource to read
+            
+        Returns:
+            Resource content
+            
+        Raises:
+            MCPToolError: If resource access fails
+        """
+        server = self._servers.get(server_name)
+        if not server:
+            raise MCPToolError(f"Server {server_name} not found", server_name=server_name)
+        
+        return await server.access_resource(uri)
+    
+    def get_all_pydantic_tools(self) -> List[PydanticTool]:
+        """
+        Get all tools from all servers as PydanticAI tools.
+        
+        Returns:
+            List of PydanticAI tools from all servers
+        """
+        all_tools = []
+        for server in self._servers.values():
+            all_tools.extend(server.get_pydantic_tools())
+        return all_tools
+
+
+# Backward compatibility alias
+MCPClientManager = MCPManager

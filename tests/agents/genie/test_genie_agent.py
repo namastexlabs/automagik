@@ -280,7 +280,7 @@ class TestGenieAgentMocks:
         """Test agent configuration validation."""
         with patch('src.agents.pydanticai.genie.agent.AutomagikAgentsDependencies', return_value=mock_dependencies):
             # Test with minimal config
-            minimal_config = {"model_name": "openai:gpt-4o-mini"}
+            minimal_config = {"model_name": "openai:gpt-4.1-mini"}
             agent = GenieAgent(minimal_config)
             assert agent is not None
             
