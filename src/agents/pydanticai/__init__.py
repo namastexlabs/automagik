@@ -88,6 +88,10 @@ FlashinhoAgent = import_module("src.agents.pydanticai.flashinho.agent").Flashinh
 FlashinhoProAgent = import_module("src.agents.pydanticai.flashinho_pro.agent").FlashinhoPro  # type: ignore
 StanAgent = import_module("src.agents.pydanticai.stan.agent").StanAgent  # type: ignore
 StanEmailAgent = import_module("src.agents.pydanticai.stan_email.agent").StanEmailAgent  # type: ignore
+SofiaAgent = import_module("src.agents.pydanticai.sofia.agent").SofiaAgent  # type: ignore
+SummaryAgent = import_module("src.agents.pydanticai.summary.agent").SummaryAgent  # type: ignore
+PromptMakerAgent = import_module("src.agents.pydanticai.prompt_maker.agent").PromptMakerAgent  # type: ignore
+EstruturarAgent = import_module("src.agents.pydanticai.estruturar.agent").EstruturarAgent  # type: ignore
 
 __all__ = [
     "SimpleAgent",
@@ -95,4 +99,8 @@ __all__ = [
     "FlashinhoProAgent",
     "StanAgent",
     "StanEmailAgent",
+    "SofiaAgent",
+    "SummaryAgent",
+    "PromptMakerAgent",
+    "EstruturarAgent",
 ]
