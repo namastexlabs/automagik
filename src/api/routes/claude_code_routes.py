@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.log_manager import get_log_manager
+from src.agents.claude_code.raw_stream_processor import RawStreamProcessor
+from src.agents.claude_code.completion_tracker import CompletionTracker
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
 
@@ -20,6 +22,153 @@ logger = logging.getLogger(__name__)
 
 # Create router for claude-code endpoints
 claude_code_router = APIRouter(prefix="/workflows/claude-code", tags=["Claude-Code"])
+
+
+async def _analyze_claude_stream_debug_info(
+    log_entries: List[Dict], metadata: Dict, assistant_messages: List
+) -> Dict[str, Any]:
+    """Analyze Claude stream logs to extract debug information.
+
+    Args:
+        log_entries: Raw log entries from the log manager
+        metadata: Session metadata
+        assistant_messages: Assistant messages from the database
+
+    Returns:
+        Debug information dictionary with Claude stream analysis
+    """
+    debug_info = {
+        "claude_command": {},
+        "stream_analysis": {},
+        "tool_usage": {},
+        "execution_stats": {},
+        "costs": {},
+        "raw_streams": [],
+        "session_info": {},
+    }
+
+    # Extract Claude command information
+    claude_command_info = {}
+    execution_stats = {
+        "total_turns": 0,
+        "tool_calls": 0,
+        "event_counts": {},
+        "cost_usd": 0.0,
+        "duration_ms": 0,
+    }
+    tool_usage = {}
+    raw_claude_streams = []
+
+    # Analyze log entries for Claude stream data
+    for entry in log_entries:
+        event_type = entry.get("event_type", "")
+        data = entry.get("data", {})
+
+        # Count event types
+        execution_stats["event_counts"][event_type] = (
+            execution_stats["event_counts"].get(event_type, 0) + 1
+        )
+
+        # Extract Claude command information
+        if event_type == "early_execution_start" and isinstance(data, dict):
+            if "command" in data:
+                claude_command_info.update(
+                    {
+                        "command": data.get("command"),
+                        "args": data.get("args", []),
+                        "working_dir": data.get("working_dir"),
+                        "timeout": data.get("timeout"),
+                    }
+                )
+
+        # Extract Claude CLI result information (cost, turns, etc.)
+        if event_type == "result_captured" and isinstance(data, dict):
+            result_data = data.get("result_data", {})
+            if isinstance(result_data, dict):
+                execution_stats.update(
+                    {
+                        "cost_usd": result_data.get("cost_usd", 0.0),
+                        "duration_ms": result_data.get("duration_ms", 0),
+                        "total_turns": result_data.get("num_turns", 0),
+                    }
+                )
+
+        # Extract tool usage from Claude stream
+        if "claude_stream" in str(data).lower() or event_type == "claude_output":
+            try:
+                # Try to parse Claude stream JSON
+                if isinstance(data, dict) and "message" in data:
+                    message = data["message"]
+                    if isinstance(message, str) and message.strip().startswith("{"):
+                        import json
+
+                        stream_data = json.loads(message)
+                        raw_claude_streams.append(stream_data)
+
+                        # Analyze tool usage
+                        if stream_data.get("type") == "tool_use":
+                            tool_name = stream_data.get("name", "unknown")
+                            tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
+                            execution_stats["tool_calls"] += 1
+
+                        # Count assistant messages/turns
+                        if stream_data.get("type") == "assistant":
+                            execution_stats["total_turns"] += 1
+
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+    # Extract additional session information
+    session_info = {
+        "workflow_name": metadata.get("workflow_name"),
+        "git_branch": metadata.get("git_branch"),
+        "container_id": metadata.get("container_id"),
+        "run_id": metadata.get("run_id"),
+        "claude_session_id": metadata.get("claude_session_id"),
+        "max_turns_requested": metadata.get("request", {}).get("max_turns")
+        if isinstance(metadata.get("request"), dict)
+        else None,
+        "timeout_requested": metadata.get("request", {}).get("timeout")
+        if isinstance(metadata.get("request"), dict)
+        else None,
+        "repository_url": metadata.get("request", {}).get("repository_url")
+        if isinstance(metadata.get("request"), dict)
+        else None,
+    }
+
+    # Build comprehensive debug response
+    debug_info.update(
+        {
+            "claude_command": claude_command_info,
+            "stream_analysis": {
+                "total_stream_entries": len(raw_claude_streams),
+                "stream_types": list(
+                    set([s.get("type") for s in raw_claude_streams if s.get("type")])
+                ),
+                "raw_streams": raw_claude_streams[-50:]
+                if len(raw_claude_streams) > 50
+                else raw_claude_streams,  # Last 50 entries
+            },
+            "tool_usage": tool_usage,
+            "execution_stats": execution_stats,
+            "costs": {
+                "total_usd": execution_stats.get("cost_usd", 0.0),
+                "currency": "USD",
+            },
+            "session_info": session_info,
+            "message_analysis": {
+                "total_assistant_messages": len(assistant_messages),
+                "last_message_length": len(assistant_messages[-1].text_content)
+                if assistant_messages
+                else 0,
+                "total_content_length": sum(
+                    len(msg.text_content or "") for msg in assistant_messages
+                ),
+            },
+        }
+    )
+
+    return debug_info
 
 
 class ClaudeWorkflowRequest(BaseModel):
@@ -107,6 +256,55 @@ class ClaudeCodeStatusResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
     logs: Optional[str] = Field(None, description="Container logs")
 
+    # Real-time tracking fields (populated for running workflows)
+    cost: Optional[float] = Field(None, description="Cost in USD")
+    tokens: Optional[int] = Field(None, description="Token count")
+    turns: Optional[int] = Field(None, description="Conversation turns")
+    tool_calls: Optional[int] = Field(None, description="Tool calls made")
+    tools_used: Optional[List[str]] = Field(None, description="Tools used")
+    claude_session_id: Optional[str] = Field(None, description="Claude CLI session ID")
+    progress_indicator: Optional[str] = Field(None, description="Human-readable progress")
+    last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
+    recent_steps: Optional[Dict[str, Any]] = Field(None, description="Recent execution steps")
+    elapsed_seconds: Optional[int] = Field(None, description="Elapsed execution time")
+
+    # Debug information (only when debug=true)
+    debug_info: Optional[Dict[str, Any]] = Field(
+        None, description="Debug information including Claude stream analysis"
+    )
+
+
+class ClaudeCodeRunSummary(BaseModel):
+    """Summary of a Claude Code run for listing purposes."""
+
+    run_id: str = Field(..., description="Unique identifier for the run")
+    status: str = Field(
+        ..., description="Current status: pending, running, completed, failed"
+    )
+    workflow_name: str = Field(..., description="Workflow that was executed")
+    started_at: datetime = Field(..., description="When the run was started")
+    completed_at: Optional[datetime] = Field(
+        None, description="When the run was completed"
+    )
+    execution_time: Optional[float] = Field(
+        None, description="Total execution time in seconds"
+    )
+    total_tokens: Optional[int] = Field(None, description="Total tokens used")
+    total_cost: Optional[float] = Field(None, description="Total cost in USD")
+    turns: Optional[int] = Field(None, description="Number of conversation turns")
+    tool_calls: Optional[int] = Field(None, description="Number of tool calls made")
+    result: Optional[str] = Field(None, description="Brief result summary")
+
+
+class ClaudeCodeRunsListResponse(BaseModel):
+    """Response for listing Claude Code runs."""
+
+    runs: List[ClaudeCodeRunSummary] = Field(..., description="List of runs")
+    total_count: int = Field(..., description="Total number of runs matching filters")
+    page: int = Field(..., description="Current page number")
+    page_size: int = Field(..., description="Number of runs per page")
+    has_next: bool = Field(..., description="Whether there are more pages")
+
 
 class WorkflowInfo(BaseModel):
     """Information about an available workflow."""
@@ -124,7 +322,7 @@ class WorkflowInfo(BaseModel):
     description="""
     Execute a Claude Code workflow with comprehensive configuration options.
     
-    ## Available Workflows (REAL):
+    ## Available Workflows:
     - **architect**: Design system architecture and technical specifications
     - **implement**: Implement features based on architectural designs  
     - **test**: Create comprehensive test suites and validation
@@ -133,8 +331,6 @@ class WorkflowInfo(BaseModel):
     - **refactor**: Improve code structure and maintainability
     - **document**: Generate comprehensive documentation
     - **pr**: Prepare pull requests for review
-    - **genie**: Orchestrate complex multi-agent workflows (meta-workflow)
-    - **bug-fixer**: Specialized bug identification and resolution (note: hyphen)
     """,
     tags=["Claude Code Workflows"],
 )
@@ -206,15 +402,26 @@ async def run_claude_workflow(
         session_id = session_repo.create_session(session)
 
         # Execute synchronously until first response
-        result = await agent.execute_until_first_response(
-            input_text=request.message,
-            workflow_name=workflow_name,
-            session_id=str(session_id),
-            git_branch=request.git_branch,
-            max_turns=request.max_turns,
-            timeout=request.timeout,
-            repository_url=request.repository_url,
-        )
+        # Ensure logging doesn't interfere with API response
+        try:
+            result = await agent.execute_until_first_response(
+                input_text=request.message,
+                workflow_name=workflow_name,
+                session_id=str(session_id),
+                git_branch=request.git_branch,
+                max_turns=request.max_turns,
+                timeout=request.timeout,
+                repository_url=request.repository_url,
+            )
+        except Exception as exec_error:
+            logger.error(f"Execution error in workflow {workflow_name}: {exec_error}")
+            # Return a clean error response without any subprocess output contamination
+            result = {
+                "run_id": run_id,
+                "status": "failed",
+                "message": f"Failed to start {workflow_name} workflow: {str(exec_error)}",
+                "started_at": datetime.utcnow().isoformat(),
+            }
 
         # Update session metadata with execution results
         if session:
@@ -231,6 +438,15 @@ async def run_claude_workflow(
             )
             session.metadata = metadata
             session_repo.update_session(session)
+            
+            # Start completion tracking for background execution
+            if result.get("status") == "running":
+                await CompletionTracker.track_completion(
+                    run_id=result.get("run_id", run_id),
+                    session_id=str(session_id),
+                    workflow_name=workflow_name,
+                    max_wait_time=request.timeout or 7200
+                )
 
         # Return response with actual Claude message
         return ClaudeWorkflowResponse(
@@ -251,8 +467,266 @@ async def run_claude_workflow(
         )
 
 
+@claude_code_router.get("/runs", response_model=ClaudeCodeRunsListResponse)
+async def list_claude_code_runs(
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None,
+    workflow_name: Optional[str] = None,
+    user_id: Optional[str] = None,
+    sort_by: str = "started_at",
+    sort_order: str = "desc",
+) -> ClaudeCodeRunsListResponse:
+    """
+    List all Claude Code runs with comprehensive filtering and pagination.
+
+    **Parameters:**
+    - `page`: Page number (starts from 1)
+    - `page_size`: Number of runs per page (max 100)
+    - `status`: Filter by run status (pending, running, completed, failed)
+    - `workflow_name`: Filter by workflow name
+    - `user_id`: Filter by user ID
+    - `sort_by`: Sort field (started_at, completed_at, execution_time, total_cost)
+    - `sort_order`: Sort order (asc, desc)
+
+    **Returns:**
+    Paginated list of Claude Code runs with summary information including:
+    - run_id, status, workflow_name, timestamps
+    - execution_time, total_tokens, total_cost, turns, tool_calls
+    - Brief result summary
+
+    **Examples:**
+    ```bash
+    # List all runs
+    GET /api/v1/workflows/claude-code/runs
+
+    # Filter by status and workflow
+    GET /api/v1/workflows/claude-code/runs?status=completed&workflow_name=architect
+
+    # Paginate and sort by cost
+    GET /api/v1/workflows/claude-code/runs?page=2&page_size=10&sort_by=total_cost&sort_order=desc
+    ```
+    """
+    try:
+        # Validate parameters
+        if page < 1:
+            raise HTTPException(status_code=400, detail="Page must be >= 1")
+        if page_size < 1 or page_size > 100:
+            raise HTTPException(
+                status_code=400, detail="Page size must be between 1 and 100"
+            )
+        if sort_by not in [
+            "started_at",
+            "completed_at",
+            "execution_time",
+            "total_cost",
+        ]:
+            raise HTTPException(status_code=400, detail="Invalid sort_by field")
+        if sort_order not in ["asc", "desc"]:
+            raise HTTPException(
+                status_code=400, detail="Sort order must be 'asc' or 'desc'"
+            )
+        if status and status not in ["pending", "running", "completed", "failed"]:
+            raise HTTPException(status_code=400, detail="Invalid status filter")
+
+        # Get all sessions that are Claude Code runs
+        sessions = session_repo.list_sessions()
+        claude_code_sessions = []
+
+        for session in sessions:
+            metadata = session.metadata or {}
+            run_id = metadata.get("run_id")
+            session_workflow = metadata.get("workflow_name")
+            session_status = metadata.get("run_status")
+
+            # Filter for Claude Code sessions only
+            if not run_id or metadata.get("agent_type") != "claude-code":
+                continue
+
+            # Apply filters
+            if status and session_status != status:
+                continue
+            if workflow_name and session_workflow != workflow_name:
+                continue
+            if user_id and str(session.user_id) != user_id:
+                continue
+
+            claude_code_sessions.append((session, metadata))
+
+        # Process runs and extract metrics
+        runs_data = []
+        log_manager = get_log_manager()
+
+        for session, metadata in claude_code_sessions:
+            run_id = metadata.get("run_id")
+
+            # Get execution metrics from logs using raw stream processor
+            log_entries = await log_manager.get_logs(run_id, follow=False)
+            
+            # Use raw stream processor to extract comprehensive metrics
+            processor = RawStreamProcessor()
+            
+            # Process all claude stream events to extract accurate metrics
+            for entry in log_entries:
+                event_type = entry.get("event_type", "")
+                data = entry.get("data", {})
+                
+                # Process Claude CLI stream events (use parsed events only to avoid duplication)
+                if event_type.startswith("claude_stream_") and event_type not in ["claude_stream_raw"]:
+                    if isinstance(data, dict):
+                        # Process parsed JSON events only (not raw strings)
+                        processor.process_event(data)
+                
+                # Also try to process claude_output events (legacy format)
+                elif event_type == "claude_output":
+                    if isinstance(data, dict) and "message" in data:
+                        message = data["message"]
+                        if isinstance(message, str) and message.strip().startswith("{"):
+                            processor.process_line(message.strip())
+            
+            # Get comprehensive metrics from processor
+            metrics = processor.get_metrics()
+            
+            # Build execution stats from processed metrics
+            execution_stats = {
+                "total_turns": metrics.total_turns,
+                "tool_calls": metrics.tool_calls,
+                "cost_usd": metrics.total_cost_usd,  # Using correct field name
+                "total_tokens": metrics.total_tokens,  # Comprehensive token sum
+                "duration_ms": metrics.duration_ms,
+            }
+
+            # Calculate execution time
+            execution_time = None
+            started_at_str = metadata.get("started_at")
+            completed_at_str = metadata.get("completed_at")
+            completed_at = None
+
+            if started_at_str and completed_at_str:
+                try:
+                    start_time = datetime.fromisoformat(
+                        started_at_str.replace("Z", "+00:00")
+                    )
+                    end_time = datetime.fromisoformat(
+                        completed_at_str.replace("Z", "+00:00")
+                    )
+                    execution_time = (end_time - start_time).total_seconds()
+                    completed_at = end_time
+                except Exception:
+                    pass
+            elif execution_stats["duration_ms"] > 0:
+                execution_time = execution_stats["duration_ms"] / 1000.0
+
+            # Get latest assistant message for result summary
+            from src.db.repository import message as message_repo
+
+            messages = message_repo.list_messages(session.id)
+            assistant_messages = [msg for msg in messages if msg.role == "assistant"]
+            result_summary = None
+            if assistant_messages:
+                latest = assistant_messages[-1]
+                result_text = latest.text_content or ""
+                # Extract first sentence or first 200 chars as summary
+                result_summary = (
+                    result_text.split(".")[0][:200] + "..."
+                    if len(result_text) > 200
+                    else result_text
+                )
+
+            # For running workflows, use current progress data if available
+            status = metadata.get("run_status", "unknown")
+            if status == "running":
+                # Use real-time progress data
+                runs_data.append(
+                    {
+                        "run_id": run_id,
+                        "status": status,
+                        "workflow_name": metadata.get("workflow_name", "unknown"),
+                        "started_at": session.created_at,
+                        "completed_at": completed_at,
+                        "execution_time": execution_time,
+                        "total_tokens": metadata.get("current_tokens") or execution_stats.get("total_tokens") or None,
+                        "total_cost": metadata.get("current_cost_usd") or execution_stats.get("cost_usd") or None,
+                        "turns": metadata.get("current_turns") or execution_stats.get("total_turns") or None,
+                        "tool_calls": metadata.get("current_tool_calls") or execution_stats.get("tool_calls") or None,
+                        "result": metadata.get("progress_indicator") or result_summary,
+                        # Additional real-time fields
+                        "last_updated": metadata.get("last_updated"),
+                        "elapsed_seconds": metadata.get("elapsed_seconds"),
+                        "recent_activity": metadata.get("recent_steps", {}),
+                        "claude_session_id": metadata.get("claude_session_id"),
+                        "tools_used_so_far": metadata.get("tools_used_so_far", [])
+                    }
+                )
+            else:
+                # Use final completion data
+                runs_data.append(
+                    {
+                        "run_id": run_id,
+                        "status": status,
+                        "workflow_name": metadata.get("workflow_name", "unknown"),
+                        "started_at": session.created_at,
+                        "completed_at": completed_at,
+                        "execution_time": execution_time,
+                        "total_tokens": metadata.get("total_tokens") or execution_stats.get("total_tokens") or None,
+                        "total_cost": metadata.get("total_cost_usd") or execution_stats.get("cost_usd") or None,
+                        "turns": metadata.get("total_turns") or execution_stats.get("total_turns") or None,
+                        "tool_calls": metadata.get("tool_calls") or execution_stats.get("tool_calls") or None,
+                        "result": result_summary,
+                        # Completion-specific fields
+                        "claude_session_id": metadata.get("claude_session_id"),
+                        "tool_names_used": metadata.get("tool_names_used", []),
+                        "success": metadata.get("success"),
+                        "error_message": metadata.get("error_message"),
+                        "model_used": metadata.get("model_used")
+                    }
+                )
+
+        # Sort runs
+        reverse_sort = sort_order == "desc"
+        if sort_by == "started_at":
+            runs_data.sort(
+                key=lambda x: x["started_at"] or datetime.min, reverse=reverse_sort
+            )
+        elif sort_by == "completed_at":
+            runs_data.sort(
+                key=lambda x: x["completed_at"] or datetime.min, reverse=reverse_sort
+            )
+        elif sort_by == "execution_time":
+            runs_data.sort(key=lambda x: x["execution_time"] or 0, reverse=reverse_sort)
+        elif sort_by == "total_cost":
+            runs_data.sort(key=lambda x: x["total_cost"] or 0, reverse=reverse_sort)
+
+        # Paginate
+        total_count = len(runs_data)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_runs = runs_data[start_idx:end_idx]
+
+        # Convert to response models
+        run_summaries = [
+            ClaudeCodeRunSummary(**run_data) for run_data in paginated_runs
+        ]
+
+        return ClaudeCodeRunsListResponse(
+            runs=run_summaries,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_next=end_idx < total_count,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing Claude Code runs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list runs: {str(e)}")
+
+
 @claude_code_router.get("/run/{run_id}/status", response_model=ClaudeCodeStatusResponse)
-async def get_claude_code_run_status(run_id: str) -> ClaudeCodeStatusResponse:
+async def get_claude_code_run_status(
+    run_id: str, debug: bool = False
+) -> ClaudeCodeStatusResponse:
     """
     Get the status of a Claude-Code run.
 
@@ -262,13 +736,20 @@ async def get_claude_code_run_status(run_id: str) -> ClaudeCodeStatusResponse:
     - `completed`: Run finished successfully
     - `failed`: Run failed with an error
 
-    **Example:**
+    **Parameters:**
+    - `debug` (optional): If true, includes detailed debug information about Claude stream analysis, tool usage, costs, and command details
+
+    **Examples:**
     ```bash
+    # Basic status
     GET /api/v1/workflows/claude-code/run/run_abc123/status
+
+    # With debug information
+    GET /api/v1/workflows/claude-code/run/run_abc123/status?debug=true
     ```
 
     **Returns:**
-    Current status and results (if completed).
+    Current status and results (if completed). When debug=true, includes comprehensive debugging information.
     """
     try:
         # Find session by run_id
@@ -309,6 +790,8 @@ async def get_claude_code_run_status(run_id: str) -> ClaudeCodeStatusResponse:
 
         # Convert log entries to text format for API response
         logs = ""
+        debug_info = None
+
         if log_entries:
             log_lines = []
             for entry in log_entries[
@@ -327,6 +810,12 @@ async def get_claude_code_run_status(run_id: str) -> ClaudeCodeStatusResponse:
                 log_lines.append(f"{timestamp} [{event_type}] {message}")
 
             logs = "\n".join(log_lines)
+
+            # If debug flag is enabled, analyze logs for Claude stream data
+            if debug:
+                debug_info = await _analyze_claude_stream_debug_info(
+                    log_entries, metadata, assistant_messages
+                )
 
         # Get log summary for additional metadata
         log_summary = await log_manager.get_log_summary(run_id)
@@ -375,6 +864,16 @@ async def get_claude_code_run_status(run_id: str) -> ClaudeCodeStatusResponse:
             except Exception:
                 pass
 
+        # Parse last_activity timestamp
+        last_activity = None
+        if metadata.get("last_activity"):
+            try:
+                last_activity = datetime.fromisoformat(
+                    metadata["last_activity"].replace("Z", "+00:00")
+                )
+            except Exception:
+                pass
+
         return ClaudeCodeStatusResponse(
             run_id=run_id,
             status=metadata.get("run_status", "unknown"),
@@ -389,6 +888,18 @@ async def get_claude_code_run_status(run_id: str) -> ClaudeCodeStatusResponse:
             git_commits=git_commits if isinstance(git_commits, list) else [],
             error=metadata.get("error"),
             logs=logs,
+            debug_info=debug_info,
+            # Real-time tracking fields
+            cost=metadata.get("current_cost_usd"),
+            tokens=metadata.get("current_tokens"),
+            turns=metadata.get("current_turns"),
+            tool_calls=metadata.get("current_tool_calls"),
+            tools_used=metadata.get("tools_used_so_far"),
+            claude_session_id=metadata.get("claude_session_id"),
+            progress_indicator=metadata.get("progress_indicator"),
+            last_activity=last_activity,
+            recent_steps=metadata.get("recent_steps"),
+            elapsed_seconds=metadata.get("elapsed_seconds"),
         )
 
     except HTTPException:
