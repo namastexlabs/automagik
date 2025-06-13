@@ -26,7 +26,6 @@ class FlashinhoPro(AutomagikAgent):
     Features:
     - Authentic Brazilian Generation Z Portuguese coaching style
     - Multimodal processing: images, audio, documents for educational content
-    - Advanced reasoning with Google Gemini 2.5 Pro model
     - Complete Flashed API integration for educational gaming
     - WhatsApp/Evolution channel integration for media handling
     - Cultural authenticity for Brazilian high school students
