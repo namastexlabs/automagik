@@ -9,16 +9,14 @@ This module implements the critical safety triggers that protect production
 deployments and ensure zero data loss during migration.
 """
 
-import asyncio
-import json
 import logging
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 from enum import Enum
 
-from ..config.feature_flags import get_feature_flags, MigrationMode
+from ..config.feature_flags import get_feature_flags
 
 logger = logging.getLogger(__name__)
 

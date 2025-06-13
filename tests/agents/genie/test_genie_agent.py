@@ -1,7 +1,6 @@
 """Tests for Genie Agent core functionality."""
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 import sys
 import os
 
@@ -17,7 +16,7 @@ with patch.dict('sys.modules', {
 }):
     from src.agents.pydanticai.genie.agent import GenieAgent
     from src.agents.pydanticai.genie.models import (
-        EpicRequest, EpicPlan, EpicState, WorkflowType, EpicPhase
+        WorkflowType, EpicPhase
     )
 
 

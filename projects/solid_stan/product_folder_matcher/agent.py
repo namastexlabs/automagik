@@ -3,18 +3,36 @@
 import os
 import time
 from typing import Dict, List, Any
-from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai import Agent as PydanticAgent, ModelRetry, UnexpectedModelBehavior
 from pydantic_ai.models.openai import OpenAIModel
 from rich.console import Console
+import logfire
 
-from scripts.solid_stan.product_folder_matcher.models import BlackpearlProduct, DriveFolder, MatchResult
-from scripts.solid_stan.product_folder_matcher.tools import ProductFolderMatcherTools
-from scripts.solid_stan.product_folder_matcher.observability import (
+from .models import BlackpearlProduct, DriveFolder, MatchResult
+from .tools import ProductFolderMatcherTools
+from .observability import (
     log_agent_request, log_agent_response, log_match_result, log_error
 )
 
 # Initialize console for rich output
 console = Console()
+
+# System prompt for the matching agent
+SYSTEM_PROMPT = """You are a product folder matching expert. Your task is to match Blackpearl products with the most appropriate Google Drive folders based on similarity in names, categories, and brands.
+
+Analyze the product details (description, brand, category) against the available Drive folders and provide:
+1. The best matching folder ID
+2. A confidence score (0.0 to 1.0)
+3. Reasoning for your choice
+4. Any warning flags if the match is uncertain
+
+Consider:
+- Brand names and variations
+- Product categories and types
+- Name similarity and keywords
+- Folder structure and hierarchy
+
+Return your response as a MatchResult with the required fields."""
 
 class MatchingAgent:
     """Agent for matching Blackpearl products with Drive folders."""
@@ -73,7 +91,7 @@ class MatchingAgent:
             # === Add explicit type check ===
             if not isinstance(result.data, MatchResult):
                 # Log the unexpected response for debugging
-                logger.log_warning(f"[Agent] Model response did not match expected MatchResult structure for product {product.id}. Response: {result.data!r}")
+                logfire.warning(f"[Agent] Model response did not match expected MatchResult structure for product {product.id}. Response: {result.data!r}")
                 raise UnexpectedModelBehavior(f"Model response for product {product.id} did not match expected MatchResult structure.")
             # === End explicit type check ===
             

@@ -61,11 +61,8 @@ class FrameworkType(str, Enum):
             raise ValueError("Framework 'pydantic_ai' is no longer supported. Use 'pydanticai' instead.")
         
         # Normalize other framework names (remove underscores/hyphens)
-        name_normalized = name_lower.replace("_", "").replace("-", "")
+        name_lower.replace("_", "").replace("-", "")
         
-        fuzzy_mappings = {
-            "claudecode": cls.CLAUDE_CODE,
-        }
         
         normalized = name_mappings.get(name_lower)
         if normalized:

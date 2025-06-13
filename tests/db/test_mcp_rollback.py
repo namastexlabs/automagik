@@ -20,15 +20,12 @@ import json
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
-from datetime import datetime
-from typing import Dict, List, Any
+from unittest.mock import patch, MagicMock
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.migrate_mcp_system import MCPMigration
-from src.db.models import MCPConfig
 
 
 class TestMCPRollback:
@@ -206,7 +203,7 @@ class TestMCPRollback:
 
     def test_rollback_transaction_rollback_on_error(self, migration_instance, temp_backup_file):
         """Test that rollback uses database transactions and rolls back on error."""
-        with patch('scripts.migrate_mcp_system.execute_query', side_effect=Exception("DB Error")) as mock_execute, \
+        with patch('scripts.migrate_mcp_system.execute_query', side_effect=Exception("DB Error")), \
              patch('scripts.migrate_mcp_system.get_db_connection') as mock_conn:
             
             mock_connection = MagicMock()
@@ -237,7 +234,7 @@ class TestMCPRollback:
             mock_conn.return_value.__enter__.return_value = MagicMock()
             
             # Test restoration from backup tables (alternative rollback method)
-            success = migration_instance.restore_from_backup_tables()
+            migration_instance.restore_from_backup_tables()
             
             # Should attempt to restore from backup tables
             assert mock_execute.called

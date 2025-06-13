@@ -4,18 +4,14 @@ This module tests the ClaudeCodeAgent class initialization, run methods,
 workflow validation, and async execution functionality.
 """
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+import os
+from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timezone
-from typing import Dict, Any
 
 from src.agents.claude_code.agent import ClaudeCodeAgent
 from src.agents.claude_code.models import (
-    ClaudeCodeRunRequest,
-    ClaudeCodeRunResponse,
-    ExecutionResult
+    ClaudeCodeRunRequest
 )
-from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
 
 
@@ -58,7 +54,7 @@ class TestClaudeCodeAgentInitialization:
         mock_executor_factory.create_executor.assert_called_once_with(
             mode="docker",
             container_manager=mock_container,
-            workspace_base="/tmp/claude-workspace",
+            workspace_base=os.getenv('CLAUDE_LOCAL_WORKSPACE', '/tmp/claude-workspace'),
             cleanup_on_complete=True
         )
         

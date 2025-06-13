@@ -203,7 +203,6 @@ class WorkflowRouter:
     
     def _validate_workflow_sequence(self, workflows: List[WorkflowType]) -> List[WorkflowType]:
         """Validate and potentially adjust workflow sequence for logical flow."""
-        validated = []
         
         # Ensure architect comes before implement if both present
         if WorkflowType.IMPLEMENT in workflows and WorkflowType.ARCHITECT in workflows:

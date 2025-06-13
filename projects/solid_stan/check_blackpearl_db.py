@@ -26,16 +26,16 @@ def get_ip_info():
     # Get local IP
     try:
         local_ip = socket.gethostbyname(hostname)
-    except:
+    except Exception:
         local_ip = "Could not determine local IP"
     
     # Get public IP with a short timeout
     try:
         public_ip = requests.get('https://api.ipify.org', timeout=2).text
-    except:
+    except Exception:
         try:
             public_ip = requests.get('https://ifconfig.me', timeout=2).text
-        except:
+        except Exception:
             public_ip = "Could not determine public IP"
     
     return hostname, local_ip, public_ip

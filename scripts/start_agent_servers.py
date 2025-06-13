@@ -12,9 +12,8 @@ import argparse
 import subprocess
 import signal
 import time
-import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -97,14 +96,14 @@ class AgentServerManager:
             # Add Slack thread to env if available
             if self.slack_thread_ts:
                 with open(env_file, 'a') as f:
-                    f.write(f"\n# Slack Integration\n")
+                    f.write("\n# Slack Integration\n")
                     f.write(f"SLACK_THREAD_TS={self.slack_thread_ts}\n")
                     f.write(f"EPIC_NAME={epic_name}\n")
                     f.write(f"EPIC_ID={epic_id}\n")
             
             # Get agent config
             config = AGENT_CONFIGS[agent_name]
-            workspace = config["workspace"]
+            config["workspace"]
             
             # Build command
             cmd = [
