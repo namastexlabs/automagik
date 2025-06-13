@@ -82,14 +82,13 @@ class LocalExecutor(ExecutorBase):
             workflow_src = Path(__file__).parent / "workflows" / request.workflow_name
             await self.env_manager.copy_configs(workflow_src, workspace_path)
             
-            # Execute Claude CLI using the new executor
-            result: CLIResult = await self.cli_executor.execute(
+            # Execute Claude CLI using the new executor - return first response immediately
+            result: CLIResult = await self.cli_executor.execute_until_first_response(
                 workflow=request.workflow_name,
                 message=request.message,
                 workspace=workspace_path,
                 session_id=request.session_id,
                 max_turns=request.max_turns,
-                stream_callback=None,  # WebSocket streaming handled internally
                 timeout=request.timeout,
                 run_id=run_id
             )
