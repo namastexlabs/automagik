@@ -82,7 +82,7 @@ def demo_migration_monitor():
     monitor = MigrationMonitor()
     
     print("1. Monitor Initialization:")
-    print(f"   Safety Thresholds:")
+    print("   Safety Thresholds:")
     for key, value in monitor.safety_thresholds.items():
         print(f"     {key}: {value}")
     
@@ -97,12 +97,12 @@ def demo_migration_monitor():
     # Record some warnings
     monitor.record_warning("System load is high", "performance_check")
     monitor.record_warning("Slow database response", "db_check")
-    print(f"   Recorded 2 warnings")
+    print("   Recorded 2 warnings")
     
     # Record some errors
     monitor.record_error("Connection timeout", "network_check")
     monitor.record_error("Invalid configuration", "config_check")
-    print(f"   Recorded 2 errors")
+    print("   Recorded 2 errors")
     
     print(f"   Current State: {len(monitor.errors)} errors, {len(monitor.warnings)} warnings")
     

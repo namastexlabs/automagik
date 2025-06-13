@@ -43,7 +43,7 @@ async def test_schema_fetching():
         print("❌ AIRTABLE_DEFAULT_BASE_ID not configured. Please set it in your .env file.")
         return
     
-    print(f"✅ Configuration found:")
+    print("✅ Configuration found:")
     print(f"   📊 Base ID: {settings.AIRTABLE_DEFAULT_BASE_ID}")
     print(f"   🔑 Token: {'*' * 10}...{settings.AIRTABLE_TOKEN[-4:]}")
     print(f"   ⏰ Cache TTL: {SCHEMA_CACHE_TTL_MINUTES} minutes")
@@ -109,7 +109,7 @@ async def test_schema_fetching():
         # Test 5: Initialize agent
         print("🚀 Step 5: Initializing agent with cached schema...")
         start_time = time.time()
-        agent = await get_airtable_assistant()
+        await get_airtable_assistant()
         agent_init_time = time.time() - start_time
         
         print(f"✅ Agent initialized in {agent_init_time:.2f} seconds!")

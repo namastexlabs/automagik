@@ -119,7 +119,7 @@ class SQLiteConnectionPool:
         """Return a connection to the pool."""
         try:
             self._pool.put_nowait(conn)
-        except:
+        except Exception:
             # Pool is full, close the connection
             conn.close()
     
@@ -146,7 +146,7 @@ class SQLiteConnectionPool:
             for conn in self._all_connections:
                 try:
                     conn.close()
-                except:
+                except Exception:
                     pass
             
             self._all_connections.clear()
@@ -635,7 +635,7 @@ class SQLiteProvider(DatabaseProvider):
         match = re.search(complex_coalesce_pattern, converted_query, re.IGNORECASE)
         if match:
             column_expr = match.group(1).strip()
-            empty_json = match.group(2)
+            match.group(2)
             # Simple SQLite replacement that creates a JSON-like array
             replacement = f"'[' || COALESCE(GROUP_CONCAT('\"' || {column_expr} || '\"'), '') || ']'"
             converted_query = re.sub(complex_coalesce_pattern, replacement, converted_query, flags=re.IGNORECASE)

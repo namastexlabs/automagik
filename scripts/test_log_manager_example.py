@@ -6,7 +6,6 @@ for proper logging and monitoring.
 """
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -14,7 +13,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from agents.claude_code.log_manager import (
-    LogManager, 
     get_log_manager,
     log_workflow_init,
     log_workflow_progress, 
@@ -99,7 +97,7 @@ async def example_workflow_execution():
     
     # 5. Get execution summary
     summary = await log_manager.get_log_summary(run_id)
-    print(f"\n📊 Execution Summary:")
+    print("\n📊 Execution Summary:")
     print(f"  Duration: {summary.get('duration_seconds', 0):.1f} seconds")
     print(f"  Total entries: {summary['total_entries']}")
     print(f"  Event types: {summary['event_types']}")

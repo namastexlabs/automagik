@@ -249,7 +249,7 @@ class PreferenceRepository:
         Returns:
             Updated Preference instance
         """
-        async with get_db_connection() as conn:
+        async with get_db_connection():
             # Get existing preferences
             existing = await PreferenceRepository.get_by_user_and_category(user_id, category)
             

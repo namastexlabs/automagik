@@ -221,7 +221,7 @@ def parse_log_file(log_file_path: str) -> Dict[str, Any]:
                     })
                     data["timestamps"]["completion"] = timestamp
                 
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError):
                 # Skip malformed lines
                 continue
         
@@ -309,7 +309,7 @@ async def execute_agent_async(
             session_repo.update_session(session)
         
         # Execute the agent
-        result = await handle_agent_run(agent_name, request)
+        await handle_agent_run(agent_name, request)
         
         # Update session with completion
         metadata = {

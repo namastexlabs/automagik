@@ -9,16 +9,14 @@ IMPORTANT: This script includes backup and rollback functionality.
 FEATURE FLAGS: Supports safe production rollout with automatic safety triggers.
 """
 
-import asyncio
 import json
 import logging
 import os
 import sys
 import time
-import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -30,11 +28,10 @@ from src.db import (
     create_mcp_config, list_mcp_configs
 )
 from src.db.models import MCPConfigCreate
-from src.db.connection import execute_query, get_db_connection
-from src.config import settings
+from src.db.connection import execute_query
 
 # Import new centralized safety systems
-from src.config.feature_flags import get_feature_flags, MCPFeatureFlags
+from src.config.feature_flags import get_feature_flags
 from src.mcp.migration_monitor import MigrationMonitor, MonitoringLevel
 from src.mcp.safety_triggers import SafetyTriggerSystem
 
@@ -73,88 +70,6 @@ class FeatureFlags:
         self.flags[flag] = False
         os.environ[flag] = "false"
 
-
-class MigrationMonitor:
-    """Monitors migration progress and triggers safety measures."""
-    
-    def __init__(self):
-        self.start_time = None
-        self.errors = []
-        self.warnings = []
-        self.performance_metrics = {}
-        self.safety_thresholds = {
-            "max_errors": 5,
-            "max_duration_minutes": 30,
-            "min_success_rate": 0.8,
-            "max_response_time_ms": 5000,
-        }
-    
-    def start_monitoring(self):
-        """Start monitoring the migration process."""
-        self.start_time = time.time()
-        logger.info("🔍 Migration monitoring started")
-    
-    def record_error(self, error: str, context: str = ""):
-        """Record an error during migration."""
-        error_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "error": error,
-            "context": context
-        }
-        self.errors.append(error_entry)
-        logger.error(f"❌ Migration error: {error} (Context: {context})")
-        
-        # Check if we've hit the error threshold
-        if len(self.errors) >= self.safety_thresholds["max_errors"]:
-            raise SafetyThresholdExceeded(f"Too many errors: {len(self.errors)}")
-    
-    def record_warning(self, warning: str, context: str = ""):
-        """Record a warning during migration."""
-        warning_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "warning": warning,
-            "context": context
-        }
-        self.warnings.append(warning_entry)
-        logger.warning(f"⚠️ Migration warning: {warning} (Context: {context})")
-    
-    def check_duration_threshold(self):
-        """Check if migration is taking too long."""
-        if self.start_time:
-            duration_minutes = (time.time() - self.start_time) / 60
-            if duration_minutes > self.safety_thresholds["max_duration_minutes"]:
-                raise SafetyThresholdExceeded(f"Migration exceeded time limit: {duration_minutes:.1f} minutes")
-    
-    def test_response_time(self) -> float:
-        """Test system response time after migration changes."""
-        start = time.time()
-        try:
-            # Simple database query to test response time
-            execute_query("SELECT 1", fetch=True)
-            response_time_ms = (time.time() - start) * 1000
-            
-            if response_time_ms > self.safety_thresholds["max_response_time_ms"]:
-                self.record_warning(
-                    f"High response time: {response_time_ms:.1f}ms",
-                    "post_migration_test"
-                )
-            
-            return response_time_ms
-        except Exception as e:
-            self.record_error(f"Response time test failed: {e}", "post_migration_test")
-            return float('inf')
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Get monitoring summary."""
-        duration = (time.time() - self.start_time) if self.start_time else 0
-        return {
-            "duration_minutes": duration / 60,
-            "total_errors": len(self.errors),
-            "total_warnings": len(self.warnings),
-            "errors": self.errors,
-            "warnings": self.warnings,
-            "performance_metrics": self.performance_metrics
-        }
 
 
 class SafetyThresholdExceeded(Exception):
@@ -522,7 +437,7 @@ class MCPMigration:
         try:
             # Load backup data
             with open(backup_path, 'r') as f:
-                backup_data = json.load(f)
+                json.load(f)
             
             # Clear new mcp_configs table
             if not self.dry_run:
@@ -600,7 +515,7 @@ def main():
             logger.info("🚀 Starting MCP system migration...")
             
             # Step 1: Backup existing data
-            backup_data = migration.backup_existing_data()
+            migration.backup_existing_data()
             migration.save_backup_to_file(args.backup_file)
             
             # Step 2: Migrate to new schema

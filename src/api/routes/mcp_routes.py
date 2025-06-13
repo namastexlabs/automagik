@@ -1,6 +1,5 @@
 """Streamlined API routes for MCP configuration management."""
 
-import json
 import logging
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query

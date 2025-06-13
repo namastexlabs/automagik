@@ -9,9 +9,7 @@ Usage:
 """
 
 import asyncio
-import json
 import os
-import sys
 from typing import Dict, Optional
 import aiohttp
 
@@ -63,7 +61,7 @@ async def make_request(
         async with session.request(method, url, headers=headers, json=json_data) as response:
             try:
                 data = await response.json()
-            except:
+            except Exception:
                 data = {"raw_text": await response.text()}
             return response.status, data, ""
     except aiohttp.ClientError as e:
@@ -225,7 +223,7 @@ async def test_concurrent_requests():
         success_count = sum(1 for status, _, _ in results if status == 200)
         
         expected = success_count == 5
-        print_result(f"5 concurrent requests", expected, f"{success_count}/5 succeeded")
+        print_result("5 concurrent requests", expected, f"{success_count}/5 succeeded")
 
 
 async def test_session_handling():

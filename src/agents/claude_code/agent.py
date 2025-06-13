@@ -242,7 +242,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             if log_manager and run_id:
                 async with log_manager.get_log_writer(run_id) as log_writer:
                     await log_writer(
-                        f"Claude CLI execution completed",
+                        "Claude CLI execution completed",
                         "event",
                         {
                             "success": execution_result.get("success", False),
