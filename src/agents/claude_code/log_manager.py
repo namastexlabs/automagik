@@ -97,11 +97,15 @@ class LogManager:
                     await f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
                     await f.flush()
 
+                # Use logger.debug instead of logger.info to prevent stdout contamination
+                # Never use print() or write to stdout/stderr in log manager
                 logger.debug(f"Logged event '{event_type}' for run {run_id}")
 
             except Exception as e:
+                # Log errors to logger, never to stdout
                 logger.error(f"Failed to write log entry for run {run_id}: {e}")
-                raise
+                # Don't raise - prevent log errors from affecting API responses
+                # raise
     
     def _get_event_category(self, event_type: str) -> str:
         """Categorize event types for better log analysis.
