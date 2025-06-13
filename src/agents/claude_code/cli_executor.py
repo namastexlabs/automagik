@@ -495,7 +495,7 @@ class ClaudeCLIExecutor:
                 elif arg == "--append-system-prompt" and i + 1 < len(cmd):
                     # Check if it's a file path or inline content
                     next_arg = cmd[i + 1]
-                    if len(next_arg) < 500 and not "\n" in next_arg:
+                    if len(next_arg) < 500 and "\n" not in next_arg:
                         system_prompt_file = next_arg
                     else:
                         system_prompt_file = "<inline_content>"  # Indicate inline content
@@ -531,7 +531,7 @@ class ClaudeCLIExecutor:
                     i += 2
                 else:
                     # This is likely the user message (last arg)
-                    reconstruction_parts.append(f'"<user_message>"')
+                    reconstruction_parts.append('"<user_message>"')
                     break
             
             await log_writer(
@@ -1161,13 +1161,13 @@ class ClaudeCLIExecutor:
                             if not process.returncode:
                                 process.terminate()
                                 await asyncio.wait_for(process.wait(), timeout=5)
-                        except:
+                        except Exception:
                             pass
                         del self.active_processes[session.run_id]
             
             # Start background continuation task
             # It will wait for stdout_handoff_event before reading stdout
-            background_task = asyncio.create_task(continue_full_execution())
+            asyncio.create_task(continue_full_execution())
             
             # Create simple stream processor for early detection
             class EarlyStreamProcessor:
@@ -1292,7 +1292,7 @@ class ClaudeCLIExecutor:
                     process = self.active_processes[session.run_id]
                     process.terminate()
                     await asyncio.wait_for(process.wait(), timeout=5)
-                except:
+                except Exception:
                     pass
                 finally:
                     del self.active_processes[session.run_id]

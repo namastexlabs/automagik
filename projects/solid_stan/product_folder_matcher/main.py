@@ -241,14 +241,17 @@ async def main():
         results_conn = connect_sqlite_db(results_db_path) # Connection for writing results/progress
         if not results_conn:
             console.print("[red]Failed to connect to Results DB. Exiting.[/red]")
-            if drive_catalog_conn: drive_catalog_conn.close()
+            if drive_catalog_conn:
+                drive_catalog_conn.close()
             return
             
         pg_conn = connect_postgres_db()
         if not pg_conn:
             console.print("[red]Failed to connect to Postgres DB. Exiting.[/red]")
-            if drive_catalog_conn: drive_catalog_conn.close()
-            if results_conn: results_conn.close()
+            if drive_catalog_conn:
+                drive_catalog_conn.close()
+            if results_conn:
+                results_conn.close()
             return
 
         # Ensure results/progress tables exist in the results database

@@ -1,17 +1,15 @@
 """Pytest configuration for Genie Agent tests."""
 import pytest
-import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 import os
 import sys
-from typing import Dict, Any
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))
 
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.pydanticai.genie.models import (
-    EpicRequest, EpicPlan, EpicState, WorkflowType, EpicPhase
+    EpicRequest, EpicPlan, WorkflowType, EpicPhase
 )
 
 

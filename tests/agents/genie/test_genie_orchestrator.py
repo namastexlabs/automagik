@@ -1,7 +1,6 @@
 """Tests for Genie Orchestrator components."""
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, patch
 import sys
 import os
 from datetime import datetime
@@ -13,7 +12,7 @@ from src.agents.pydanticai.genie.orchestrator.router import WorkflowRouter
 from src.agents.pydanticai.genie.orchestrator.claude_client import ClaudeCodeClient
 from src.agents.pydanticai.genie.orchestrator.approvals import ApprovalManager
 from src.agents.pydanticai.genie.models import (
-    WorkflowType, EpicRequest, ApprovalPoint, ApprovalTriggerType, ApprovalStatus, EpicState
+    WorkflowType, ApprovalPoint, ApprovalTriggerType, ApprovalStatus
 )
 
 
