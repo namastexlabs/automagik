@@ -290,11 +290,16 @@ class FlashinhoProMemoryManager:
             from src.db.repository.user import get_user, create_user, update_user_data
             from src.db.models import User
 
-            # Ensure flashed_user_id is valid uuid.UUID (generate deterministic if not)
-            try:
-                user_uuid = uuid.UUID(flashed_user_id)
-            except Exception:
-                user_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, flashed_user_id)
+            # Ensure flashed_user_id is a UUID object. If it's already a UUID, keep it;
+            # if it's a string, attempt normal construction; otherwise create a
+            # deterministic UUID based on its string representation.
+            if isinstance(flashed_user_id, uuid.UUID):
+                user_uuid = flashed_user_id
+            else:
+                try:
+                    user_uuid = uuid.UUID(str(flashed_user_id))
+                except Exception:
+                    user_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, str(flashed_user_id))
 
             # Attempt to fetch existing user
             existing_user = get_user(user_uuid)
