@@ -9,8 +9,11 @@ class PromptMakerAgent(BaseSimpleAgent):
     """Enhanced Prompt Maker Agent for creating high-quality prompts."""
     
     def __init__(self, config: Dict[str, str]) -> None:
-        """Initialize with automatic setup via ChannelHandler system."""
-        super().__init__(config, AGENT_PROMPT)
+        """Initialize PromptMaker Agent with automatic setup."""
+        super().__init__(config)
+        
+        # Set the prompt text
+        self._code_prompt_text = AGENT_PROMPT
 
 
 def create_agent(config: Dict[str, str]) -> PromptMakerAgent:
