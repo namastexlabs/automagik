@@ -193,21 +193,35 @@ class ClaudeSession:
                 cmd.extend(["--mcp-config", str(mcp_path)])
                 break
         
-        # Add allowed tools if available
+        # Add allowed tools if available - using SDK format
         tools_paths = [
             workspace / "allowed_tools.json",
             workflow_dir / "allowed_tools.json" if workflow_dir else None
         ]
+        tools_loaded = False
         for tools_path in filter(None, tools_paths):
             if tools_path and tools_path.exists():
                 try:
                     with open(tools_path, 'r') as f:
                         tools = json.load(f)
                         if tools:
-                            cmd.extend(["--allowedTools", ",".join(tools)])
+                            # Use space-separated format from SDK docs
+                            cmd.extend(["--allowedTools"] + tools)
+                            tools_loaded = True
+                            logger.info(f"Loaded {len(tools)} allowed tools from {tools_path}")
                             break
                 except Exception as e:
-                    logger.warning(f"Failed to load allowed tools: {e}")
+                    logger.warning(f"Failed to load allowed tools from {tools_path}: {e}")
+        
+        # If no tools file found, grant basic permissions for workflows
+        if not tools_loaded:
+            basic_tools = ["Bash", "LS", "Read", "Write", "Edit", "Glob", "Grep", "Task"]
+            cmd.extend(["--allowedTools"] + basic_tools)
+            logger.info(f"No tools file found, using basic tools: {basic_tools}")
+        
+        # Add permission mode to avoid interactive prompts in workflows
+        cmd.extend(["--permission-mode", "acceptEdits"])
+        logger.debug("Added acceptEdits permission mode to avoid interactive prompts")
         
         # Add system prompt if available
         prompt_paths = [
@@ -263,10 +277,30 @@ class StreamProcessor:
         if not line:
             return None
         
-        # Skip raw output logging to reduce duplicate JSON
+        # Store raw line for later processing by RawStreamProcessor
+        if self.log_writer:
+            await self.log_writer(
+                line.strip(),
+                "claude_stream_raw",
+                {"message": line.strip()}  # Use "message" field consistently
+            )
         
         try:
             data = json.loads(line)
+            
+            # Log each parsed JSON event as individual log entry for metric extraction
+            if self.log_writer:
+                event_type = data.get("type", "unknown")
+                subtype = data.get("subtype", "")
+                event_name = f"claude_stream_{event_type}"
+                if subtype:
+                    event_name += f"_{subtype}"
+                
+                await self.log_writer(
+                    f"Claude stream event: {event_type}" + (f".{subtype}" if subtype else ""),
+                    event_name,
+                    data  # Log the complete parsed JSON data
+                )
             
             # Extract session ID from init message and log session establishment
             if data.get("type") == "system" and data.get("subtype") == "init":
@@ -293,27 +327,7 @@ class StreamProcessor:
                         }
                     )
             
-            # Log Claude responses with actual content
-            elif data.get("type") == "assistant" and self.log_writer:
-                # Extract the actual Claude response text
-                message = data.get("message", {})
-                content = message.get("content", [])
-                response_text = ""
-                if content and len(content) > 0 and content[0].get("type") == "text":
-                    response_text = content[0].get("text", "")
-                
-                await self.log_writer(
-                    f"Claude response: {response_text[:200]}..." if len(response_text) > 200 else f"Claude response: {response_text}",
-                    "claude_response",
-                    {
-                        "type": "assistant",
-                        "response_text": response_text,
-                        "response_length": len(response_text),
-                        "model": message.get("model"),
-                        "message_id": message.get("id"),
-                        "usage": message.get("usage", {})
-                    }
-                )
+            # Skip redundant claude_response logging - we already have claude_stream_assistant events
             
             # Log result events
             elif data.get("type") == "result" and self.log_writer:
@@ -532,7 +546,7 @@ class ClaudeCLIExecutor:
                         "allowed_tools": allowed_tools_file
                     },
                     "command_reconstruction": " ".join(reconstruction_parts),
-                    "working_directory": str(workspace / "am-agents-labs"),
+                    "working_directory": str(workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs"),
                     "user_message_length": len(message),
                     "max_turns": max_turns,
                     "workflow": workflow,
@@ -563,7 +577,8 @@ class ClaudeCLIExecutor:
             )
             
             # Get git commits
-            git_commits = await self._get_git_commits(workspace / "am-agents-labs")
+            git_repo_path = workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs"
+            git_commits = await self._get_git_commits(git_repo_path)
             
             # Update result with commits and log file path
             result.git_commits = git_commits
@@ -652,9 +667,15 @@ class ClaudeCLIExecutor:
             # Skip redundant environment logging - already in execution_init
             
             # Create process
+            # Check if workspace already contains am-agents-labs or use workspace directly
+            if workspace.name == "am-agents-labs":
+                working_dir = str(workspace)
+            else:
+                working_dir = str(workspace / "am-agents-labs")
+            
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                cwd=str(workspace / "am-agents-labs"),
+                cwd=working_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env
@@ -838,9 +859,10 @@ class ClaudeCLIExecutor:
                 logger.debug(f"Added {claude_dir} to PATH for subprocess")
         
         # Create process
+        working_dir = str(workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs")
         process = await asyncio.create_subprocess_exec(
             *cmd,
-            cwd=str(workspace / "am-agents-labs"),
+            cwd=working_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env
@@ -1034,9 +1056,10 @@ class ClaudeCLIExecutor:
                     env["PATH"] = f"{claude_dir}:{current_path}"
             
             # Start the Claude CLI process
+            working_dir = str(workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs")
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                cwd=str(workspace / "am-agents-labs"),
+                cwd=working_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env
@@ -1090,24 +1113,60 @@ class ClaudeCLIExecutor:
                         first_response_text = data.get("result", "")
                         first_response_event.set()
             
+            # Shared flag to coordinate stream reading between early and background tasks
+            stdout_handoff_event = asyncio.Event()
+            
             # Start background task to continue full execution
             async def continue_full_execution():
                 try:
-                    # Wait a bit then let it complete normally
-                    await asyncio.sleep(1)  # Give time for first response detection
-                    await process.wait()
+                    # Wait for the early reading to complete before starting background reading
+                    await stdout_handoff_event.wait()
                     
-                    # Clean up process tracking
-                    if session.run_id in self.active_processes:
-                        del self.active_processes[session.run_id]
+                    # Create a separate stream processor for background execution with log writer
+                    async with log_manager.get_log_writer(actual_run_id) as background_log_writer:
+                        background_processor = StreamProcessor(log_writer=background_log_writer)
+                        
+                        # Continue reading any remaining output to prevent stream backup
+                        remaining_lines = []
+                        try:
+                            # Read remaining output with timeout to prevent hanging
+                            async def drain_remaining_output():
+                                async for line in process.stdout:
+                                    decoded = line.decode('utf-8', errors='replace')
+                                    remaining_lines.append(decoded)
+                                    await background_processor.process_line(decoded)
+                        
+                            # Give it time to complete, but don't wait forever
+                            await asyncio.wait_for(
+                                asyncio.gather(process.wait(), drain_remaining_output()),
+                                timeout=timeout
+                            )
+                        except asyncio.TimeoutError:
+                            logger.warning("Background execution timed out, terminating process")
+                            process.terminate()
+                            try:
+                                await asyncio.wait_for(process.wait(), timeout=5)
+                            except asyncio.TimeoutError:
+                                process.kill()
+                        
+                        # Clean up process tracking
+                        if session.run_id in self.active_processes:
+                            del self.active_processes[session.run_id]
                         
                 except Exception as e:
                     logger.error(f"Background execution error: {e}")
                     # Clean up on error
                     if session.run_id in self.active_processes:
+                        try:
+                            if not process.returncode:
+                                process.terminate()
+                                await asyncio.wait_for(process.wait(), timeout=5)
+                        except:
+                            pass
                         del self.active_processes[session.run_id]
             
             # Start background continuation task
+            # It will wait for stdout_handoff_event before reading stdout
             background_task = asyncio.create_task(continue_full_execution())
             
             # Create simple stream processor for early detection
@@ -1145,17 +1204,29 @@ class ClaudeCLIExecutor:
             early_processor = EarlyStreamProcessor()
             
             # Read stdout until we get first response or timeout
+            # Use a bounded buffer approach to avoid stream contamination
             try:
                 # Set a reasonable timeout for first response (30 seconds)
                 first_response_timeout = 30
+                early_lines_buffer = []
+                max_early_lines = 100  # Limit early reading to prevent memory issues
                 
                 async def read_until_first_response():
+                    line_count = 0
                     async for line in process.stdout:
+                        if line_count >= max_early_lines:
+                            # Stop early reading to prevent infinite buffering
+                            logger.debug(f"Reached max early lines ({max_early_lines}), stopping early read")
+                            break
+                            
                         decoded = line.decode('utf-8', errors='replace')
+                        early_lines_buffer.append(decoded)  # Store for potential debugging
                         await early_processor.process_line(decoded)
+                        line_count += 1
                         
                         # Stop reading once we have first response
                         if first_response_event.is_set():
+                            logger.debug("First response captured, stopping early read")
                             break
                 
                 # Wait for either session + first response or timeout
@@ -1172,10 +1243,14 @@ class ClaudeCLIExecutor:
                     try:
                         await asyncio.wait_for(first_response_event.wait(), timeout=10)
                     except asyncio.TimeoutError:
+                        logger.debug("Timeout waiting for first response, continuing with session confirmation")
                         pass  # Continue with what we have
                 
             except asyncio.TimeoutError:
                 logger.warning(f"Timeout waiting for first response after {first_response_timeout}s")
+            
+            # Signal that early reading is complete and background can take over stdout
+            stdout_handoff_event.set()
             
             # Extract results
             session_id_result = claude_session_id or early_processor.session_id
@@ -1194,10 +1269,14 @@ class ClaudeCLIExecutor:
                         "response_length": len(response_text),
                         "claude_session_id": session_id_result,
                         "session_confirmed": session_confirmed_event.is_set(),
-                        "first_response_found": first_response_event.is_set()
+                        "first_response_found": first_response_event.is_set(),
+                        "early_lines_processed": len(early_lines_buffer)
                     }
                 )
             
+            # CRITICAL: Ensure we return immediately without any further stdout interference
+            # The background task will handle the rest of the execution
+            # No print statements, no stdout operations after this point
             return {
                 "session_id": session_id_result,
                 "first_response": response_text,
