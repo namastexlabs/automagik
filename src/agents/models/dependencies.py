@@ -76,13 +76,13 @@ class BaseDependencies:
             MemoryProvider instance
         """
         if self._memory_provider is None and self._agent_id_numeric:
-            from src.tools.memory_tools.provider import MemoryProvider
+            from src.tools.memory.provider import MemoryProvider
             self._memory_provider = MemoryProvider(self._agent_id_numeric)
             logger.debug(f"Created memory provider for agent {self._agent_id_numeric}")
         
         if self._memory_provider is None:
             # Create a fallback provider if agent ID isn't set
-            from src.tools.memory_tools.provider import MemoryProvider
+            from src.tools.memory.provider import MemoryProvider
             self._memory_provider = MemoryProvider(999)
             logger.warning("Created fallback memory provider with agent ID 999")
         
