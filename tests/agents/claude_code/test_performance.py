@@ -11,12 +11,10 @@ import gc
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timedelta
 import statistics
-from typing import List, Dict, Any
 
 from src.agents.claude_code.agent import ClaudeCodeAgent
 from src.agents.claude_code.container import ContainerManager
 from src.agents.claude_code.docker_executor import DockerExecutor
-from src.agents.claude_code.models import ClaudeCodeRunRequest
 
 
 class TestContainerStartupPerformance:
@@ -62,7 +60,7 @@ class TestContainerStartupPerformance:
         # Create multiple containers and measure times
         for i in range(5):
             start_time = time.time()
-            container_id = await manager.create_container(f"session_{i}", "test")
+            await manager.create_container(f"session_{i}", "test")
             startup_time = time.time() - start_time
             startup_times.append(startup_time)
         
@@ -173,7 +171,7 @@ class TestResourceUsagePerformance:
         # Reading should also be fast
         start_time = time.time()
         for i in range(1000):
-            value = agent.context[f"key_{i}"]
+            agent.context[f"key_{i}"]
         read_time = time.time() - start_time
         
         # Both operations should be fast
@@ -354,13 +352,13 @@ class TestScalabilityPerformance:
                 with patch('json.load', return_value={}):
                     # First load (cache miss)
                     start_time = time.time()
-                    config1 = await executor._load_workflow_config("test-workflow")
+                    await executor._load_workflow_config("test-workflow")
                     first_load_time = time.time() - start_time
                     
                     # Subsequent loads (would benefit from caching in real impl)
                     start_time = time.time()
                     for _ in range(10):
-                        config = await executor._load_workflow_config("test-workflow")
+                        await executor._load_workflow_config("test-workflow")
                     subsequent_load_time = (time.time() - start_time) / 10
                     
                     # Subsequent loads should be fast
@@ -395,7 +393,7 @@ class TestLatencyPerformance:
             start_time = time.time()
             with patch('pathlib.Path.exists') as mock_exists:
                 mock_exists.return_value = True
-                response = await agent.run(f"Quick task {i}")
+                await agent.run(f"Quick task {i}")
             latency = time.time() - start_time
             latencies.append(latency)
         
@@ -515,7 +513,7 @@ class TestBenchmarkSummary:
                 print(f"  {metric}: {value}")
         
         # Run a simple benchmark
-        agent = ClaudeCodeAgent({})
+        ClaudeCodeAgent({})
         
         # Measure agent creation time
         start = time.time()
@@ -523,7 +521,7 @@ class TestBenchmarkSummary:
             ClaudeCodeAgent({})
         creation_time = (time.time() - start) / 10
         
-        print(f"\nActual Measurements:")
+        print("\nActual Measurements:")
         print(f"  Agent Creation: {creation_time*1000:.2f}ms")
         
         # This test always passes - it's for reporting

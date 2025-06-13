@@ -36,8 +36,11 @@ except Exception as e:
     logger.error(f"Failed to initialize StanEmailAgent module: {str(e)}")
     logger.error(f"Traceback: {traceback.format_exc()}")
     
+    # Store error message before function definition
+    initialization_error = str(e)
+    
     # Create a placeholder function that returns an error agent
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
         """Create a placeholder agent due to initialization error."""
-        return PlaceholderAgent({"name": "stan_email_agent_error", "error": str(e)})
+        return PlaceholderAgent({"name": "stan_email_agent_error", "error": initialization_error})
     

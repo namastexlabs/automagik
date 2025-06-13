@@ -15,10 +15,9 @@ Key Features:
 import json
 import logging
 import asyncio
-import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -37,8 +36,8 @@ from pydantic_ai.tools import Tool as PydanticTool
 
 from .exceptions import MCPError
 from src.db.models import MCPConfig
-from src.db.repository.mcp import list_mcp_configs, get_agent_mcp_configs
-from src.config.feature_flags import get_feature_flags, use_new_mcp_system, is_hot_reload_enabled
+from src.db.repository.mcp import list_mcp_configs
+from src.config.feature_flags import is_hot_reload_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,7 @@ if WATCHDOG_AVAILABLE:
                 current_time = time.time()
                 if current_time - self.last_reload > self.reload_debounce:
                     self.last_reload = current_time
-                    logger.info(f"🔄 .mcp.json file changed, triggering hot reload")
+                    logger.info("🔄 .mcp.json file changed, triggering hot reload")
                     
                     # Schedule async reload
                     asyncio.create_task(self._handle_file_change())
@@ -127,7 +126,7 @@ class MCPManager:
             
             self._initialized = True
             logger.info(f"MCP manager initialized with {len(self._servers)} servers" + 
-                       (f" (hot reload enabled)" if self._hot_reload_enabled else ""))
+                       (" (hot reload enabled)" if self._hot_reload_enabled else ""))
             
         except Exception as e:
             logger.error(f"Failed to initialize MCP manager: {str(e)}")

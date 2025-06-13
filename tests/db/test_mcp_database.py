@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Database tests for MCP tables and repository - NAM-15"""
 
-from src.db.connection import execute_query
 from src.db.repository.mcp import (
     list_mcp_servers, get_mcp_server_by_name, create_mcp_server, 
     update_mcp_server, delete_mcp_server

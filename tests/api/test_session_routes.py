@@ -30,7 +30,7 @@ def setup_module():
         test_user_uuid = str(uuid.uuid4())
         
         # Insert a minimal user record with explicit UUID
-        user_insert_result = execute_query(
+        execute_query(
             """
             INSERT INTO users (id, email, created_at, updated_at)
             VALUES (%s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
