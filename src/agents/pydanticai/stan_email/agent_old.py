@@ -14,6 +14,7 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from .specialized import aproval_status_message_generator
+from .prompts.prompt import AGENT_PROMPT
 from src.db.repository import create_memory, list_messages, list_sessions, update_user
 from src.db.repository.user import get_user, update_user_data
 from src.memory.message_history import MessageHistory

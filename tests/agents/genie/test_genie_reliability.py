@@ -1,17 +1,17 @@
 """Tests for Genie Agent reliability, error handling, and edge cases."""
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import patch
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))
 
 from src.agents.pydanticai.genie.agent import GenieAgent
 from src.agents.pydanticai.genie.models import (
-    EpicRequest, EpicPlan, EpicState, WorkflowType, EpicPhase, ApprovalTriggerType
+    WorkflowType, EpicPhase
 )
 
 

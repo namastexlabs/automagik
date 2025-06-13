@@ -20,18 +20,14 @@ import json
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime
 from typing import Dict, List, Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.db.models import MCPConfig, MCPConfigCreate
-from src.db import (
-    list_mcp_configs, get_mcp_config_by_name, create_mcp_config,
-    list_mcp_servers, get_agent_server_assignments
-)
+from src.db.models import MCPConfigCreate
 
 
 class MockMCPMigration:
@@ -139,7 +135,7 @@ class MockMCPMigration:
         if not os.path.exists(backup_file):
             raise FileNotFoundError(f"Backup file not found: {backup_file}")
         
-        backup_data = self.load_backup_file(backup_file)
+        self.load_backup_file(backup_file)
         
         if self.dry_run:
             return True
@@ -502,7 +498,7 @@ class TestMCPMigrationIntegration:
         if not os.environ.get("AM_INTEGRATION_TEST"):
             pytest.skip("Integration test environment not available")
         
-        migration = MCPMigration(dry_run=False)
+        MockMCPMigration(dry_run=False)
         
         # This would test:
         # 1. Backup existing data

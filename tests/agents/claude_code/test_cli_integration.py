@@ -7,9 +7,8 @@ import pytest
 import asyncio
 import json
 import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch, AsyncMock
 
 from src.agents.claude_code.cli_environment import CLIEnvironmentManager
 from src.agents.claude_code.cli_executor import ClaudeCLIExecutor, CLIResult, StreamProcessor
