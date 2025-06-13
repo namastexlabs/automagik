@@ -377,7 +377,7 @@ class BrandComparison:
                 console.print(drive_table)
                 console.print("\n")
                 console.print(blackpearl_table)
-        except:
+        except Exception:
             # Fallback if we can't determine console width
             console.print(drive_table)
             console.print("\n")

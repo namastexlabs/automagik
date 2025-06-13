@@ -10,7 +10,6 @@ Usage:
 """
 
 import sys
-import traceback
 from typing import List, Tuple
 
 
@@ -56,7 +55,7 @@ def test_functional_verification():
     
     # Test 1: Configuration access
     try:
-        from src.config import settings, LogLevel
+        from src.config import settings
         print(f"✅ Configuration: Environment={settings.AM_ENV}, Port={settings.AM_PORT}")
     except Exception as e:
         print(f"❌ Configuration access failed: {e}")

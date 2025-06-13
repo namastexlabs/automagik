@@ -5,15 +5,10 @@ database operations, and API endpoints.
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
-import json
-from typing import Dict, Any
+from unittest.mock import Mock, patch, AsyncMock, mock_open
 
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.agent import ClaudeCodeAgent
-from src.agents.claude_code.models import ClaudeCodeRunRequest
-from src.db.models import Agent as DBAgent
-from src.agents.models.response import AgentResponse
 
 
 class TestAgentFactoryIntegration:
@@ -147,7 +142,7 @@ class TestDatabaseIntegration:
         agent._validate_workflow = AsyncMock(return_value=True)
         
         # Execute
-        response = await agent.run(
+        await agent.run(
             "Fix the bug",
             message_history_obj=mock_history
         )

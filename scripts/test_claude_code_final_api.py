@@ -2,9 +2,7 @@
 """Test the final Claude Code API after cleanup."""
 
 import asyncio
-import json
 import httpx
-from datetime import datetime
 
 # API configuration
 BASE_URL = "http://localhost:28881/api/v1"
@@ -106,10 +104,10 @@ async def test_api():
         # 5. Test that removed endpoints are gone
         print("\n5️⃣ Testing that removed endpoints return 404...")
         removed_endpoints = [
-            f"/agent/claude-code/test/run",  # Old path-based workflow
-            f"/agent/claude-code/run/test_run/logs",  # Removed logs endpoint
-            f"/agent/claude-code/run/test_run/logs/summary",  # Removed summary
-            f"/agent/claude-code/logs"  # Removed list logs
+            "/agent/claude-code/test/run",  # Old path-based workflow
+            "/agent/claude-code/run/test_run/logs",  # Removed logs endpoint
+            "/agent/claude-code/run/test_run/logs/summary",  # Removed summary
+            "/agent/claude-code/logs"  # Removed list logs
         ]
         
         for endpoint in removed_endpoints:

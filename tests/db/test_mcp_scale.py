@@ -15,21 +15,20 @@ Scale Areas Tested:
 """
 
 import pytest
-import asyncio
 import random
 import statistics
 import time
 import psutil
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
+from typing import List, Dict
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.db.models import MCPConfig, MCPConfigCreate
+from src.db.models import MCPConfigCreate
 
 
 class TestMCPProductionScale:
@@ -195,7 +194,7 @@ class TestMCPProductionScale:
                 elif operation_type == "filter":
                     # Simulate agent filtering
                     agent_name = random.choice(["simple", "genie", "discord", "sofia"])
-                    matches = [c for c in configs_subset 
+                    [c for c in configs_subset 
                              if agent_name in c.get("agents", []) or "*" in c.get("agents", [])]
                     time.sleep(0.001)
                 
