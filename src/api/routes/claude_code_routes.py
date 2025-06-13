@@ -366,8 +366,8 @@ async def run_claude_workflow(
                 detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}",
             )
 
-        # Generate run ID
-        run_id = f"run_{uuid.uuid4().hex[:12]}"
+        # Generate run ID - use standard UUID format for MCP server compatibility
+        run_id = str(uuid.uuid4())
 
         # Handle user creation if needed
         user_id = request.user_id
