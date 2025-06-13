@@ -154,7 +154,7 @@ class CLIEnvironmentManager:
             
             if workflow_src.exists():
                 try:
-                    shutil.copytree(workflow_src, workflow_dst)
+                    shutil.copytree(workflow_src, workflow_dst, dirs_exist_ok=True)
                     logger.debug(f"Copied workflow {workflow_name} to workspace")
                     
                     # Also copy workflow-specific configs to workspace root
