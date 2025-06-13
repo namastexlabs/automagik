@@ -889,12 +889,18 @@ class MessageHistory:
             
             # Convert database messages to dictionaries
             result = []
-            for msg_from_db in messages: # msg_from_db is a dict from list_session_messages
+            for msg_from_db in messages:  # msg_from_db is a dict from list_session_messages
+                ca_raw = msg_from_db.get("created_at")
+                created_at_val = (
+                    ca_raw.isoformat() if hasattr(ca_raw, "isoformat") else str(ca_raw)
+                ) if ca_raw else None
+
                 api_message = {
                     "id": str(msg_from_db.get("id", "")),
                     "role": msg_from_db.get("role", ""),
-                    "content": msg_from_db.get("text_content", ""), # Map db 'text_content' to api 'content'
-                    "created_at": msg_from_db.get("created_at", "").isoformat() if msg_from_db.get("created_at") else None,
+                    # Map db 'text_content' to API 'content'
+                    "content": msg_from_db.get("text_content", ""),
+                    "created_at": created_at_val,
                 }
 
                 # Add optional fields if they exist in the DB message
