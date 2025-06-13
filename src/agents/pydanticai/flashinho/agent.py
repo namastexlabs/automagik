@@ -29,7 +29,10 @@ class FlashinhoAgent(BaseSimpleAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize Flashinho Agent with automatic setup."""
-        super().__init__(config, AGENT_PROMPT)
+        super().__init__(config)
+        
+        # Set the prompt text
+        self._code_prompt_text = AGENT_PROMPT
         
         # Register Flashed API tools using the wrapper factory
         self._register_flashed_tools()
