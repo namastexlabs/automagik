@@ -33,10 +33,13 @@ except Exception as e:
     logger.error(f"Failed to initialize Discord agent module: {str(e)}")
     logger.error(f"Traceback: {traceback.format_exc()}")
     
+    # Store the error message for use in the placeholder function
+    initialization_error = str(e)
+    
     # Create a placeholder function that returns an error agent
     from src.agents.models.placeholder import PlaceholderAgent
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
         """Create a placeholder agent due to initialization error."""
-        return PlaceholderAgent({"name": "discord_agent_error", "error": str(e)})
+        return PlaceholderAgent({"name": "discord_agent_error", "error": initialization_error})
 
 __all__ = ["DiscordAgent", "create_agent"]

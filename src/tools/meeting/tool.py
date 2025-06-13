@@ -121,7 +121,7 @@ async def join_meeting_with_url(meeting_url: str, service: MeetingService = Meet
                 try:
                     error_data = response.json()
                     error_msg = error_data.get("message", error_data.get("error", "Unknown error"))
-                except:
+                except Exception:
                     error_msg = f"HTTP {response.status_code}: {response.text}"
                 
                 full_error = f"❌ Failed to join meeting with AI assistant: {error_msg}"

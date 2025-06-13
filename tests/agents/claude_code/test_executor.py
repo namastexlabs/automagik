@@ -4,11 +4,7 @@ This module tests the DockerExecutor class that handles execution
 of Claude CLI commands within Docker containers.
 """
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
-import json
-import os
-from typing import Dict, Any
+from unittest.mock import Mock, patch, AsyncMock, mock_open
 
 from src.agents.claude_code.docker_executor import DockerExecutor
 from src.agents.claude_code.container import ContainerManager

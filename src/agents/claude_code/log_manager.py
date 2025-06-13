@@ -19,7 +19,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any, AsyncGenerator, List, Union, Callable
+from typing import Optional, Dict, Any, AsyncGenerator, List, Union
 import aiofiles
 
 logger = logging.getLogger(__name__)

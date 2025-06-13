@@ -383,7 +383,7 @@ async def handle_search_error(ctx: Dict[str, Any], error: Exception,
                         "records": result.get("records", []),
                         "message": "Used simplified search after formula error"
                     }
-                except:
+                except Exception:
                     pass
     
     # Strategy 2: Fall back to unfiltered list

@@ -22,10 +22,9 @@ import sys
 import json
 import time
 import logging
-import tempfile
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from datetime import datetime
 
 # Add project root to path
@@ -764,7 +763,7 @@ class MigrationSafetyTester:
         print("🧪 MIGRATION SAFETY SYSTEM TEST RESULTS")
         print("="*60)
         
-        print(f"📊 Summary:")
+        print("📊 Summary:")
         print(f"   Total Tests: {summary['total_tests']}")
         print(f"   Passed: {summary['passed']} ✅")
         print(f"   Failed: {summary['failed']} ❌")
@@ -772,7 +771,7 @@ class MigrationSafetyTester:
         print(f"   Total Duration: {summary['total_duration_ms']:.1f}ms")
         
         if summary['failed'] > 0:
-            print(f"\n❌ Failed Tests:")
+            print("\n❌ Failed Tests:")
             for test in summary['tests']:
                 if not test['passed']:
                     print(f"   • {test['name']}")
@@ -782,7 +781,7 @@ class MigrationSafetyTester:
                         print(f"     Details: {test['details']}")
         
         if self.verbose:
-            print(f"\n📋 Detailed Results:")
+            print("\n📋 Detailed Results:")
             for test in summary['tests']:
                 status = "✅ PASS" if test['passed'] else "❌ FAIL"
                 duration = f"({test['duration_ms']:.1f}ms)"

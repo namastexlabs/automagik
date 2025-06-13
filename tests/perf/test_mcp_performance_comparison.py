@@ -16,25 +16,17 @@ Performance Areas Tested:
 
 import pytest
 import time
-import asyncio
 import statistics
 import psutil
-import os
 import sys
-from contextlib import asynccontextmanager
-from typing import List, Dict, Any, Callable
-from unittest.mock import patch, MagicMock
+from typing import Dict, Callable
+from unittest.mock import patch
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.db.repository.mcp import (
-    list_mcp_configs, get_mcp_config_by_name, 
-    create_mcp_config, get_agent_mcp_configs
-)
-from src.db.models import MCPConfig, MCPConfigCreate
-from src.api.routes.mcp_routes import router
+from src.db.models import MCPConfigCreate
 
 
 class PerformanceTimer:
@@ -249,7 +241,6 @@ class TestMCPPerformanceComparison:
 
     def test_concurrent_operation_throughput(self):
         """Test concurrent operation performance."""
-        import asyncio
         from concurrent.futures import ThreadPoolExecutor
         
         def simulate_config_operation():
@@ -264,7 +255,7 @@ class TestMCPPerformanceComparison:
             
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [executor.submit(simulate_config_operation) for _ in range(num_operations)]
-                results = [future.result() for future in futures]
+                [future.result() for future in futures]
             
             end_time = time.perf_counter()
             duration = end_time - start_time

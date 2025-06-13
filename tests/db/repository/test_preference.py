@@ -4,10 +4,8 @@
 """
 
 import pytest
-import uuid
-from datetime import datetime
 
-from src.db.models import Preference, PreferenceCreate, PreferenceUpdate
+from src.db.models import PreferenceCreate, PreferenceUpdate
 from src.db.repository.preference import PreferenceRepository
 
 

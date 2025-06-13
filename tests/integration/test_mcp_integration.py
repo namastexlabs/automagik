@@ -365,7 +365,7 @@ class TestMCPIntegration:
         async with httpx.AsyncClient() as client:
             # Clean up any existing test server first
             try:
-                cleanup_response = await client.delete(
+                await client.delete(
                     f"{base_url}/api/v1/mcp/servers/test_crud_server",
                     headers=auth_headers
                 )
