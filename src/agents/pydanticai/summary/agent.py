@@ -9,9 +9,11 @@ class SummaryAgent(BaseSimpleAgent):
     """Enhanced Summary Agent with Claude Sonnet-4 model."""
     
     def __init__(self, config: Dict[str, str]) -> None:
-        """Initialize with automatic setup via ChannelHandler system."""
-        # Use Claude Sonnet-4 for summary tasks
-        super().__init__(config, AGENT_PROMPT)
+        """Initialize Summary Agent with automatic setup."""
+        super().__init__(config)
+        
+        # Set the prompt text
+        self._code_prompt_text = AGENT_PROMPT
         
         # Override to use Claude Sonnet-4
         if hasattr(self.dependencies, 'model_name'):

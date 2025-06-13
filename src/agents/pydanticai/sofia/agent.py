@@ -45,7 +45,10 @@ class SofiaAgent(BaseSimpleAgent):
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize Sofia Agent with automatic setup."""
-        super().__init__(config, AGENT_PROMPT)
+        super().__init__(config)
+        
+        # Set the prompt text
+        self._code_prompt_text = AGENT_PROMPT
         
         # Register Sofia's specialized tools
         self._register_sofia_tools()
