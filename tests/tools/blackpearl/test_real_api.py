@@ -349,7 +349,6 @@ async def test_search_functionality():
 @pytest.mark.asyncio
 async def test_ordering_functionality():
     """Test ordering functionality in get_clientes."""
-    import locale
     import unicodedata
     
     logger.info("📝 Testing ordering functionality in get_clientes")

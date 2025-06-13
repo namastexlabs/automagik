@@ -33,7 +33,6 @@
   "mcp__git__git_create_branch",
   "mcp__git__git_checkout",
   "mcp__git__git_show",
-  "mcp__send_whatsapp_message__send_text_message",
   "mcp__postgres_automagik_agents__query",
   "mcp__deepwiki__read_wiki_structure",
   "mcp__deepwiki__read_wiki_contents",
@@ -69,13 +68,5 @@
   "mcp__linear__linear_transferIssue",
   "mcp__linear__linear_duplicateIssue",
   "mcp__linear__linear_getIssueHistory",
-  "mcp__linear__linear_getComments",
-  "mcp__slack__slack_list_channels",
-  "mcp__slack__slack_post_message",
-  "mcp__slack__slack_reply_to_thread",
-  "mcp__slack__slack_add_reaction",
-  "mcp__slack__slack_get_channel_history",
-  "mcp__slack__slack_get_thread_replies",
-  "mcp__slack__slack_get_users",
-  "mcp__slack__slack_get_user_profile"
+  "mcp__linear__linear_getComments"
 ]
