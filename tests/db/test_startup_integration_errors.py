@@ -14,7 +14,7 @@ Critical Issues Identified from Startup Log:
 import pytest
 import os
 import sys
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 # Add src to path for testing
@@ -235,7 +235,7 @@ class TestMCPServerCompatibilityLayer:
             }
             
             # This should not raise the "missing args" error
-            server = manager._create_server(config)
+            manager._create_server(config)
             
             # Verify it was called correctly
             mock_stdio.assert_called_once()
@@ -349,7 +349,7 @@ class TestSystemIntegrationValidation:
             from src.mcp.client import MCPManager
             
             # Test that MCP configs can be loaded from database
-            manager = MCPManager()
+            MCPManager()
             
             # Mock database config
             test_config = MCPConfig(
@@ -383,7 +383,7 @@ class TestSystemIntegrationValidation:
             
             # Test that tools can be registered from MCP servers
             tool_registry = ToolRegistry()
-            mcp_manager = MCPManager()
+            MCPManager()
             
             # Mock MCP server with tools
             mock_server = Mock()

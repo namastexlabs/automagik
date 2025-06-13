@@ -7,12 +7,11 @@ including success cases, error handling, and edge cases.
 import pytest
 import uuid
 from unittest.mock import patch, MagicMock, AsyncMock
-from typing import Dict, Any
+from typing import Dict
 
 from src.agents.models.automagik_agent import AutomagikAgent, AgentConfig
 from src.agents.models.agent import MessageModel, HistoryModel, AgentBaseResponse_v2
 from src.agents.models.response import AgentResponse
-from src.memory.message_history import MessageHistory
 from pydantic_ai.messages import SystemPromptPart, UserPromptPart, ModelResponse, ModelRequest
 
 
@@ -433,7 +432,7 @@ class TestAutomagikAgent:
              patch('src.agents.common.session_manager.validate_user_id') as mock_validate_user, \
              patch('src.agents.common.session_manager.extract_multimodal_content') as mock_extract, \
              patch('src.agents.common.message_parser.format_message_for_db') as mock_format, \
-             patch.object(agent, 'initialize_graphiti', new_callable=AsyncMock) as mock_init_graphiti:
+             patch.object(agent, 'initialize_graphiti', new_callable=AsyncMock):
             
             mock_parse.return_value = ("Hello", {})
             mock_context.return_value = {"session_id": "test-session"}

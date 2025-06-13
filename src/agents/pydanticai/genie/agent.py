@@ -438,7 +438,7 @@ This thread will track all communication for this epic across all workflows."""
                 start = datetime.fromisoformat(state["created_at"])
                 end = datetime.fromisoformat(state["completed_at"])
                 return int((end - start).total_seconds() / 60)
-            except:
+            except Exception:
                 pass
         return 0
         

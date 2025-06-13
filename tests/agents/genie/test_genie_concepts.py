@@ -1,7 +1,6 @@
 """Tests for Genie Agent concepts and patterns without requiring full implementation."""
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
 import sys
 import os
 from typing import List, Dict, Any
@@ -195,7 +194,7 @@ class TestApprovalManagerConcepts:
             message += f"Workflow: {workflow_type}\n"
             message += f"Estimated Cost: ${cost:.2f}\n"
             message += f"Reason: {reason}\n"
-            message += f"React with ✅ to approve or ❌ to reject"
+            message += "React with ✅ to approve or ❌ to reject"
             
             return message
         
@@ -335,7 +334,7 @@ class TestEpicExecutionConcepts:
         assert approved is True
         
         # Test approval timeout
-        approval_id_2 = await executor.request_approval("approval-456", {"cost": 60.0})
+        await executor.request_approval("approval-456", {"cost": 60.0})
         approved = await executor.wait_for_approval("approval-456", timeout_seconds=0.1)
         assert approved is False  # Timeout
 

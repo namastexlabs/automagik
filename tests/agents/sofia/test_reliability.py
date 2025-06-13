@@ -1,7 +1,6 @@
 """Test Sofia agent reliability features."""
 
 import pytest
-import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from src.agents.pydanticai.sofia.agent import SofiaAgent
 

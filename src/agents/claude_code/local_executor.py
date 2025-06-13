@@ -79,8 +79,7 @@ class LocalExecutor(ExecutorBase):
             )
             
             # Copy workflow configs
-            workflow_src = Path(__file__).parent / "workflows" / request.workflow_name
-            await self.env_manager.copy_configs(workflow_src, workspace_path)
+            await self.env_manager.copy_configs(workspace_path, request.workflow_name)
             
             # Execute Claude CLI using the new executor - return first response immediately
             result: CLIResult = await self.cli_executor.execute_until_first_response(
@@ -152,8 +151,7 @@ class LocalExecutor(ExecutorBase):
             )
             
             # Copy workflow configs
-            workflow_src = Path(__file__).parent / "workflows" / request.workflow_name
-            await self.env_manager.copy_configs(workflow_src, workspace_path)
+            await self.env_manager.copy_configs(workspace_path, request.workflow_name)
             
             # Start Claude CLI execution and capture first response
             # This is the key difference - we don't wait for completion

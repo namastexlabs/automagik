@@ -148,7 +148,7 @@ async def test_architect_workflow(session: aiohttp.ClientSession) -> bool:
         
         if status == "completed":
             execution_time = status_data.get("execution_time", 0)
-            result = status_data.get("result", "No result")
+            status_data.get("result", "No result")
             print_result("Workflow completed", True, f"Time: {execution_time:.1f}s")
             return True
         elif status == "failed":
@@ -215,11 +215,11 @@ if __name__ == "__main__":
         response = requests.get(f"{BASE_URL}/health", timeout=5)
         if response.status_code != 200:
             print(f"{Colors.RED}❌ Server health check failed. Is the server running?{Colors.RESET}")
-            print(f"   Try: make dev")
+            print("   Try: make dev")
             sys.exit(1)
     except requests.exceptions.RequestException:
         print(f"{Colors.RED}❌ Cannot connect to server at {BASE_URL}{Colors.RESET}")
-        print(f"   Make sure the server is running: make dev")
+        print("   Make sure the server is running: make dev")
         sys.exit(1)
     
     # Run async tests

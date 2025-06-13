@@ -3,8 +3,6 @@
 Test script to verify migrations work on a fresh database.
 """
 import psycopg2
-import subprocess
-import time
 from src.config import settings
 import urllib.parse
 
@@ -244,7 +242,7 @@ def main():
             with conn.cursor() as cursor:
                 cursor.execute(f"DROP DATABASE IF EXISTS {db_name}")
             conn.close()
-        except:
+        except Exception:
             pass
 
 if __name__ == "__main__":

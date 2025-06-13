@@ -8,7 +8,7 @@ Claude CLI executions and update session metadata accordingly.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from src.db.repository import session as session_repo
 from .log_manager import get_log_manager

@@ -1,9 +1,8 @@
 """Test the ModelRequest fix for agent framework refactor."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 from src.agents.models.ai_frameworks.pydantic_ai import PydanticAIFramework
 from src.agents.models.ai_frameworks.base import AgentConfig
-from src.agents.models.dependencies import BaseDependencies
 from pydantic_ai.messages import ModelRequest, ModelResponse, SystemPromptPart, UserPromptPart, TextPart
 
 

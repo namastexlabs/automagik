@@ -449,7 +449,7 @@ class EstruturarAgent(AutomagikAgent):
                         success=True,
                         tool_calls=tool_calls,
                         tool_outputs=tool_outputs,
-                        raw_message=all_messages,
+                        raw_message=[],  # Empty list since this is a direct contact sending path
                         metadata={
                             "is_whitelisted": True,
                             "sender_number": sender_number,

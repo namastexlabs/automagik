@@ -1,6 +1,5 @@
 """Test Simple Agent basic functionality."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from src.agents.pydanticai.simple.agent import SimpleAgent
 
 

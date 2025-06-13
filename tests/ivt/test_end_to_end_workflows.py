@@ -6,7 +6,6 @@ the synchronized features across agents.
 
 import pytest
 import asyncio
-from typing import Dict, Any
 from unittest.mock import patch, AsyncMock, MagicMock
 from src.agents.pydanticai.simple.agent import SimpleAgent
 from src.agents.pydanticai.sofia.agent import SofiaAgent
@@ -292,11 +291,6 @@ class TestEndToEndWorkflows:
         user_input = "Use my preferences in your response"
         
         # Mock memory variables
-        mock_memory_vars = {
-            "user_name": "John Workflow",
-            "user_preferences": "detailed technical explanations",
-            "recent_context": "discussing agent workflows"
-        }
         
         with patch.object(simple_agent, '_initialize_pydantic_agent', new_callable=AsyncMock), \
              patch.object(simple_agent, 'initialize_memory_variables', new_callable=AsyncMock), \
