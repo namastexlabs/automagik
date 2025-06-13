@@ -461,8 +461,8 @@ class ClaudeCodeAgent(AutomagikAgent):
             Dictionary with first response data including session_id and initial message
         """
         try:
-            # Generate unique run ID
-            run_id = f"run_{uuid.uuid4().hex[:12]}"
+            # Generate unique run ID - use standard UUID format for MCP server compatibility
+            run_id = str(uuid.uuid4())
             
             # Get git branch - use current branch if not specified
             git_branch = kwargs.get("git_branch") or self.config.get("git_branch")
@@ -588,8 +588,8 @@ class ClaudeCodeAgent(AutomagikAgent):
             ClaudeCodeRunResponse with run_id and initial status
         """
         try:
-            # Generate unique run ID
-            run_id = f"run_{uuid.uuid4().hex[:12]}"
+            # Generate unique run ID - use standard UUID format for MCP server compatibility
+            run_id = str(uuid.uuid4())
             
             # Create execution request
             request = ClaudeCodeRunRequest(
