@@ -11,7 +11,7 @@ import time
 import json
 import tempfile
 import shutil
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch
 from pathlib import Path
 from datetime import datetime
 
@@ -81,7 +81,7 @@ class TestSafetyTriggers:
         
         # Mock time to simulate long duration
         with patch('time.time', side_effect=[0, 0, 32*60]):  # 32 minutes
-            with patch('migrate_mcp_system.execute_query') as mock_execute:
+            with patch('migrate_mcp_system.execute_query'):
                 with patch.object(migration, 'get_agent_names_for_server', return_value=[]):
                     
                     result = migration.migrate_to_new_schema()
@@ -364,7 +364,7 @@ class TestProductionScenarios:
                     "auto_start": True,
                     "max_retries": 3,
                     "timeout_seconds": 30,
-                    "tags": [f"prod", f"region-{i%5}"],
+                    "tags": ["prod", f"region-{i%5}"],
                     "priority": i % 3 + 1
                 }
                 for i in range(50)  # 50 production servers

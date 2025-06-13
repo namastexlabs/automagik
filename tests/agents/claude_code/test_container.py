@@ -5,12 +5,10 @@ initialization, container creation, execution, and cleanup.
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, call
+from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timedelta
-import json
-import time
 
-from src.agents.claude_code.container import ContainerManager, DOCKER_AVAILABLE
+from src.agents.claude_code.container import ContainerManager
 
 
 class TestContainerManagerInitialization:
@@ -209,7 +207,7 @@ class TestContainerCreation:
         manager.docker_client = mock_client
         
         custom_env = {"CUSTOM_VAR": "value"}
-        container_id = await manager.create_container(
+        await manager.create_container(
             session_id="session_123",
             workflow_name="test",
             environment=custom_env
@@ -235,7 +233,7 @@ class TestContainerCreation:
         manager = ContainerManager()
         manager.docker_client = mock_client
         
-        container_id = await manager.create_container(
+        await manager.create_container(
             session_id="session_123",
             workflow_name="test-workflow"
         )

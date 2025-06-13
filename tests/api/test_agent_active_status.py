@@ -1,7 +1,6 @@
 import pytest
 from src.db.repository.agent import list_agents, get_agent_by_name, update_agent
 from src.api.controllers.agent_controller import list_registered_agents
-from src.agents.models.agent_factory import AgentFactory
 
 
 @pytest.mark.asyncio

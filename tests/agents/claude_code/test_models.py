@@ -5,7 +5,6 @@ and proper error handling.
 """
 import pytest
 from datetime import datetime
-from uuid import uuid4
 from pydantic import ValidationError
 
 from src.agents.claude_code.models import (
@@ -23,8 +22,6 @@ from src.agents.claude_code.models import (
     GitConfig,
     WorkflowConfig,
     ExecutionMetadata,
-    ExecutionContext,
-    ContainerStats,
     ContainerSnapshot,
     ClaudeExecutionOutput,
     FailureAnalysis

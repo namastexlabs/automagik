@@ -6,7 +6,6 @@ Simple and Sofia agents in real-world scenarios.
 
 import pytest
 import asyncio
-from typing import Dict, Any
 from unittest.mock import patch, AsyncMock
 
 from src.agents.pydanticai.simple.agent import SimpleAgent
@@ -228,7 +227,6 @@ class TestCrossAgentParity:
         """Test that both agents handle errors consistently."""
         
         # Test both agents handle errors gracefully by mocking LLM failure
-        from unittest.mock import AsyncMock
         
         # Mock LLM to raise an exception
         mock_error = Exception("Simulated LLM failure")

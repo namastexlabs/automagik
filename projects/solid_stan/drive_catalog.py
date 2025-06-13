@@ -923,7 +923,7 @@ def main():
                 )
                 catalog_builder.conn.commit()
                 console.print("[yellow]Error info saved to checkpoint metadata.[/yellow]")
-            except:
+            except Exception:
                 pass
 
 if __name__ == "__main__":
