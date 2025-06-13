@@ -77,7 +77,7 @@ class PromptBuilder:
                         content = f"Error: could not process {var_name} data"
                 
                 filled_prompt = filled_prompt.replace(placeholder, str(content))
-                logger.info(f"Filled template variable: {var_name}")
+                logger.debug(f"Filled template variable: {var_name}")
         
         # Fill in run_id if provided and placeholder exists
         if run_id and "{{run_id}}" in filled_prompt:
