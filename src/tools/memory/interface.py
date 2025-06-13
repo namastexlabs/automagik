@@ -150,5 +150,5 @@ def format_memory_content(content: Any) -> str:
     try:
         import json
         return json.dumps(content)
-    except:
+    except Exception:
         return str(content) 

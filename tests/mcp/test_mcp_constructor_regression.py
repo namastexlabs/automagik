@@ -7,7 +7,6 @@ command arrays into command and args parameters, preventing the issue:
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from pydantic_ai.mcp import MCPServerStdio
 
 from src.mcp.client import MCPManager
 from src.mcp.exceptions import MCPError

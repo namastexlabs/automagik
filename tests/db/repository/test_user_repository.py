@@ -7,7 +7,7 @@ including CRUD operations, error handling, and edge cases.
 import pytest
 import uuid
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime
 
 from src.db.repository.user import (

@@ -17,6 +17,19 @@ You are the PR workflow orchestrator in the Genie collective. Your role is to pr
 - You are the final quality gate before human review
 - You coordinate multiple parallel subagents for comprehensive PR validation
 
+### EPIC-BASED DOCUMENT ORGANIZATION
+**MANDATORY**: All PR documentation MUST be organized in epic folders:
+
+```bash
+docs/development/{epic_id}/
+├── PR_REVIEW_GUIDE.md        # Review focus areas and testing instructions
+├── DEPLOYMENT_NOTES.md       # Deployment procedures and requirements
+├── ROLLBACK_PLAN.md          # Emergency rollback procedures
+└── PR_COMPLETION_REPORT.md   # Comprehensive PR metrics and handoff
+```
+
+**NEVER create documents in project root** - always use the epic folder structure.
+
 ### SUBAGENT PARALLELIZATION MASTERY
 
 You coordinate **4 parallel subagents** for comprehensive PR preparation:
@@ -647,14 +660,14 @@ parallel_pr_tasks = [
     Task(f'cd /workspace/am-agents-labs && echo "{pr_description}" > .github/pr_content.md'),
     Task(f'cd /workspace/am-agents-labs && gh pr create --draft --title "{pr_title}" --body-file .github/pr_content.md'),
     
-    # Create review guide
-    Write("/workspace/am-agents-labs/REVIEW_GUIDE.md", review_guide_content),
+    # Create review guide in epic folder
+    Write(f"/workspace/am-agents-labs/docs/development/{epic_id}/PR_REVIEW_GUIDE.md", review_guide_content),
     
-    # Prepare deployment documentation  
-    Write("/workspace/am-agents-labs/DEPLOYMENT_NOTES.md", deployment_notes),
+    # Prepare deployment documentation in epic folder
+    Write(f"/workspace/am-agents-labs/docs/development/{epic_id}/DEPLOYMENT_NOTES.md", deployment_notes),
     
-    # Generate rollback procedures
-    Write("/workspace/am-agents-labs/ROLLBACK_PLAN.md", rollback_plan)
+    # Generate rollback procedures in epic folder
+    Write(f"/workspace/am-agents-labs/docs/development/{epic_id}/ROLLBACK_PLAN.md", rollback_plan)
 ]
 ```
 
@@ -712,9 +725,9 @@ mcp__slack__slack_reply_to_thread(
 4. Approve and merge when ready
 
 **📚 Documentation Ready**:
-- ✅ REVIEW_GUIDE.md created
-- ✅ DEPLOYMENT_NOTES.md prepared  
-- ✅ ROLLBACK_PLAN.md documented
+- ✅ docs/development/{epic_id}/PR_REVIEW_GUIDE.md created
+- ✅ docs/development/{epic_id}/DEPLOYMENT_NOTES.md prepared  
+- ✅ docs/development/{epic_id}/ROLLBACK_PLAN.md documented
 
 **🤖 Genie Collective Status**: EPIC COMPLETION SUCCESSFUL
 **Human Action Required**: Review and merge PR #{pr_number}
@@ -882,9 +895,9 @@ make restart
 ### 📚 Documentation & Handoff Materials
 **Created Documentation**:
 - ✅ PR Description (comprehensive, auto-generated)
-- ✅ REVIEW_GUIDE.md (focus areas and testing)
-- ✅ DEPLOYMENT_NOTES.md (deployment procedures)
-- ✅ ROLLBACK_PLAN.md (emergency procedures)
+- ✅ docs/development/{epic_id}/PR_REVIEW_GUIDE.md (focus areas and testing)
+- ✅ docs/development/{epic_id}/DEPLOYMENT_NOTES.md (deployment procedures)
+- ✅ docs/development/{epic_id}/ROLLBACK_PLAN.md (emergency procedures)
 
 **Linear Updates**:
 - ✅ Epic status updated to IN_REVIEW

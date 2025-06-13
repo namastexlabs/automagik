@@ -259,7 +259,7 @@ def verify_db_read_write():
                 try:
                     provider.execute_query("DELETE FROM messages WHERE id = %s", (safe_uuid(test_message_id),), fetch=False)
                     provider.execute_query("DELETE FROM sessions WHERE id = %s", (safe_uuid(test_session_id),), fetch=False)
-                except:
+                except Exception:
                     pass
                 raise sqlite_error
                 

@@ -243,10 +243,10 @@ class StandardAgentFactory:
         Returns:
             Configured agent instance
         """
-        template_config = AgentConfigTemplates.get_template(template_name)
+        AgentConfigTemplates.get_template(template_name)
         
         if overrides:
-            template_config = AgentConfigTemplates.merge_with_template(
+            AgentConfigTemplates.merge_with_template(
                 template_name, overrides
             )
         

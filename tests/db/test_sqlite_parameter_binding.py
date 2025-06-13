@@ -11,10 +11,8 @@ import pytest
 import uuid
 import json
 from datetime import datetime
-from typing import Dict, Any, List, Union
 
 from src.db.providers.sqlite import SQLiteProvider
-from src.db.models import User, Agent, Session, Message, Memory
 
 
 class TestSQLiteParameterBinding:

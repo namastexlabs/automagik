@@ -11,7 +11,6 @@ import asyncio
 import sys
 import uuid
 from pathlib import Path
-from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,7 +31,7 @@ async def test_slack_integration():
     epic_id = "TEST-001"
     agents = ["alpha", "beta", "delta", "epsilon", "gamma"]
     
-    print(f"📋 Test Parameters (simulation only):")
+    print("📋 Test Parameters (simulation only):")
     print(f"   Orchestration ID: {orchestration_id}")
     print(f"   Epic: {epic_name} ({epic_id})")
     print(f"   Agents: {', '.join(agents)}")

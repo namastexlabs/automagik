@@ -5,11 +5,6 @@ from src.agents.common.specialized_agents import MultimodalAgent
 from .prompts.prompt import AGENT_PROMPT
 
 # Export commonly used functions for backward compatibility with tests
-from src.agents.common.message_parser import (
-    extract_all_messages,
-    extract_tool_calls,
-    extract_tool_outputs
-)
 
 
 class SimpleAgent(MultimodalAgent):

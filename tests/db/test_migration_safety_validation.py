@@ -9,7 +9,7 @@ import pytest
 import os
 import time
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from datetime import datetime
 
 # Test imports directly
