@@ -190,7 +190,7 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
                     name_match = re.search(r'"name"\s*:\s*"([^"]*)"', ud_match.group(1))
                     if name_match:
                         user_data['user_data'] = {'name': name_match.group(1)}
-                except:
+                except Exception:
                     pass
                     
             if user_data:

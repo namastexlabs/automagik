@@ -1,10 +1,7 @@
 """Tests for Genie Agent models and data structures."""
-import pytest
-from unittest.mock import Mock
 import sys
 import os
 from datetime import datetime
-from typing import List, Optional
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))

@@ -7,12 +7,7 @@ architecture using only basic Python functionality.
 """
 
 import pytest
-import tempfile
-import json
-import os
-from datetime import datetime
 from typing import Dict, List, Any
-from unittest.mock import patch, MagicMock
 
 
 class MockMCPMigration:

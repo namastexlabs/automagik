@@ -225,7 +225,7 @@ def _convert_to_memory_object(memory_dict: Dict[str, Any]) -> Memory:
         if isinstance(metadata, str):
             try:
                 metadata = json.loads(metadata)
-            except:
+            except Exception:
                 pass
         memory_data["metadata"] = metadata
     

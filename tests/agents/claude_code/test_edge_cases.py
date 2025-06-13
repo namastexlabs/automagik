@@ -5,24 +5,15 @@ and boundary scenarios for the Claude-Code agent implementation.
 """
 import pytest
 import asyncio
-import uuid
-import json
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
+from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timedelta
-import time
-import os
 
 from src.agents.claude_code.agent import ClaudeCodeAgent
 from src.agents.claude_code.container import ContainerManager
 from src.agents.claude_code.docker_executor import DockerExecutor
 from src.agents.claude_code.models import (
-    ClaudeCodeRunRequest,
-    ClaudeCodeRunResponse,
-    ContainerConfig,
-    ContainerStatus,
-    ExecutionStatus
+    ClaudeCodeRunRequest
 )
-from src.agents.models.response import AgentResponse
 
 
 class TestTimeoutScenarios:

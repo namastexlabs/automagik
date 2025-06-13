@@ -8,16 +8,14 @@ This module extracts and enhances the monitoring capabilities from migrate_mcp_s
 with production-ready safety features and comprehensive metrics tracking.
 """
 
-import asyncio
-import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
-from ..config.feature_flags import get_feature_flags, MigrationMode
+from ..config.feature_flags import get_feature_flags
 
 logger = logging.getLogger(__name__)
 

@@ -9,9 +9,7 @@ This script tests that the Claude Code API correctly handles:
 
 import asyncio
 import httpx
-import json
-import time
-from typing import Dict, Any, Optional
+from typing import Optional
 
 # API Configuration
 API_BASE_URL = "http://localhost:8881/api/v1"

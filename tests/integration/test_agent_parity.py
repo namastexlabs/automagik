@@ -137,7 +137,6 @@ class TestAgentParity:
         # This is verified through their base class AutomagikAgent
         
         # Both should return AgentResponse objects
-        from src.agents.models.response import AgentResponse
         
         # Verify both agents use the same response format
         assert hasattr(simple_agent, 'run')
