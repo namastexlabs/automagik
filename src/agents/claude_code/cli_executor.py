@@ -476,7 +476,7 @@ class ClaudeCLIExecutor:
             workflow_src = Path(__file__).parent / "workflows" / workflow
             if workflow_src.exists():
                 import shutil
-                shutil.copytree(workflow_src, workflow_dir)
+                shutil.copytree(workflow_src, workflow_dir, dirs_exist_ok=True)
         
         # Build command
         cmd = session.build_command(message, workspace, workflow_dir)
@@ -1039,7 +1039,7 @@ class ClaudeCLIExecutor:
             workflow_src = Path(__file__).parent / "workflows" / workflow
             if workflow_src.exists():
                 import shutil
-                shutil.copytree(workflow_src, workflow_dir)
+                shutil.copytree(workflow_src, workflow_dir, dirs_exist_ok=True)
         
         # Build command
         cmd = session.build_command(message, workspace, workflow_dir)
