@@ -41,8 +41,11 @@ class SimpleAgent(AutomagikAgent):
         if self.db_id:
             self.dependencies.set_agent_id(self.db_id)
 
-        # register default tools (includes evolution if channel handler provides it)
+        # Register default tools
         self.tool_registry.register_default_tools(self.context)
+
+        # Register Evolution WhatsApp helpers for parity with Sofia
+        self.tool_registry.register_evolution_tools(self.context)
 
         # simple helper: analyze_image tool for compatibility
         self._register_helper_tools()
