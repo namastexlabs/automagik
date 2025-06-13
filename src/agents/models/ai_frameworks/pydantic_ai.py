@@ -71,6 +71,23 @@ class PydanticAIFramework(AgentAIFramework):
             # Format message history for PydanticAI
             formatted_history = self.format_message_history(message_history or [])
             
+            # Add system prompt to message history if provided
+            if system_prompt:
+                from pydantic_ai.messages import ModelRequest, SystemPromptPart
+                
+                # Check if there's already a system message in the history
+                has_system_message = False
+                for msg in formatted_history:
+                    if hasattr(msg, 'parts') and any(isinstance(part, SystemPromptPart) for part in msg.parts):
+                        has_system_message = True
+                        break
+                
+                # Only add system prompt if there isn't one already
+                if not has_system_message:
+                    system_message = ModelRequest(parts=[SystemPromptPart(content=system_prompt)])
+                    # Insert system message at the beginning of history
+                    formatted_history.insert(0, system_message)
+            
             # Run the agent
             result = await self._agent_instance.run(
                 user_input,
