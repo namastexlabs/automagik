@@ -9,7 +9,7 @@ logging implementation.
 import json
 import logging
 from collections import deque
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Set
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -115,6 +115,17 @@ class RawStreamProcessor:
         self._processing_complete = False
         self._store_raw_events = store_raw_events
         
+        # Pre-define event type handlers for faster dispatch
+        self._event_handlers = {
+            ("system", "init"): self._process_system_init,
+            ("assistant", ""): self._process_assistant_message,
+            ("user", ""): self._process_user_message,
+            ("result", ""): self._process_result,
+        }
+        
+        # Cache for faster string operations
+        self._known_tool_names: Set[str] = set()
+        
     def process_line(self, line: str) -> Optional[Dict[str, Any]]:
         """
         Process a single line from Claude CLI stream.
@@ -157,18 +168,20 @@ class RawStreamProcessor:
         subtype = event.get("subtype", "")
         full_type = f"{event_type}.{subtype}" if subtype else event_type
         
-        # Track event types
+        # Track event types - use dict.get with default for efficiency
         self.metrics.event_types[full_type] = self.metrics.event_types.get(full_type, 0) + 1
         
-        # Process different event types
-        if event_type == "system" and subtype == "init":
-            self._process_system_init(event)
-        elif event_type == "assistant":
-            self._process_assistant_message(event)
-        elif event_type == "user":
-            self._process_user_message(event)
-        elif event_type == "result":
-            self._process_result(event)
+        # Use handler dispatch table for faster event processing
+        handler_key = (event_type, subtype)
+        handler = self._event_handlers.get(handler_key)
+        if handler:
+            handler(event)
+        else:
+            # Fallback for unknown event types
+            handler_key_generic = (event_type, "")
+            handler_generic = self._event_handlers.get(handler_key_generic)
+            if handler_generic:
+                handler_generic(event)
     
     def _process_system_init(self, event: Dict[str, Any]) -> None:
         """Process system initialization event."""
@@ -197,12 +210,14 @@ class RawStreamProcessor:
             self.metrics.total_cache_read_tokens += usage.get("cache_read_input_tokens", 0)
             self.metrics.total_output_tokens += usage.get("output_tokens", 0)
         
-        # Check for tool usage in content
+        # Check for tool usage in content - optimize tool name tracking
         for item in content:
             if item.get("type") == "tool_use":
                 self.metrics.tool_calls += 1
                 tool_name = item.get("name", "unknown")
-                if tool_name not in self.metrics.tool_names_used:
+                # Use set for O(1) lookups instead of O(n) list searches
+                if tool_name not in self._known_tool_names:
+                    self._known_tool_names.add(tool_name)
                     self.metrics.tool_names_used.append(tool_name)
                 logger.debug(f"Tool call detected: {tool_name}")
     
