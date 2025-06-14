@@ -76,7 +76,7 @@ async def make_request(
 
 async def test_health_check(session: aiohttp.ClientSession) -> bool:
     """Test the health check endpoint."""
-    success, data, error = await make_request(session, "GET", "/api/v1/agent/claude-code/health")
+    success, data, error = await make_request(session, "GET", "/api/v1/workflows/claude-code/health")
     
     if success and data.get("status") == "healthy":
         details = f"Mode: {data.get('mode', 'unknown')}, CLI available: {data.get('claude_cli_available', False)}"
@@ -89,7 +89,7 @@ async def test_health_check(session: aiohttp.ClientSession) -> bool:
 
 async def test_list_workflows(session: aiohttp.ClientSession) -> bool:
     """Test listing available workflows."""
-    success, data, error = await make_request(session, "GET", "/api/v1/agent/claude-code/workflows")
+    success, data, error = await make_request(session, "GET", "/api/v1/workflows/claude-code/workflows")
     
     if success:
         workflows = data if isinstance(data, list) else []
@@ -115,7 +115,7 @@ async def test_architect_workflow(session: aiohttp.ClientSession) -> bool:
     
     print(f"{Colors.BLUE}Starting architect workflow...{Colors.RESET}")
     success, data, error = await make_request(
-        session, "POST", "/api/v1/agent/claude-code/architect/run", request_data
+        session, "POST", "/api/v1/workflows/claude-code/run/architect", request_data
     )
     
     if not success:
@@ -137,7 +137,7 @@ async def test_architect_workflow(session: aiohttp.ClientSession) -> bool:
         await asyncio.sleep(POLL_INTERVAL)
         
         success, status_data, error = await make_request(
-            session, "GET", f"/api/v1/agent/claude-code/run/{run_id}/status"
+            session, "GET", f"/api/v1/workflows/claude-code/run/{run_id}/status"
         )
         
         if not success:
