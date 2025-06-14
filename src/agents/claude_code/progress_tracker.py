@@ -44,18 +44,25 @@ class ProgressTracker:
             Progress information dictionary
         """
         try:
-            current_turns = metadata.get("current_turns", 0)
+            # Get turn counts from metadata (most reliable)
+            current_turns = metadata.get("total_turns", metadata.get("current_turns", 0))
             max_turns = metadata.get("max_turns", 30)
             
+            # Execution status - check completion indicators
+            run_status = metadata.get("run_status", "").lower()
+            completed_at = metadata.get("completed_at")
+            is_running = run_status == "running" and not completed_at
+            
             # Basic progress metrics
-            completion_percentage = min(100.0, (current_turns / max_turns) * 100) if max_turns > 0 else 0
+            # If workflow is completed, always show 100%
+            if run_status in ["completed", "failed"] or completed_at:
+                completion_percentage = 100.0
+            else:
+                completion_percentage = min(100.0, (current_turns / max_turns) * 100) if max_turns > 0 else 0
             
-            # Phase detection
-            current_phase = self._detect_current_phase(log_entries, current_turns)
-            phases_completed = self._get_completed_phases(log_entries, current_phase)
-            
-            # Execution status
-            is_running = metadata.get("run_status", "").lower() == "running"
+            # Phase detection based on metadata and log entries
+            current_phase = self._detect_current_phase(log_entries, current_turns, metadata)
+            phases_completed = self._get_completed_phases(log_entries, current_phase, metadata)
             
             # Time estimation
             estimated_completion = self._estimate_completion(metadata, current_turns, max_turns)
@@ -85,24 +92,36 @@ class ProgressTracker:
     def _detect_current_phase(
         self,
         log_entries: List[Dict],
-        current_turns: int
+        current_turns: int,
+        metadata: Dict[str, Any] = None
     ) -> str:
         """Detect current workflow phase based on recent activity.
         
         Args:
             log_entries: Recent log entries
             current_turns: Current turn count
+            metadata: Session metadata with tool usage
             
         Returns:
             Current phase name
         """
+        # Check if workflow is completed
+        if metadata and metadata.get("completed_at"):
+            return "completed"
+        
         # Early phase detection based on turn count
         if current_turns <= 2:
             return "initialization"
         
-        # Analyze recent tool usage (last 5 entries)
-        recent_tools = self._get_recent_tools(log_entries[-10:])
-        recent_content = self._get_recent_content(log_entries[-10:])
+        # Use metadata tools for more accurate phase detection
+        if metadata:
+            tools_used = metadata.get("tools_used_so_far", [])
+            if tools_used:
+                return self._phase_from_tools(tools_used)
+        
+        # Fallback to log analysis
+        recent_tools = self._get_recent_tools(log_entries[-10:] if log_entries else [])
+        recent_content = self._get_recent_content(log_entries[-10:] if log_entries else [])
         
         # Phase detection based on tool patterns
         phase_scores = {}
@@ -131,6 +150,43 @@ class ProgressTracker:
         
         # Fallback based on turn progression
         return self._get_default_phase_by_turns(current_turns)
+    
+    def _phase_from_tools(self, tools_used: List[str]) -> str:
+        """Determine workflow phase based on tools used.
+        
+        Args:
+            tools_used: List of tools used in the workflow
+            
+        Returns:
+            Phase name based on tool patterns
+        """
+        # Score phases based on tools used
+        phase_scores = {}
+        
+        for phase, patterns in self.phase_patterns.items():
+            score = 0
+            for tool in tools_used:
+                if tool in patterns:
+                    score += 1
+            phase_scores[phase] = score
+        
+        # Return phase with highest score
+        if phase_scores:
+            detected_phase = max(phase_scores, key=phase_scores.get)
+            if phase_scores[detected_phase] > 0:
+                return detected_phase
+        
+        # Fallback to implementation if any editing tools used
+        edit_tools = ['Write', 'Edit', 'MultiEdit']
+        if any(tool in tools_used for tool in edit_tools):
+            return "implementation"
+        
+        # Fallback to analysis if any reading tools used
+        read_tools = ['Read', 'LS', 'Glob', 'Grep']
+        if any(tool in tools_used for tool in read_tools):
+            return "analysis"
+        
+        return "execution"
     
     def _get_recent_tools(self, log_entries: List[Dict]) -> List[str]:
         """Extract recent tool usage from log entries.
@@ -193,7 +249,8 @@ class ProgressTracker:
     def _get_completed_phases(
         self,
         log_entries: List[Dict],
-        current_phase: str
+        current_phase: str,
+        metadata: Dict[str, Any] = None
     ) -> List[str]:
         """Determine which phases have been completed.
         
