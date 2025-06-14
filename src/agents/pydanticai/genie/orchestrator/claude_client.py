@@ -60,7 +60,7 @@ class ClaudeCodeClient:
             # Start workflow execution
             logger.info(f"Starting {workflow_name} workflow for epic {epic_state['epic_id']}")
             response = await self.client.post(
-                f"{self.base_url}/api/v1/agent/claude-code/{workflow_name}/run",
+                f"{self.base_url}/api/v1/workflows/claude-code/run/{workflow_name}",
                 json=request.model_dump()
             )
             response.raise_for_status()
@@ -130,7 +130,7 @@ class ClaudeCodeClient:
             
             try:
                 response = await self.client.get(
-                    f"{self.base_url}/api/v1/agent/claude-code/status/{run_id}"
+                    f"{self.base_url}/api/v1/workflows/claude-code/run/{run_id}/status"
                 )
                 response.raise_for_status()
                 
@@ -152,43 +152,38 @@ class ClaudeCodeClient:
                 
             await asyncio.sleep(poll_interval)
             
-    async def get_workflow_logs(self, container_id: str) -> Optional[str]:
-        """Get logs from a workflow container.
+    async def get_workflow_logs(self, run_id: str) -> Optional[str]:
+        """Get logs from a workflow run via status endpoint.
         
         Args:
-            container_id: The container ID
+            run_id: The run ID
             
         Returns:
             Container logs or None
         """
         try:
             response = await self.client.get(
-                f"{self.base_url}/api/v1/agent/claude-code/logs/{container_id}"
+                f"{self.base_url}/api/v1/workflows/claude-code/run/{run_id}/status"
             )
             response.raise_for_status()
             return response.json().get("logs", "")
         except Exception as e:
-            logger.error(f"Error fetching logs for container {container_id}: {e}")
+            logger.error(f"Error fetching logs for run {run_id}: {e}")
             return None
             
     async def stop_workflow(self, run_id: str) -> bool:
         """Stop a running workflow.
         
+        Note: Stop endpoint is not currently implemented in the Claude Code API.
+        
         Args:
             run_id: The run ID to stop
             
         Returns:
-            True if stopped successfully
+            False - stopping workflows is not currently supported
         """
-        try:
-            response = await self.client.post(
-                f"{self.base_url}/api/v1/agent/claude-code/stop/{run_id}"
-            )
-            response.raise_for_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error stopping workflow {run_id}: {e}")
-            return False
+        logger.warning(f"Stop workflow requested for {run_id} but stop endpoint not implemented")
+        return False
             
     async def close(self):
         """Close the HTTP client."""
