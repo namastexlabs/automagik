@@ -6,7 +6,7 @@ Claude workflow execution logs and messages.
 
 import re
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Set
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -16,36 +16,62 @@ class ResultExtractor:
     """Extracts meaningful final results from Claude workflow execution."""
     
     def __init__(self):
-        """Initialize result extractor with completion patterns."""
+        """Initialize result extractor with compiled patterns for better performance."""
+        # Compile regex patterns once for better performance
         self.completion_patterns = [
-            r"## 🎯.*Complete.*Summary",
-            r"## ✅.*Completed",
-            r"## Summary",
-            r"## Results",
-            r"Task completed successfully",
-            r"Implementation complete",
-            r"All tests passing",
-            r"Successfully",
-            r"✅.*complete",
-            r"✅.*success",
+            re.compile(pattern, re.IGNORECASE) for pattern in [
+                r"## 🎯.*Complete.*Summary",
+                r"## ✅.*Completed",
+                r"## Summary",
+                r"## Results",
+                r"Task completed successfully",
+                r"Implementation complete",
+                r"All tests passing",
+                r"Successfully",
+                r"✅.*complete",
+                r"✅.*success",
+            ]
         ]
         
         self.error_patterns = [
-            r"## ❌.*Error",
-            r"## ⚠️.*Warning",
-            r"Failed to",
-            r"Error:",
-            r"Exception:",
-            r"FAILED",
-            r"❌",
+            re.compile(pattern, re.IGNORECASE) for pattern in [
+                r"## ❌.*Error",
+                r"## ⚠️.*Warning",
+                r"Failed to",
+                r"Error:",
+                r"Exception:",
+                r"FAILED",
+                r"❌",
+            ]
         ]
         
         self.max_turns_patterns = [
-            r"max_turns",
-            r"maximum turns",
-            r"turn limit",
-            r"reached.*limit",
-            r"⏰.*turns",
+            re.compile(pattern, re.IGNORECASE) for pattern in [
+                r"max_turns",
+                r"maximum turns",
+                r"turn limit",
+                r"reached.*limit",
+                r"⏰.*turns",
+            ]
+        ]
+        
+        # Fast lookups for success indicators
+        self.success_indicators: Set[str] = {
+            "complete", "success", "done", "finished",
+            "implemented", "fixed", "resolved", "working"
+        }
+        
+        # Cache for expensive pattern matching
+        self._pattern_cache: Dict[str, bool] = {}
+        
+        # Compiled file creation patterns for better performance
+        self.file_patterns = [
+            re.compile(pattern, re.IGNORECASE) for pattern in [
+                r'File created.*?: (.+\.py)',
+                r'Created file: (.+)',
+                r'Writing.*to (.+\.py)',
+                r'Saved to (.+)'
+            ]
         ]
     
     def extract_final_result(
@@ -243,11 +269,9 @@ class ResultExtractor:
             # Check if final message indicates success despite max turns
             if final_message:
                 final_lower = final_message.lower()
-                success_indicators = [
-                    "complete", "success", "done", "finished",
-                    "implemented", "fixed", "resolved", "working"
-                ]
-                return any(indicator in final_lower for indicator in success_indicators)
+                # Use set intersection for O(1) lookups instead of O(n) iteration
+                final_words = set(final_lower.split())
+                return bool(final_words & self.success_indicators)
             return False
         
         return False  # unknown type
@@ -291,24 +315,28 @@ class ResultExtractor:
         
         return base_message
     
-    def _contains_pattern(self, text: str, patterns: List[str]) -> bool:
-        """Check if text contains any of the given patterns.
+    def _contains_pattern(self, text: str, patterns: List[re.Pattern]) -> bool:
+        """Check if text contains any of the given compiled patterns.
         
         Args:
             text: Text to search
-            patterns: Regex patterns to match
+            patterns: Compiled regex patterns to match
             
         Returns:
             True if any pattern matches
         """
-        for pattern in patterns:
-            try:
-                if re.search(pattern, text, re.IGNORECASE):
-                    return True
-            except re.error:
-                # Invalid regex, skip
-                continue
-        return False
+        # Use cache for expensive pattern matching
+        cache_key = f"{hash(text)}_{len(patterns)}"
+        if cache_key in self._pattern_cache:
+            return self._pattern_cache[cache_key]
+        
+        result = any(pattern.search(text) for pattern in patterns)
+        
+        # Cache result but limit cache size to prevent memory issues
+        if len(self._pattern_cache) < 1000:
+            self._pattern_cache[cache_key] = result
+        
+        return result
     
     def extract_files_created(self, log_entries: List[Dict]) -> List[str]:
         """Extract list of files created during workflow.
@@ -319,7 +347,8 @@ class ResultExtractor:
         Returns:
             List of file paths created
         """
-        files_created = []
+        # Use set for O(1) lookups to avoid duplicates, then convert to list
+        files_created_set: Set[str] = set()
         
         for entry in log_entries:
             if isinstance(entry, dict):
@@ -327,27 +356,19 @@ class ResultExtractor:
                 
                 # Look for file creation patterns
                 if isinstance(data, dict):
-                    # Tool usage data
+                    # Tool usage data - direct lookup is faster
                     if data.get('tool_name') == 'Write':
                         input_data = data.get('input', {})
                         if isinstance(input_data, dict):
                             file_path = input_data.get('file_path')
-                            if file_path and file_path not in files_created:
-                                files_created.append(file_path)
+                            if file_path:
+                                files_created_set.add(file_path)
                 
-                # Look for file creation messages
+                # Look for file creation messages using compiled patterns
                 content = str(data.get('content', ''))
-                file_patterns = [
-                    r'File created.*?: (.+\.py)',
-                    r'Created file: (.+)',
-                    r'Writing.*to (.+\.py)',
-                    r'Saved to (.+)'
-                ]
-                
-                for pattern in file_patterns:
-                    matches = re.findall(pattern, content)
-                    for match in matches:
-                        if match not in files_created:
-                            files_created.append(match)
+                if content:  # Only process non-empty content
+                    for pattern in self.file_patterns:
+                        matches = pattern.findall(content)
+                        files_created_set.update(matches)
         
-        return files_created
+        return list(files_created_set)
