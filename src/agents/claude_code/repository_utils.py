@@ -5,6 +5,7 @@ local copying and remote cloning functionality.
 """
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -33,6 +34,10 @@ async def setup_repository(
     Raises:
         RuntimeError: If repository setup fails
     """
+    # Check for current workspace flag - KISS implementation
+    if os.getenv("CLAUDE_CURRENT_WORKSPACE", "false").lower() == "true":
+        return await _use_current_workspace(workspace, branch)
+    
     # Determine branch (use current if not specified)
     if branch is None:
         branch = await get_current_git_branch()
@@ -159,3 +164,13 @@ async def _clone_remote_repository(
     
     logger.info(f"Cloned repository to {target_path} on branch {branch}")
     return target_path
+
+
+async def _use_current_workspace(workspace: Path, branch: str) -> Path:
+    """Use current working directory as workspace (no copying)."""
+    current_repo = await find_repo_root()
+    if not current_repo:
+        raise RuntimeError("Not in a git repository")
+    
+    logger.info(f"Using current workspace: {current_repo}")
+    return current_repo
