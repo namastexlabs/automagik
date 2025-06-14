@@ -1,0 +1,32 @@
+{
+  "allowed_tools": [
+    "Task",
+    "TodoRead",
+    "TodoWrite",
+    "Read",
+    "Write",
+    "LS",
+    "Glob",
+    "mcp__automagik-workflows__run_workflow",
+    "mcp__automagik-workflows__list_workflows",
+    "mcp__automagik-workflows__list_recent_runs",
+    "mcp__automagik-workflows__get_workflow_status",
+    "mcp__agent-memory__add_memory",
+    "mcp__agent-memory__search_memory_nodes",
+    "mcp__agent-memory__search_memory_facts",
+    "mcp__agent-memory__delete_entity_edge",
+    "mcp__agent-memory__delete_episode",
+    "mcp__agent-memory__get_entity_edge",
+    "mcp__agent-memory__get_episodes",
+    "mcp__agent-memory__clear_graph",
+    "mcp__deepwiki__read_wiki_structure",
+    "mcp__deepwiki__read_wiki_contents",
+    "mcp__deepwiki__ask_question",
+    "Bash",
+    "Edit",
+    "MultiEdit",
+    "WebSearch",
+    "ListMcpResourcesTool",
+    "ReadMcpResourceTool"
+  ]
+}

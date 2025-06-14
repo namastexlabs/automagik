@@ -71,7 +71,7 @@ class ResultExtractor:
         try:
             # Extract completion information
             completion_type = self._determine_completion_type(log_entries, metadata)
-            final_message = self._get_last_substantial_message(messages, log_entries)
+            final_message = self._get_last_substantial_message(messages, log_entries, metadata)
             success = self._is_successful_completion(completion_type, final_message)
             user_message = self._generate_user_message(completion_type, final_message)
             
@@ -108,53 +108,79 @@ class ResultExtractor:
         Returns:
             Completion type string
         """
-        # Check for explicit max turns reached
-        current_turns = metadata.get("current_turns", 0)
+        # Check metadata first - it's the most reliable source
+        success = metadata.get("success")
+        if success is True:
+            return "completed_successfully"
+        elif success is False:
+            return "failed"
+        
+        # Check for explicit completion indicators in metadata
+        completed_at = metadata.get("completed_at")
+        final_result = metadata.get("final_result")
+        
+        if completed_at and final_result:
+            # If we have both completion time and final result, it's completed
+            return "completed_successfully"
+        
+        # Check for max turns reached
+        current_turns = metadata.get("current_turns", metadata.get("total_turns", 0))
         max_turns = metadata.get("max_turns", 30)
         
         if current_turns >= max_turns:
             return "max_turns_reached"
         
-        # Check recent log entries for completion patterns
-        recent_logs = log_entries[-10:] if log_entries else []
-        recent_text = " ".join(str(entry) for entry in recent_logs)
-        
-        # Check for errors first
-        if self._contains_pattern(recent_text, self.error_patterns):
-            return "failed"
-        
-        # Check for explicit completion
-        if self._contains_pattern(recent_text, self.completion_patterns):
-            return "completed_successfully"
-        
-        # Check for max turns patterns in logs
-        if self._contains_pattern(recent_text, self.max_turns_patterns):
-            return "max_turns_reached"
-        
-        # Check metadata for status indicators
+        # Check run status in metadata
         run_status = metadata.get("run_status", "").lower()
         if "completed" in run_status:
             return "completed_successfully"
         elif "failed" in run_status or "error" in run_status:
             return "failed"
+        elif "running" in run_status:
+            return "running"
+        
+        # Fallback to log analysis for older workflows
+        if log_entries:
+            recent_logs = log_entries[-10:]
+            recent_text = " ".join(str(entry) for entry in recent_logs)
+            
+            # Check for errors first
+            if self._contains_pattern(recent_text, self.error_patterns):
+                return "failed"
+            
+            # Check for explicit completion
+            if self._contains_pattern(recent_text, self.completion_patterns):
+                return "completed_successfully"
+            
+            # Check for max turns patterns in logs
+            if self._contains_pattern(recent_text, self.max_turns_patterns):
+                return "max_turns_reached"
         
         return "unknown"
     
     def _get_last_substantial_message(
         self,
         messages: List[Any],
-        log_entries: List[Dict]
+        log_entries: List[Dict],
+        metadata: Dict[str, Any] = None
     ) -> Optional[str]:
         """Get the last substantial message from Claude.
         
         Args:
             messages: Assistant messages from database
             log_entries: Log entries to supplement
+            metadata: Session metadata (primary source)
             
         Returns:
             Last substantial message text
         """
-        # First try to get from assistant messages
+        # First try metadata - most reliable source
+        if metadata:
+            final_result = metadata.get("final_result")
+            if final_result and isinstance(final_result, str) and len(final_result.strip()) > 50:
+                return final_result.strip()
+        
+        # Try assistant messages from database
         if messages:
             for message in reversed(messages):
                 content = getattr(message, 'content', '')
@@ -168,11 +194,25 @@ class ResultExtractor:
                         return content.strip()
         
         # Fallback to log entries
-        for entry in reversed(log_entries[-20:]):
+        for entry in reversed(log_entries[-20:] if log_entries else []):
             if isinstance(entry, dict):
-                # Look for Claude responses in logs
-                data = entry.get('data', {})
-                if isinstance(data, dict):
+                event_type = entry.get("event_type", "")
+                data = entry.get("data", {})
+                
+                # Check Claude stream assistant messages
+                if event_type == "claude_stream_assistant" and isinstance(data, dict):
+                    message = data.get("message", {})
+                    content = message.get("content", [])
+                    
+                    # Look for text content
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            text = item.get("text", "")
+                            if isinstance(text, str) and len(text.strip()) > 50:
+                                return text.strip()
+                
+                # Look for other content in data
+                elif isinstance(data, dict):
                     content = data.get('content', '')
                     if isinstance(content, str) and len(content.strip()) > 50:
                         return content.strip()
