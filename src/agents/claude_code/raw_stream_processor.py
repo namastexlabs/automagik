@@ -8,6 +8,7 @@ logging implementation.
 
 import json
 import logging
+from collections import deque
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 
@@ -102,10 +103,17 @@ class ClaudeStreamMetrics:
 class RawStreamProcessor:
     """Processes raw Claude CLI JSON stream to extract comprehensive metrics."""
     
-    def __init__(self):
+    def __init__(self, max_events: int = 1000, store_raw_events: bool = True):
+        """Initialize the stream processor.
+        
+        Args:
+            max_events: Maximum number of raw events to store (default: 1000)
+            store_raw_events: Whether to store raw events at all (default: True)
+        """
         self.metrics = ClaudeStreamMetrics()
-        self.raw_events: List[Dict[str, Any]] = []
+        self.raw_events: deque = deque(maxlen=max_events if store_raw_events else 0)
         self._processing_complete = False
+        self._store_raw_events = store_raw_events
         
     def process_line(self, line: str) -> Optional[Dict[str, Any]]:
         """
@@ -141,7 +149,8 @@ class RawStreamProcessor:
     
     def _process_event(self, event: Dict[str, Any]) -> None:
         """Process a parsed JSON event to update metrics."""
-        self.raw_events.append(event)
+        if self._store_raw_events:
+            self.raw_events.append(event)
         self.metrics.total_events += 1
         
         event_type = event.get("type", "unknown")
@@ -239,8 +248,8 @@ class RawStreamProcessor:
         return self.metrics
     
     def get_raw_events(self) -> List[Dict[str, Any]]:
-        """Get all raw events from the stream."""
-        return self.raw_events
+        """Get all raw events from the stream (up to max_events limit)."""
+        return list(self.raw_events)
     
     def is_complete(self) -> bool:
         """Check if stream processing is complete."""
