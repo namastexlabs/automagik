@@ -5,7 +5,7 @@ for Claude workflow execution.
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -15,17 +15,35 @@ class ProgressTracker:
     """Tracks workflow progress and detects execution phases."""
     
     def __init__(self):
-        """Initialize progress tracker with phase detection patterns."""
+        """Initialize progress tracker with optimized phase detection patterns."""
+        # Use sets for O(1) lookups instead of lists with O(n) searches
         self.phase_patterns = {
-            "initialization": ["TodoWrite", "initial", "setup"],
-            "planning": ["TodoWrite", "TodoRead", "plan", "organize"],
-            "analysis": ["LS", "Glob", "Read", "Grep", "search", "analyze"],
-            "implementation": ["Write", "Edit", "MultiEdit", "create", "implement"],
-            "testing": ["Bash", "test", "validate", "check"],
-            "execution": ["Bash", "run", "execute"],
-            "review": ["Read", "review", "check", "validate"],
-            "completion": ["complete", "finish", "done", "summary"]
+            "initialization": {"TodoWrite", "initial", "setup"},
+            "planning": {"TodoWrite", "TodoRead", "plan", "organize"},
+            "analysis": {"LS", "Glob", "Read", "Grep", "search", "analyze"},
+            "implementation": {"Write", "Edit", "MultiEdit", "create", "implement"},
+            "testing": {"Bash", "test", "validate", "check"},
+            "execution": {"Bash", "run", "execute"},
+            "review": {"Read", "review", "check", "validate"},
+            "completion": {"complete", "finish", "done", "summary"}
         }
+        
+        # Pre-compute tool categories for faster lookups
+        self.edit_tools: Set[str] = {"Write", "Edit", "MultiEdit"}
+        self.read_tools: Set[str] = {"Read", "LS", "Glob", "Grep"}
+        self.tool_patterns: Set[str] = {
+            "TodoWrite", "TodoRead", "LS", "Read", "Write", "Edit",
+            "MultiEdit", "Bash", "Glob", "Grep", "Task"
+        }
+        
+        # Phase order for efficient progression calculation
+        self.phase_order = [
+            "initialization", "planning", "analysis", "implementation",
+            "testing", "review", "completion"
+        ]
+        
+        # Cache for phase detection results
+        self._phase_cache: Dict[str, str] = {}
     
     def calculate_progress(
         self,
@@ -123,22 +141,23 @@ class ProgressTracker:
         recent_tools = self._get_recent_tools(log_entries[-10:] if log_entries else [])
         recent_content = self._get_recent_content(log_entries[-10:] if log_entries else [])
         
-        # Phase detection based on tool patterns
+        # Phase detection based on tool patterns - use set intersections for efficiency
         phase_scores = {}
+        recent_tools_set = set(recent_tools)
         
         for phase, patterns in self.phase_patterns.items():
             score = 0
             
-            # Tool-based scoring
-            for tool in recent_tools:
-                if tool in patterns:
-                    score += 2
+            # Tool-based scoring - O(1) set intersection instead of nested loops
+            tool_matches = recent_tools_set & patterns
+            score += len(tool_matches) * 2
             
-            # Content-based scoring
-            recent_text = " ".join(recent_content).lower()
-            for pattern in patterns:
-                if pattern.lower() in recent_text:
-                    score += 1
+            # Content-based scoring - only if we haven't already found strong matches
+            if score == 0:
+                recent_text = " ".join(recent_content).lower()
+                recent_words = set(recent_text.split())
+                pattern_matches = recent_words & patterns
+                score += len(pattern_matches)
             
             phase_scores[phase] = score
         
@@ -160,15 +179,14 @@ class ProgressTracker:
         Returns:
             Phase name based on tool patterns
         """
-        # Score phases based on tools used
-        phase_scores = {}
+        # Convert to set for faster lookups
+        tools_set = set(tools_used)
         
+        # Score phases based on tools used - use set intersections
+        phase_scores = {}
         for phase, patterns in self.phase_patterns.items():
-            score = 0
-            for tool in tools_used:
-                if tool in patterns:
-                    score += 1
-            phase_scores[phase] = score
+            matches = tools_set & patterns
+            phase_scores[phase] = len(matches)
         
         # Return phase with highest score
         if phase_scores:
@@ -177,13 +195,11 @@ class ProgressTracker:
                 return detected_phase
         
         # Fallback to implementation if any editing tools used
-        edit_tools = ['Write', 'Edit', 'MultiEdit']
-        if any(tool in tools_used for tool in edit_tools):
+        if tools_set & self.edit_tools:
             return "implementation"
         
         # Fallback to analysis if any reading tools used
-        read_tools = ['Read', 'LS', 'Glob', 'Grep']
-        if any(tool in tools_used for tool in read_tools):
+        if tools_set & self.read_tools:
             return "analysis"
         
         return "execution"
@@ -209,18 +225,13 @@ class ProgressTracker:
                     if tool_name:
                         tools.append(tool_name)
                     
-                    # Tool usage in content
+                    # Tool usage in content - use pre-computed pattern set
                     content = str(data.get('content', ''))
-                    
-                    # Common tool patterns
-                    tool_patterns = [
-                        'TodoWrite', 'TodoRead', 'LS', 'Read', 'Write', 'Edit', 
-                        'MultiEdit', 'Bash', 'Glob', 'Grep', 'Task'
-                    ]
-                    
-                    for tool in tool_patterns:
-                        if tool in content:
-                            tools.append(tool)
+                    if content:  # Only process non-empty content
+                        # Use set intersection to find matching tools efficiently
+                        content_words = set(content.split())
+                        matching_tools = content_words & self.tool_patterns
+                        tools.extend(matching_tools)
         
         return tools
     
@@ -261,21 +272,10 @@ class ProgressTracker:
         Returns:
             List of completed phase names
         """
-        # Typical workflow progression
-        phase_order = [
-            "initialization",
-            "planning", 
-            "analysis",
-            "implementation",
-            "testing",
-            "review",
-            "completion"
-        ]
-        
-        # Find current phase index
+        # Find current phase index using pre-computed phase order
         try:
-            current_index = phase_order.index(current_phase)
-            return phase_order[:current_index]
+            current_index = self.phase_order.index(current_phase)
+            return self.phase_order[:current_index]
         except ValueError:
             # Current phase not in standard order
             return []
