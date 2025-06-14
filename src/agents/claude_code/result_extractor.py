@@ -105,7 +105,7 @@ class ResultExtractor:
                 "success": success,
                 "completion_type": completion_type,
                 "message": user_message,
-                "final_output": final_message[:500] if final_message else None
+                "final_output": final_message
             }
             
             logger.debug(f"Extracted result: {result}")
