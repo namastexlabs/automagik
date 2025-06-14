@@ -30,6 +30,15 @@ class User(BaseDBModel):
         """Create a User instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON user_data field - deserialize if it's a string
+        if "user_data" in row and isinstance(row["user_data"], str):
+            import json
+            try:
+                row["user_data"] = json.loads(row["user_data"])
+            except (json.JSONDecodeError, TypeError):
+                row["user_data"] = None
+        
         return cls(**row)
 
 
@@ -54,6 +63,15 @@ class Agent(BaseDBModel):
         """Create an Agent instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON config field - deserialize if it's a string
+        if "config" in row and isinstance(row["config"], str):
+            import json
+            try:
+                row["config"] = json.loads(row["config"])
+            except (json.JSONDecodeError, TypeError):
+                row["config"] = None
+        
         return cls(**row)
 
 
@@ -76,6 +94,15 @@ class Session(BaseDBModel):
         """Create a Session instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON metadata field - deserialize if it's a string
+        if "metadata" in row and isinstance(row["metadata"], str):
+            import json
+            try:
+                row["metadata"] = json.loads(row["metadata"])
+            except (json.JSONDecodeError, TypeError):
+                row["metadata"] = None
+        
         return cls(**row)
 
 
@@ -106,6 +133,17 @@ class Message(BaseDBModel):
         """Create a Message instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON fields - deserialize if they're strings
+        json_fields = ["raw_payload", "channel_payload", "tool_calls", "tool_outputs", "context"]
+        for field in json_fields:
+            if field in row and isinstance(row[field], str):
+                import json
+                try:
+                    row[field] = json.loads(row[field])
+                except (json.JSONDecodeError, TypeError):
+                    row[field] = None
+        
         return cls(**row)
 
 

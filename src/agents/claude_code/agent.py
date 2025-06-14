@@ -9,6 +9,7 @@ import uuid
 import asyncio
 import json
 import os
+import aiofiles
 from typing import Dict, Optional, Any
 from datetime import datetime
 
@@ -64,6 +65,9 @@ class ClaudeCodeAgent(AutomagikAgent):
         
         # Set description for this agent type
         self.description = "Local Claude CLI agent for autonomous code tasks"
+        
+        # Workflow validation cache for performance
+        self._workflow_cache = {}
         
         # Load and register the code-defined prompt from workflows
         # This will be loaded from the workflow configuration
@@ -340,6 +344,10 @@ class ClaudeCodeAgent(AutomagikAgent):
         Returns:
             True if workflow is valid, False otherwise
         """
+        # Check cache first for performance
+        if workflow_name in self._workflow_cache:
+            return self._workflow_cache[workflow_name]
+        
         try:
             # Check if workflow directory exists
             import os
@@ -364,8 +372,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                 # Validate JSON files
                 if required_file.endswith('.json'):
                     try:
-                        with open(file_path, 'r') as f:
-                            json.load(f)
+                        async with aiofiles.open(file_path, 'r') as f:
+                            content = await f.read()
+                            json.loads(content)
                     except json.JSONDecodeError as e:
                         logger.warning(f"Invalid JSON in {file_path}: {str(e)}")
                         return False
@@ -374,10 +383,12 @@ class ClaudeCodeAgent(AutomagikAgent):
                         return False
             
             logger.debug(f"Workflow '{workflow_name}' validated successfully")
+            self._workflow_cache[workflow_name] = True
             return True
             
         except Exception as e:
             logger.error(f"Error validating workflow '{workflow_name}': {str(e)}")
+            self._workflow_cache[workflow_name] = False
             return False
     
     async def get_available_workflows(self) -> Dict[str, Dict[str, Any]]:
@@ -404,8 +415,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                         description = "No description available"
                         
                         if os.path.exists(prompt_file):
-                            with open(prompt_file, 'r') as f:
-                                lines = f.readlines()
+                            async with aiofiles.open(prompt_file, 'r') as f:
+                                content = await f.read()
+                                lines = content.splitlines()
                                 # Extract first line as description
                                 if lines:
                                     description = lines[0].strip("# \n")
