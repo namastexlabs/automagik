@@ -10,6 +10,8 @@ import logging
 import os
 import subprocess
 import time
+import aiofiles
+import aiofiles.os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, List, Any, Callable
@@ -366,7 +368,7 @@ class StreamProcessor:
                             "duration_ms": data.get("duration_ms"),
                             "total_cost_usd": data.get("cost_usd"),
                             "turns_used": data.get("num_turns"),
-                            "final_result": self.result_text[:200] + "..." if len(self.result_text) > 200 else self.result_text,
+                            "final_result": f"{self.result_text[:200]}..." if len(self.result_text) > 200 else self.result_text,
                             "session_id": self.session_id
                         }
                     )
@@ -628,213 +630,39 @@ class ClaudeCLIExecutor:
         log_manager
     ) -> CLIResult:
         """Run the Claude CLI process with integrated log streaming."""
-        # Use log manager for this execution
         async with log_manager.get_log_writer(run_id) as log_writer:
+            await self._log_execution_init(log_writer, session, workspace, cmd, run_id)
             
-            # Enhanced workflow initialization (consolidated from multiple init events)
-            await log_writer(
-                f"Workflow execution initialized: {session.workflow_name}",
-                "execution_init",
-                {
-                    "run_id": run_id,
-                    "workflow": session.workflow_name,
-                    "max_turns": session.max_turns,
-                    "workspace": str(workspace),
-                    "claude_executable": _CLAUDE_EXECUTABLE_PATH,
-                    "session_id": session.session_id,
-                    "claude_session_id": session.claude_session_id,
-                    "created_at": session.created_at.isoformat() if session.created_at else None,
-                    "command_args_count": len(cmd)
-                }
-            )
+            env = self._prepare_environment(session)
+            await self._log_environment_setup(log_writer, env)
             
-            # Prepare environment with Node.js in PATH
-            env = os.environ.copy()
-            env["CLAUDE_SESSION_ID"] = session.run_id
+            working_dir = self._determine_working_directory(workspace)
+            process = await self._create_process(cmd, working_dir, env)
             
-            # If claude was found, ensure its directory is in PATH
-            if _CLAUDE_EXECUTABLE_PATH:
-                claude_dir = os.path.dirname(_CLAUDE_EXECUTABLE_PATH)
-                current_path = env.get("PATH", "")
-                if claude_dir not in current_path:
-                    env["PATH"] = f"{claude_dir}:{current_path}"
-                    await log_writer(
-                        f"Added Claude CLI directory to PATH: {claude_dir}",
-                        "environment",
-                        {"claude_dir": claude_dir, "path_modified": True}
-                    )
-            
-            # Skip redundant environment logging - already in execution_init
-            
-            # Create process
-            # Check if workspace already contains am-agents-labs or use workspace directly
-            if workspace.name == "am-agents-labs":
-                working_dir = str(workspace)
-            else:
-                working_dir = str(workspace / "am-agents-labs")
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=working_dir,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
-            )
-            
-            # Enhanced process creation with timing
-            await log_writer(
-                f"Process started with PID {process.pid}",
-                "process_start",
-                {
-                    "pid": process.pid, 
-                    "timeout": timeout
-                }
-            )
-            
-            # Track active process
+            await self._log_process_start(log_writer, process, timeout)
             self.active_processes[session.run_id] = process
             
-            # Add session confirmation tracking for early API response
-            session_confirmed_event = asyncio.Event()
-            
-            # Create stream processor with log writer and session event
-            processor = StreamProcessor(stream_callback, log_writer, session_confirmed_event)
-            
-            # Start background task to wait for session confirmation
-            async def wait_for_session_confirmation():
-                try:
-                    await asyncio.wait_for(session_confirmed_event.wait(), timeout=30)
-                    await log_writer(
-                        "Session confirmation received and logged",
-                        "session_confirmation",
-                        {"confirmed_early": True, "session_id": getattr(processor, 'session_id', None)}
-                    )
-                except asyncio.TimeoutError:
-                    await log_writer(
-                        "Session confirmation timeout (30s) - continuing execution",
-                        "session_confirmation",
-                        {"confirmed_early": False, "timeout": 30}
-                    )
-            
-            # Start confirmation task but don't await it
-            session_task = asyncio.create_task(wait_for_session_confirmation())
-            
-            # Collect output
-            stdout_lines = []
-            stderr_lines = []
+            processor, session_task = await self._setup_stream_processing(
+                stream_callback, log_writer, session
+            )
             
             try:
-                # Create tasks for reading streams
-                async def read_stream(stream, lines_list, is_stdout=True):
-                    async for line in stream:
-                        decoded = line.decode('utf-8', errors='replace')
-                        lines_list.append(decoded)
-                        
-                        if is_stdout:
-                            # Process JSON streaming output
-                            await processor.process_line(decoded)
-                        else:
-                            # Log stderr directly
-                            if decoded.strip():
-                                await log_writer(
-                                    f"STDERR: {decoded.strip()}",
-                                    "stderr",
-                                    {"stream": "stderr", "content": decoded.strip()}
-                                )
-                
-                # Read both streams concurrently with timeout
-                stdout_task = asyncio.create_task(
-                    read_stream(process.stdout, stdout_lines, True)
-                )
-                stderr_task = asyncio.create_task(
-                    read_stream(process.stderr, stderr_lines, False)
-                )
-                
-                # Wait for completion with timeout
-                await asyncio.wait_for(
-                    asyncio.gather(process.wait(), stdout_task, stderr_task),
-                    timeout=timeout
+                stdout_lines, stderr_lines = await self._execute_process_streams(
+                    process, processor, log_writer, timeout
                 )
                 
             except asyncio.TimeoutError:
-                await log_writer(
-                    f"Process timed out after {timeout}s, attempting graceful shutdown",
-                    "timeout",
-                    {"timeout_seconds": timeout, "pid": process.pid}
-                )
-                logger.warning(f"Process timed out after {timeout}s")
-                process.terminate()
-                try:
-                    await asyncio.wait_for(process.wait(), timeout=5)
-                    await log_writer(
-                        "Process terminated gracefully after timeout",
-                        "process",
-                        {"termination": "graceful"}
-                    )
-                except asyncio.TimeoutError:
-                    process.kill()
-                    await log_writer(
-                        "Process killed forcefully after timeout",
-                        "process",
-                        {"termination": "force_kill"}
-                    )
+                await self._handle_process_timeout(log_writer, process, timeout)
                 raise
                 
             finally:
-                # Clean up session task and log final status
-                if not session_task.done():
-                    session_task.cancel()
-                    try:
-                        await session_task
-                    except asyncio.CancelledError:
-                        pass
-                
-                # Log any stderr content if present
-                if stderr_lines and any(line.strip() for line in stderr_lines):
-                    await log_writer(
-                        "Stderr content detected",
-                        "stderr_summary",
-                        {"stderr_lines": len(stderr_lines), "content_preview": ''.join(stderr_lines)[:200]}
-                    )
-                
-                # Clean up
-                del self.active_processes[session.run_id]
+                await self._cleanup_process_execution(
+                    session_task, stderr_lines, log_writer, session
+                )
             
-            # Prepare result
-            stdout_text = ''.join(stdout_lines)
-            stderr_text = ''.join(stderr_lines)
-            
-            # Enhanced final summary (consolidates workflow_completion and session_confirmation)
-            await log_writer(
-                f"Process completed with exit code {process.returncode}",
-                "process_complete",
-                {
-                    "exit_code": process.returncode,
-                    "success": process.returncode == 0,
-                    "claude_session_id": processor.session_id,
-                    "session_confirmed": processor.session_confirmed,
-                    "result_length": len(processor.get_final_result()),
-                    "streaming_messages_count": len(processor.messages),
-                    "has_stderr": len(stderr_lines) > 0
-                }
-            )
-            
-            # Skip redundant session confirmation - already in process_complete
-            
-            # Update Claude session ID if extracted
-            if processor.session_id:
-                session.claude_session_id = processor.session_id
-            
-            return CLIResult(
-                success=process.returncode == 0,
-                session_id=processor.session_id or session.session_id,
-                result=processor.get_final_result(),
-                exit_code=process.returncode,
-                execution_time=0,  # Will be set by caller
-                logs=stdout_text + "\n" + stderr_text if stderr_text else stdout_text,
-                error=stderr_text if process.returncode != 0 else None,
-                streaming_messages=processor.messages,
-                log_file_path=str(log_manager.get_log_path(run_id))
+            return await self._build_execution_result(
+                process, processor, stdout_lines, stderr_lines, 
+                session, run_id, log_manager, log_writer
             )
     
     
@@ -1253,6 +1081,207 @@ class ClaudeCLIExecutor:
     def list_sessions(self) -> List[str]:
         """List all active session IDs."""
         return list(self.sessions.keys())
+    
+    # --- Extracted methods from _run_process_with_logging ---
+    
+    async def _log_execution_init(self, log_writer, session, workspace, cmd, run_id):
+        """Log execution initialization."""
+        await log_writer(
+            f"Workflow execution initialized: {session.workflow_name}",
+            "execution_init",
+            {
+                "run_id": run_id,
+                "workflow": session.workflow_name,
+                "max_turns": session.max_turns,
+                "workspace": str(workspace),
+                "claude_executable": _CLAUDE_EXECUTABLE_PATH,
+                "session_id": session.session_id,
+                "claude_session_id": session.claude_session_id,
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "command_args_count": len(cmd)
+            }
+        )
+    
+    def _prepare_environment(self, session):
+        """Prepare environment variables for process execution."""
+        env = os.environ.copy()
+        env["CLAUDE_SESSION_ID"] = session.run_id
+        return env
+    
+    async def _log_environment_setup(self, log_writer, env):
+        """Log environment setup if Claude CLI directory was added to PATH."""
+        if _CLAUDE_EXECUTABLE_PATH:
+            claude_dir = os.path.dirname(_CLAUDE_EXECUTABLE_PATH)
+            current_path = env.get("PATH", "")
+            if claude_dir not in current_path:
+                env["PATH"] = f"{claude_dir}:{current_path}"
+                await log_writer(
+                    f"Added Claude CLI directory to PATH: {claude_dir}",
+                    "environment",
+                    {"claude_dir": claude_dir, "path_modified": True}
+                )
+    
+    def _determine_working_directory(self, workspace):
+        """Determine the correct working directory for process execution."""
+        if workspace.name == "am-agents-labs":
+            return str(workspace)
+        else:
+            return str(workspace / "am-agents-labs")
+    
+    async def _create_process(self, cmd, working_dir, env):
+        """Create the Claude CLI subprocess."""
+        return await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=working_dir,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env
+        )
+    
+    async def _log_process_start(self, log_writer, process, timeout):
+        """Log process start information."""
+        await log_writer(
+            f"Process started with PID {process.pid}",
+            "process_start",
+            {
+                "pid": process.pid, 
+                "timeout": timeout
+            }
+        )
+    
+    async def _setup_stream_processing(self, stream_callback, log_writer, session):
+        """Setup stream processing and session confirmation tracking."""
+        session_confirmed_event = asyncio.Event()
+        processor = StreamProcessor(stream_callback, log_writer, session_confirmed_event)
+        
+        async def wait_for_session_confirmation():
+            try:
+                await asyncio.wait_for(session_confirmed_event.wait(), timeout=30)
+                await log_writer(
+                    "Session confirmation received and logged",
+                    "session_confirmation",
+                    {"confirmed_early": True, "session_id": getattr(processor, 'session_id', None)}
+                )
+            except asyncio.TimeoutError:
+                await log_writer(
+                    "Session confirmation timeout (30s) - continuing execution",
+                    "session_confirmation",
+                    {"confirmed_early": False, "timeout": 30}
+                )
+        
+        session_task = asyncio.create_task(wait_for_session_confirmation())
+        return processor, session_task
+    
+    async def _execute_process_streams(self, process, processor, log_writer, timeout):
+        """Execute and monitor process streams."""
+        stdout_lines = []
+        stderr_lines = []
+        
+        async def read_stream(stream, lines_list, is_stdout=True):
+            async for line in stream:
+                decoded = line.decode('utf-8', errors='replace')
+                lines_list.append(decoded)
+                
+                if is_stdout:
+                    await processor.process_line(decoded)
+                else:
+                    if decoded.strip():
+                        await log_writer(
+                            f"STDERR: {decoded.strip()}",
+                            "stderr",
+                            {"stream": "stderr", "content": decoded.strip()}
+                        )
+        
+        stdout_task = asyncio.create_task(
+            read_stream(process.stdout, stdout_lines, True)
+        )
+        stderr_task = asyncio.create_task(
+            read_stream(process.stderr, stderr_lines, False)
+        )
+        
+        await asyncio.wait_for(
+            asyncio.gather(process.wait(), stdout_task, stderr_task),
+            timeout=timeout
+        )
+        
+        return stdout_lines, stderr_lines
+    
+    async def _handle_process_timeout(self, log_writer, process, timeout):
+        """Handle process timeout with graceful shutdown."""
+        await log_writer(
+            f"Process timed out after {timeout}s, attempting graceful shutdown",
+            "timeout",
+            {"timeout_seconds": timeout, "pid": process.pid}
+        )
+        logger.warning(f"Process timed out after {timeout}s")
+        process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=5)
+            await log_writer(
+                "Process terminated gracefully after timeout",
+                "process",
+                {"termination": "graceful"}
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            await log_writer(
+                "Process killed forcefully after timeout",
+                "process",
+                {"termination": "force_kill"}
+            )
+    
+    async def _cleanup_process_execution(self, session_task, stderr_lines, log_writer, session):
+        """Clean up process execution resources."""
+        if not session_task.done():
+            session_task.cancel()
+            try:
+                await session_task
+            except asyncio.CancelledError:
+                pass
+        
+        if stderr_lines and any(line.strip() for line in stderr_lines):
+            await log_writer(
+                "Stderr content detected",
+                "stderr_summary",
+                {"stderr_lines": len(stderr_lines), "content_preview": ''.join(stderr_lines)[:200]}
+            )
+        
+        del self.active_processes[session.run_id]
+    
+    async def _build_execution_result(self, process, processor, stdout_lines, stderr_lines, 
+                                     session, run_id, log_manager, log_writer):
+        """Build the final execution result."""
+        stdout_text = ''.join(stdout_lines)
+        stderr_text = ''.join(stderr_lines)
+        
+        await log_writer(
+            f"Process completed with exit code {process.returncode}",
+            "process_complete",
+            {
+                "exit_code": process.returncode,
+                "success": process.returncode == 0,
+                "claude_session_id": processor.session_id,
+                "session_confirmed": processor.session_confirmed,
+                "result_length": len(processor.get_final_result()),
+                "streaming_messages_count": len(processor.messages),
+                "has_stderr": len(stderr_lines) > 0
+            }
+        )
+        
+        if processor.session_id:
+            session.claude_session_id = processor.session_id
+        
+        return CLIResult(
+            success=process.returncode == 0,
+            session_id=processor.session_id or session.session_id,
+            result=processor.get_final_result(),
+            exit_code=process.returncode,
+            execution_time=0,  # Will be set by caller
+            logs=f"{stdout_text}\n{stderr_text}" if stderr_text else stdout_text,
+            error=stderr_text if process.returncode != 0 else None,
+            streaming_messages=processor.messages,
+            log_file_path=str(log_manager.get_log_path(run_id))
+        )
     
     async def cleanup(self):
         """Clean up all active processes."""
