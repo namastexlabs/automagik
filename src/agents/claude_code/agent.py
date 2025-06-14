@@ -22,29 +22,11 @@ from src.memory.message_history import MessageHistory
 from .executor_factory import ExecutorFactory
 from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
 from .log_manager import get_log_manager
+from .utils import get_current_git_branch_with_fallback
 
 logger = logging.getLogger(__name__)
 
 
-async def get_current_git_branch() -> str:
-    """Get the current git branch.
-    
-    Returns:
-        Current git branch name, or 'main' as fallback
-    """
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        branch = result.stdout.strip()
-        return branch if branch else "main"
-    except Exception as e:
-        logger.warning(f"Failed to get current git branch: {e}, defaulting to 'main'")
-        return "main"
 
 
 class ClaudeCodeAgent(AutomagikAgent):
@@ -178,7 +160,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Get git branch - use current branch if not specified
             git_branch = self.config.get("git_branch")
             if git_branch is None:
-                git_branch = await get_current_git_branch()
+                git_branch = await get_current_git_branch_with_fallback()
             
             # Create execution request
             request = ClaudeCodeRunRequest(
@@ -468,7 +450,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Get git branch - use current branch if not specified
             git_branch = kwargs.get("git_branch") or self.config.get("git_branch")
             if git_branch is None:
-                git_branch = await get_current_git_branch()
+                git_branch = await get_current_git_branch_with_fallback()
             
             # Create execution request
             request = ClaudeCodeRunRequest(
