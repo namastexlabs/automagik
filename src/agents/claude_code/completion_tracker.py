@@ -150,7 +150,7 @@ class CompletionTracker:
                         "duration_ms": metrics.duration_ms,
                         "elapsed_seconds": int(elapsed),
                         "claude_session_id": metrics.session_id,
-                        "final_result": metrics.final_result[:500] if metrics.final_result else "",
+                        "final_result": metrics.final_result or "",
                         "error_message": metrics.error_message,
                         "model_used": metrics.model,
                         "mcp_servers": metrics.mcp_servers,
