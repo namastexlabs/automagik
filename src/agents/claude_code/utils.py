@@ -21,5 +21,22 @@ from .stream_utils import (
     is_claude_stream_event,
     extract_streaming_content,
     parse_claude_stream_line,
-    extract_session_id_from_stream
+    extract_session_id_from_stream,
+    StreamProcessingError,
+    JSONParsingError
+)
+
+# Re-export error handling utilities
+from .error_handling import (
+    ClaudeCodeError,
+    ValidationError,
+    ConfigurationError,
+    ExecutionError,
+    ResourceError,
+    handle_exception,
+    safe_operation,
+    validate_path,
+    validate_config,
+    log_performance_metrics,
+    ensure_cleanup
 )
