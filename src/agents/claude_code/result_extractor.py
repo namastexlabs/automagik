@@ -1,0 +1,313 @@
+"""Result extraction for Claude Code workflows.
+
+This module provides intelligent extraction of meaningful results from
+Claude workflow execution logs and messages.
+"""
+
+import re
+import logging
+from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class ResultExtractor:
+    """Extracts meaningful final results from Claude workflow execution."""
+    
+    def __init__(self):
+        """Initialize result extractor with completion patterns."""
+        self.completion_patterns = [
+            r"## 🎯.*Complete.*Summary",
+            r"## ✅.*Completed",
+            r"## Summary",
+            r"## Results",
+            r"Task completed successfully",
+            r"Implementation complete",
+            r"All tests passing",
+            r"Successfully",
+            r"✅.*complete",
+            r"✅.*success",
+        ]
+        
+        self.error_patterns = [
+            r"## ❌.*Error",
+            r"## ⚠️.*Warning",
+            r"Failed to",
+            r"Error:",
+            r"Exception:",
+            r"FAILED",
+            r"❌",
+        ]
+        
+        self.max_turns_patterns = [
+            r"max_turns",
+            r"maximum turns",
+            r"turn limit",
+            r"reached.*limit",
+            r"⏰.*turns",
+        ]
+    
+    def extract_final_result(
+        self,
+        log_entries: List[Dict],
+        messages: List[Any],
+        metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract meaningful final result from workflow execution.
+        
+        Args:
+            log_entries: Raw log entries from log manager
+            messages: Assistant messages from database
+            metadata: Session metadata
+            
+        Returns:
+            Dictionary with result information:
+            - success: bool
+            - completion_type: str
+            - message: str
+            - final_output: str
+        """
+        try:
+            # Extract completion information
+            completion_type = self._determine_completion_type(log_entries, metadata)
+            final_message = self._get_last_substantial_message(messages, log_entries)
+            success = self._is_successful_completion(completion_type, final_message)
+            user_message = self._generate_user_message(completion_type, final_message)
+            
+            result = {
+                "success": success,
+                "completion_type": completion_type,
+                "message": user_message,
+                "final_output": final_message[:500] if final_message else None
+            }
+            
+            logger.debug(f"Extracted result: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error extracting result: {e}")
+            return {
+                "success": False,
+                "completion_type": "error",
+                "message": "❌ Error extracting workflow results",
+                "final_output": None
+            }
+    
+    def _determine_completion_type(
+        self,
+        log_entries: List[Dict],
+        metadata: Dict[str, Any]
+    ) -> str:
+        """Determine how the workflow completed.
+        
+        Args:
+            log_entries: Log entries to analyze
+            metadata: Session metadata
+            
+        Returns:
+            Completion type string
+        """
+        # Check for explicit max turns reached
+        current_turns = metadata.get("current_turns", 0)
+        max_turns = metadata.get("max_turns", 30)
+        
+        if current_turns >= max_turns:
+            return "max_turns_reached"
+        
+        # Check recent log entries for completion patterns
+        recent_logs = log_entries[-10:] if log_entries else []
+        recent_text = " ".join(str(entry) for entry in recent_logs)
+        
+        # Check for errors first
+        if self._contains_pattern(recent_text, self.error_patterns):
+            return "failed"
+        
+        # Check for explicit completion
+        if self._contains_pattern(recent_text, self.completion_patterns):
+            return "completed_successfully"
+        
+        # Check for max turns patterns in logs
+        if self._contains_pattern(recent_text, self.max_turns_patterns):
+            return "max_turns_reached"
+        
+        # Check metadata for status indicators
+        run_status = metadata.get("run_status", "").lower()
+        if "completed" in run_status:
+            return "completed_successfully"
+        elif "failed" in run_status or "error" in run_status:
+            return "failed"
+        
+        return "unknown"
+    
+    def _get_last_substantial_message(
+        self,
+        messages: List[Any],
+        log_entries: List[Dict]
+    ) -> Optional[str]:
+        """Get the last substantial message from Claude.
+        
+        Args:
+            messages: Assistant messages from database
+            log_entries: Log entries to supplement
+            
+        Returns:
+            Last substantial message text
+        """
+        # First try to get from assistant messages
+        if messages:
+            for message in reversed(messages):
+                content = getattr(message, 'content', '')
+                if isinstance(content, str) and len(content.strip()) > 50:
+                    # Filter out just tool calls
+                    if not content.strip().startswith('```') and not all(
+                        line.strip().startswith(('<', 'Tool:', 'Result:'))
+                        for line in content.split('\n')
+                        if line.strip()
+                    ):
+                        return content.strip()
+        
+        # Fallback to log entries
+        for entry in reversed(log_entries[-20:]):
+            if isinstance(entry, dict):
+                # Look for Claude responses in logs
+                data = entry.get('data', {})
+                if isinstance(data, dict):
+                    content = data.get('content', '')
+                    if isinstance(content, str) and len(content.strip()) > 50:
+                        return content.strip()
+        
+        return None
+    
+    def _is_successful_completion(
+        self,
+        completion_type: str,
+        final_message: Optional[str]
+    ) -> bool:
+        """Determine if completion was successful.
+        
+        Args:
+            completion_type: Type of completion
+            final_message: Final message content
+            
+        Returns:
+            True if successful completion
+        """
+        if completion_type == "failed":
+            return False
+        
+        if completion_type == "completed_successfully":
+            return True
+        
+        if completion_type == "max_turns_reached":
+            # Check if final message indicates success despite max turns
+            if final_message:
+                final_lower = final_message.lower()
+                success_indicators = [
+                    "complete", "success", "done", "finished",
+                    "implemented", "fixed", "resolved", "working"
+                ]
+                return any(indicator in final_lower for indicator in success_indicators)
+            return False
+        
+        return False  # unknown type
+    
+    def _generate_user_message(
+        self,
+        completion_type: str,
+        final_output: Optional[str]
+    ) -> str:
+        """Generate user-friendly completion message.
+        
+        Args:
+            completion_type: Type of completion
+            final_output: Final output text
+            
+        Returns:
+            User-friendly message
+        """
+        base_messages = {
+            "completed_successfully": "✅ Workflow completed successfully",
+            "max_turns_reached": "⏰ Reached maximum turns - workflow stopped at turn limit",
+            "failed": "❌ Workflow failed with errors",
+            "unknown": "⚠️ Workflow status unclear - check logs for details",
+            "error": "❌ Error processing workflow results"
+        }
+        
+        base_message = base_messages.get(completion_type, base_messages["unknown"])
+        
+        # Add context based on final output
+        if final_output and len(final_output) > 100:
+            final_lower = final_output.lower()
+            
+            if "test" in final_lower and "pass" in final_lower:
+                base_message += " - Tests completed"
+            elif "implement" in final_lower and ("complete" in final_lower or "done" in final_lower):
+                base_message += " - Implementation finished"
+            elif "fix" in final_lower and ("complete" in final_lower or "resolved" in final_lower):
+                base_message += " - Fixes applied"
+            elif "error" in final_lower or "fail" in final_lower:
+                base_message = "⚠️ Workflow completed with issues - review results"
+        
+        return base_message
+    
+    def _contains_pattern(self, text: str, patterns: List[str]) -> bool:
+        """Check if text contains any of the given patterns.
+        
+        Args:
+            text: Text to search
+            patterns: Regex patterns to match
+            
+        Returns:
+            True if any pattern matches
+        """
+        for pattern in patterns:
+            try:
+                if re.search(pattern, text, re.IGNORECASE):
+                    return True
+            except re.error:
+                # Invalid regex, skip
+                continue
+        return False
+    
+    def extract_files_created(self, log_entries: List[Dict]) -> List[str]:
+        """Extract list of files created during workflow.
+        
+        Args:
+            log_entries: Log entries to analyze
+            
+        Returns:
+            List of file paths created
+        """
+        files_created = []
+        
+        for entry in log_entries:
+            if isinstance(entry, dict):
+                data = entry.get('data', {})
+                
+                # Look for file creation patterns
+                if isinstance(data, dict):
+                    # Tool usage data
+                    if data.get('tool_name') == 'Write':
+                        input_data = data.get('input', {})
+                        if isinstance(input_data, dict):
+                            file_path = input_data.get('file_path')
+                            if file_path and file_path not in files_created:
+                                files_created.append(file_path)
+                
+                # Look for file creation messages
+                content = str(data.get('content', ''))
+                file_patterns = [
+                    r'File created.*?: (.+\.py)',
+                    r'Created file: (.+)',
+                    r'Writing.*to (.+\.py)',
+                    r'Saved to (.+)'
+                ]
+                
+                for pattern in file_patterns:
+                    matches = re.findall(pattern, content)
+                    for match in matches:
+                        if match not in files_created:
+                            files_created.append(match)
+        
+        return files_created

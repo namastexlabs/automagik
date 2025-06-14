@@ -15,6 +15,17 @@ from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.log_manager import get_log_manager
 from src.agents.claude_code.raw_stream_processor import RawStreamProcessor
 from src.agents.claude_code.completion_tracker import CompletionTracker
+from src.agents.claude_code.result_extractor import ResultExtractor
+from src.agents.claude_code.progress_tracker import ProgressTracker
+from src.agents.claude_code.debug_builder import DebugBuilder
+from src.agents.claude_code.models import (
+    EnhancedStatusResponse,
+    DebugStatusResponse,
+    ProgressInfo,
+    MetricsInfo,
+    ResultInfo,
+    TokenInfo
+)
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
 
@@ -724,7 +735,7 @@ async def list_claude_code_runs(
 
 @claude_code_router.get("/run/{run_id}/status", response_model=ClaudeCodeStatusResponse)
 async def get_claude_code_run_status(
-    run_id: str, debug: bool = False
+    run_id: str, debug: bool = False, enhanced: bool = False
 ) -> ClaudeCodeStatusResponse:
     """
     Get the status of a Claude-Code run.
@@ -907,6 +918,207 @@ async def get_claude_code_run_status(
         logger.error(f"Error getting Claude-Code run status: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to get run status: {str(e)}"
+        )
+
+
+@claude_code_router.get("/run/{run_id}/enhanced-status")
+async def get_enhanced_claude_code_run_status(
+    run_id: str, 
+    debug: bool = False
+):
+    """
+    Get enhanced status of a Claude-Code run with simplified structure.
+
+    **Enhanced Features:**
+    - Simplified 10-field response structure
+    - Smart result extraction from workflow execution
+    - Intelligent progress tracking with phase detection
+    - Performance metrics and cost analysis
+    - Optional comprehensive debug mode
+
+    **Parameters:**
+    - `debug` (optional): If true, includes comprehensive debug information with 12 sections
+
+    **Examples:**
+    ```bash
+    # Enhanced status
+    GET /api/v1/workflows/claude-code/run/run_abc123/enhanced-status
+
+    # With comprehensive debug information
+    GET /api/v1/workflows/claude-code/run/run_abc123/enhanced-status?debug=true
+    ```
+
+    **Returns:**
+    Enhanced status response with smart result extraction and phase detection.
+    """
+    try:
+        # Find session by run_id
+        sessions = session_repo.list_sessions()
+
+        target_session = None
+        for session in sessions:
+            if session.metadata and session.metadata.get("run_id") == run_id:
+                target_session = session
+                break
+
+        if not target_session:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+
+        metadata = target_session.metadata or {}
+
+        # Get messages for additional context
+        from src.db.repository import message as message_repo
+        messages = message_repo.list_messages(target_session.id)
+        assistant_messages = [msg for msg in messages if msg.role == "assistant"]
+
+        # Get log entries for analysis
+        log_manager = get_log_manager()
+        log_entries = await log_manager.get_logs(run_id, follow=False)
+
+        # Initialize enhanced processors
+        result_extractor = ResultExtractor()
+        progress_tracker = ProgressTracker()
+        debug_builder = DebugBuilder()
+
+        # Extract enhanced result information
+        result_info = result_extractor.extract_final_result(
+            log_entries, assistant_messages, metadata
+        )
+
+        # Calculate enhanced progress
+        progress_info = progress_tracker.calculate_progress(
+            metadata, log_entries, assistant_messages
+        )
+
+        # Extract stream metrics from raw stream processor if available
+        stream_metrics = {}
+        if log_entries:
+            try:
+                # Use existing raw stream processor for metrics
+                processor = RawStreamProcessor()
+                # Process log entries to extract metrics
+                for entry in log_entries:
+                    if isinstance(entry, dict) and entry.get("event_type") == "result_captured":
+                        result_data = entry.get("data", {}).get("result_data", {})
+                        if isinstance(result_data, dict):
+                            stream_metrics.update({
+                                "cost_usd": result_data.get("cost_usd", 0.0),
+                                "total_tokens": result_data.get("total_tokens", 0),
+                                "input_tokens": result_data.get("input_tokens", 0),
+                                "output_tokens": result_data.get("output_tokens", 0),
+                                "cache_created": result_data.get("cache_creation_tokens", 0),
+                                "cache_read": result_data.get("cache_read_tokens", 0),
+                                "duration_ms": result_data.get("duration_ms", 0)
+                            })
+                            break
+            except Exception as e:
+                logger.debug(f"Error extracting stream metrics: {e}")
+
+        # Calculate cache efficiency
+        cache_created = stream_metrics.get("cache_created", 0)
+        cache_read = stream_metrics.get("cache_read", 0)
+        cache_efficiency = 0.0
+        if cache_created + cache_read > 0:
+            cache_efficiency = (cache_read / (cache_created + cache_read)) * 100
+
+        # Build token info
+        token_info = TokenInfo(
+            total=stream_metrics.get("total_tokens", metadata.get("current_tokens", 0)),
+            input=stream_metrics.get("input_tokens", 0),
+            output=stream_metrics.get("output_tokens", 0),
+            cache_created=cache_created,
+            cache_read=cache_read,
+            cache_efficiency=round(cache_efficiency, 1)
+        )
+
+        # Extract tools used
+        tools_used = []
+        for entry in log_entries:
+            if isinstance(entry, dict):
+                data = entry.get('data', {})
+                if isinstance(data, dict):
+                    tool_name = data.get('tool_name')
+                    if tool_name and tool_name not in tools_used:
+                        tools_used.append(tool_name)
+
+        # Build metrics info
+        metrics_info = MetricsInfo(
+            cost_usd=stream_metrics.get("cost_usd", metadata.get("current_cost_usd", 0.0)),
+            tokens=token_info,
+            tools_used=tools_used[:10],  # Limit to first 10 tools
+            api_duration_ms=stream_metrics.get("duration_ms"),
+            performance_score=85.0 if result_info["success"] else 60.0  # Simple scoring
+        )
+
+        # Build progress info from tracker
+        progress_info_obj = ProgressInfo(
+            turns=progress_info["turns"],
+            max_turns=progress_info["max_turns"],
+            completion_percentage=progress_info["completion_percentage"],
+            current_phase=progress_info["current_phase"],
+            phases_completed=progress_info["phases_completed"],
+            is_running=progress_info["is_running"],
+            estimated_completion=progress_info["estimated_completion"]
+        )
+
+        # Extract files created
+        files_created = result_extractor.extract_files_created(log_entries)
+
+        # Build result info
+        result_info_obj = ResultInfo(
+            success=result_info["success"],
+            completion_type=result_info["completion_type"],
+            message=result_info["message"],
+            final_output=result_info["final_output"],
+            files_created=files_created,
+            git_commits=metadata.get("git_commits", [])
+        )
+
+        # Calculate times
+        started_at = target_session.created_at
+        completed_at = None
+        execution_time_seconds = None
+
+        completed_at_str = metadata.get("completed_at")
+        if completed_at_str:
+            try:
+                completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+                execution_time_seconds = (completed_at - started_at).total_seconds()
+            except Exception:
+                pass
+
+        # Build enhanced response
+        enhanced_response = EnhancedStatusResponse(
+            run_id=run_id,
+            status=metadata.get("run_status", "unknown"),
+            workflow_name=metadata.get("workflow_name", "unknown"),
+            started_at=started_at,
+            completed_at=completed_at,
+            execution_time_seconds=execution_time_seconds,
+            progress=progress_info_obj,
+            metrics=metrics_info,
+            result=result_info_obj
+        )
+
+        # Add debug information if requested
+        if debug:
+            debug_info = debug_builder.build_debug_response(
+                metadata, log_entries, assistant_messages, stream_metrics
+            )
+            
+            return DebugStatusResponse(
+                **enhanced_response.model_dump(),
+                debug=debug_info
+            )
+        else:
+            return enhanced_response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting enhanced Claude-Code run status: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get enhanced run status: {str(e)}"
         )
 
 
