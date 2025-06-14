@@ -64,7 +64,7 @@ async def test_repository_url(
                 request_data["repository_url"] = repository_url
             
             response = await client.post(
-                f"{API_BASE_URL}/agent/claude-code/architect/run",
+                f"{API_BASE_URL}/workflows/claude-code/run/architect",
                 json=request_data,
                 headers={"X-API-Key": API_KEY}
             )
@@ -84,7 +84,7 @@ async def test_repository_url(
             max_attempts = 30  # 30 seconds timeout
             for attempt in range(max_attempts):
                 response = await client.get(
-                    f"{API_BASE_URL}/agent/claude-code/run/{run_id}/status",
+                    f"{API_BASE_URL}/workflows/claude-code/run/{run_id}/status",
                     headers={"X-API-Key": API_KEY}
                 )
                 
@@ -144,7 +144,7 @@ async def main():
     # Check if API is healthy first
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{API_BASE_URL}/agent/claude-code/health")
+            response = await client.get(f"{API_BASE_URL}/workflows/claude-code/health")
             if response.status_code != 200:
                 print_colored("❌ API is not healthy. Please start the server first.", RED)
                 return
