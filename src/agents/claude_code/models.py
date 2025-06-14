@@ -1,7 +1,7 @@
 """Data models for Claude-Code agent.
 
 This module defines Pydantic models for request/response handling,
-configuration validation, and container management.
+configuration validation, and local execution management.
 """
 from datetime import datetime, timezone
 from enum import Enum
@@ -74,7 +74,7 @@ class ClaudeCodeRunResponse(BaseModel):
         ..., 
         description="Current status of the execution"
     )
-    message: str = Field(default="Container deployment initiated", description="Status message")
+    message: str = Field(default="Local execution initiated", description="Status message")
     session_id: str = Field(..., description="Session identifier")
     started_at: datetime = Field(..., description="When the execution was started")
     

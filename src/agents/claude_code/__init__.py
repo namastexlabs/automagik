@@ -1,40 +1,32 @@
 """Claude-Code Agent Module.
 
-This module provides containerized Claude CLI execution capabilities
+This module provides local Claude CLI execution capabilities
 for long-running, autonomous AI workflows.
 """
 
 from typing import Dict, Optional, Any
 import logging
-import traceback
 
 # Setup logging first
 logger = logging.getLogger(__name__)
 
 try:
     from .agent import ClaudeCodeAgent
-    from .container import ContainerManager
-    from .docker_executor import DockerExecutor
     from .log_manager import LogManager, get_log_manager
     from .models import (
         ClaudeCodeRunRequest,
         ClaudeCodeRunResponse, 
         ClaudeCodeStatusResponse,
         WorkflowInfo,
-        ContainerInfo,
         ExecutionResult,
         ClaudeCodeConfig,
-        ContainerStatus,
         ExecutionStatus,
         WorkflowType,
-        ContainerConfig,
         GitConfig,
         WorkflowConfig,
         ExecutionMetadata,
         ExecutionContext,
-        ContainerStats,
         ClaudeCodeError,
-        ContainerError,
         ExecutorError,
         GitError,
         WorkflowError
@@ -68,6 +60,7 @@ try:
         return ClaudeCodeAgent(config)
 
 except Exception as e:
+    import traceback
     logger.error(f"Failed to initialize ClaudeCodeAgent module: {str(e)}")
     logger.error(f"Traceback: {traceback.format_exc()}")
     
@@ -86,28 +79,21 @@ except Exception as e:
 __all__ = [
     'create_agent',
     'ClaudeCodeAgent',
-    'ContainerManager',
-    'DockerExecutor',
     'LogManager',
     'get_log_manager',
     'ClaudeCodeRunRequest',
     'ClaudeCodeRunResponse',
     'ClaudeCodeStatusResponse', 
     'WorkflowInfo',
-    'ContainerInfo',
     'ExecutionResult',
     'ClaudeCodeConfig',
-    'ContainerStatus',
     'ExecutionStatus',
     'WorkflowType',
-    'ContainerConfig',
     'GitConfig',
     'WorkflowConfig',
     'ExecutionMetadata',
     'ExecutionContext',
-    'ContainerStats',
     'ClaudeCodeError',
-    'ContainerError',
     'ExecutorError',
     'GitError',
     'WorkflowError'
