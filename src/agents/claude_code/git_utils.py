@@ -6,9 +6,29 @@ This module consolidates all git-related operations to avoid duplication.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Union
 
 logger = logging.getLogger(__name__)
+
+
+class GitError(Exception):
+    """Base exception for git-related errors."""
+    pass
+
+
+class GitCommandError(GitError):
+    """Exception raised when git commands fail."""
+    
+    def __init__(self, message: str, command: List[str], returncode: int, stderr: str = ""):
+        self.command = command
+        self.returncode = returncode
+        self.stderr = stderr
+        super().__init__(f"{message}: {' '.join(command)} (exit {returncode})")
+
+
+class GitRepositoryError(GitError):
+    """Exception raised when repository operations fail."""
+    pass
 
 
 async def get_current_git_branch() -> Optional[str]:
@@ -16,6 +36,9 @@ async def get_current_git_branch() -> Optional[str]:
     
     Returns:
         Current branch name or None if not in a git repository
+        
+    Raises:
+        GitCommandError: If git command fails unexpectedly
     """
     try:
         process = await asyncio.create_subprocess_exec(
@@ -26,11 +49,15 @@ async def get_current_git_branch() -> Optional[str]:
         stdout, stderr = await process.communicate()
         
         if process.returncode == 0:
-            return stdout.decode().strip()
+            branch = stdout.decode().strip()
+            return branch if branch else None
+        return None
+    except OSError as e:
+        logger.debug(f"Git not available: {e}")
         return None
     except Exception as e:
-        logger.debug(f"Failed to get current git branch: {e}")
-        return None
+        logger.error(f"Unexpected error getting git branch: {e}")
+        raise GitCommandError("Failed to get current git branch", ["git", "rev-parse", "--abbrev-ref", "HEAD"], -1, str(e))
 
 
 def get_current_git_branch_sync() -> Optional[str]:
