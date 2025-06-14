@@ -332,7 +332,6 @@ class WorkflowInfo(BaseModel):
     - **document**: Generate comprehensive documentation
     - **pr**: Prepare pull requests for review
     """,
-    tags=["Claude Code Workflows"],
 )
 async def run_claude_workflow(
     workflow_name: str = Path(
