@@ -35,151 +35,6 @@ logger = logging.getLogger(__name__)
 claude_code_router = APIRouter(prefix="/workflows/claude-code", tags=["Claude-Code"])
 
 
-async def _analyze_claude_stream_debug_info(
-    log_entries: List[Dict], metadata: Dict, assistant_messages: List
-) -> Dict[str, Any]:
-    """Analyze Claude stream logs to extract debug information.
-
-    Args:
-        log_entries: Raw log entries from the log manager
-        metadata: Session metadata
-        assistant_messages: Assistant messages from the database
-
-    Returns:
-        Debug information dictionary with Claude stream analysis
-    """
-    debug_info = {
-        "claude_command": {},
-        "stream_analysis": {},
-        "tool_usage": {},
-        "execution_stats": {},
-        "costs": {},
-        "raw_streams": [],
-        "session_info": {},
-    }
-
-    # Extract Claude command information
-    claude_command_info = {}
-    execution_stats = {
-        "total_turns": 0,
-        "tool_calls": 0,
-        "event_counts": {},
-        "cost_usd": 0.0,
-        "duration_ms": 0,
-    }
-    tool_usage = {}
-    raw_claude_streams = []
-
-    # Analyze log entries for Claude stream data
-    for entry in log_entries:
-        event_type = entry.get("event_type", "")
-        data = entry.get("data", {})
-
-        # Count event types
-        execution_stats["event_counts"][event_type] = (
-            execution_stats["event_counts"].get(event_type, 0) + 1
-        )
-
-        # Extract Claude command information
-        if event_type == "early_execution_start" and isinstance(data, dict):
-            if "command" in data:
-                claude_command_info.update(
-                    {
-                        "command": data.get("command"),
-                        "args": data.get("args", []),
-                        "working_dir": data.get("working_dir"),
-                        "timeout": data.get("timeout"),
-                    }
-                )
-
-        # Extract Claude CLI result information (cost, turns, etc.)
-        if event_type == "result_captured" and isinstance(data, dict):
-            result_data = data.get("result_data", {})
-            if isinstance(result_data, dict):
-                execution_stats.update(
-                    {
-                        "cost_usd": result_data.get("cost_usd", 0.0),
-                        "duration_ms": result_data.get("duration_ms", 0),
-                        "total_turns": result_data.get("num_turns", 0),
-                    }
-                )
-
-        # Extract tool usage from Claude stream
-        if "claude_stream" in str(data).lower() or event_type == "claude_output":
-            try:
-                # Try to parse Claude stream JSON
-                if isinstance(data, dict) and "message" in data:
-                    message = data["message"]
-                    if isinstance(message, str) and message.strip().startswith("{"):
-                        import json
-
-                        stream_data = json.loads(message)
-                        raw_claude_streams.append(stream_data)
-
-                        # Analyze tool usage
-                        if stream_data.get("type") == "tool_use":
-                            tool_name = stream_data.get("name", "unknown")
-                            tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
-                            execution_stats["tool_calls"] += 1
-
-                        # Count assistant messages/turns
-                        if stream_data.get("type") == "assistant":
-                            execution_stats["total_turns"] += 1
-
-            except (json.JSONDecodeError, AttributeError):
-                pass
-
-    # Extract additional session information
-    session_info = {
-        "workflow_name": metadata.get("workflow_name"),
-        "git_branch": metadata.get("git_branch"),
-        "container_id": metadata.get("container_id"),
-        "run_id": metadata.get("run_id"),
-        "claude_session_id": metadata.get("claude_session_id"),
-        "max_turns_requested": metadata.get("request", {}).get("max_turns")
-        if isinstance(metadata.get("request"), dict)
-        else None,
-        "timeout_requested": metadata.get("request", {}).get("timeout")
-        if isinstance(metadata.get("request"), dict)
-        else None,
-        "repository_url": metadata.get("request", {}).get("repository_url")
-        if isinstance(metadata.get("request"), dict)
-        else None,
-    }
-
-    # Build comprehensive debug response
-    debug_info.update(
-        {
-            "claude_command": claude_command_info,
-            "stream_analysis": {
-                "total_stream_entries": len(raw_claude_streams),
-                "stream_types": list(
-                    set([s.get("type") for s in raw_claude_streams if s.get("type")])
-                ),
-                "raw_streams": raw_claude_streams[-50:]
-                if len(raw_claude_streams) > 50
-                else raw_claude_streams,  # Last 50 entries
-            },
-            "tool_usage": tool_usage,
-            "execution_stats": execution_stats,
-            "costs": {
-                "total_usd": execution_stats.get("cost_usd", 0.0),
-                "currency": "USD",
-            },
-            "session_info": session_info,
-            "message_analysis": {
-                "total_assistant_messages": len(assistant_messages),
-                "last_message_length": len(assistant_messages[-1].text_content)
-                if assistant_messages
-                else 0,
-                "total_content_length": sum(
-                    len(msg.text_content or "") for msg in assistant_messages
-                ),
-            },
-        }
-    )
-
-    return debug_info
 
 
 class ClaudeWorkflowRequest(BaseModel):
@@ -242,47 +97,6 @@ class ClaudeWorkflowResponse(BaseModel):
     started_at: str = Field(description="ISO timestamp when workflow started")
 
 
-class ClaudeCodeStatusResponse(BaseModel):
-    """Response for Claude-Code run status."""
-
-    run_id: str = Field(..., description="Unique identifier for the run")
-    status: str = Field(
-        ..., description="Current status: pending, running, completed, failed"
-    )
-    session_id: str = Field(..., description="Session ID for the run")
-    workflow_name: str = Field(..., description="Workflow being executed")
-    started_at: datetime = Field(..., description="When the run was started")
-    updated_at: Optional[datetime] = Field(
-        None, description="When the run was last updated"
-    )
-    container_id: Optional[str] = Field(None, description="Docker container ID")
-    execution_time: Optional[float] = Field(
-        None, description="Execution time in seconds"
-    )
-
-    # Only populated when status is "completed" or "failed"
-    result: Optional[str] = Field(None, description="Execution result")
-    exit_code: Optional[int] = Field(None, description="Exit code")
-    git_commits: List[str] = Field(default_factory=list, description="Git commit SHAs")
-    error: Optional[str] = Field(None, description="Error message if failed")
-    logs: Optional[str] = Field(None, description="Container logs")
-
-    # Real-time tracking fields (populated for running workflows)
-    cost: Optional[float] = Field(None, description="Cost in USD")
-    tokens: Optional[int] = Field(None, description="Token count")
-    turns: Optional[int] = Field(None, description="Conversation turns")
-    tool_calls: Optional[int] = Field(None, description="Tool calls made")
-    tools_used: Optional[List[str]] = Field(None, description="Tools used")
-    claude_session_id: Optional[str] = Field(None, description="Claude CLI session ID")
-    progress_indicator: Optional[str] = Field(None, description="Human-readable progress")
-    last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
-    recent_steps: Optional[Dict[str, Any]] = Field(None, description="Recent execution steps")
-    elapsed_seconds: Optional[int] = Field(None, description="Elapsed execution time")
-
-    # Debug information (only when debug=true)
-    debug_info: Optional[Dict[str, Any]] = Field(
-        None, description="Debug information including Claude stream analysis"
-    )
 
 
 class ClaudeCodeRunSummary(BaseModel):
@@ -733,196 +547,8 @@ async def list_claude_code_runs(
         raise HTTPException(status_code=500, detail=f"Failed to list runs: {str(e)}")
 
 
-@claude_code_router.get("/run/{run_id}/status", response_model=ClaudeCodeStatusResponse)
+@claude_code_router.get("/run/{run_id}/status")
 async def get_claude_code_run_status(
-    run_id: str, debug: bool = False, enhanced: bool = False
-) -> ClaudeCodeStatusResponse:
-    """
-    Get the status of a Claude-Code run.
-
-    **Status Values:**
-    - `pending`: Run is queued but not started
-    - `running`: Run is currently executing in container
-    - `completed`: Run finished successfully
-    - `failed`: Run failed with an error
-
-    **Parameters:**
-    - `debug` (optional): If true, includes detailed debug information about Claude stream analysis, tool usage, costs, and command details
-
-    **Examples:**
-    ```bash
-    # Basic status
-    GET /api/v1/workflows/claude-code/run/run_abc123/status
-
-    # With debug information
-    GET /api/v1/workflows/claude-code/run/run_abc123/status?debug=true
-    ```
-
-    **Returns:**
-    Current status and results (if completed). When debug=true, includes comprehensive debugging information.
-    """
-    try:
-        # Find session by run_id
-        sessions = session_repo.list_sessions()
-
-        target_session = None
-        for session in sessions:
-            if session.metadata and session.metadata.get("run_id") == run_id:
-                target_session = session
-                break
-
-        if not target_session:
-            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-
-        metadata = target_session.metadata or {}
-
-        # Get messages for additional context
-        from src.db.repository import message as message_repo
-
-        messages = message_repo.list_messages(target_session.id)
-
-        # Find the latest assistant message for results
-        latest_result = None
-        assistant_messages = [msg for msg in messages if msg.role == "assistant"]
-        if assistant_messages:
-            latest = assistant_messages[-1]
-            latest_result = latest.text_content
-
-        # Extract execution details from metadata
-        execution_time = None
-        container_id = metadata.get("container_id")
-        git_commits = metadata.get("git_commits", [])
-        exit_code = metadata.get("exit_code")
-
-        # Get live logs from log manager
-        log_manager = get_log_manager()
-        log_entries = await log_manager.get_logs(run_id, follow=False)  # Get all logs
-
-        # Convert log entries to text format for API response
-        logs = ""
-        debug_info = None
-
-        if log_entries:
-            log_lines = []
-            for entry in log_entries[
-                -1000:
-            ]:  # Last 1000 entries to avoid huge responses
-                timestamp = entry.get("timestamp", "")
-                event_type = entry.get("event_type", "log")
-                data = entry.get("data", {})
-
-                # Extract message from data
-                if isinstance(data, dict):
-                    message = data.get("message", str(data))
-                else:
-                    message = str(data)
-
-                log_lines.append(f"{timestamp} [{event_type}] {message}")
-
-            logs = "\n".join(log_lines)
-
-            # If debug flag is enabled, analyze logs for Claude stream data
-            if debug:
-                debug_info = await _analyze_claude_stream_debug_info(
-                    log_entries, metadata, assistant_messages
-                )
-
-        # Get log summary for additional metadata
-        log_summary = await log_manager.get_log_summary(run_id)
-
-        # Calculate execution time if we have start/end times
-        started_at_str = metadata.get("started_at")
-        completed_at_str = metadata.get("completed_at")
-        if started_at_str and completed_at_str:
-            try:
-                start_time = datetime.fromisoformat(
-                    started_at_str.replace("Z", "+00:00")
-                )
-                end_time = datetime.fromisoformat(
-                    completed_at_str.replace("Z", "+00:00")
-                )
-                execution_time = (end_time - start_time).total_seconds()
-            except Exception:
-                pass
-        elif log_summary.get("start_time") and log_summary.get("end_time"):
-            # Fallback to log timestamps
-            try:
-                start_time = datetime.fromisoformat(
-                    log_summary["start_time"].replace("Z", "+00:00")
-                )
-                end_time = datetime.fromisoformat(
-                    log_summary["end_time"].replace("Z", "+00:00")
-                )
-                execution_time = (end_time - start_time).total_seconds()
-            except Exception:
-                pass
-
-        # Determine updated_at time
-        updated_at = None
-        if completed_at_str:
-            try:
-                updated_at = datetime.fromisoformat(
-                    completed_at_str.replace("Z", "+00:00")
-                )
-            except Exception:
-                pass
-        elif started_at_str:
-            try:
-                updated_at = datetime.fromisoformat(
-                    started_at_str.replace("Z", "+00:00")
-                )
-            except Exception:
-                pass
-
-        # Parse last_activity timestamp
-        last_activity = None
-        if metadata.get("last_activity"):
-            try:
-                last_activity = datetime.fromisoformat(
-                    metadata["last_activity"].replace("Z", "+00:00")
-                )
-            except Exception:
-                pass
-
-        return ClaudeCodeStatusResponse(
-            run_id=run_id,
-            status=metadata.get("run_status", "unknown"),
-            session_id=str(target_session.id),
-            workflow_name=metadata.get("workflow_name", "unknown"),
-            started_at=target_session.created_at,
-            updated_at=updated_at,
-            container_id=container_id,
-            execution_time=execution_time,
-            result=latest_result,
-            exit_code=exit_code,
-            git_commits=git_commits if isinstance(git_commits, list) else [],
-            error=metadata.get("error"),
-            logs=logs,
-            debug_info=debug_info,
-            # Real-time tracking fields
-            cost=metadata.get("current_cost_usd"),
-            tokens=metadata.get("current_tokens"),
-            turns=metadata.get("current_turns"),
-            tool_calls=metadata.get("current_tool_calls"),
-            tools_used=metadata.get("tools_used_so_far"),
-            claude_session_id=metadata.get("claude_session_id"),
-            progress_indicator=metadata.get("progress_indicator"),
-            last_activity=last_activity,
-            recent_steps=metadata.get("recent_steps"),
-            elapsed_seconds=metadata.get("elapsed_seconds"),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting Claude-Code run status: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get run status: {str(e)}"
-        )
-
-
-@claude_code_router.get("/run/{run_id}/enhanced-status")
-async def get_enhanced_claude_code_run_status(
     run_id: str, 
     debug: bool = False
 ):
@@ -930,26 +556,32 @@ async def get_enhanced_claude_code_run_status(
     Get enhanced status of a Claude-Code run with simplified structure.
 
     **Enhanced Features:**
-    - Simplified 10-field response structure
+    - Simplified response structure with meaningful data
     - Smart result extraction from workflow execution
     - Intelligent progress tracking with phase detection
-    - Performance metrics and cost analysis
-    - Optional comprehensive debug mode
+    - Comprehensive token usage and cost analysis
+    - Tool usage patterns and workflow insights
+
+    **Status Values:**
+    - `pending`: Run is queued but not started
+    - `running`: Run is currently executing
+    - `completed`: Run finished successfully
+    - `failed`: Run failed with an error
 
     **Parameters:**
-    - `debug` (optional): If true, includes comprehensive debug information with 12 sections
+    - `debug` (optional): If true, includes detailed debug information in 12 structured sections
 
     **Examples:**
     ```bash
-    # Enhanced status
-    GET /api/v1/workflows/claude-code/run/run_abc123/enhanced-status
+    # Basic enhanced status
+    GET /api/v1/workflows/claude-code/run/run_abc123/status
 
     # With comprehensive debug information
-    GET /api/v1/workflows/claude-code/run/run_abc123/enhanced-status?debug=true
+    GET /api/v1/workflows/claude-code/run/run_abc123/status?debug=true
     ```
 
     **Returns:**
-    Enhanced status response with smart result extraction and phase detection.
+    Enhanced status with progress, metrics, results, and optional debug information.
     """
     try:
         # Find session by run_id
@@ -971,16 +603,16 @@ async def get_enhanced_claude_code_run_status(
         messages = message_repo.list_messages(target_session.id)
         assistant_messages = [msg for msg in messages if msg.role == "assistant"]
 
-        # Get log entries for analysis
+        # Get live logs from log manager
         log_manager = get_log_manager()
         log_entries = await log_manager.get_logs(run_id, follow=False)
 
-        # Initialize enhanced processors
+        # Initialize enhanced components
         result_extractor = ResultExtractor()
         progress_tracker = ProgressTracker()
         debug_builder = DebugBuilder()
 
-        # Extract enhanced result information
+        # Extract meaningful final result
         result_info = result_extractor.extract_final_result(
             log_entries, assistant_messages, metadata
         )
@@ -990,29 +622,67 @@ async def get_enhanced_claude_code_run_status(
             metadata, log_entries, assistant_messages
         )
 
-        # Extract stream metrics from raw stream processor if available
+        # Extract metrics from session metadata (primary source) and log entries (detailed breakdown)
         stream_metrics = {}
+        
+        # Primary metrics from session metadata (already summarized)
+        stream_metrics.update({
+            "cost_usd": metadata.get("total_cost_usd", 0.0),
+            "total_tokens": metadata.get("total_tokens", 0),
+            "duration_ms": metadata.get("duration_ms", 0),
+            "num_turns": metadata.get("total_turns", metadata.get("current_turns", 0))
+        })
+        
+        # Detailed token breakdown from log entries
+        input_tokens = 0
+        output_tokens = 0
+        cache_creation_tokens = 0
+        cache_read_tokens = 0
+        
         if log_entries:
             try:
-                # Use existing raw stream processor for metrics
-                processor = RawStreamProcessor()
-                # Process log entries to extract metrics
                 for entry in log_entries:
-                    if isinstance(entry, dict) and entry.get("event_type") == "result_captured":
-                        result_data = entry.get("data", {}).get("result_data", {})
-                        if isinstance(result_data, dict):
-                            stream_metrics.update({
-                                "cost_usd": result_data.get("cost_usd", 0.0),
-                                "total_tokens": result_data.get("total_tokens", 0),
-                                "input_tokens": result_data.get("input_tokens", 0),
-                                "output_tokens": result_data.get("output_tokens", 0),
-                                "cache_created": result_data.get("cache_creation_tokens", 0),
-                                "cache_read": result_data.get("cache_read_tokens", 0),
-                                "duration_ms": result_data.get("duration_ms", 0)
-                            })
-                            break
+                    if isinstance(entry, dict):
+                        event_type = entry.get("event_type", "")
+                        data = entry.get("data", {})
+                        
+                        # Parse Claude stream assistant messages for token usage
+                        if event_type == "claude_stream_assistant" and isinstance(data, dict):
+                            message = data.get("message", {})
+                            usage = message.get("usage", {})
+                            if usage:
+                                input_tokens += usage.get("input_tokens", 0)
+                                output_tokens += usage.get("output_tokens", 0)
+                                cache_creation_tokens += usage.get("cache_creation_input_tokens", 0)
+                                cache_read_tokens += usage.get("cache_read_input_tokens", 0)
+                        
+                        # Also check for completion events with final metrics
+                        elif event_type == "execution_complete" and isinstance(data, dict):
+                            if "cost_usd" in data:
+                                stream_metrics["cost_usd"] = data["cost_usd"]
+                            if "total_tokens" in data:
+                                stream_metrics["total_tokens"] = data["total_tokens"]
+                
+                # Update stream metrics with detailed breakdown
+                if input_tokens > 0 or output_tokens > 0:
+                    stream_metrics.update({
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cache_created": cache_creation_tokens,
+                        "cache_read": cache_read_tokens
+                    })
+                        
             except Exception as e:
-                logger.debug(f"Error extracting stream metrics: {e}")
+                logger.debug(f"Error extracting detailed token metrics: {e}")
+                
+        # Fallback to metadata if log parsing failed
+        if not stream_metrics.get("input_tokens") and not stream_metrics.get("output_tokens"):
+            stream_metrics.update({
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_created": 0,
+                "cache_read": 0
+            })
 
         # Calculate cache efficiency
         cache_created = stream_metrics.get("cache_created", 0)
@@ -1031,15 +701,32 @@ async def get_enhanced_claude_code_run_status(
             cache_efficiency=round(cache_efficiency, 1)
         )
 
-        # Extract tools used
-        tools_used = []
-        for entry in log_entries:
-            if isinstance(entry, dict):
-                data = entry.get('data', {})
-                if isinstance(data, dict):
-                    tool_name = data.get('tool_name')
-                    if tool_name and tool_name not in tools_used:
-                        tools_used.append(tool_name)
+        # Extract tools used - prioritize metadata, supplement with log analysis
+        tools_used = metadata.get("tools_used_so_far", [])
+        
+        # If no tools in metadata, extract from log entries
+        if not tools_used:
+            tools_used = []
+            for entry in log_entries:
+                if isinstance(entry, dict):
+                    event_type = entry.get("event_type", "")
+                    data = entry.get("data", {})
+                    
+                    # Check for tool usage in Claude stream assistant messages
+                    if event_type == "claude_stream_assistant" and isinstance(data, dict):
+                        message = data.get("message", {})
+                        content = message.get("content", [])
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "tool_use":
+                                tool_name = item.get("name")
+                                if tool_name and tool_name not in tools_used:
+                                    tools_used.append(tool_name)
+                    
+                    # Also check for direct tool_name in data
+                    elif isinstance(data, dict):
+                        tool_name = data.get('tool_name')
+                        if tool_name and tool_name not in tools_used:
+                            tools_used.append(tool_name)
 
         # Build metrics info
         metrics_info = MetricsInfo(
@@ -1074,23 +761,34 @@ async def get_enhanced_claude_code_run_status(
             git_commits=metadata.get("git_commits", [])
         )
 
-        # Calculate times
+        # Calculate times and determine correct status
         started_at = target_session.created_at
         completed_at = None
         execution_time_seconds = None
-
+        
+        # Determine correct status based on metadata
+        workflow_status = metadata.get("run_status", "unknown")
         completed_at_str = metadata.get("completed_at")
+        
         if completed_at_str:
             try:
                 completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
                 execution_time_seconds = (completed_at - started_at).total_seconds()
+                # If we have completion time, status should be completed
+                if workflow_status in ["running", "unknown"]:
+                    workflow_status = "completed"
             except Exception:
                 pass
+        
+        # Check if workflow actually completed based on success flag and final result
+        if metadata.get("success") is not None and metadata.get("final_result"):
+            if workflow_status in ["running", "unknown"]:
+                workflow_status = "completed"
 
         # Build enhanced response
         enhanced_response = EnhancedStatusResponse(
             run_id=run_id,
-            status=metadata.get("run_status", "unknown"),
+            status=workflow_status,
             workflow_name=metadata.get("workflow_name", "unknown"),
             started_at=started_at,
             completed_at=completed_at,
@@ -1120,6 +818,7 @@ async def get_enhanced_claude_code_run_status(
         raise HTTPException(
             status_code=500, detail=f"Failed to get enhanced run status: {str(e)}"
         )
+
 
 
 @claude_code_router.get("/workflows", response_model=List[WorkflowInfo])

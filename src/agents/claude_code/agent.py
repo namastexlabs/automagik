@@ -1,7 +1,7 @@
 """ClaudeCodeAgent implementation.
 
-This module provides a ClaudeCodeAgent class that runs Claude CLI in isolated 
-Docker containers while maintaining full integration with the Automagik Agents framework.
+This module provides a ClaudeCodeAgent class that runs Claude CLI locally
+while maintaining full integration with the Automagik Agents framework.
 """
 import logging
 import traceback
@@ -17,8 +17,7 @@ from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
 
-# Import container and execution components
-from .container import ContainerManager
+# Import execution components
 from .executor_factory import ExecutorFactory
 from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
 from .log_manager import get_log_manager
@@ -48,9 +47,9 @@ async def get_current_git_branch() -> str:
 
 
 class ClaudeCodeAgent(AutomagikAgent):
-    """ClaudeCodeAgent implementation using Docker containers.
+    """ClaudeCodeAgent implementation using local execution.
     
-    This agent runs Claude CLI in isolated Docker containers to enable
+    This agent runs Claude CLI locally to enable
     long-running, autonomous AI workflows with state persistence and git integration.
     """
     
@@ -64,7 +63,7 @@ class ClaudeCodeAgent(AutomagikAgent):
         super().__init__(config)
         
         # Set description for this agent type
-        self.description = "Containerized Claude CLI agent for autonomous code tasks"
+        self.description = "Local Claude CLI agent for autonomous code tasks"
         
         # Load and register the code-defined prompt from workflows
         # This will be loaded from the workflow configuration
@@ -85,10 +84,9 @@ class ClaudeCodeAgent(AutomagikAgent):
         self.config.update({
             "agent_type": "claude-code",
             "framework": "claude-cli",
-            "docker_image": config.get("docker_image", "claude-code-agent:latest"),
-            "container_timeout": int(config.get("container_timeout", "7200")),  # 2 hours default
+            "execution_timeout": int(config.get("execution_timeout", "7200")),  # 2 hours default
             "max_concurrent_sessions": int(config.get("max_concurrent_sessions", "10")),
-            "workspace_volume_prefix": config.get("workspace_volume_prefix", "claude-code-workspace"),
+            "workspace_base": config.get("workspace_base", "/tmp/claude-workspace"),
             "default_workflow": config.get("default_workflow", "bug-fixer"),
             "git_branch": config.get("git_branch")  # None by default, will use current branch
         })
@@ -97,11 +95,10 @@ class ClaudeCodeAgent(AutomagikAgent):
         self.execution_mode = os.environ.get("CLAUDE_CODE_MODE", "local").lower()
         logger.info(f"ClaudeCodeAgent initializing in {self.execution_mode} mode")
         
-        # Initialize appropriate executor
+        # Initialize local executor
         try:
             self.executor = ExecutorFactory.create_executor(
-                mode=self.execution_mode,
-                container_manager=self._create_container_manager() if self.execution_mode == "docker" else None,
+                mode="local",
                 workspace_base=os.environ.get("CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"),
                 cleanup_on_complete=os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
             )
@@ -109,18 +106,10 @@ class ClaudeCodeAgent(AutomagikAgent):
             logger.error(f"Failed to create executor: {e}")
             raise
         
-        # Register default tools (not applicable for container-based execution)
+        # Register default tools (not applicable for local execution)
         # Tools are managed via workflow configurations
         
-        logger.info(f"ClaudeCodeAgent initialized successfully in {self.execution_mode} mode")
-    
-    def _create_container_manager(self) -> ContainerManager:
-        """Create container manager for Docker mode."""
-        return ContainerManager(
-            docker_image=self.config.get("docker_image"),
-            container_timeout=self.config.get("container_timeout"),
-            max_concurrent=self.config.get("max_concurrent_sessions")
-        )
+        logger.info(f"ClaudeCodeAgent initialized successfully in local mode")
     
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj: Optional[MessageHistory] = None,
