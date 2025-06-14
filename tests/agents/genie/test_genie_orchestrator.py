@@ -328,11 +328,11 @@ class TestClaudeCodeClient:
             mock_response.raise_for_status = Mock()
             mock_get.return_value = mock_response
             
-            logs = await client.get_workflow_logs("container-123")
+            logs = await client.get_workflow_logs("run-123")
             
             assert logs == "Workflow started\nRunning tests\nWorkflow completed"
             mock_get.assert_called_once_with(
-                "http://localhost:8000/api/v1/agent/claude-code/logs/container-123"
+                "http://localhost:8000/api/v1/workflows/claude-code/run/run-123/status"
             )
 
     @pytest.mark.asyncio
@@ -344,7 +344,7 @@ class TestClaudeCodeClient:
             from httpx import HTTPError
             mock_get.side_effect = HTTPError("Not found")
             
-            logs = await client.get_workflow_logs("container-999")
+            logs = await client.get_workflow_logs("run-999")
             
             assert logs is None
 
@@ -353,30 +353,22 @@ class TestClaudeCodeClient:
         """Test stopping a workflow."""
         client = ClaudeCodeClient(base_url="http://localhost:8000")
         
-        with patch.object(client.client, 'post') as mock_post:
-            mock_response = Mock()
-            mock_response.raise_for_status = Mock()
-            mock_post.return_value = mock_response
-            
-            result = await client.stop_workflow("run-123")
-            
-            assert result is True
-            mock_post.assert_called_once_with(
-                "http://localhost:8000/api/v1/agent/claude-code/stop/run-123"
-            )
+        # No need to mock since stop is not implemented
+        result = await client.stop_workflow("run-123")
+        
+        # Stop endpoint is not implemented, so should return False
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_stop_workflow_error(self):
         """Test stopping a workflow with error."""
         client = ClaudeCodeClient(base_url="http://localhost:8000")
         
-        with patch.object(client.client, 'post') as mock_post:
-            from httpx import HTTPError
-            mock_post.side_effect = HTTPError("Server error")
-            
-            result = await client.stop_workflow("run-123")
-            
-            assert result is False
+        # No need to test HTTP error since stop is not implemented
+        result = await client.stop_workflow("run-123")
+        
+        # Stop endpoint is not implemented, so should return False
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_close_client(self):
