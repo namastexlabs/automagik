@@ -6,27 +6,63 @@ to avoid duplication across the codebase.
 
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
 logger = logging.getLogger(__name__)
 
 
-def parse_json_safely(text: str) -> Optional[Dict[str, Any]]:
+class StreamProcessingError(Exception):
+    """Base exception for stream processing errors."""
+    pass
+
+
+class JSONParsingError(StreamProcessingError):
+    """Exception raised when JSON parsing fails."""
+    
+    def __init__(self, message: str, raw_data: str = "", original_error: Exception = None):
+        self.raw_data = raw_data
+        self.original_error = original_error
+        super().__init__(message)
+
+
+def parse_json_safely(text: str, raise_on_error: bool = False) -> Optional[Dict[str, Any]]:
     """Parse JSON text with safe error handling.
     
     Args:
         text: JSON text to parse
+        raise_on_error: If True, raise JSONParsingError on failures
         
     Returns:
         Parsed dictionary or None if parsing fails
+        
+    Raises:
+        JSONParsingError: If raise_on_error is True and parsing fails
     """
+    if not isinstance(text, str):
+        if raise_on_error:
+            raise JSONParsingError(f"Expected string, got {type(text).__name__}", str(text))
+        logger.debug(f"Invalid input type for JSON parsing: {type(text).__name__}")
+        return None
+    
+    if not text.strip():
+        return None
+    
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
         logger.debug(f"Failed to parse JSON: {e}")
+        if raise_on_error:
+            raise JSONParsingError(f"JSON decode error: {e}", text, e)
+        return None
+    except (TypeError, ValueError) as e:
+        logger.debug(f"Invalid JSON format: {e}")
+        if raise_on_error:
+            raise JSONParsingError(f"Invalid JSON format: {e}", text, e)
         return None
     except Exception as e:
-        logger.debug(f"Unexpected error parsing JSON: {e}")
+        logger.error(f"Unexpected error parsing JSON: {e}")
+        if raise_on_error:
+            raise JSONParsingError(f"Unexpected JSON parsing error: {e}", text, e)
         return None
 
 
