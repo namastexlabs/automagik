@@ -1,4 +1,5 @@
 """User repository module"""
+import json
 import logging
 import uuid
 from typing import Dict, List, Any, Optional, Tuple, Union
