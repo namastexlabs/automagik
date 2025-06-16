@@ -1,44 +1,85 @@
 """Claude-Code Agent Module.
 
-This module provides containerized Claude CLI execution capabilities
+This module provides local Claude CLI execution capabilities
 for long-running, autonomous AI workflows.
 """
 
 from typing import Dict, Optional, Any
 import logging
-import traceback
 
 # Setup logging first
 logger = logging.getLogger(__name__)
 
 try:
-    from .agent import ClaudeCodeAgent
-    from .container import ContainerManager
-    from .docker_executor import DockerExecutor
-    from .log_manager import LogManager, get_log_manager
-    from .models import (
-        ClaudeCodeRunRequest,
-        ClaudeCodeRunResponse, 
-        ClaudeCodeStatusResponse,
-        WorkflowInfo,
-        ContainerInfo,
-        ExecutionResult,
-        ClaudeCodeConfig,
-        ContainerStatus,
-        ExecutionStatus,
-        WorkflowType,
-        ContainerConfig,
-        GitConfig,
-        WorkflowConfig,
-        ExecutionMetadata,
-        ExecutionContext,
-        ContainerStats,
-        ClaudeCodeError,
-        ContainerError,
-        ExecutorError,
-        GitError,
-        WorkflowError
-    )
+    # Lazy import functions for better startup performance
+    def _get_claude_code_agent():
+        from .agent import ClaudeCodeAgent
+        return ClaudeCodeAgent
+    
+    def _get_log_manager():
+        from .log_manager import LogManager, get_log_manager
+        return LogManager, get_log_manager
+    
+    def _get_models():
+        from .models import (
+            ClaudeCodeRunRequest,
+            ClaudeCodeRunResponse, 
+            ClaudeCodeStatusResponse,
+            WorkflowInfo,
+            ExecutionResult,
+            ClaudeCodeConfig,
+            ExecutionStatus,
+            WorkflowType,
+            GitConfig,
+            WorkflowConfig,
+            ExecutionMetadata,
+            ExecutionContext,
+            ClaudeCodeError,
+            ExecutorError,
+            GitError,
+            WorkflowError
+        )
+        return {
+            'ClaudeCodeRunRequest': ClaudeCodeRunRequest,
+            'ClaudeCodeRunResponse': ClaudeCodeRunResponse,
+            'ClaudeCodeStatusResponse': ClaudeCodeStatusResponse,
+            'WorkflowInfo': WorkflowInfo,
+            'ExecutionResult': ExecutionResult,
+            'ClaudeCodeConfig': ClaudeCodeConfig,
+            'ExecutionStatus': ExecutionStatus,
+            'WorkflowType': WorkflowType,
+            'GitConfig': GitConfig,
+            'WorkflowConfig': WorkflowConfig,
+            'ExecutionMetadata': ExecutionMetadata,
+            'ExecutionContext': ExecutionContext,
+            'ClaudeCodeError': ClaudeCodeError,
+            'ExecutorError': ExecutorError,
+            'GitError': GitError,
+            'WorkflowError': WorkflowError
+        }
+    
+    # Import essential components immediately
+    ClaudeCodeAgent = _get_claude_code_agent()
+    LogManager, get_log_manager = _get_log_manager()
+    
+    # Load models lazily on first access
+    _models_cache = None
+    def _load_models():
+        global _models_cache
+        if _models_cache is None:
+            _models_cache = _get_models()
+        return _models_cache
+    
+    # Make models available through module-level attributes
+    def __getattr__(name):
+        if name in ['ClaudeCodeRunRequest', 'ClaudeCodeRunResponse', 'ClaudeCodeStatusResponse',
+                   'WorkflowInfo', 'ExecutionResult', 'ClaudeCodeConfig', 'ExecutionStatus',
+                   'WorkflowType', 'GitConfig', 'WorkflowConfig', 'ExecutionMetadata',
+                   'ExecutionContext', 'ClaudeCodeError', 'ExecutorError', 'GitError', 'WorkflowError']:
+            models = _load_models()
+            return models[name]
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    
     from src.agents.models.placeholder import PlaceholderAgent
     
     # Standardized create_agent function for AgentFactory discovery
@@ -68,6 +109,7 @@ try:
         return ClaudeCodeAgent(config)
 
 except Exception as e:
+    import traceback
     logger.error(f"Failed to initialize ClaudeCodeAgent module: {str(e)}")
     logger.error(f"Traceback: {traceback.format_exc()}")
     
@@ -86,28 +128,21 @@ except Exception as e:
 __all__ = [
     'create_agent',
     'ClaudeCodeAgent',
-    'ContainerManager',
-    'DockerExecutor',
     'LogManager',
     'get_log_manager',
     'ClaudeCodeRunRequest',
     'ClaudeCodeRunResponse',
     'ClaudeCodeStatusResponse', 
     'WorkflowInfo',
-    'ContainerInfo',
     'ExecutionResult',
     'ClaudeCodeConfig',
-    'ContainerStatus',
     'ExecutionStatus',
     'WorkflowType',
-    'ContainerConfig',
     'GitConfig',
     'WorkflowConfig',
     'ExecutionMetadata',
     'ExecutionContext',
-    'ContainerStats',
     'ClaudeCodeError',
-    'ContainerError',
     'ExecutorError',
     'GitError',
     'WorkflowError'
