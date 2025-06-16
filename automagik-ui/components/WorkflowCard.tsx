@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { AutomagikAPI, WorkflowStatus } from '@/lib/api';
+import { WorkflowStatusBadge } from '@/components/WorkflowStatusBadge';
+import { toast } from 'sonner';
 
 interface WorkflowCardProps {
   initialWorkflow: WorkflowStatus;
@@ -10,29 +12,37 @@ interface WorkflowCardProps {
 
 export default function WorkflowCard({ initialWorkflow, onStatusChange }: WorkflowCardProps) {
   const [workflow, setWorkflow] = useState<WorkflowStatus>(initialWorkflow);
-  const [isPolling, setIsPolling] = useState<boolean>(false);
 
   useEffect(() => {
     if (workflow.status === 'running' || workflow.status === 'pending') {
-      setIsPolling(true);
-      const interval = setInterval(async () => {
-        try {
-          const updatedStatus = await AutomagikAPI.getWorkflowStatus(workflow.run_id);
-          setWorkflow(updatedStatus);
-          onStatusChange?.(updatedStatus);
-          
-          if (updatedStatus.status === 'completed' || updatedStatus.status === 'failed') {
-            setIsPolling(false);
-            clearInterval(interval);
-          }
-        } catch (error) {
-          console.error('Failed to poll workflow status:', error);
+      const handleUpdate = (updatedStatus: WorkflowStatus) => {
+        setWorkflow(updatedStatus);
+        onStatusChange?.(updatedStatus);
+      };
+
+      const handleComplete = (finalStatus: WorkflowStatus) => {
+        setWorkflow(finalStatus);
+        onStatusChange?.(finalStatus);
+        
+        // Show completion toast
+        if (finalStatus.status === 'completed') {
+          toast.success(`Workflow "${finalStatus.workflow_name}" completed successfully!`, {
+            description: finalStatus.message,
+            duration: 5000,
+          });
+        } else if (finalStatus.status === 'failed') {
+          toast.error(`Workflow "${finalStatus.workflow_name}" failed`, {
+            description: finalStatus.error || 'Unknown error occurred',
+            duration: 8000,
+          });
         }
-      }, 2000);
+      };
+
+      // Start enhanced polling with 2-second intervals
+      AutomagikAPI.startStatusPolling(workflow.run_id, handleUpdate, handleComplete);
 
       return () => {
-        clearInterval(interval);
-        setIsPolling(false);
+        AutomagikAPI.stopStatusPolling(workflow.run_id);
       };
     }
   }, [workflow.run_id, workflow.status, onStatusChange]);
