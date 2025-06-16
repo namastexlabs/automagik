@@ -219,6 +219,7 @@ src/agents/claude_code/workflows/*/am-agents-labs/
 
 # Development directory
 dev/
+!dev/workspace/
 dev/temp/*
 !dev/temp/README.md
 dev/**/*.tmp

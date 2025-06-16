@@ -184,9 +184,18 @@ class LocalExecutor(ExecutorBase):
         Returns:
             Execution logs as string
         """
-        # For local execution, we would need to implement log persistence
-        # For now, return a placeholder
-        return f"Logs for session {execution_id} not available in local mode"
+        # Try to get logs from log manager if available
+        try:
+            from .log_manager import get_log_manager
+            log_manager = get_log_manager()
+            if log_manager:
+                log_path = log_manager.get_log_path(execution_id)
+                if log_path and log_path.exists():
+                    return log_path.read_text(encoding='utf-8')
+        except Exception as e:
+            logger.debug(f"Could not retrieve logs from log manager: {e}")
+        
+        return f"Logs for session {execution_id} not available"
     
     async def cancel_execution(self, execution_id: str) -> bool:
         """Cancel a running execution.

@@ -7,6 +7,7 @@ Claude CLI executions and update session metadata accordingly.
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime
 from typing import Dict, Any
 
@@ -95,14 +96,14 @@ class CompletionTracker:
                     # Process new entries for real-time updates
                     await cls._process_realtime_updates(session_id, new_entries)
                 
-                # Update metrics every 30 seconds or when significant events occur
+                # Update metrics every 10 seconds or when significant events occur
                 time_since_last_update = (datetime.utcnow() - last_metrics_update).total_seconds()
                 significant_events = any(
-                    entry.get("event_type") in ["claude_response", "claude_result", "execution_complete", "process_complete"]
-                    for entry in log_entries[max(0, len(log_entries) - 10):]  # Check last 10 entries
+                    entry.get("event_type") in ["claude_stream_assistant", "claude_stream_raw", "claude_result", "execution_complete", "process_complete"]
+                    for entry in log_entries[max(0, len(log_entries) - 5):]  # Check last 5 entries
                 )
                 
-                if time_since_last_update >= 30 or significant_events:
+                if time_since_last_update >= 10 or significant_events or len(log_entries) > last_processed_entries:
                     # Extract current metrics (partial or complete)
                     metrics = await cls._extract_final_metrics(run_id, log_entries)
                     
@@ -149,7 +150,7 @@ class CompletionTracker:
                         "duration_ms": metrics.duration_ms,
                         "elapsed_seconds": int(elapsed),
                         "claude_session_id": metrics.session_id,
-                        "final_result": metrics.final_result[:500] if metrics.final_result else "",
+                        "final_result": metrics.final_result or "",
                         "error_message": metrics.error_message,
                         "model_used": metrics.model,
                         "mcp_servers": metrics.mcp_servers,
@@ -186,11 +187,17 @@ class CompletionTracker:
             event_type = entry.get("event_type", "")
             data = entry.get("data", {})
             
-            # Process Claude CLI stream events (use parsed events only to avoid duplication)
-            if event_type.startswith("claude_stream_") and event_type not in ["claude_stream_raw"]:
+            # Process Claude CLI stream events
+            if event_type.startswith("claude_stream_"):
                 if isinstance(data, dict):
-                    # Process parsed JSON events only (not raw strings)
-                    processor.process_event(data)
+                    # For raw stream events, extract and parse the JSON message
+                    if event_type == "claude_stream_raw":
+                        message = data.get("message", "")
+                        if isinstance(message, str) and message.strip().startswith("{"):
+                            processor.process_line(message.strip())
+                    else:
+                        # Process parsed JSON events
+                        processor.process_event(data)
             
             # Also process legacy claude_output events
             elif event_type == "claude_output":
@@ -265,8 +272,9 @@ class CompletionTracker:
     async def _update_session_status(cls, session_id: str, status: str, additional_metadata: Dict[str, Any]):
         """Update session metadata with completion status and metrics."""
         try:
-            # Get current session
-            session = session_repo.get_session(session_id)
+            # Get current session (convert string to UUID)
+            session_uuid = uuid.UUID(session_id) if isinstance(session_id, str) else session_id
+            session = session_repo.get_session(session_uuid)
             if not session:
                 logger.error(f"Session {session_id} not found for status update")
                 return

@@ -93,7 +93,7 @@ async def start_workflow(session: aiohttp.ClientSession, workflow_name: str, mes
     
     print_info(f"Starting {workflow_name} workflow...")
     success, data, error = await make_request(
-        session, "POST", f"/api/v1/agent/claude-code/{workflow_name}/run", request_data
+        session, "POST", f"/api/v1/workflows/claude-code/run/{workflow_name}", request_data
     )
     
     if not success:
@@ -116,7 +116,7 @@ async def monitor_workflow(session: aiohttp.ClientSession, run_id: str, workflow
         await asyncio.sleep(POLL_INTERVAL)
         
         success, status_data, error = await make_request(
-            session, "GET", f"/api/v1/agent/claude-code/run/{run_id}/status"
+            session, "GET", f"/api/v1/workflows/claude-code/run/{run_id}/status"
         )
         
         if not success:
@@ -158,7 +158,7 @@ async def test_log_endpoints(session: aiohttp.ClientSession, run_id: str) -> boo
     
     # Test log summary
     success, summary_data, error = await make_request(
-        session, "GET", f"/api/v1/agent/claude-code/run/{run_id}/logs/summary"
+        session, "GET", f"/api/v1/workflows/claude-code/run/{run_id}/logs/summary"
     )
     
     if success:
@@ -170,7 +170,7 @@ async def test_log_endpoints(session: aiohttp.ClientSession, run_id: str) -> boo
     
     # Test log retrieval
     success, log_data, error = await make_request(
-        session, "GET", f"/api/v1/agent/claude-code/run/{run_id}/logs?lines=50"
+        session, "GET", f"/api/v1/workflows/claude-code/run/{run_id}/logs?lines=50"
     )
     
     if success:
