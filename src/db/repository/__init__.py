@@ -96,6 +96,20 @@ from src.db.repository.mcp import (
     get_agent_server_assignments
 )
 
+# Workflow Process repository functions
+from src.db.repository.workflow_process import (
+    get_workflow_process,
+    list_workflow_processes,
+    create_workflow_process,
+    update_workflow_process,
+    delete_workflow_process,
+    update_heartbeat,
+    mark_process_terminated,
+    get_running_processes,
+    get_stale_processes,
+    cleanup_old_processes
+)
+
 # Export all imported functions
 __all__ = [
     # Agent functions
@@ -175,4 +189,16 @@ __all__ = [
     "get_agent_servers",
     "get_server_agents",
     "get_agent_server_assignments",
+    
+    # Workflow Process functions
+    "get_workflow_process",
+    "list_workflow_processes",
+    "create_workflow_process",
+    "update_workflow_process",
+    "delete_workflow_process",
+    "update_heartbeat",
+    "mark_process_terminated",
+    "get_running_processes",
+    "get_stale_processes",
+    "cleanup_old_processes",
 ]

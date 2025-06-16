@@ -1046,13 +1046,21 @@ class ClaudeCLIExecutor:
         if run_id in self.active_processes:
             process = self.active_processes[run_id]
             try:
+                # Graceful shutdown first
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=5)
+                status = "terminated"
             except asyncio.TimeoutError:
+                # Force kill if graceful shutdown fails
                 process.kill()
+                status = "killed"
+                logger.warning(f"Force killed process for run_id: {run_id}")
+            
+            # Clean up workflow process record in database
+            await self._cleanup_workflow_process(run_id, status)
             
             del self.active_processes[run_id]
-            logger.info(f"Cancelled execution: {run_id}")
+            logger.info(f"Cancelled execution: {run_id} (status: {status})")
             return True
             
         return False
@@ -1148,6 +1156,9 @@ class ClaudeCLIExecutor:
                 "timeout": timeout
             }
         )
+        
+        # Register process in database for tracking and emergency kill
+        await self._register_workflow_process(process, log_writer)
     
     async def _setup_stream_processing(self, stream_callback, log_writer, session):
         """Setup stream processing and session confirmation tracking."""
@@ -1246,6 +1257,9 @@ class ClaudeCLIExecutor:
                 {"stderr_lines": len(stderr_lines), "content_preview": ''.join(stderr_lines)[:200]}
             )
         
+        # Clean up workflow process record in database
+        await self._cleanup_workflow_process(session.run_id, "completed")
+        
         del self.active_processes[session.run_id]
     
     async def _build_execution_result(self, process, processor, stdout_lines, stderr_lines, 
@@ -1283,6 +1297,98 @@ class ClaudeCLIExecutor:
             log_file_path=str(log_manager.get_log_path(run_id))
         )
     
+    async def _register_workflow_process(self, process, log_writer):
+        """Register workflow process in database for tracking and emergency kill."""
+        try:
+            # Import here to avoid circular imports
+            from src.db.repository import create_workflow_process
+            from src.db.models import WorkflowProcessCreate
+            from datetime import datetime
+            
+            # Find the session info from active processes
+            run_id = None
+            session = None
+            for rid, proc in self.active_processes.items():
+                if proc == process:
+                    run_id = rid
+                    session = self.sessions.get(rid)
+                    break
+            
+            if not run_id:
+                # Try to extract from process environment if available
+                run_id = f"unknown_{process.pid}"
+                logger.warning(f"Could not find run_id for process {process.pid}, using {run_id}")
+            
+            # Create workflow process record
+            workflow_process = WorkflowProcessCreate(
+                run_id=run_id,
+                pid=process.pid,
+                status="running",
+                workflow_name=session.workflow_name if session else "unknown",
+                session_id=session.session_id if session else None,
+                user_id=None,  # Will be populated from session metadata if available
+                workspace_path=None,  # Will be set from environment if available
+                process_info={
+                    "command": "claude",
+                    "timeout": self.timeout,
+                    "registered_at": datetime.utcnow().isoformat(),
+                    "claude_session_id": session.claude_session_id if session else None
+                }
+            )
+            
+            success = create_workflow_process(workflow_process)
+            
+            if success:
+                await log_writer(
+                    f"Registered workflow process in database: {run_id}",
+                    "process_registered",
+                    {
+                        "run_id": run_id,
+                        "pid": process.pid,
+                        "workflow_name": session.workflow_name if session else "unknown",
+                        "tracking_enabled": True
+                    }
+                )
+            else:
+                await log_writer(
+                    f"Failed to register workflow process in database: {run_id}",
+                    "process_registration_failed",
+                    {
+                        "run_id": run_id,
+                        "pid": process.pid,
+                        "error": "Database registration failed"
+                    }
+                )
+                
+        except Exception as e:
+            logger.warning(f"Failed to register workflow process {process.pid}: {e}")
+            try:
+                await log_writer(
+                    f"Process registration error: {str(e)}",
+                    "process_registration_error",
+                    {
+                        "pid": process.pid,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    }
+                )
+            except Exception:
+                pass  # Don't fail on logging errors
+    
+    async def _cleanup_workflow_process(self, run_id, status="completed"):
+        """Clean up workflow process record in database."""
+        try:
+            from src.db.repository import mark_process_terminated
+            
+            success = mark_process_terminated(run_id, status)
+            if success:
+                logger.info(f"Marked workflow process as {status}: {run_id}")
+            else:
+                logger.warning(f"Failed to mark workflow process as {status}: {run_id}")
+                
+        except Exception as e:
+            logger.warning(f"Failed to cleanup workflow process {run_id}: {e}")
+
     async def cleanup(self):
         """Clean up all active processes."""
         for run_id in list(self.active_processes.keys()):
