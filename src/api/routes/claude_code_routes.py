@@ -1062,3 +1062,237 @@ async def claude_code_health() -> Dict[str, Any]:
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
+
+
+# GUARDIAN Monitoring Endpoints
+
+
+@claude_code_router.get("/monitoring/status")
+async def get_workflow_monitoring_status():
+    """Get GUARDIAN workflow monitoring status."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        status = monitor.get_monitoring_status()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "monitoring": status
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting monitoring status: {e}")
+        raise HTTPException(status_code=500, detail=f"Monitoring status error: {str(e)}")
+
+
+@claude_code_router.get("/monitoring/health")
+async def get_workflow_health_status():
+    """Get health status for all running workflows."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        health_statuses = await monitor.get_workflow_health_status()
+        
+        # Convert to serializable format
+        health_data = []
+        for health in health_statuses:
+            health_data.append({
+                "run_id": health.run_id,
+                "workflow_name": health.workflow_name,
+                "status": health.status,
+                "elapsed_minutes": health.elapsed_minutes,
+                "timeout_limit_minutes": health.timeout_limit_minutes,
+                "warning_threshold_minutes": health.warning_threshold_minutes,
+                "is_warning": health.is_warning,
+                "is_timeout": health.is_timeout,
+                "is_stale": health.is_stale,
+                "last_heartbeat": health.last_heartbeat.isoformat() if health.last_heartbeat else None
+            })
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "workflow_health": health_data,
+            "total_workflows": len(health_data),
+            "warning_count": len([h for h in health_data if h["is_warning"]]),
+            "timeout_count": len([h for h in health_data if h["is_timeout"]]),
+            "stale_count": len([h for h in health_data if h["is_stale"]])
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting workflow health: {e}")
+        raise HTTPException(status_code=500, detail=f"Workflow health error: {str(e)}")
+
+
+@claude_code_router.post("/monitoring/start")
+async def start_workflow_monitoring():
+    """Start GUARDIAN workflow monitoring."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        await monitor.start_monitoring()
+        
+        return {
+            "status": "success",
+            "message": "🛡️ GUARDIAN workflow monitoring started",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error starting monitoring: {e}")
+        raise HTTPException(status_code=500, detail=f"Start monitoring error: {str(e)}")
+
+
+@claude_code_router.post("/monitoring/stop")
+async def stop_workflow_monitoring():
+    """Stop GUARDIAN workflow monitoring."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        await monitor.stop_monitoring()
+        
+        return {
+            "status": "success",
+            "message": "🛡️ GUARDIAN workflow monitoring stopped",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error stopping monitoring: {e}")
+        raise HTTPException(status_code=500, detail=f"Stop monitoring error: {str(e)}")
+
+
+@claude_code_router.get("/monitoring/safety-triggers")
+async def get_safety_trigger_status():
+    """Get safety trigger system status."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        trigger_summary = monitor.safety_triggers.get_trigger_summary()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "safety_triggers": trigger_summary
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting safety triggers: {e}")
+        raise HTTPException(status_code=500, detail=f"Safety triggers error: {str(e)}")
+
+
+class WorkflowRegistrationRequest(BaseModel):
+    """Request to register workflow for monitoring."""
+    run_id: str = Field(..., description="Workflow run ID")
+    workflow_name: str = Field(..., description="Workflow name")
+
+
+@claude_code_router.post("/monitoring/register")
+async def register_workflow_for_monitoring(request: WorkflowRegistrationRequest):
+    """Register a workflow for GUARDIAN monitoring."""
+    try:
+        from src.mcp.workflow_monitor import register_workflow_for_monitoring
+        
+        await register_workflow_for_monitoring(request.run_id, request.workflow_name)
+        
+        return {
+            "status": "success",
+            "message": f"🛡️ GUARDIAN registered {request.workflow_name} for monitoring",
+            "run_id": request.run_id,
+            "workflow_name": request.workflow_name,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error registering workflow: {e}")
+        raise HTTPException(status_code=500, detail=f"Workflow registration error: {str(e)}")
+
+
+class HeartbeatRequest(BaseModel):
+    """Request to update workflow heartbeat."""
+    run_id: str = Field(..., description="Workflow run ID")
+
+
+@claude_code_router.post("/monitoring/heartbeat")
+async def update_workflow_heartbeat(request: HeartbeatRequest):
+    """Update heartbeat for a workflow."""
+    try:
+        from src.mcp.workflow_monitor import update_workflow_heartbeat
+        
+        await update_workflow_heartbeat(request.run_id)
+        
+        return {
+            "status": "success",
+            "message": "💓 Heartbeat updated",
+            "run_id": request.run_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating heartbeat: {e}")
+        raise HTTPException(status_code=500, detail=f"Heartbeat update error: {str(e)}")
+
+
+class EmergencyKillRequest(BaseModel):
+    """Request for emergency workflow kill."""
+    reason: str = Field(..., description="Reason for emergency kill")
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context")
+
+
+@claude_code_router.post("/monitoring/emergency-rollback")
+async def execute_emergency_rollback(request: EmergencyKillRequest):
+    """Execute emergency rollback via GUARDIAN safety triggers."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        success = await monitor.safety_triggers.execute_emergency_rollback(
+            request.reason, 
+            request.context
+        )
+        
+        return {
+            "status": "success" if success else "error",
+            "message": f"🚨 Emergency rollback {'completed' if success else 'failed'}",
+            "reason": request.reason,
+            "rollback_success": success,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error executing emergency rollback: {e}")
+        raise HTTPException(status_code=500, detail=f"Emergency rollback error: {str(e)}")
+
+
+@claude_code_router.get("/monitoring/timeout-configs")
+async def get_timeout_configurations():
+    """Get workflow timeout configurations."""
+    try:
+        from src.mcp.workflow_monitor import get_workflow_monitor
+        
+        monitor = get_workflow_monitor()
+        status = monitor.get_monitoring_status()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "timeout_configs": status.get("timeout_configs", {}),
+            "monitor_interval_seconds": status.get("monitor_interval_seconds", 60)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting timeout configs: {e}")
+        raise HTTPException(status_code=500, detail=f"Timeout config error: {str(e)}")
+
+
+# Legacy endpoint compatibility
+@claude_code_router.get("/guardian/status")
+async def get_guardian_status():
+    """Legacy endpoint for GUARDIAN status (redirects to monitoring/status)."""
+    return await get_workflow_monitoring_status()
