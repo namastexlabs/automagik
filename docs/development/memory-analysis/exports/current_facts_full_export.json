@@ -1,0 +1,52 @@
+[
+  {
+    "uuid": "365eaaff-c514-46dd-9f8d-1749b2e7f1d7",
+    "group_id": "default",
+    "source_node": "SESSION MANAGEMENT COMMANDS",
+    "target_node": "Smart search method",
+    "relationship": "USES_SEARCH_METHOD",
+    "fact": "SESSION MANAGEMENT COMMANDS uses Smart search method",
+    "created_at": "2025-06-03T20:02:21.457068Z",
+    "category": "cli_enhancements"
+  },
+  {
+    "uuid": "dc37d27a-3ed2-4465-9f24-5bb1b0db7987",
+    "group_id": "default",
+    "source_node": "NMSTX-230 PydanticAI Genie Orchestrator",
+    "target_node": "GenieAgent",
+    "relationship": "IMPLEMENTED_IN",
+    "fact": "NMSTX-230 PydanticAI Genie Orchestrator was successfully implemented using GenieAgent",
+    "created_at": "2025-06-03T07:10:18.440035Z",
+    "category": "agent_architecture"
+  },
+  {
+    "uuid": "088a4efe-9147-46da-b6dd-3bdfb3710d1f",
+    "group_id": "default",
+    "source_node": "GenieAgent",
+    "target_node": "AutomagikAgent",
+    "relationship": "EXTENDS",
+    "fact": "GenieAgent extends AutomagikAgent for framework compatibility",
+    "created_at": "2025-06-03T07:10:18.440249Z",
+    "category": "agent_architecture"
+  },
+  {
+    "uuid": "c0f038f4-92e8-4869-aa66-ca75ac4dd08d",
+    "group_id": "default",
+    "source_node": "automagik_enhancement",
+    "target_node": "fastmcp_server_with_helpers",
+    "relationship": "HAS_TYPICAL_STRUCTURE",
+    "fact": "automagik_enhancement has typical structure fastmcp_server_with_helpers",
+    "created_at": "2025-06-12T00:46:28.599061Z",
+    "category": "development_patterns"
+  },
+  {
+    "uuid": "66352783-6a19-4acf-aee4-481a98d69ca1",
+    "group_id": "default",
+    "source_node": "NMSTX-230 PydanticAI Genie Orchestrator",
+    "target_node": "Embedded LangGraph StateGraph",
+    "relationship": "USES",
+    "fact": "NMSTX-230 PydanticAI Genie Orchestrator uses Embedded LangGraph StateGraph for workflow orchestration",
+    "created_at": "2025-06-03T07:10:18.440378Z",
+    "category": "agent_architecture"
+  }
+]

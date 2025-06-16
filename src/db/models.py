@@ -30,6 +30,15 @@ class User(BaseDBModel):
         """Create a User instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON user_data field - deserialize if it's a string
+        if "user_data" in row and isinstance(row["user_data"], str):
+            import json
+            try:
+                row["user_data"] = json.loads(row["user_data"])
+            except (json.JSONDecodeError, TypeError):
+                row["user_data"] = None
+        
         return cls(**row)
 
 
@@ -54,6 +63,15 @@ class Agent(BaseDBModel):
         """Create an Agent instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON config field - deserialize if it's a string
+        if "config" in row and isinstance(row["config"], str):
+            import json
+            try:
+                row["config"] = json.loads(row["config"])
+            except (json.JSONDecodeError, TypeError):
+                row["config"] = None
+        
         return cls(**row)
 
 
@@ -76,6 +94,15 @@ class Session(BaseDBModel):
         """Create a Session instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON metadata field - deserialize if it's a string
+        if "metadata" in row and isinstance(row["metadata"], str):
+            import json
+            try:
+                row["metadata"] = json.loads(row["metadata"])
+            except (json.JSONDecodeError, TypeError):
+                row["metadata"] = None
+        
         return cls(**row)
 
 
@@ -106,6 +133,17 @@ class Message(BaseDBModel):
         """Create a Message instance from a database row dictionary."""
         if not row:
             return None
+        
+        # Handle JSON fields - deserialize if they're strings
+        json_fields = ["raw_payload", "channel_payload", "tool_calls", "tool_outputs", "context"]
+        for field in json_fields:
+            if field in row and isinstance(row[field], str):
+                import json
+                try:
+                    row[field] = json.loads(row[field])
+                except (json.JSONDecodeError, TypeError):
+                    row[field] = None
+        
         return cls(**row)
 
 
@@ -515,3 +553,120 @@ class MCPConfig(MCPConfigBase):
             "priority": self.config.get("priority", 0),
             "enabled": self.is_enabled()
         }
+
+
+# Workflow Process Models for Emergency Kill System
+class WorkflowProcessBase(BaseDBModel):
+    """Base class for Workflow Process models."""
+    
+    run_id: str = Field(..., description="Unique identifier for the workflow run")
+    pid: Optional[int] = Field(None, description="System process ID")
+    status: str = Field(default="running", description="Process status")
+    workflow_name: Optional[str] = Field(None, description="Name of the workflow")
+    session_id: Optional[str] = Field(None, description="Associated session ID")
+    user_id: Optional[str] = Field(None, description="User who initiated the workflow")
+    workspace_path: Optional[str] = Field(None, description="Workspace directory path")
+    process_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional process metadata")
+
+
+class WorkflowProcessCreate(WorkflowProcessBase):
+    """Data needed to create a new Workflow Process."""
+    pass
+
+
+class WorkflowProcessUpdate(BaseModel):
+    """Data for updating an existing Workflow Process."""
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        validate_assignment=True,
+    )
+    
+    pid: Optional[int] = Field(default=None, description="Updated process ID")
+    status: Optional[str] = Field(default=None, description="Updated status")
+    last_heartbeat: Optional[datetime] = Field(default=None, description="Updated heartbeat timestamp")
+    process_info: Optional[Dict[str, Any]] = Field(default=None, description="Updated process metadata")
+
+
+class WorkflowProcess(WorkflowProcessBase):
+    """Complete Workflow Process model, including database fields."""
+    
+    started_at: Optional[datetime] = Field(None, description="Process start timestamp")
+    last_heartbeat: Optional[datetime] = Field(None, description="Last heartbeat timestamp")
+    created_at: Optional[datetime] = Field(None, description="Created at timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
+    
+    DB_TABLE: ClassVar[str] = "workflow_processes"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "WorkflowProcess":
+        """Create a WorkflowProcess instance from a database row.
+        
+        Args:
+            row: Database row as dictionary
+            
+        Returns:
+            WorkflowProcess instance
+        """
+        if not row:
+            return None
+        
+        # Handle JSON process_info field - deserialize if it's a string
+        process_info = row.get("process_info")
+        if isinstance(process_info, str):
+            import json
+            try:
+                process_info = json.loads(process_info)
+            except (json.JSONDecodeError, TypeError):
+                process_info = {}
+        
+        return cls(
+            run_id=row["run_id"],
+            pid=row.get("pid"),
+            status=row.get("status", "running"),
+            workflow_name=row.get("workflow_name"),
+            session_id=row.get("session_id"),
+            user_id=row.get("user_id"),
+            started_at=row.get("started_at"),
+            workspace_path=row.get("workspace_path"),
+            last_heartbeat=row.get("last_heartbeat"),
+            process_info=process_info or {},
+            created_at=row.get("created_at"),
+            updated_at=row.get("updated_at")
+        )
+    
+    def is_alive(self) -> bool:
+        """Check if the process is likely still alive based on heartbeat."""
+        if not self.last_heartbeat:
+            return False
+        
+        # Consider process dead if no heartbeat for more than 5 minutes
+        import datetime as dt
+        max_silence = dt.timedelta(minutes=5)
+        time_since_heartbeat = dt.datetime.utcnow() - self.last_heartbeat
+        
+        return time_since_heartbeat <= max_silence
+    
+    def get_elapsed_time(self) -> Optional[float]:
+        """Get elapsed time since process start in seconds."""
+        if not self.started_at:
+            return None
+        
+        import datetime as dt
+        elapsed = dt.datetime.utcnow() - self.started_at
+        return elapsed.total_seconds()
+    
+    def update_heartbeat(self) -> None:
+        """Update the last heartbeat timestamp to current time."""
+        import datetime as dt
+        self.last_heartbeat = dt.datetime.utcnow()
+    
+    def mark_terminated(self, status: str = "terminated") -> None:
+        """Mark the process as terminated with given status."""
+        valid_terminated_statuses = ["completed", "failed", "killed", "terminated"]
+        if status not in valid_terminated_statuses:
+            status = "terminated"
+        
+        self.status = status
+        import datetime as dt
+        self.updated_at = dt.datetime.utcnow()

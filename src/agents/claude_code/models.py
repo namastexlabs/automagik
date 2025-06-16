@@ -1,7 +1,7 @@
 """Data models for Claude-Code agent.
 
 This module defines Pydantic models for request/response handling,
-configuration validation, and container management.
+configuration validation, and local execution management.
 """
 from datetime import datetime, timezone
 from enum import Enum
@@ -74,7 +74,7 @@ class ClaudeCodeRunResponse(BaseModel):
         ..., 
         description="Current status of the execution"
     )
-    message: str = Field(default="Container deployment initiated", description="Status message")
+    message: str = Field(default="Local execution initiated", description="Status message")
     session_id: str = Field(..., description="Session identifier")
     started_at: datetime = Field(..., description="When the execution was started")
     
@@ -90,8 +90,165 @@ class ClaudeCodeRunResponse(BaseModel):
         }
     )
 
+# Enhanced response models for status API restructuring
+
+class ProgressInfo(BaseModel):
+    """Progress information for workflow execution."""
+    
+    turns: int = Field(..., description="Current number of turns completed")
+    max_turns: int = Field(..., description="Maximum turns allowed")
+    completion_percentage: float = Field(..., description="Completion percentage (0-100)")
+    current_phase: str = Field(..., description="Current workflow phase")
+    phases_completed: List[str] = Field(default_factory=list, description="List of completed phases")
+    is_running: bool = Field(..., description="Whether workflow is currently running")
+    estimated_completion: Optional[str] = Field(None, description="Estimated completion time")
+
+
+class TokenInfo(BaseModel):
+    """Token usage information."""
+    
+    total: int = Field(..., description="Total tokens used")
+    input: int = Field(default=0, description="Input tokens")
+    output: int = Field(default=0, description="Output tokens")
+    cache_created: int = Field(default=0, description="Cache creation tokens")
+    cache_read: int = Field(default=0, description="Cache read tokens")
+    cache_efficiency: float = Field(default=0.0, description="Cache efficiency percentage")
+
+
+class MetricsInfo(BaseModel):
+    """Metrics information for workflow execution."""
+    
+    cost_usd: float = Field(..., description="Total cost in USD")
+    tokens: TokenInfo = Field(..., description="Token usage breakdown")
+    tools_used: List[str] = Field(default_factory=list, description="List of tools used")
+    api_duration_ms: Optional[int] = Field(None, description="API duration in milliseconds")
+    performance_score: Optional[float] = Field(None, description="Performance score (0-100)")
+
+
+class ResultInfo(BaseModel):
+    """Result information for workflow completion."""
+    
+    success: bool = Field(..., description="Whether workflow completed successfully")
+    completion_type: str = Field(..., description="Type of completion (completed_successfully, max_turns_reached, failed)")
+    message: str = Field(..., description="User-friendly completion message")
+    final_output: Optional[str] = Field(None, description="Final output from Claude (truncated)")
+    files_created: List[str] = Field(default_factory=list, description="List of files created during workflow")
+    git_commits: List[str] = Field(default_factory=list, description="Git commits created")
+
+
+class EnhancedStatusResponse(BaseModel):
+    """Enhanced status response with simplified structure."""
+    
+    run_id: str = Field(..., description="Unique identifier for this execution run")
+    status: Literal["pending", "running", "completed", "failed"] = Field(
+        ..., 
+        description="Current status of the execution"
+    )
+    workflow_name: str = Field(..., description="Name of the workflow being executed")
+    started_at: datetime = Field(..., description="When the execution was started")
+    completed_at: Optional[datetime] = Field(None, description="When the execution completed")
+    execution_time_seconds: Optional[float] = Field(None, description="Total execution time in seconds")
+    
+    progress: ProgressInfo = Field(..., description="Workflow progress information")
+    metrics: MetricsInfo = Field(..., description="Execution metrics")
+    result: ResultInfo = Field(..., description="Workflow result information")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "run_id": "run_c706706174b7",
+                "status": "completed",
+                "workflow_name": "implement",
+                "started_at": "2025-06-13T20:25:01Z",
+                "completed_at": "2025-06-13T20:27:17Z",
+                "execution_time_seconds": 136.5,
+                "progress": {
+                    "turns": 30,
+                    "max_turns": 30,
+                    "completion_percentage": 100.0,
+                    "current_phase": "completed",
+                    "phases_completed": ["initialization", "planning", "analysis", "implementation"],
+                    "is_running": False,
+                    "estimated_completion": None
+                },
+                "metrics": {
+                    "cost_usd": 0.7159,
+                    "tokens": {
+                        "total": 1099100,
+                        "input": 850000,
+                        "output": 249100,
+                        "cache_created": 45000,
+                        "cache_read": 120000,
+                        "cache_efficiency": 72.7
+                    },
+                    "tools_used": ["TodoWrite", "LS", "Read", "Bash"],
+                    "api_duration_ms": 136500,
+                    "performance_score": 85.2
+                },
+                "result": {
+                    "success": True,
+                    "completion_type": "max_turns_reached",
+                    "message": "⏰ Reached maximum turns - workflow stopped at turn limit",
+                    "final_output": "Task partially completed. Review results and continue if needed.",
+                    "files_created": ["src/feature.py", "tests/test_feature.py"],
+                    "git_commits": ["abc123", "def456"]
+                }
+            }
+        }
+    )
+
+
+class DebugStatusResponse(EnhancedStatusResponse):
+    """Debug status response with comprehensive debug information."""
+    
+    debug: Dict[str, Any] = Field(..., description="Comprehensive debug information")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "run_id": "run_c706706174b7",
+                "status": "completed",
+                "workflow_name": "implement",
+                "started_at": "2025-06-13T20:25:01Z",
+                "completed_at": "2025-06-13T20:27:17Z",
+                "execution_time_seconds": 136.5,
+                "progress": {
+                    "turns": 30,
+                    "max_turns": 30,
+                    "completion_percentage": 100.0,
+                    "current_phase": "completed",
+                    "phases_completed": ["initialization", "planning", "analysis", "implementation"],
+                    "is_running": False
+                },
+                "metrics": {
+                    "cost_usd": 0.7159,
+                    "tokens": {"total": 1099100, "cache_efficiency": 72.7},
+                    "tools_used": ["TodoWrite", "LS", "Read", "Bash"]
+                },
+                "result": {
+                    "success": True,
+                    "completion_type": "max_turns_reached",
+                    "message": "⏰ Reached maximum turns - workflow stopped at turn limit",
+                    "final_output": "Task partially completed. Review results and continue if needed."
+                },
+                "debug": {
+                    "session_info": {"session_id": "12345", "claude_session_id": "uuid"},
+                    "execution_details": {"exit_code": 0, "max_turns": 30},
+                    "tool_usage": {"total_tool_calls": 30, "unique_tools_used": 4},
+                    "timing_analysis": {"average_turn_time_seconds": 4.55},
+                    "cost_breakdown": {"cost_per_token": 0.0000065},
+                    "workflow_phases": {"phases_detected": ["initialization", "analysis", "implementation"]},
+                    "performance_metrics": {"turn_efficiency_percent": 100.0},
+                    "error_analysis": {"total_errors": 2, "error_rate_percent": 6.7},
+                    "raw_stream_sample": [{"timestamp": "2025-06-13T20:27:17Z", "event_type": "result"}]
+                }
+            }
+        }
+    )
+
+
 class ClaudeCodeStatusResponse(BaseModel):
-    """Response model for execution status polling."""
+    """Legacy response model for execution status polling (backward compatibility)."""
     
     run_id: str = Field(..., description="Unique identifier for this execution run")
     status: Literal["pending", "running", "completed", "failed"] = Field(
@@ -112,6 +269,22 @@ class ClaudeCodeStatusResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if execution failed")
     logs: Optional[str] = Field(None, description="Container execution logs")
     
+    # Extended fields for backward compatibility
+    workflow_name: Optional[str] = Field(None, description="Workflow name")
+    claude_session_id: Optional[str] = Field(None, description="Claude session ID")
+    cost: Optional[float] = Field(None, description="Execution cost in USD")
+    tokens: Optional[int] = Field(None, description="Total tokens used")
+    turns: Optional[int] = Field(None, description="Number of turns completed")
+    tool_calls: Optional[int] = Field(None, description="Number of tool calls made")
+    tools_used: Optional[List[str]] = Field(None, description="List of tools used")
+    progress_indicator: Optional[str] = Field(None, description="Progress indicator")
+    last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
+    recent_steps: Optional[List[str]] = Field(None, description="Recent workflow steps")
+    elapsed_seconds: Optional[float] = Field(None, description="Elapsed time in seconds")
+    current_turns: Optional[int] = Field(None, description="Current turn count")
+    max_turns: Optional[int] = Field(None, description="Maximum turns allowed")
+    debug_info: Optional[Dict[str, Any]] = Field(None, description="Debug information")
+    
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -127,7 +300,12 @@ class ClaudeCodeStatusResponse(BaseModel):
                 "git_commits": ["abc123def456", "def456ghi789"],
                 "git_sha_end": "def456ghi789",
                 "error": None,
-                "logs": "Container execution logs..."
+                "logs": "Container execution logs...",
+                "workflow_name": "bug-fixer",
+                "cost": 0.7159,
+                "tokens": 1099100,
+                "turns": 30,
+                "debug_info": None
             }
         }
     )

@@ -1,7 +1,7 @@
 """Factory for creating appropriate executor based on configuration.
 
 This module provides the ExecutorFactory class that creates the appropriate
-executor (Docker or Local) based on configuration.
+executor (Local mode only) based on configuration.
 """
 
 import logging
@@ -9,7 +9,6 @@ import os
 from typing import Optional
 
 from .executor_base import ExecutorBase
-from .container import ContainerManager
 
 logger = logging.getLogger(__name__)
 
@@ -20,22 +19,20 @@ class ExecutorFactory:
     @staticmethod
     def create_executor(
         mode: Optional[str] = None,
-        container_manager: Optional[ContainerManager] = None,
         **kwargs
     ) -> ExecutorBase:
-        """Create an executor based on the specified mode.
+        """Create a local executor.
         
         Args:
-            mode: Execution mode ('docker' or 'local'). 
-                  If None, reads from CLAUDE_CODE_MODE env var.
-            container_manager: Required for Docker mode
+            mode: Execution mode (only 'local' supported). 
+                  If None, defaults to 'local'.
             **kwargs: Additional arguments for the executor
             
         Returns:
-            ExecutorBase instance
+            LocalExecutor instance
             
         Raises:
-            ValueError: If mode is invalid or required args missing
+            ValueError: If mode is not 'local'
         """
         # Determine execution mode
         if mode is None:
@@ -44,16 +41,7 @@ class ExecutorFactory:
         mode = mode.lower()
         logger.info(f"Creating executor for mode: {mode}")
         
-        if mode == "docker":
-            # Import here to avoid circular imports
-            from .docker_executor import DockerExecutor
-            
-            if container_manager is None:
-                raise ValueError("container_manager is required for Docker mode")
-            
-            return DockerExecutor(container_manager)
-            
-        elif mode == "local":
+        if mode == "local" or mode is None:
             # Import here to avoid circular imports
             from .local_executor import LocalExecutor
             
@@ -72,4 +60,4 @@ class ExecutorFactory:
             )
             
         else:
-            raise ValueError(f"Invalid execution mode: {mode}. Must be 'docker' or 'local'.")
+            raise ValueError(f"Invalid execution mode: {mode}. Only 'local' mode is supported.")
