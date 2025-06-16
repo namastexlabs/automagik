@@ -173,6 +173,69 @@ class CLIEnvironmentManager:
                 except Exception as e:
                     logger.warning(f"Failed to copy workflow {workflow_name}: {e}")
     
+    async def auto_commit_snapshot(self, workspace: Path, run_id: str, message: str = None) -> bool:
+        """Automatically commit all changes as a snapshot in the worktree.
+        
+        Args:
+            workspace: Worktree workspace directory path
+            run_id: Run identifier for commit message
+            message: Optional custom commit message
+            
+        Returns:
+            True if commit successful, False otherwise
+        """
+        try:
+            if not workspace.exists():
+                logger.warning(f"Workspace {workspace} does not exist for auto-commit")
+                return False
+            
+            # Add all changes
+            add_process = await asyncio.create_subprocess_exec(
+                "git", "add", "-A",
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await add_process.communicate()
+            
+            # Check if there are changes to commit
+            status_process = await asyncio.create_subprocess_exec(
+                "git", "status", "--porcelain",
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await status_process.communicate()
+            
+            if not stdout.decode().strip():
+                logger.debug(f"No changes to commit in worktree {workspace}")
+                return True
+            
+            # Create commit message
+            commit_msg = message or f"auto-snapshot: workflow run {run_id} progress"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            full_message = f"{commit_msg}\n\nAuto-committed at {timestamp} by worktree workflow system"
+            
+            # Commit changes
+            commit_process = await asyncio.create_subprocess_exec(
+                "git", "commit", "-m", full_message,
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await commit_process.communicate()
+            
+            if commit_process.returncode == 0:
+                logger.info(f"Auto-committed snapshot for run {run_id}: {commit_msg}")
+                return True
+            else:
+                logger.warning(f"Auto-commit failed for run {run_id}: {stderr.decode()}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error during auto-commit for run {run_id}: {e}")
+            return False
+    
     async def cleanup(self, workspace: Path, force: bool = False) -> bool:
         """Remove worktree workspace and all contents.
         
