@@ -781,8 +781,7 @@ class ClaudeCLIExecutor:
         
         try:
             # Setup environment
-            env = os.environ.copy()
-            env["CLAUDE_SESSION_ID"] = session.run_id
+            env = self._prepare_environment(session)
             
             if _CLAUDE_EXECUTABLE_PATH:
                 claude_dir = os.path.dirname(_CLAUDE_EXECUTABLE_PATH)
@@ -1216,6 +1215,34 @@ class ClaudeCLIExecutor:
         """Prepare environment variables for process execution."""
         env = os.environ.copy()
         env["CLAUDE_SESSION_ID"] = session.run_id
+        
+        # Add virtual environment to Python path for uv-managed dependencies
+        # Find .venv in current working directory or parent directories
+        current_dir = Path.cwd()
+        venv_path = None
+        
+        # Look for .venv in current directory and up to 3 parent levels
+        for check_dir in [current_dir] + list(current_dir.parents)[:3]:
+            candidate = check_dir / ".venv"
+            if candidate.exists() and candidate.is_dir():
+                venv_path = candidate
+                break
+        
+        if venv_path and venv_path.exists():
+            # Add .venv/bin to PATH so Python finds the right packages
+            venv_bin = str(venv_path / "bin")
+            current_path = env.get("PATH", "")
+            if venv_bin not in current_path:
+                env["PATH"] = f"{venv_bin}:{current_path}"
+            
+            # Set VIRTUAL_ENV for tools that check it
+            env["VIRTUAL_ENV"] = str(venv_path)
+            
+            # Set PYTHONPATH to include venv site-packages
+            venv_site = str(venv_path / "lib" / "python3.12" / "site-packages")
+            if (venv_path / "lib" / "python3.12" / "site-packages").exists():
+                env["PYTHONPATH"] = venv_site + ":" + env.get("PYTHONPATH", "")
+        
         return env
     
     async def _log_environment_setup(self, log_writer, env):
