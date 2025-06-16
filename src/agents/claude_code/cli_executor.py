@@ -249,18 +249,22 @@ class ClaudeSession:
 class StreamProcessor:
     """Processes Claude CLI JSON stream output."""
     
-    def __init__(self, on_message: Optional[Callable] = None, log_writer: Optional[Callable] = None, session_event: Optional[asyncio.Event] = None):
+    def __init__(self, on_message: Optional[Callable] = None, log_writer: Optional[Callable] = None, session_event: Optional[asyncio.Event] = None, workspace: Optional[Path] = None, run_id: Optional[str] = None):
         """Initialize stream processor.
         
         Args:
             on_message: Optional callback for each message
             log_writer: Optional log writer function for file logging
             session_event: Optional event to set when session is confirmed
+            workspace: Optional workspace path for auto-commits
+            run_id: Optional run ID for auto-commits
         """
         self.session_id: Optional[str] = None
         self.messages: List[Dict[str, Any]] = []
         self.on_message = on_message
         self.log_writer = log_writer
+        self.workspace = workspace
+        self.run_id = run_id
         self.session_event = session_event
         self.result_text = ""
         self.completed = False
@@ -548,7 +552,7 @@ class ClaudeCLIExecutor:
                         "allowed_tools": allowed_tools_file
                     },
                     "command_reconstruction": " ".join(reconstruction_parts),
-                    "working_directory": str(workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs"),
+                    "working_directory": self._determine_working_directory(workspace),
                     "user_message_length": len(message),
                     "max_turns": max_turns,
                     "workflow": workflow,
@@ -579,7 +583,7 @@ class ClaudeCLIExecutor:
             )
             
             # Get git commits
-            git_repo_path = workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs"
+            git_repo_path = Path(self._determine_working_directory(workspace))
             git_commits = await self._get_git_commits(git_repo_path)
             
             # Update result with commits and log file path
@@ -643,7 +647,7 @@ class ClaudeCLIExecutor:
             self.active_processes[session.run_id] = process
             
             processor, session_task = await self._setup_stream_processing(
-                stream_callback, log_writer, session
+                stream_callback, log_writer, session, workspace
             )
             
             try:
@@ -787,7 +791,7 @@ class ClaudeCLIExecutor:
                     env["PATH"] = f"{claude_dir}:{current_path}"
             
             # Start the Claude CLI process
-            working_dir = str(workspace if workspace.name == "am-agents-labs" else workspace / "am-agents-labs")
+            working_dir = self._determine_working_directory(workspace)
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=working_dir,
@@ -1229,7 +1233,10 @@ class ClaudeCLIExecutor:
     
     def _determine_working_directory(self, workspace):
         """Determine the correct working directory for process execution."""
-        if workspace.name == "am-agents-labs":
+        # For worktrees, the workspace IS the repository
+        if "builder_run_" in str(workspace):
+            return str(workspace)
+        elif workspace.name == "am-agents-labs":
             return str(workspace)
         else:
             return str(workspace / "am-agents-labs")
@@ -1258,10 +1265,10 @@ class ClaudeCLIExecutor:
         # Register process in database for tracking and emergency kill
         await self._register_workflow_process(process, log_writer)
     
-    async def _setup_stream_processing(self, stream_callback, log_writer, session):
+    async def _setup_stream_processing(self, stream_callback, log_writer, session, workspace=None):
         """Setup stream processing and session confirmation tracking."""
         session_confirmed_event = asyncio.Event()
-        processor = StreamProcessor(stream_callback, log_writer, session_confirmed_event)
+        processor = StreamProcessor(stream_callback, log_writer, session_confirmed_event, workspace, session.run_id)
         
         async def wait_for_session_confirmation():
             try:
@@ -1301,6 +1308,30 @@ class ClaudeCLIExecutor:
                             {"stream": "stderr", "content": decoded.strip()}
                         )
         
+        async def auto_commit_worker(workspace, run_id, interval=60):
+            """Background task for periodic auto-commits."""
+            from .cli_environment import CLIEnvironmentManager
+            env_manager = CLIEnvironmentManager()
+            snapshot_count = 0
+            
+            while not process.stdout.at_eof() and not process.stderr.at_eof():
+                try:
+                    await asyncio.sleep(interval)
+                    snapshot_count += 1
+                    commit_msg = f"auto-snapshot: workflow progress #{snapshot_count}"
+                    await env_manager.auto_commit_snapshot(workspace, run_id, commit_msg)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.debug(f"Auto-commit worker error: {e}")
+            
+        # Start auto-commit worker if workspace is available
+        auto_commit_task = None
+        if hasattr(processor, 'workspace') and hasattr(processor, 'run_id'):
+            auto_commit_task = asyncio.create_task(
+                auto_commit_worker(processor.workspace, processor.run_id)
+            )
+        
         stdout_task = asyncio.create_task(
             read_stream(process.stdout, stdout_lines, True)
         )
@@ -1308,10 +1339,19 @@ class ClaudeCLIExecutor:
             read_stream(process.stderr, stderr_lines, False)
         )
         
-        await asyncio.wait_for(
-            asyncio.gather(process.wait(), stdout_task, stderr_task),
-            timeout=timeout
-        )
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(process.wait(), stdout_task, stderr_task),
+                timeout=timeout
+            )
+        finally:
+            # Clean up auto-commit task
+            if auto_commit_task and not auto_commit_task.done():
+                auto_commit_task.cancel()
+                try:
+                    await auto_commit_task
+                except asyncio.CancelledError:
+                    pass
         
         return stdout_lines, stderr_lines
     

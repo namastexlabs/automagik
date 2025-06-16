@@ -92,6 +92,14 @@ class LocalExecutor(ExecutorBase):
                 run_id=run_id
             )
             
+            # Auto-commit all changes as snapshot before cleanup
+            try:
+                commit_message = f"auto-snapshot: {request.workflow_name} workflow completed"
+                await self.env_manager.auto_commit_snapshot(workspace_path, run_id, commit_message)
+                logger.info(f"Auto-committed final snapshot for run {run_id}")
+            except Exception as commit_error:
+                logger.warning(f"Auto-commit failed for run {run_id}: {commit_error}")
+            
             # Cleanup if configured
             if self.cleanup_on_complete and result.success:
                 await self.env_manager.cleanup(run_id)
@@ -164,6 +172,14 @@ class LocalExecutor(ExecutorBase):
                 timeout=request.timeout,
                 run_id=run_id
             )
+            
+            # Auto-commit initial snapshot (workflow may continue in background)
+            try:
+                commit_message = f"auto-snapshot: {request.workflow_name} workflow started"
+                await self.env_manager.auto_commit_snapshot(workspace_path, run_id, commit_message)
+                logger.info(f"Auto-committed initial snapshot for run {run_id}")
+            except Exception as commit_error:
+                logger.warning(f"Initial auto-commit failed for run {run_id}: {commit_error}")
             
             return first_response_data
             
