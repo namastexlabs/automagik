@@ -1,0 +1,46 @@
+[
+  {
+    "uuid": "22bf14b4-935f-4388-ba27-2241ad042c71",
+    "name": "Pattern: PydanticAI Genie Orchestrator Implementation",
+    "group_id": "default",
+    "created_at": "2025-06-03T07:09:42.319757Z",
+    "source": "text",
+    "source_description": "NMSTX-230 implementation experience",
+    "content": "Successfully implemented NMSTX-230 PydanticAI Genie Orchestrator following architectural patterns:\n\n**Core Architecture Pattern:**\n- GenieAgent extends AutomagikAgent for framework compatibility\n- Embedded LangGraph StateGraph for workflow orchestration\n- PostgreSQL checkpointing for persistent state management\n- Claude Code API client for workflow execution\n\n**Key Implementation Steps:**\n1. Created comprehensive data models in models.py (EpicState, WorkflowType, EpicRequest, EpicPlan, etc.)\n2. Implemented GenieAgent with create_epic() and run() methods\n3. Built LangGraph orchestration nodes (plan_epic, route_workflow, execute_workflow, check_approval, etc.)\n4. Added human approval management with trigger detection\n5. Created Claude Code API client for workflow execution\n6. Integrated with FastAPI routes for epic management\n\n**Critical Code Patterns:**\n- Use getattr() for optional dependencies attributes: `getattr(self.dependencies, 'channel_config', {})`\n- AgentResponse requires 'text' field, not 'response'\n- Dependencies initialization follows Sofia agent pattern\n- Error handling with PlaceholderAgent fallback in __init__.py\n\n**Dependencies Fixed:**\n- Used proper .venv virtual environment instead of system Python\n- Required: pydantic-ai, langgraph, langgraph-checkpoint-postgres, psycopg2-binary\n- Framework integration: AutomagikAgent, AutomagikAgentsDependencies\n\n**Testing Success:**\n- Agent creation works with proper config\n- Epic processing generates structured responses\n- Cost estimation and workflow planning functional\n- Basic orchestration pipeline operational\n\nThis pattern can be reused for other complex PydanticAI agents requiring workflow orchestration.",
+    "category": "agent_architecture",
+    "tags": ["pydantic-ai", "genie", "orchestrator", "langgraph", "implementation"]
+  },
+  {
+    "uuid": "de30a1be-4ac5-485f-b399-78cb35b57da4",
+    "name": "Debugging: AutomagikAgent Framework Issues",
+    "group_id": "default",
+    "created_at": "2025-06-03T07:10:26.115124Z",
+    "source": "text",
+    "source_description": "debugging experience from NMSTX-230",
+    "content": "Common issues and solutions when implementing PydanticAI agents in AutomagikAgent framework:\n\n**Dependency Import Issues:**\n- Always use proper .venv virtual environment, never system Python packages\n- Check `uv.lock` exists and use `source .venv/bin/activate`\n- Common missing deps: pydantic-ai, langgraph, psycopg2-binary, pytz, discord.py\n\n**AgentResponse Model Issues:**\n- Use `text` field, not `response` field\n- Required fields: text, success (optional fields: error_message, tool_calls, etc.)\n- Don't use non-existent fields like metadata, agent_id, agent_name\n\n**AutomagikAgent Integration:**\n- Use `self.db_id` not `self.agent_id`\n- Use `self.name` not `self.agent_name`\n- Dependencies may not have `channel_config` - use `getattr(self.dependencies, 'channel_config', {})`\n- Initialize dependencies like Sofia: `AutomagikAgentsDependencies(model_name=..., model_settings={}, session_id=..., user_id=...)`\n\n**Settings Access:**\n- Use `getattr(settings, 'CLAUDE_CODE_API_URL', \"http://localhost:8000\")` for optional settings\n- Don't assume settings attributes exist\n\n**Error Patterns to Avoid:**\n- ModuleNotFoundError: Use proper venv and install missing packages\n- AttributeError on dependencies: Use getattr() with defaults\n- Pydantic validation errors: Check model field names match exactly\n\n**Testing Approach:**\n1. Test agent creation first with minimal config\n2. Test basic run() method with simple input\n3. Check all AgentResponse fields are valid\n4. Verify dependencies are properly initialized",
+    "category": "debugging_patterns",
+    "tags": ["debugging", "automagik-agent", "pydantic-ai", "framework", "troubleshooting"]
+  },
+  {
+    "uuid": "dd32d789-b646-4cda-b4cb-7c4114095912",
+    "name": "Agent Architecture Refactoring Pattern",
+    "group_id": "default",
+    "created_at": "2025-06-12T23:39:49.422204Z",
+    "source": "text",
+    "source_description": "Major architecture refactoring documentation",
+    "content": "Successfully completed major refactoring of automagik-agents architecture:\n\nREMOVED: Specialized agent inheritance classes (EvolutionAgent, MultiPromptAgent, BlackPearlAgent, MultimodalAgent, APIIntegrationAgent, DiscordAgent, SimpleAgent as base)\n\nCONSOLIDATED: All functionality into single AutomagikAgent base class with feature flags:\n- enable_multi_prompt=True for status-based prompts\n- vision_model, supported_media, auto_enhance_prompts for multimodal (default enabled)\n- Built-in WhatsApp/Evolution support via channel handlers\n- Built-in memory template variable substitution\n\nMIGRATION PATTERN:\n1. Change inheritance from SpecializedAgent to AutomagikAgent\n2. Configure features via constructor parameters\n3. Set self._code_prompt_text = AGENT_PROMPT\n4. Initialize dependencies with self.create_default_dependencies()\n5. Register tools with self.tool_registry.register_default_tools(self.context)\n6. Copy specialized helper methods locally (e.g., BlackPearl contact management)\n\nBENEFITS:\n- Eliminated ~600 lines of duplicate code\n- Single base class simplifies development\n- Feature flags provide flexibility\n- All agents multimodal by default\n- Cleaner import paths\n- Preserved all existing functionality\n\nAGENTS MIGRATED:\n- SimpleAgent: Added multimodal config injection\n- FlashinhoPro: Added multimodal + multi-prompt support\n- EstruturarAgent: Removed EvolutionAgent inheritance\n- StanAgent: Copied BlackPearl methods locally, enabled multi-prompt\n- StanEmailAgent: Same as StanAgent\n- All other agents: Updated import paths\n\nDOCUMENTATION UPDATED:\n- docs/development/agents-overview.md: Removed specialized sections, added unified architecture\n- .cursor/rules/03_dev_workflow.mdc: Updated agent development patterns\n- src/agents/common/README.md: Removed specialized classes documentation\n- docs/CHANGELOG.md: Created with breaking changes documentation\n\nThis pattern demonstrates how to consolidate complex inheritance hierarchies into a single configurable base class while preserving all functionality.",
+    "category": "agent_architecture",
+    "tags": ["refactoring", "architecture", "automagik-agent", "consolidation", "feature-flags"]
+  },
+  {
+    "uuid": "7fb32f33-496e-4e24-b76b-277afb0508ae",
+    "name": "GENIE Git Tool Efficiency Learning",
+    "group_id": "default",
+    "created_at": "2025-06-14T10:17:17.805855Z",
+    "source": "text",
+    "source_description": "GENIE efficiency learning from user feedback",
+    "content": "GENIE learned to use MCP git tools instead of bash git commands for better efficiency.\n\nContext: During workspace optimization implementation, GENIE used bash commands like `git status`, `git add`, `git commit`, `git push` instead of the available MCP git tools.\n\nBetter Approach:\n- Use mcp__git__git_status() instead of `git status`\n- Use mcp__git__git_add() instead of `git add`\n- Use mcp__git__git_commit() instead of `git commit`\n- Use mcp__git__git_diff() instead of `git diff`\n\nBenefits:\n- More efficient execution through MCP protocol\n- Better error handling and structured responses\n- Consistent with other MCP tool usage patterns\n- Cleaner tool integration in workflow orchestration\n\nPattern Recognition:\n- When GENIE needs git operations, always check for MCP git tools first\n- Bash git commands should be last resort when MCP equivalent unavailable\n- This applies to all tool categories - prefer MCP over bash when available\n\nTeam Feedback Source: User pointed out efficiency improvement during workspace optimization commit/push sequence.\n\nAction: Update GENIE behavior to prefer MCP git tools for all future git operations.",
+    "category": "workflow_optimization",
+    "tags": ["genie", "mcp-tools", "efficiency", "git-operations", "user-feedback"]
+  }
+]

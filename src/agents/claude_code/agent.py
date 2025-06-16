@@ -1,7 +1,7 @@
 """ClaudeCodeAgent implementation.
 
-This module provides a ClaudeCodeAgent class that runs Claude CLI in isolated 
-Docker containers while maintaining full integration with the Automagik Agents framework.
+This module provides a ClaudeCodeAgent class that runs Claude CLI locally
+while maintaining full integration with the Automagik Agents framework.
 """
 import logging
 import traceback
@@ -9,6 +9,7 @@ import uuid
 import asyncio
 import json
 import os
+import aiofiles
 from typing import Dict, Optional, Any
 from datetime import datetime
 
@@ -17,40 +18,21 @@ from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
 
-# Import container and execution components
-from .container import ContainerManager
+# Import execution components
 from .executor_factory import ExecutorFactory
 from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
 from .log_manager import get_log_manager
+from .utils import get_current_git_branch_with_fallback
 
 logger = logging.getLogger(__name__)
 
 
-async def get_current_git_branch() -> str:
-    """Get the current git branch.
-    
-    Returns:
-        Current git branch name, or 'main' as fallback
-    """
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        branch = result.stdout.strip()
-        return branch if branch else "main"
-    except Exception as e:
-        logger.warning(f"Failed to get current git branch: {e}, defaulting to 'main'")
-        return "main"
 
 
 class ClaudeCodeAgent(AutomagikAgent):
-    """ClaudeCodeAgent implementation using Docker containers.
+    """ClaudeCodeAgent implementation using local execution.
     
-    This agent runs Claude CLI in isolated Docker containers to enable
+    This agent runs Claude CLI locally to enable
     long-running, autonomous AI workflows with state persistence and git integration.
     """
     
@@ -64,7 +46,10 @@ class ClaudeCodeAgent(AutomagikAgent):
         super().__init__(config)
         
         # Set description for this agent type
-        self.description = "Containerized Claude CLI agent for autonomous code tasks"
+        self.description = "Local Claude CLI agent for autonomous code tasks"
+        
+        # Workflow validation cache for performance
+        self._workflow_cache = {}
         
         # Load and register the code-defined prompt from workflows
         # This will be loaded from the workflow configuration
@@ -85,10 +70,9 @@ class ClaudeCodeAgent(AutomagikAgent):
         self.config.update({
             "agent_type": "claude-code",
             "framework": "claude-cli",
-            "docker_image": config.get("docker_image", "claude-code-agent:latest"),
-            "container_timeout": int(config.get("container_timeout", "7200")),  # 2 hours default
+            "execution_timeout": int(config.get("execution_timeout", "7200")),  # 2 hours default
             "max_concurrent_sessions": int(config.get("max_concurrent_sessions", "10")),
-            "workspace_volume_prefix": config.get("workspace_volume_prefix", "claude-code-workspace"),
+            "workspace_base": config.get("workspace_base", "/tmp/claude-workspace"),
             "default_workflow": config.get("default_workflow", "bug-fixer"),
             "git_branch": config.get("git_branch")  # None by default, will use current branch
         })
@@ -97,11 +81,10 @@ class ClaudeCodeAgent(AutomagikAgent):
         self.execution_mode = os.environ.get("CLAUDE_CODE_MODE", "local").lower()
         logger.info(f"ClaudeCodeAgent initializing in {self.execution_mode} mode")
         
-        # Initialize appropriate executor
+        # Initialize local executor
         try:
             self.executor = ExecutorFactory.create_executor(
-                mode=self.execution_mode,
-                container_manager=self._create_container_manager() if self.execution_mode == "docker" else None,
+                mode="local",
                 workspace_base=os.environ.get("CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"),
                 cleanup_on_complete=os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
             )
@@ -109,18 +92,10 @@ class ClaudeCodeAgent(AutomagikAgent):
             logger.error(f"Failed to create executor: {e}")
             raise
         
-        # Register default tools (not applicable for container-based execution)
+        # Register default tools (not applicable for local execution)
         # Tools are managed via workflow configurations
         
-        logger.info(f"ClaudeCodeAgent initialized successfully in {self.execution_mode} mode")
-    
-    def _create_container_manager(self) -> ContainerManager:
-        """Create container manager for Docker mode."""
-        return ContainerManager(
-            docker_image=self.config.get("docker_image"),
-            container_timeout=self.config.get("container_timeout"),
-            max_concurrent=self.config.get("max_concurrent_sessions")
-        )
+        logger.info(f"ClaudeCodeAgent initialized successfully in local mode")
     
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj: Optional[MessageHistory] = None,
@@ -185,7 +160,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Get git branch - use current branch if not specified
             git_branch = self.config.get("git_branch")
             if git_branch is None:
-                git_branch = await get_current_git_branch()
+                git_branch = await get_current_git_branch_with_fallback()
             
             # Create execution request
             request = ClaudeCodeRunRequest(
@@ -351,6 +326,10 @@ class ClaudeCodeAgent(AutomagikAgent):
         Returns:
             True if workflow is valid, False otherwise
         """
+        # Check cache first for performance
+        if workflow_name in self._workflow_cache:
+            return self._workflow_cache[workflow_name]
+        
         try:
             # Check if workflow directory exists
             import os
@@ -375,8 +354,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                 # Validate JSON files
                 if required_file.endswith('.json'):
                     try:
-                        with open(file_path, 'r') as f:
-                            json.load(f)
+                        async with aiofiles.open(file_path, 'r') as f:
+                            content = await f.read()
+                            json.loads(content)
                     except json.JSONDecodeError as e:
                         logger.warning(f"Invalid JSON in {file_path}: {str(e)}")
                         return False
@@ -385,10 +365,12 @@ class ClaudeCodeAgent(AutomagikAgent):
                         return False
             
             logger.debug(f"Workflow '{workflow_name}' validated successfully")
+            self._workflow_cache[workflow_name] = True
             return True
             
         except Exception as e:
             logger.error(f"Error validating workflow '{workflow_name}': {str(e)}")
+            self._workflow_cache[workflow_name] = False
             return False
     
     async def get_available_workflows(self) -> Dict[str, Dict[str, Any]]:
@@ -415,8 +397,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                         description = "No description available"
                         
                         if os.path.exists(prompt_file):
-                            with open(prompt_file, 'r') as f:
-                                lines = f.readlines()
+                            async with aiofiles.open(prompt_file, 'r') as f:
+                                content = await f.read()
+                                lines = content.splitlines()
                                 # Extract first line as description
                                 if lines:
                                     description = lines[0].strip("# \n")
@@ -467,7 +450,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Get git branch - use current branch if not specified
             git_branch = kwargs.get("git_branch") or self.config.get("git_branch")
             if git_branch is None:
-                git_branch = await get_current_git_branch()
+                git_branch = await get_current_git_branch_with_fallback()
             
             # Create execution request
             request = ClaudeCodeRunRequest(
