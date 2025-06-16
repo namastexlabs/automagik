@@ -20,7 +20,7 @@ async def test_api():
         # 1. Test health endpoint
         print("\n1️⃣ Testing /health endpoint...")
         response = await client.get(
-            f"{BASE_URL}/agent/claude-code/health",
+            f"{BASE_URL}/workflows/claude-code/health",
             headers=headers
         )
         print(f"Status: {response.status_code}")
@@ -35,7 +35,7 @@ async def test_api():
         # 2. Test workflows endpoint
         print("\n2️⃣ Testing /workflows endpoint...")
         response = await client.get(
-            f"{BASE_URL}/agent/claude-code/workflows",
+            f"{BASE_URL}/workflows/claude-code/workflows",
             headers=headers
         )
         print(f"Status: {response.status_code}")
@@ -56,7 +56,7 @@ async def test_api():
             "repository_url": "https://github.com/anthropics/claude-cli.git"
         }
         response = await client.post(
-            f"{BASE_URL}/agent/claude-code/run",
+            f"{BASE_URL}/workflows/claude-code/run",
             headers=headers,
             json=run_data
         )
@@ -74,7 +74,7 @@ async def test_api():
             await asyncio.sleep(5)
             
             response = await client.get(
-                f"{BASE_URL}/run/{run_id}/status",
+                f"{BASE_URL}/workflows/claude-code/run/{run_id}/status",
                 headers=headers
             )
             print(f"Status: {response.status_code}")
@@ -104,10 +104,10 @@ async def test_api():
         # 5. Test that removed endpoints are gone
         print("\n5️⃣ Testing that removed endpoints return 404...")
         removed_endpoints = [
-            "/agent/claude-code/test/run",  # Old path-based workflow
-            "/agent/claude-code/run/test_run/logs",  # Removed logs endpoint
-            "/agent/claude-code/run/test_run/logs/summary",  # Removed summary
-            "/agent/claude-code/logs"  # Removed list logs
+            "/workflows/claude-code/run/test",  # Old path-based workflow
+            "/workflows/claude-code/run/test_run/logs",  # Removed logs endpoint
+            "/workflows/claude-code/run/test_run/logs/summary",  # Removed summary
+            "/workflows/claude-code/logs"  # Removed list logs
         ]
         
         for endpoint in removed_endpoints:

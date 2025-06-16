@@ -12,23 +12,12 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 from datetime import datetime
 
-from .repository_utils import setup_repository, get_current_git_branch
+from .repository_utils import setup_repository
+from .utils import get_current_git_branch_with_fallback
 
 logger = logging.getLogger(__name__)
 
 
-async def get_current_git_branch_fallback() -> str:
-    """Get the current git branch with fallback.
-    
-    Returns:
-        Current git branch name, or 'main' as fallback
-    """
-    try:
-        branch = await get_current_git_branch()
-        return branch if branch else "main"
-    except Exception as e:
-        logger.warning(f"Failed to get current git branch: {e}, defaulting to 'main'")
-        return "main"
 
 
 class CLIEnvironmentManager:

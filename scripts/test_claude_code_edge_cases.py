@@ -78,7 +78,7 @@ async def test_authentication():
         # Test 1: Missing API key
         headers = {"Content-Type": "application/json"}
         status, data, error = await make_request(
-            session, "GET", "/api/v1/agent/claude-code/workflows", headers=headers
+            session, "GET", "/api/v1/workflows/claude-code/workflows", headers=headers
         )
         expected = status == 401 and "x-api-key is missing" in str(data)
         print_result("Missing API key", expected, f"Status: {status}")
@@ -86,14 +86,14 @@ async def test_authentication():
         # Test 2: Invalid API key
         headers = {"x-api-key": "invalid-key-123", "Content-Type": "application/json"}
         status, data, error = await make_request(
-            session, "GET", "/api/v1/agent/claude-code/workflows", headers=headers
+            session, "GET", "/api/v1/workflows/claude-code/workflows", headers=headers
         )
         expected = status == 401 and "Invalid API" in str(data)
         print_result("Invalid API key", expected, f"Status: {status}")
         
         # Test 3: API key in query params
         status, data, error = await make_request(
-            session, "GET", f"/api/v1/agent/claude-code/workflows?x-api-key={API_KEY}", 
+            session, "GET", f"/api/v1/workflows/claude-code/workflows?x-api-key={API_KEY}", 
             headers={"Content-Type": "application/json"}
         )
         expected = status == 200
@@ -107,7 +107,7 @@ async def test_invalid_endpoints():
     async with aiohttp.ClientSession() as session:
         # Test 1: Non-existent workflow
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/nonexistent/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/nonexistent",
             json_data={"message": "test"}
         )
         expected = status == 404
@@ -115,7 +115,7 @@ async def test_invalid_endpoints():
         
         # Test 2: Invalid run ID format
         status, data, error = await make_request(
-            session, "GET", "/api/v1/agent/claude-code/run/invalid-id-format/status"
+            session, "GET", "/api/v1/workflows/claude-code/run/invalid-id-format/status"
         )
         expected = status in [404, 422]
         print_result("Invalid run ID format", expected, f"Status: {status}")
@@ -128,7 +128,7 @@ async def test_invalid_payloads():
     async with aiohttp.ClientSession() as session:
         # Test 1: Empty payload
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={}
         )
         expected = status == 422  # Unprocessable Entity
@@ -136,7 +136,7 @@ async def test_invalid_payloads():
         
         # Test 2: Missing required field
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"max_turns": 1}  # Missing 'message'
         )
         expected = status == 422
@@ -144,7 +144,7 @@ async def test_invalid_payloads():
         
         # Test 3: Invalid max_turns
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": "test", "max_turns": 0}
         )
         expected = status == 422
@@ -152,7 +152,7 @@ async def test_invalid_payloads():
         
         # Test 4: Exceeding max_turns limit
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": "test", "max_turns": 200}
         )
         expected = status == 422
@@ -160,7 +160,7 @@ async def test_invalid_payloads():
         
         # Test 5: Invalid timeout
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": "test", "timeout": 30}  # Too short
         )
         expected = status == 422
@@ -175,7 +175,7 @@ async def test_edge_case_values():
         # Test 1: Very long message
         long_message = "x" * 10000  # 10k characters
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": long_message, "max_turns": 1}
         )
         expected = status in [200, 201]
@@ -184,7 +184,7 @@ async def test_edge_case_values():
         # Test 2: Special characters in message
         special_message = "Test with 特殊文字 and emojis 🚀 and \n newlines"
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": special_message, "max_turns": 1}
         )
         expected = status in [200, 201]
@@ -192,14 +192,14 @@ async def test_edge_case_values():
         
         # Test 3: Boundary values for max_turns
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": "test", "max_turns": 1}  # Minimum
         )
         expected = status in [200, 201]
         print_result("Minimum max_turns (1)", expected, f"Status: {status}")
         
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={"message": "test", "max_turns": 100}  # Maximum
         )
         expected = status in [200, 201]
@@ -215,7 +215,7 @@ async def test_concurrent_requests():
         tasks = []
         for i in range(5):
             task = make_request(
-                session, "GET", "/api/v1/agent/claude-code/workflows"
+                session, "GET", "/api/v1/workflows/claude-code/workflows"
             )
             tasks.append(task)
         
@@ -233,7 +233,7 @@ async def test_session_handling():
     async with aiohttp.ClientSession() as session:
         # Test 1: Invalid session ID
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={
                 "message": "test",
                 "session_id": "invalid-session-123",
@@ -247,7 +247,7 @@ async def test_session_handling():
         # Test 2: Very long session name
         long_name = "session_" + "x" * 500
         status, data, error = await make_request(
-            session, "POST", "/api/v1/agent/claude-code/architect/run",
+            session, "POST", "/api/v1/workflows/claude-code/run/architect",
             json_data={
                 "message": "test",
                 "session_name": long_name,
