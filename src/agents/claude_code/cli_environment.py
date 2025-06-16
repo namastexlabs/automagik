@@ -46,35 +46,49 @@ class CLIEnvironmentManager:
         logger.info(f"CLIEnvironmentManager initialized with base path: {self.base_path}")
     
     async def create_workspace(self, run_id: str) -> Path:
-        """Create isolated workspace in /tmp.
+        """Create git worktree workspace instead of isolated copy.
         
         Args:
             run_id: Unique identifier for this run
             
         Returns:
-            Path to the created workspace
+            Path to the created worktree workspace
             
         Raises:
-            OSError: If workspace creation fails
+            OSError: If worktree creation fails
         """
-        workspace_path = self.base_path / f"claude-code-{run_id}"
+        # Use main repository's worktrees directory
+        repo_root = Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
+        worktree_path = repo_root / "worktrees" / f"builder_run_{run_id}"
         
         try:
-            # Create workspace directory
-            workspace_path.mkdir(parents=True, exist_ok=True)
+            # Create worktree with new branch
+            branch_name = f"builder/run_{run_id}"
+            
+            # Create worktree
+            process = await asyncio.create_subprocess_exec(
+                "git", "worktree", "add", str(worktree_path), "-b", branch_name,
+                cwd=str(repo_root),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                raise OSError(f"Failed to create worktree: {stderr.decode()}")
             
             # Set proper permissions
-            os.chmod(workspace_path, 0o755)
+            os.chmod(worktree_path, 0o755)
             
             # Track active workspace
-            self.active_workspaces[run_id] = workspace_path
+            self.active_workspaces[run_id] = worktree_path
             
-            logger.info(f"Created workspace: {workspace_path}")
-            return workspace_path
+            logger.info(f"Created worktree workspace: {worktree_path} on branch {branch_name}")
+            return worktree_path
             
         except Exception as e:
-            logger.error(f"Failed to create workspace for run {run_id}: {e}")
-            raise OSError(f"Failed to create workspace: {e}")
+            logger.error(f"Failed to create worktree workspace for run {run_id}: {e}")
+            raise OSError(f"Failed to create worktree workspace: {e}")
     
     async def setup_repository(
         self, 
@@ -82,32 +96,36 @@ class CLIEnvironmentManager:
         branch: Optional[str],
         repository_url: Optional[str] = None
     ) -> Path:
-        """Setup repository in workspace - copy local or clone remote.
+        """Setup repository in worktree workspace - already configured.
         
         Args:
-            workspace: Workspace directory path
-            branch: Git branch to checkout (defaults to current branch if None)
-            repository_url: Repository URL to clone (defaults to local copy if None)
+            workspace: Worktree workspace directory path (already has git repo)
+            branch: Git branch (already set during worktree creation)
+            repository_url: Repository URL (ignored for worktrees)
             
         Returns:
-            Path to the repository in workspace
+            Path to the repository (same as workspace for worktrees)
             
         Raises:
             RuntimeError: If repository setup fails
         """
         try:
-            # Use the new setup_repository function from repository_utils
-            repo_path = await setup_repository(
-                workspace=workspace,
-                branch=branch,
-                repository_url=repository_url
-            )
+            # For worktrees, the workspace IS the repository
+            # No additional setup needed since worktree creation handles branch setup
             
-            logger.info(f"Repository setup complete at {repo_path}")
-            return repo_path
+            if not workspace.exists():
+                raise RuntimeError(f"Worktree workspace {workspace} does not exist")
+            
+            # Verify it's a git repository
+            git_dir = workspace / ".git"
+            if not git_dir.exists():
+                raise RuntimeError(f"Worktree workspace {workspace} is not a git repository")
+            
+            logger.info(f"Worktree repository ready at {workspace}")
+            return workspace
             
         except Exception as e:
-            logger.error(f"Failed to setup repository: {e}")
+            logger.error(f"Failed to setup worktree repository: {e}")
             raise
     
     async def copy_configs(self, workspace: Path, workflow_name: Optional[str] = None) -> None:
@@ -156,10 +174,10 @@ class CLIEnvironmentManager:
                     logger.warning(f"Failed to copy workflow {workflow_name}: {e}")
     
     async def cleanup(self, workspace: Path, force: bool = False) -> bool:
-        """Remove workspace and all contents.
+        """Remove worktree workspace and all contents.
         
         Args:
-            workspace: Workspace directory path
+            workspace: Worktree workspace directory path
             force: Force cleanup even if processes might be running
             
         Returns:
@@ -175,21 +193,57 @@ class CLIEnvironmentManager:
             
             # Check if workspace exists
             if not workspace.exists():
-                logger.warning(f"Workspace {workspace} does not exist")
+                logger.warning(f"Worktree workspace {workspace} does not exist")
                 return True
             
-            # Remove workspace
-            shutil.rmtree(workspace, ignore_errors=force)
+            # Remove worktree using git command
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    "git", "worktree", "remove", str(workspace),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    logger.warning(f"Git worktree remove failed: {stderr.decode()}")
+                    if force:
+                        # Force remove with shutil as fallback
+                        shutil.rmtree(workspace, ignore_errors=True)
+                    else:
+                        return False
+                        
+            except Exception as git_error:
+                logger.warning(f"Git worktree remove error: {git_error}")
+                if force:
+                    # Force remove with shutil as fallback
+                    shutil.rmtree(workspace, ignore_errors=True)
+                else:
+                    return False
+            
+            # Clean up branch if this was a temporary branch
+            if run_id:
+                branch_name = f"builder/run_{run_id}"
+                try:
+                    process = await asyncio.create_subprocess_exec(
+                        "git", "branch", "-D", branch_name,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await process.communicate()
+                    logger.debug(f"Cleaned up branch: {branch_name}")
+                except Exception as branch_error:
+                    logger.debug(f"Branch cleanup error (non-critical): {branch_error}")
             
             # Remove from active workspaces
             if run_id:
                 del self.active_workspaces[run_id]
             
-            logger.info(f"Cleaned up workspace: {workspace}")
+            logger.info(f"Cleaned up worktree workspace: {workspace}")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to cleanup workspace {workspace}: {e}")
+            logger.error(f"Failed to cleanup worktree workspace {workspace}: {e}")
             return False
     
     async def cleanup_all(self, force: bool = False) -> Dict[str, bool]:
