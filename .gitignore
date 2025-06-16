@@ -245,6 +245,17 @@ tasks/
 /site
 
 ####################
+# Workflow System
+####################
+
+# Git worktrees directory (contains temporary workflow branches)
+worktrees/
+
+# Runtime data directory (SQLite DB, temporary files)
+data/
+!data/.gitkeep
+
+####################
 # Documentation
 ####################
 
@@ -261,6 +272,3 @@ uv.lock
 
 # Backup files
 *.bak
-
-
-data/*worktrees/
