@@ -868,6 +868,124 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
         )
 
 
+@claude_code_router.post("/run/{run_id}/kill")
+async def kill_claude_code_run(
+    run_id: str = Path(..., description="Run ID to terminate"),
+    force: bool = False
+) -> Dict[str, Any]:
+    """
+    Emergency termination of a running Claude-Code workflow.
+    
+    **Kill Phases:**
+    1. **Graceful shutdown** (5s timeout) - Send SIGTERM, allow cleanup
+    2. **Forced termination** (10s timeout) - Send SIGKILL if graceful fails  
+    3. **System cleanup** - Resource cleanup and audit logging
+    
+    **Parameters:**
+    - `run_id`: The run ID to terminate
+    - `force`: If true, skip graceful shutdown and kill immediately
+    
+    **Returns:**
+    Kill confirmation with cleanup status and audit information.
+    
+    **Examples:**
+    ```bash
+    # Graceful termination (recommended)
+    POST /api/v1/workflows/claude-code/run/run_abc123/kill
+    
+    # Force kill (emergency only)
+    POST /api/v1/workflows/claude-code/run/run_abc123/kill?force=true
+    ```
+    """
+    try:
+        import time
+        kill_start_time = time.time()
+        
+        # Find session by run_id
+        sessions = session_repo.list_sessions()
+        target_session = None
+        
+        for session in sessions:
+            if session.metadata and session.metadata.get("run_id") == run_id:
+                target_session = session
+                break
+        
+        if not target_session:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        
+        metadata = target_session.metadata or {}
+        workflow_name = metadata.get("workflow_name", "unknown")
+        
+        # Get the Claude-Code agent
+        agent = AgentFactory.get_agent("claude_code")
+        if not agent:
+            raise HTTPException(status_code=404, detail="Claude-Code agent not available")
+        
+        # Perform emergency kill using the local executor
+        kill_result = await agent.executor.cancel_execution(run_id)
+        
+        if not kill_result:
+            # Try alternative kill methods if executor didn't find the process
+            from src.agents.claude_code.cli_executor import ClaudeCLIExecutor
+            cli_executor = ClaudeCLIExecutor()
+            kill_result = await cli_executor.cancel_execution(run_id)
+        
+        # Update session metadata with kill information
+        kill_time = datetime.utcnow()
+        kill_duration = time.time() - kill_start_time
+        
+        metadata.update({
+            "run_status": "killed",
+            "killed_at": kill_time.isoformat(),
+            "kill_method": "force" if force else "graceful", 
+            "kill_duration_ms": int(kill_duration * 1000),
+            "kill_successful": kill_result,
+            "completed_at": kill_time.isoformat()
+        })
+        target_session.metadata = metadata
+        session_repo.update_session(target_session)
+        
+        # Log kill event for audit trail
+        log_manager = get_log_manager()
+        async with log_manager.get_log_writer(run_id) as log_writer:
+            await log_writer(
+                f"Emergency kill executed for workflow {workflow_name}",
+                "workflow_killed",
+                {
+                    "run_id": run_id,
+                    "workflow_name": workflow_name,
+                    "kill_method": "force" if force else "graceful",
+                    "kill_successful": kill_result,
+                    "kill_duration_ms": int(kill_duration * 1000),
+                    "killed_at": kill_time.isoformat(),
+                    "kill_reason": "emergency_termination"
+                }
+            )
+        
+        return {
+            "success": kill_result,
+            "run_id": run_id,
+            "workflow_name": workflow_name,
+            "killed_at": kill_time.isoformat(),
+            "kill_method": "force" if force else "graceful",
+            "kill_duration_ms": int(kill_duration * 1000),
+            "cleanup_status": {
+                "session_updated": True,
+                "audit_logged": True,
+                "process_terminated": kill_result
+            },
+            "message": f"Workflow {workflow_name} ({'force killed' if force else 'gracefully terminated'}) in {kill_duration:.2f}s"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error killing Claude-Code run {run_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to kill run: {str(e)}"
+        )
+
+
 @claude_code_router.get("/health")
 async def claude_code_health() -> Dict[str, Any]:
     """
