@@ -1035,7 +1035,7 @@ class ClaudeCLIExecutor:
             }
     
     async def cancel_execution(self, run_id: str) -> bool:
-        """Cancel a running execution.
+        """Cancel a running execution with GUARDIAN safety validation.
         
         Args:
             run_id: Run ID to cancel
@@ -1043,27 +1043,125 @@ class ClaudeCLIExecutor:
         Returns:
             True if cancelled, False otherwise
         """
-        if run_id in self.active_processes:
-            process = self.active_processes[run_id]
-            try:
-                # Graceful shutdown first
-                process.terminate()
-                await asyncio.wait_for(process.wait(), timeout=5)
-                status = "terminated"
-            except asyncio.TimeoutError:
-                # Force kill if graceful shutdown fails
-                process.kill()
-                status = "killed"
-                logger.warning(f"Force killed process for run_id: {run_id}")
+        # GUARDIAN Safety Validation - Pre-kill checks
+        kill_start_time = time.time()
+        
+        # Validate run_id before proceeding
+        if not run_id or not isinstance(run_id, str):
+            logger.error(f"🛡️ GUARDIAN: Invalid run_id for cancellation: {run_id}")
+            return False
+        
+        # Check if process exists in active processes
+        if run_id not in self.active_processes:
+            logger.warning(f"🛡️ GUARDIAN: Process {run_id} not found in active processes")
+            # Try to clean up stale database records
+            await self._cleanup_workflow_process(run_id, "not_found")
+            return False
+        
+        process = self.active_processes[run_id]
+        
+        # GUARDIAN Safety Validation - Process health check
+        try:
+            # Verify process is still running
+            if process.returncode is not None:
+                logger.info(f"🛡️ GUARDIAN: Process {run_id} already terminated (code: {process.returncode})")
+                await self._cleanup_workflow_process(run_id, "already_terminated")
+                del self.active_processes[run_id]
+                return True
             
+            # Log kill attempt for audit trail
+            log_manager = get_log_manager()
+            async with log_manager.get_log_writer(run_id) as log_writer:
+                await log_writer(
+                    f"🛡️ GUARDIAN initiating process cancellation",
+                    "guardian_kill_start",
+                    {
+                        "run_id": run_id,
+                        "process_pid": process.pid,
+                        "kill_reason": "manual_cancellation",
+                        "safety_validated": True,
+                        "guardian_timestamp": datetime.utcnow().isoformat()
+                    }
+                )
+        except Exception as e:
+            logger.error(f"🛡️ GUARDIAN: Pre-kill validation failed for {run_id}: {e}")
+            # Continue with kill attempt despite validation error
+        
+        # GUARDIAN Progressive Kill Strategy - Graceful → Force → Cleanup
+        kill_success = False
+        kill_method = "unknown"
+        
+        try:
+            # Phase 1: Graceful shutdown (SIGTERM with 5s timeout)
+            logger.info(f"🛡️ GUARDIAN: Attempting graceful termination of {run_id}")
+            process.terminate()
+            
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5)
+                kill_success = True
+                kill_method = "graceful"
+                logger.info(f"🛡️ GUARDIAN: Successfully terminated {run_id} gracefully")
+                
+            except asyncio.TimeoutError:
+                # Phase 2: Force kill (SIGKILL)
+                logger.warning(f"🛡️ GUARDIAN: Graceful termination failed, force killing {run_id}")
+                process.kill()
+                
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=10)
+                    kill_success = True
+                    kill_method = "force"
+                    logger.info(f"🛡️ GUARDIAN: Successfully force killed {run_id}")
+                    
+                except asyncio.TimeoutError:
+                    logger.error(f"🛡️ GUARDIAN: Force kill failed for {run_id} - process may be stuck")
+                    kill_method = "failed"
+                    kill_success = False
+        
+        except Exception as e:
+            logger.error(f"🛡️ GUARDIAN: Kill operation failed for {run_id}: {e}")
+            kill_method = "error"
+            kill_success = False
+        
+        # Phase 3: Cleanup and audit logging
+        kill_duration = time.time() - kill_start_time
+        
+        try:
             # Clean up workflow process record in database
+            status = f"{kill_method}_killed" if kill_success else "kill_failed"
             await self._cleanup_workflow_process(run_id, status)
             
-            del self.active_processes[run_id]
-            logger.info(f"Cancelled execution: {run_id} (status: {status})")
-            return True
+            # Remove from active processes
+            if run_id in self.active_processes:
+                del self.active_processes[run_id]
             
-        return False
+            # GUARDIAN Audit Logging
+            log_manager = get_log_manager()
+            async with log_manager.get_log_writer(run_id) as log_writer:
+                await log_writer(
+                    f"🛡️ GUARDIAN process cancellation completed",
+                    "guardian_kill_complete",
+                    {
+                        "run_id": run_id,
+                        "kill_success": kill_success,
+                        "kill_method": kill_method,
+                        "kill_duration_seconds": round(kill_duration, 3),
+                        "cleanup_completed": True,
+                        "guardian_timestamp": datetime.utcnow().isoformat(),
+                        "safety_validated": True
+                    }
+                )
+                
+            if kill_success:
+                logger.info(f"🛡️ GUARDIAN: Successfully cancelled execution {run_id} ({kill_method}) in {kill_duration:.3f}s")
+            else:
+                logger.error(f"🛡️ GUARDIAN: Failed to cancel execution {run_id} after {kill_duration:.3f}s")
+            
+        except Exception as cleanup_error:
+            logger.error(f"🛡️ GUARDIAN: Cleanup failed for {run_id}: {cleanup_error}")
+            # Even if cleanup fails, return the kill result
+        
+        return kill_success
     
     async def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a session.
