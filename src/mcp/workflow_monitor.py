@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .safety_triggers import SafetyTriggerSystem, TriggerType, TriggerSeverity
+from ..utils.timezone import get_timezone_aware_now, format_timestamp_for_api
 from ..db.repository.workflow_process import (
     get_running_processes, get_stale_processes,
     update_heartbeat, mark_process_terminated
@@ -288,7 +289,7 @@ class WorkflowMonitor:
     async def _check_process_timeout(self, process):
         """Check if a specific process has timed out."""
         config = self.get_timeout_config(process.workflow_name)
-        now = datetime.utcnow()
+        now = get_timezone_aware_now()
         
         # Calculate elapsed time
         started_at = process.started_at
@@ -433,7 +434,7 @@ class WorkflowMonitor:
         config = self.get_timeout_config(process.workflow_name)
         
         # Calculate time since last heartbeat
-        now = datetime.utcnow()
+        now = get_timezone_aware_now()
         last_heartbeat = process.last_heartbeat or process.started_at or process.created_at
         stale_minutes = (now - last_heartbeat).total_seconds() / 60
         
@@ -484,7 +485,7 @@ class WorkflowMonitor:
         for process in running_processes:
             config = self.get_timeout_config(process.workflow_name)
             started_at = process.started_at or process.created_at
-            elapsed_minutes = (datetime.utcnow() - started_at).total_seconds() / 60
+            elapsed_minutes = (get_timezone_aware_now() - started_at).total_seconds() / 60
             
             is_warning = elapsed_minutes >= config.warning_threshold_minutes
             is_timeout = elapsed_minutes >= config.timeout_minutes
@@ -520,7 +521,7 @@ class WorkflowMonitor:
         for process in running_processes:
             config = self.get_timeout_config(process.workflow_name)
             started_at = process.started_at or process.created_at
-            elapsed_minutes = (datetime.utcnow() - started_at).total_seconds() / 60
+            elapsed_minutes = (get_timezone_aware_now() - started_at).total_seconds() / 60
             
             if elapsed_minutes >= config.warning_threshold_minutes:
                 warning_processes.append({
