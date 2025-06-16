@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from src.db.models import WorkflowProcess, WorkflowProcessCreate, WorkflowProcessUpdate
 from src.db.connection import execute_query, get_db_cursor
+from ...utils.timezone import get_timezone_aware_now
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def create_workflow_process(process: WorkflowProcessCreate) -> bool:
     """
     try:
         # Use current timestamp for created_at, started_at, and last_heartbeat
-        now = datetime.utcnow()
+        now = get_timezone_aware_now()
         
         # Convert process_info to JSON string if it's a dict
         process_info_json = process.process_info
@@ -188,7 +189,7 @@ def update_workflow_process(run_id: str, update: WorkflowProcessUpdate) -> bool:
         
         # Always update the updated_at timestamp
         set_clauses.append("updated_at = %s")
-        params.append(datetime.utcnow())
+        params.append(get_timezone_aware_now())
         
         # Add run_id for WHERE clause
         params.append(run_id)
@@ -236,7 +237,7 @@ def update_heartbeat(run_id: str) -> bool:
         True if updated successfully, False otherwise
     """
     try:
-        now = datetime.utcnow()
+        now = get_timezone_aware_now()
         update = WorkflowProcessUpdate(last_heartbeat=now)
         return update_workflow_process(run_id, update)
         
@@ -289,7 +290,7 @@ def get_stale_processes(max_age_minutes: int = 5) -> List[WorkflowProcess]:
     try:
         # Calculate cutoff time
         from datetime import timedelta
-        cutoff_time = datetime.utcnow() - timedelta(minutes=max_age_minutes)
+        cutoff_time = get_timezone_aware_now() - timedelta(minutes=max_age_minutes)
         
         query = """
         SELECT * FROM workflow_processes 
@@ -317,7 +318,7 @@ def cleanup_old_processes(max_age_days: int = 7) -> int:
     """
     try:
         from datetime import timedelta
-        cutoff_time = datetime.utcnow() - timedelta(days=max_age_days)
+        cutoff_time = get_timezone_aware_now() - timedelta(days=max_age_days)
         
         query = """
         DELETE FROM workflow_processes 
