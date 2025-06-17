@@ -226,7 +226,7 @@ class StreamParser:
         return "pending"
     
     @staticmethod
-    def get_progress_info(events: List[Dict[str, Any]], max_turns: int = 30) -> Dict[str, Any]:
+    def get_progress_info(events: List[Dict[str, Any]], max_turns: Optional[int] = None) -> Dict[str, Any]:
         """Extract progress information from events.
         
         Args:
