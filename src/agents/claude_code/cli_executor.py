@@ -177,7 +177,7 @@ class ClaudeSession:
         if self.claude_session_id:
             cmd.extend(["--resume", self.claude_session_id])
         
-        # Add standard flags
+        # Add standard flags  
         cmd.extend([
             "-p",  # Pretty output
             "--output-format", "stream-json",
@@ -278,8 +278,8 @@ class StreamProcessor:
     def _init_json_stream_file(self):
         """Initialize the immutable JSON stream log file."""
         try:
-            # Create logs directory if it doesn't exist
-            logs_dir = Path("./logs")
+            # Create logs directory if it doesn't exist - use absolute path
+            logs_dir = Path("/home/namastex/workspace/am-agents-labs/logs")
             logs_dir.mkdir(exist_ok=True)
             
             # Create JSON stream file for this run
@@ -529,7 +529,7 @@ class ClaudeCLIExecutor:
         timeout = timeout or self.timeout
         
         # Create or get session
-        session = self._get_or_create_session(workflow, session_id, max_turns)
+        session = self._get_or_create_session(workflow, session_id, max_turns, run_id)
         
         # Setup log manager for this run
         log_manager = get_log_manager()
@@ -700,7 +700,7 @@ class ClaudeCLIExecutor:
             await self._log_environment_setup(log_writer, env)
             
             working_dir = self._determine_working_directory(workspace)
-            process = await self._create_process(cmd, working_dir, env)
+            process = await self._create_process(cmd, working_dir, env, session)
             
             await self._log_process_start(log_writer, process, timeout)
             self.active_processes[session.run_id] = process
@@ -708,6 +708,9 @@ class ClaudeCLIExecutor:
             processor, session_task = await self._setup_stream_processing(
                 stream_callback, log_writer, session, workspace
             )
+            
+            # Initialize variables to avoid UnboundLocalError in finally block
+            stdout_lines, stderr_lines = [], []
             
             try:
                 stdout_lines, stderr_lines = await self._execute_process_streams(
@@ -733,7 +736,8 @@ class ClaudeCLIExecutor:
         self,
         workflow: str,
         session_id: Optional[str],
-        max_turns: int
+        max_turns: int,
+        run_id: Optional[str] = None
     ) -> ClaudeSession:
         """Get existing session or create new one."""
         if session_id and session_id in self.sessions:
@@ -747,7 +751,8 @@ class ClaudeCLIExecutor:
             session_id=None,  # Database session ID (not used for CLI)
             claude_session_id=session_id,  # Claude session ID for --resume
             workflow_name=workflow,
-            max_turns=max_turns
+            max_turns=max_turns,
+            run_id=run_id  # Use the provided run_id instead of generating one
         )
     
     async def _get_git_commits(self, repo_path: Path) -> List[str]:
@@ -824,7 +829,7 @@ class ClaudeCLIExecutor:
         timeout = timeout or self.timeout
         
         # Create or get session
-        session = self._get_or_create_session(workflow, session_id, max_turns)
+        session = self._get_or_create_session(workflow, session_id, max_turns, run_id)
         
         # Setup log manager for this run
         log_manager = get_log_manager()
@@ -853,13 +858,7 @@ class ClaudeCLIExecutor:
             
             # Start the Claude CLI process
             working_dir = self._determine_working_directory(workspace)
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=working_dir,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
-            )
+            process = await self._create_process(cmd, working_dir, env, session)
             
             # Track active process
             self.active_processes[session.run_id] = process
@@ -1330,7 +1329,7 @@ class ClaudeCLIExecutor:
         else:
             return str(workspace / "am-agents-labs")
     
-    async def _create_process(self, cmd, working_dir, env):
+    async def _create_process(self, cmd, working_dir, env, session=None):
         """Create the Claude CLI subprocess."""
         return await asyncio.create_subprocess_exec(
             *cmd,
