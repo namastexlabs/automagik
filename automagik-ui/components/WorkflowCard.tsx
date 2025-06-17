@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AutomagikAPI, WorkflowStatus } from '@/lib/api';
+import { getWorkflowStatus, WorkflowStatus } from '@/lib/api';
 import { WorkflowStatusBadge } from '@/components/WorkflowStatusBadge';
 import { toast } from 'sonner';
 
@@ -14,37 +14,45 @@ export default function WorkflowCard({ initialWorkflow, onStatusChange }: Workfl
   const [workflow, setWorkflow] = useState<WorkflowStatus>(initialWorkflow);
 
   useEffect(() => {
-    if (workflow.status === 'running' || workflow.status === 'pending') {
-      const handleUpdate = (updatedStatus: WorkflowStatus) => {
-        setWorkflow(updatedStatus);
-        onStatusChange?.(updatedStatus);
-      };
+    let intervalId: NodeJS.Timeout;
 
-      const handleComplete = (finalStatus: WorkflowStatus) => {
-        setWorkflow(finalStatus);
-        onStatusChange?.(finalStatus);
-        
-        // Show completion toast
-        if (finalStatus.status === 'completed') {
-          toast.success(`Workflow "${finalStatus.workflow_name}" completed successfully!`, {
-            description: finalStatus.message,
-            duration: 5000,
-          });
-        } else if (finalStatus.status === 'failed') {
-          toast.error(`Workflow "${finalStatus.workflow_name}" failed`, {
-            description: finalStatus.error || 'Unknown error occurred',
-            duration: 8000,
-          });
+    if (workflow.status === 'running' || workflow.status === 'pending') {
+      const pollStatus = async () => {
+        try {
+          const updatedStatus = await getWorkflowStatus(workflow.run_id);
+          setWorkflow(updatedStatus);
+          onStatusChange?.(updatedStatus);
+          
+          if (updatedStatus.status === 'completed') {
+            toast.success(`Workflow "${updatedStatus.workflow_name}" completed successfully!`, {
+              description: updatedStatus.message,
+              duration: 5000,
+            });
+            clearInterval(intervalId);
+          } else if (updatedStatus.status === 'failed') {
+            toast.error(`Workflow "${updatedStatus.workflow_name}" failed`, {
+              description: 'Check logs for details',
+              duration: 8000,
+            });
+            clearInterval(intervalId);
+          }
+        } catch (error) {
+          console.error('Failed to poll workflow status:', error);
         }
       };
 
-      // Start enhanced polling with 2-second intervals
-      AutomagikAPI.startStatusPolling(workflow.run_id, handleUpdate, handleComplete);
-
-      return () => {
-        AutomagikAPI.stopStatusPolling(workflow.run_id);
-      };
+      // Poll every 3 seconds
+      intervalId = setInterval(pollStatus, 3000);
+      
+      // Initial poll
+      pollStatus();
     }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [workflow.run_id, workflow.status, onStatusChange]);
 
   const getStatusColor = (status: string) => {
