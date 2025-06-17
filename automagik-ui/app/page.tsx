@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import QuickActions from '@/components/QuickActions';
 import SystemHealth from '@/components/SystemHealth';
 import WorkflowCard from '@/components/WorkflowCard';
-import { AutomagikAPI, WorkflowType, WorkflowStatus } from '@/lib/api';
+import { getWorkflows, getRecentRuns, WorkflowType, WorkflowStatus } from '@/lib/api';
 
 export default function Dashboard() {
   const [workflows, setWorkflows] = useState<WorkflowType[]>([]);
@@ -15,23 +15,13 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       setError('');
-      const [workflowTypes, runs] = await Promise.all([
-        AutomagikAPI.listWorkflows().catch(() => [
-          // Fallback workflows if API is not available
-          { name: 'test', description: 'Run tests and validate code quality', capabilities: ['testing', 'validation'] },
-          { name: 'pr', description: 'Create and manage pull requests', capabilities: ['git', 'review'] },
-          { name: 'fix', description: 'Identify and fix bugs in code', capabilities: ['debugging', 'repair'] },
-          { name: 'refactor', description: 'Improve code structure and quality', capabilities: ['optimization', 'cleanup'] },
-          { name: 'implement', description: 'Build new features and functionality', capabilities: ['development', 'creation'] },
-          { name: 'review', description: 'Code review and quality assessment', capabilities: ['analysis', 'feedback'] },
-          { name: 'document', description: 'Generate and update documentation', capabilities: ['writing', 'explanation'] },
-          { name: 'architect', description: 'Design system architecture', capabilities: ['planning', 'design'] },
-        ]),
-        AutomagikAPI.listRecentRuns({ limit: 10 }).catch(() => [])
+      const [workflowTypes, runsData] = await Promise.all([
+        getWorkflows(),
+        getRecentRuns({ page_size: 10 })
       ]);
       
       setWorkflows(workflowTypes);
-      setRecentRuns(runs);
+      setRecentRuns(runsData.runs || []);
     } catch (err) {
       setError('Failed to load dashboard data: ' + (err as Error).message);
     } finally {
