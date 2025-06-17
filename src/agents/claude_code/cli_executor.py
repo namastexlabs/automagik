@@ -655,14 +655,30 @@ class ClaudeCLIExecutor:
         except Exception as e:
             logger.error(f"CLI execution failed: {e}")
             
+            # Enhanced error handling for chunk/separator errors
+            if "Separator is found, but chunk is longer than limit" in str(e):
+                logger.error(f"Text chunking error detected - likely in agent-memory processing")
+                logger.error(f"This error typically occurs when processing large content that exceeds chunk size limits")
+            
             # Log error to file if we have a run_id
             if actual_run_id:
                 try:
                     async with log_manager.get_log_writer(actual_run_id) as log_writer:
+                        error_data = {"error_type": type(e).__name__, "traceback": str(e)}
+                        
+                        # Add specific chunking error context
+                        if "Separator is found, but chunk is longer than limit" in str(e):
+                            error_data.update({
+                                "chunking_error": True,
+                                "component": "agent-memory",
+                                "recommendation": "reduce_content_size_or_increase_chunk_limit",
+                                "description": "Text chunking failure - content exceeds maximum chunk size"
+                            })
+                        
                         await log_writer(
                             f"Execution failed: {str(e)}",
                             "error",
-                            {"error_type": type(e).__name__, "traceback": str(e)}
+                            error_data
                         )
                 except Exception:
                     pass  # Don't fail on logging errors
