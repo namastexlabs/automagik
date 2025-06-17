@@ -5,7 +5,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "http://127.0.0.1:8002"
+BASE_URL = "http://127.0.0.1:28881"
 API_KEY = "namastex888"
 HEADERS = {"x-api-key": API_KEY}
 
