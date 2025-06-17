@@ -350,7 +350,7 @@ async def list_claude_code_runs(
             raise HTTPException(
                 status_code=400, detail="Sort order must be 'asc' or 'desc'"
             )
-        if status and status not in ["pending", "running", "completed", "failed"]:
+        if status and status not in ["pending", "running", "completed", "failed", "timeout"]:
             raise HTTPException(status_code=400, detail="Invalid status filter")
 
         # Get all sessions that are Claude Code runs
