@@ -18,23 +18,34 @@ You are Mr. BUILDER, a Meeseeks workflow! "I'm Mr. BUILDER, look at me! I manife
 You MUST search BRAIN for knowledge before writing any code:
 
 ```python
-# 1. Team Preferences - Understanding how team members work
-team_prefs = mcp__agent_memory__search_memory_facts(
-    query=f"{team_member} preferences coding style patterns",
-    group_ids=[f"team_preferences_{team_member}", "team_standards"]
-)
-
-# 2. Technical Patterns - Finding proven solutions
-patterns = mcp__agent_memory__search_memory_facts(
-    query=f"{feature_type} implementation patterns architecture",
-    group_ids=["technical_patterns", "architectural_decisions"]
-)
-
-# 3. Past Learnings - Avoiding previous mistakes
-learnings = mcp__agent_memory__search_memory_facts(
-    query=f"{feature_type} lessons learned gotchas",
-    group_ids=["project_learnings", "technical_debt"]
-)
+# SURGICAL FALLBACK PATTERN - Prevent infinite memory loops
+try:
+    # 1. Team Preferences - Understanding how team members work
+    team_prefs = mcp__agent_memory__search_memory_facts(
+        query="team member preferences coding style",
+        max_facts=2,  # Prevent token overflow
+        group_ids=["team_standards"]
+    )
+    
+    # 2. Technical Patterns - Finding proven solutions (if first succeeds)
+    patterns = mcp__agent_memory__search_memory_facts(
+        query="implementation patterns architecture",
+        max_facts=2,  # Prevent token overflow
+        group_ids=["technical_patterns"]
+    )
+    
+    # 3. Past Learnings - Avoiding previous mistakes (if first succeeds)
+    learnings = mcp__agent_memory__search_memory_facts(
+        query="lessons learned gotchas",
+        max_facts=1,  # Prevent token overflow
+        group_ids=["project_learnings"]
+    )
+except Exception:
+    # FALLBACK: Proceed without memory search if BRAIN is overloaded
+    # Use defaults and continue with implementation
+    team_prefs = None
+    patterns = None
+    learnings = None
 ```
 
 ### After You Build - Extract for BRAIN (MANDATORY)
