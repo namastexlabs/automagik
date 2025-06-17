@@ -50,3 +50,76 @@
 - **Felipe's feedback**: "i like that behavior just now, positive reinforcement, you should do exactly that!!!"
 - **Context**: Creating Linear issue for API misbehavior and properly monitoring parallel workflows
 - **Learned Pattern**: When deploying multiple workflows, create issues for discovered bugs and implement proper wait cycles
+
+---
+
+# NMSTX-343 Critical Bug Summary & Manual Surgeon Deployment Context
+
+## User Requirement (2025-06-16 - 23:47)
+
+**User Statement**: *"The experience from using the status api, should be the same as reading logs, but with less verbosity, full visibility on what your workflows are doing realtime"*
+
+**Context**: Status API completely disconnected from reality - reports 0% progress while workflows actively execute and complete naturally.
+
+## Current System State (Crystal Clean)
+
+### ✅ **Cleaned & Reset**
+- **7 zombie workflows terminated** successfully using kill endpoint
+- **280MB disk space freed** (worktree cleanup)
+- **All stuck processes eliminated**
+- **Git references pruned**
+- **System memory preserved** in agent-memory (bug analysis + architecture insights)
+
+### ✅ **Platform Health Confirmed**
+- **Main service**: Active and operational (systemd)
+- **API**: Responsive on port 28881
+- **Database**: SQLite operational 
+- **Authentication**: Working (x-api-key: namastex888)
+- **Kill endpoint**: Functional `/run/{run_id}/kill`
+
+### ✅ **Architecture Documented**
+- **7 workflow types**: surgeon, builder, brain, genie, shipper, lina, guardian
+- **Log system**: Real-time at `/logs/run_{run_id}.log`
+- **Worktree isolation**: `/worktrees/builder_run_{run_id}/`
+- **Token tracking**: Accurate in logs, broken in API
+
+## Core Issue Identified: Progress Tracking Mechanism Broken
+
+### **Evidence Pattern**:
+```json
+// What API Reports (WRONG)
+{
+  "status": "running",
+  "progress": {"completion_percentage": 0.0, "turns": 0},
+  "current_phase": "initialization"
+}
+
+// What Logs Show (CORRECT)  
+- 126+ log entries
+- 4+ minutes active execution
+- Natural completion timestamp
+- Token consumption: 952 output tokens
+- Tool usage: TodoWrite, Task, Read, LS, Glob, Grep
+```
+
+## Manual Surgeon Deployment Context
+
+### **Target Files for Fix**:
+1. `/src/api/routes/claude_code_routes.py` (lines 620-750) - Progress calculation
+2. `/src/agents/claude_code/progress_tracker.py` - Turn counting logic  
+3. `/src/agents/claude_code/completion_tracker.py` - Completion detection
+4. Log parsing integration for real-time status updates
+
+### **Required Fix Approach**:
+1. **Parse log files in real-time** to extract actual progress
+2. **Map Claude stream events** to progress percentages
+3. **Detect natural completion** from log timestamps
+4. **Update API response** to reflect log reality
+
+### **Validation Plan**:
+- Deploy test workflow and monitor both logs + API
+- Verify progress increases from 0% to 100%
+- Confirm status transitions: pending → running → completed
+- Validate real-time visibility matches log activity
+
+**Status**: Ready for manual surgeon deployment to fix NMSTX-343 🎯
