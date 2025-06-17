@@ -646,6 +646,91 @@ class ClaudeCodeAgent(AutomagikAgent):
                 "completed_at": datetime.utcnow().isoformat()
             })
     
+    async def execute_workflow_background(self, input_text: str, workflow_name: str, 
+                                         session_id: str, run_id: str, **kwargs) -> None:
+        """Execute a workflow in the background without waiting for response.
+        
+        This method starts the workflow execution and returns immediately.
+        The workflow continues running in the background and saves all output
+        to log files that can be parsed later.
+        
+        Args:
+            input_text: User message
+            workflow_name: Workflow to execute
+            session_id: Database session ID
+            run_id: Unique run ID
+            **kwargs: Additional parameters (git_branch, max_turns, timeout, etc.)
+        """
+        try:
+            # Create execution request
+            request = ClaudeCodeRunRequest(
+                message=input_text,
+                session_id=session_id,
+                workflow_name=workflow_name,
+                max_turns=kwargs.get("max_turns", 30),
+                git_branch=kwargs.get("git_branch"),
+                timeout=kwargs.get("timeout", self.config.get("container_timeout")),
+                repository_url=kwargs.get("repository_url")
+            )
+            
+            # Update session metadata with run information
+            from src.db import get_session, update_session
+            
+            session_obj = get_session(uuid.UUID(session_id))
+            if session_obj:
+                metadata = session_obj.metadata or {}
+                metadata.update({
+                    "run_id": run_id,
+                    "run_status": "running",
+                    "workflow_name": workflow_name,
+                    "started_at": datetime.utcnow().isoformat(),
+                })
+                session_obj.metadata = metadata
+                update_session(session_obj)
+            
+            # Execute the workflow - this will run to completion
+            result = await self.executor.execute_claude_task(
+                request=request,
+                agent_context={
+                    "workflow_name": workflow_name,
+                    "session_id": session_id,
+                    "run_id": run_id,
+                    "db_id": self.db_id
+                }
+            )
+            
+            # Update session with final status
+            if session_obj:
+                metadata = session_obj.metadata or {}
+                metadata.update({
+                    "run_status": "completed" if result.get("success") else "failed",
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "claude_session_id": result.get("session_id"),
+                    "exit_code": result.get("exit_code", -1),
+                })
+                session_obj.metadata = metadata
+                update_session(session_obj)
+            
+            logger.info(f"Background workflow {workflow_name} completed: {result.get('success')}")
+            
+        except Exception as e:
+            logger.error(f"Error in background workflow execution: {str(e)}")
+            
+            # Update session with error status
+            try:
+                session_obj = get_session(uuid.UUID(session_id))
+                if session_obj:
+                    metadata = session_obj.metadata or {}
+                    metadata.update({
+                        "run_status": "failed",
+                        "error": str(e),
+                        "completed_at": datetime.utcnow().isoformat(),
+                    })
+                    session_obj.metadata = metadata
+                    update_session(session_obj)
+            except Exception as update_error:
+                logger.error(f"Failed to update session status: {update_error}")
+    
     async def get_run_status(self, run_id: str) -> Dict[str, Any]:
         """Get the status of an async run.
         
