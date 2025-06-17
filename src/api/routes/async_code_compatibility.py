@@ -52,6 +52,12 @@ class AsyncCodeTaskRequest(BaseModel):
         None,
         description="Project identifier"
     )
+    max_turns: Optional[int] = Field(
+        None,
+        ge=1,
+        le=200,
+        description="Maximum conversation turns (unlimited if not specified)"
+    )
 
 
 class AsyncCodeTaskResponse(BaseModel):
@@ -263,7 +269,7 @@ async def start_task(request: AsyncCodeTaskRequest) -> AsyncCodeTaskResponse:
         # Create workflow request in Claude-Code format
         claude_request = {
             "message": request.prompt,
-            "max_turns": 50,
+            "max_turns": request.max_turns,  # Use client-specified max_turns or unlimited
             "session_id": None,
             "continue_session": False,
             "workspace_path": None,
