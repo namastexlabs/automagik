@@ -559,6 +559,9 @@ class AgentFactory:
             agent = AutomagikAgent(config)
             agent.name = agent_name
             
+            # Set up dependencies for virtual agent
+            cls._setup_virtual_dependencies(agent, config)
+            
             # Set up tools from tool_config if provided
             tool_config = config.get("tool_config", {})
             if tool_config:
@@ -632,3 +635,33 @@ class AgentFactory:
             agent.config.model = model
         elif hasattr(agent, 'config'):
             agent.config.config["model"] = model
+    
+    @classmethod
+    def _setup_virtual_dependencies(cls, agent: AutomagikAgent, config: Dict[str, any]) -> None:
+        """Set up dependencies for a virtual agent.
+        
+        Args:
+            agent: The AutomagikAgent instance
+            config: Agent configuration dictionary
+        """
+        try:
+            from src.agents.models.dependencies import AutomagikAgentsDependencies
+            
+            # Get model for dependencies
+            model = config.get("default_model", "openai:gpt-4o-mini")
+            
+            # Create dependencies instance
+            dependencies = AutomagikAgentsDependencies(
+                model_name=model,
+                model_settings={},
+                api_keys={},
+                tool_config=config.get("tool_config", {})
+            )
+            
+            # Set dependencies on agent
+            agent.set_dependencies(dependencies)
+            logger.debug(f"Set up dependencies for virtual agent with model: {model}")
+            
+        except Exception as e:
+            logger.error(f"Error setting up virtual agent dependencies: {str(e)}")
+            logger.error(traceback.format_exc())
