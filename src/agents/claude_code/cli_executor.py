@@ -1296,6 +1296,7 @@ class ClaudeCLIExecutor:
         """Setup stream processing and session confirmation tracking."""
         session_confirmed_event = asyncio.Event()
         processor = StreamProcessor(stream_callback, log_writer, session_confirmed_event, workspace, session.run_id)
+        processor.session = session  # Add session for turn limit access
         
         async def wait_for_session_confirmation():
             try:
@@ -1316,16 +1317,41 @@ class ClaudeCLIExecutor:
         return processor, session_task
     
     async def _execute_process_streams(self, process, processor, log_writer, timeout):
-        """Execute and monitor process streams."""
+        """Execute and monitor process streams with turn limit enforcement."""
         stdout_lines = []
         stderr_lines = []
         
+        # Add turn monitoring variables
+        turn_count = 0
+        max_turns = processor.session.max_turns if hasattr(processor, 'session') and processor.session else 30
+        
         async def read_stream(stream, lines_list, is_stdout=True):
+            nonlocal turn_count
             async for line in stream:
                 decoded = line.decode('utf-8', errors='replace')
                 lines_list.append(decoded)
                 
                 if is_stdout:
+                    # Monitor for turn indicators in Claude output
+                    if '"type":"turn"' in decoded or '"num_turns":' in decoded:
+                        try:
+                            import json
+                            data = json.loads(decoded)
+                            if data.get('type') == 'turn' or 'num_turns' in data:
+                                turn_count = data.get('num_turns', turn_count + 1)
+                                
+                                # Hard turn limit enforcement
+                                if turn_count >= max_turns:
+                                    await log_writer(
+                                        f"HARD TURN LIMIT EXCEEDED: {turn_count}/{max_turns} - Terminating process",
+                                        "turn_limit_exceeded",
+                                        {"turn_count": turn_count, "max_turns": max_turns}
+                                    )
+                                    process.terminate()
+                                    return
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+                    
                     await processor.process_line(decoded)
                 else:
                     if decoded.strip():

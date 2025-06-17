@@ -15,14 +15,28 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       setError('');
+      console.log('🔍 Fetching dashboard data...');
+      
       const [workflowTypes, runsData] = await Promise.all([
-        getWorkflows(),
-        getRecentRuns({ page_size: 10 })
+        getWorkflows().then(data => {
+          console.log('✅ Workflows fetched:', data);
+          return data;
+        }),
+        getRecentRuns({ page_size: 10 }).then(data => {
+          console.log('✅ Recent runs fetched:', data);
+          return data;
+        })
       ]);
+      
+      console.log('📊 Setting workflows:', workflowTypes);
+      console.log('📊 Setting recent runs:', runsData.runs || []);
       
       setWorkflows(workflowTypes);
       setRecentRuns(runsData.runs || []);
+      
+      console.log('✅ Dashboard data loaded successfully');
     } catch (err) {
+      console.error('❌ Dashboard fetch error:', err);
       setError('Failed to load dashboard data: ' + (err as Error).message);
     } finally {
       setLoading(false);
