@@ -6,6 +6,7 @@ supporting workflow-based execution and async container management.
 
 import logging
 import uuid
+import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Path, Body
@@ -18,6 +19,7 @@ from src.agents.claude_code.completion_tracker import CompletionTracker
 from src.agents.claude_code.result_extractor import ResultExtractor
 from src.agents.claude_code.progress_tracker import ProgressTracker
 from src.agents.claude_code.debug_builder import DebugBuilder
+from src.agents.claude_code.stream_parser import StreamParser
 from src.agents.claude_code.models import (
     EnhancedStatusResponse,
     DebugStatusResponse,
@@ -225,21 +227,38 @@ async def run_claude_workflow(
         )
         session_id = session_repo.create_session(session)
 
-        # Execute synchronously until first response
-        # Ensure logging doesn't interfere with API response
+        # Start execution asynchronously without waiting for first response
+        # This avoids stream contamination from trying to capture early output
         try:
-            result = await agent.execute_until_first_response(
-                input_text=request.message,
-                workflow_name=workflow_name,
-                session_id=str(session_id),
-                git_branch=request.git_branch,
-                max_turns=request.max_turns,
-                timeout=request.timeout,
-                repository_url=request.repository_url,
+            # Create workflow execution parameters
+            execution_params = {
+                "input_text": request.message,
+                "workflow_name": workflow_name,
+                "session_id": str(session_id),
+                "git_branch": request.git_branch,
+                "max_turns": request.max_turns,
+                "timeout": request.timeout,
+                "repository_url": request.repository_url,
+                "run_id": run_id,
+            }
+            
+            # Start workflow execution in background
+            asyncio.create_task(
+                agent.execute_workflow_background(**execution_params)
             )
+            
+            # Return immediately with pending status
+            result = {
+                "run_id": run_id,
+                "status": "pending",
+                "message": f"Started {workflow_name} workflow. Use the status endpoint to track progress.",
+                "started_at": datetime.utcnow().isoformat(),
+                "claude_session_id": None,  # Will be available in status endpoint
+                "git_branch": request.git_branch,
+            }
+            
         except Exception as exec_error:
             logger.error(f"Execution error in workflow {workflow_name}: {exec_error}")
-            # Return a clean error response without any subprocess output contamination
             result = {
                 "run_id": run_id,
                 "status": "failed",
@@ -598,12 +617,22 @@ async def get_claude_code_run_status(
 
         metadata = target_session.metadata or {}
 
+        # Parse JSON stream file as primary source of truth
+        stream_events = StreamParser.parse_stream_file(run_id)
+        
+        # Use stream parser to extract data
+        stream_status = StreamParser.get_current_status(stream_events)
+        stream_result = StreamParser.extract_result(stream_events)
+        stream_metrics = StreamParser.extract_metrics(stream_events)
+        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns", 30))
+        stream_session = StreamParser.extract_session_info(stream_events)
+        
         # Get messages for additional context
         from src.db.repository import message as message_repo
         messages = message_repo.list_messages(target_session.id)
         assistant_messages = [msg for msg in messages if msg.role == "assistant"]
 
-        # Get live logs from log manager
+        # Get live logs from log manager (for fallback/supplementary info)
         log_manager = get_log_manager()
         log_entries = await log_manager.get_logs(run_id, follow=False)
 
@@ -728,7 +757,7 @@ async def get_claude_code_run_status(
                         if tool_name and tool_name not in tools_used:
                             tools_used.append(tool_name)
 
-        # Build metrics info
+        # Build metrics info using stream data as primary source
         metrics_info = MetricsInfo(
             cost_usd=stream_metrics.get("cost_usd", metadata.get("current_cost_usd", 0.0)),
             tokens=token_info,
@@ -737,15 +766,15 @@ async def get_claude_code_run_status(
             performance_score=85.0 if result_info["success"] else 60.0  # Simple scoring
         )
 
-        # Build progress info from tracker
+        # Build progress info using stream data as primary source
         progress_info_obj = ProgressInfo(
-            turns=progress_info["turns"],
-            max_turns=progress_info["max_turns"],
-            completion_percentage=progress_info["completion_percentage"],
-            current_phase=progress_info["current_phase"],
-            phases_completed=progress_info["phases_completed"],
-            is_running=progress_info["is_running"],
-            estimated_completion=progress_info["estimated_completion"]
+            turns=stream_progress.get("turns", progress_info["turns"]),
+            max_turns=stream_progress.get("max_turns", progress_info["max_turns"]),
+            completion_percentage=stream_progress.get("completion_percentage", progress_info["completion_percentage"]),
+            current_phase=stream_progress.get("current_phase", progress_info["current_phase"]),
+            phases_completed=progress_info["phases_completed"],  # Keep from original
+            is_running=stream_progress.get("is_running", progress_info["is_running"]),
+            estimated_completion=progress_info["estimated_completion"]  # Keep from original
         )
 
         # Extract files created
@@ -766,8 +795,8 @@ async def get_claude_code_run_status(
         completed_at = None
         execution_time_seconds = None
         
-        # Determine correct status based on metadata
-        workflow_status = metadata.get("run_status", "unknown")
+        # Use stream status as primary source, fallback to metadata
+        workflow_status = stream_status or metadata.get("run_status", "unknown")
         completed_at_str = metadata.get("completed_at")
         
         if completed_at_str:
