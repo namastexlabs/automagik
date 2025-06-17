@@ -96,7 +96,7 @@ class ProgressInfo(BaseModel):
     """Progress information for workflow execution."""
     
     turns: int = Field(..., description="Current number of turns completed")
-    max_turns: int = Field(..., description="Maximum turns allowed")
+    max_turns: Optional[int] = Field(None, description="Maximum turns allowed (None for unlimited)")
     completion_percentage: float = Field(..., description="Completion percentage (0-100)")
     current_phase: str = Field(..., description="Current workflow phase")
     phases_completed: List[str] = Field(default_factory=list, description="List of completed phases")
