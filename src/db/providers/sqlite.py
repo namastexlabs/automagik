@@ -850,7 +850,7 @@ class SQLiteProvider(DatabaseProvider):
         """Convert PostgreSQL migration SQL to SQLite compatible format."""
         import re
         
-        # Handle PostgreSQL DO blocks
+        # First, handle PostgreSQL DO blocks and functions - convert them to SQLite equivalents
         converted_sql = self._handle_do_blocks(migration_sql)
         
         # Remove PostgreSQL specific statements that SQLite doesn't support
@@ -877,6 +877,7 @@ class SQLiteProvider(DatabaseProvider):
             # Default values
             ("DEFAULT NOW()", "DEFAULT (datetime('now'))"),
             ("DEFAULT CURRENT_TIMESTAMP", "DEFAULT (datetime('now'))"),
+            ("NOW()", "(datetime('now'))"),
             ("DEFAULT TRUE", "DEFAULT 1"),
             ("DEFAULT FALSE", "DEFAULT 0"),
             # Remove PostgreSQL-specific extensions and functions
@@ -898,60 +899,41 @@ class SQLiteProvider(DatabaseProvider):
         return converted_sql
     
     def _handle_do_blocks(self, migration_sql: str) -> str:
-        """Convert PostgreSQL DO blocks to SQLite equivalent."""
+        """Convert PostgreSQL blocks, functions, and complex syntax to SQLite equivalents."""
         import re
         
-        # Remove DO blocks entirely and extract the SQL inside
-        # Pattern: DO $$ ... END $$;
-        do_pattern = r'DO\s+\$\$\s*(.*?)\s*END\s+\$\$;'
+        # Handle DO blocks by removing them entirely for SQLite
+        # SQLite doesn't support procedural code, so we strip them out
+        do_pattern = r'DO\s+\$\$.*?\$\$;'
+        migration_sql = re.sub(do_pattern, '-- PostgreSQL DO block removed for SQLite compatibility', migration_sql, flags=re.DOTALL | re.IGNORECASE)
         
-        def extract_sql_from_do_block(match):
-            block_content = match.group(1)
-            
-            # Extract actual SQL statements from IF blocks
-            # Look for ALTER TABLE, UPDATE, INSERT, etc. statements
-            sql_statements = []
-            
-            # Pattern for IF NOT EXISTS blocks with ALTER TABLE
-            if_not_exists_pattern = r'IF\s+NOT\s+EXISTS\s*\(.*?\)\s*THEN\s*(.*?)\s*(?:ELSE|END\s+IF)'
-            for if_match in re.finditer(if_not_exists_pattern, block_content, re.DOTALL | re.IGNORECASE):
-                sql_content = if_match.group(1).strip()
-                if sql_content:
-                    sql_statements.append(sql_content)
-            
-            # Pattern for IF EXISTS blocks
-            if_exists_pattern = r'IF\s+EXISTS\s*\(.*?\)\s*THEN\s*(.*?)\s*(?:ELSE|END\s+IF)'
-            for if_match in re.finditer(if_exists_pattern, block_content, re.DOTALL | re.IGNORECASE):
-                sql_content = if_match.group(1).strip()
-                if sql_content:
-                    sql_statements.append(sql_content)
-            
-            # If no specific patterns found, try to extract any SQL statements
-            if not sql_statements:
-                # Look for common SQL statements
-                statement_patterns = [
-                    r'(ALTER\s+TABLE\s+[^;]+;)',
-                    r'(UPDATE\s+[^;]+;)',
-                    r'(INSERT\s+[^;]+;)',
-                    r'(CREATE\s+[^;]+;)',
-                    r'(COMMENT\s+ON\s+[^;]+;)'
-                ]
-                
-                for pattern in statement_patterns:
-                    for stmt_match in re.finditer(pattern, block_content, re.DOTALL | re.IGNORECASE):
-                        sql_statements.append(stmt_match.group(1).strip())
-            
-            # Return the extracted SQL statements
-            if sql_statements:
-                return '\\n'.join(sql_statements)
-            else:
-                # If we can't extract anything useful, comment out the block
-                return f'-- Converted DO block: {block_content[:100]}...'
+        # Remove PostgreSQL functions (CREATE OR REPLACE FUNCTION ... $$ LANGUAGE plpgsql;)
+        function_pattern = r'CREATE\s+OR\s+REPLACE\s+FUNCTION.*?\$\$\s+LANGUAGE.*?;'
+        migration_sql = re.sub(function_pattern, '-- PostgreSQL function removed for SQLite compatibility', migration_sql, flags=re.DOTALL | re.IGNORECASE)
         
-        # Replace all DO blocks
-        converted = re.sub(do_pattern, extract_sql_from_do_block, migration_sql, flags=re.DOTALL | re.IGNORECASE)
+        # Remove PostgreSQL triggers that use functions
+        trigger_pattern = r'CREATE\s+TRIGGER\s+\w+.*?EXECUTE\s+FUNCTION.*?;'
+        migration_sql = re.sub(trigger_pattern, '-- PostgreSQL trigger removed for SQLite compatibility', migration_sql, flags=re.DOTALL | re.IGNORECASE)
         
-        return converted
+        # Remove DROP TRIGGER statements since we're not creating them
+        drop_trigger_pattern = r'DROP\s+TRIGGER\s+IF\s+EXISTS.*?;'
+        migration_sql = re.sub(drop_trigger_pattern, '-- DROP TRIGGER removed for SQLite compatibility', migration_sql, flags=re.IGNORECASE)
+        
+        # Remove PostgreSQL-specific constraint syntax
+        constraint_patterns = [
+            r'ADD\s+CONSTRAINT\s+\w+\s+CHECK\s*\([^)]*\?\s*[^)]*\);?',  # JSON ? operator constraints
+            r'WHERE\s+\([^)]*\)\s*::\s*boolean\s*=\s*true',  # PostgreSQL boolean casting in WHERE
+            r'jsonb_typeof\([^)]*\)\s*=\s*[\'"][^\'"]*[\'"]',  # jsonb_typeof function
+        ]
+        
+        for pattern in constraint_patterns:
+            migration_sql = re.sub(pattern, '-- PostgreSQL constraint removed for SQLite compatibility', migration_sql, flags=re.IGNORECASE)
+        
+        # Remove CREATE TABLE ... AS SELECT (backup tables)
+        backup_table_pattern = r'CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+\w+_backup\s+AS\s+SELECT.*?;'
+        migration_sql = re.sub(backup_table_pattern, '-- Backup table creation removed for SQLite compatibility', migration_sql, flags=re.DOTALL | re.IGNORECASE)
+        
+        return migration_sql
     
     def verify_health(self) -> bool:
         """Verify database health and migrations status."""
