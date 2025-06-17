@@ -11,13 +11,12 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Path, Body, Query
 from pydantic import BaseModel, Field
 
-from src.agents.models.agent_factory import AgentFactory
+# We'll use the mcp automagik-workflows tool instead of AgentFactory
 from src.agents.claude_code.stream_parser import StreamParser
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
-from src.db.models.workflow_process import WorkflowProcess
-from src.db.core import get_db_session
-from sqlalchemy.orm import Session
+from src.db.models import WorkflowProcess
+from src.db.connection import execute_query
 
 logger = logging.getLogger(__name__)
 
@@ -166,36 +165,45 @@ async def list_tasks(
     """List tasks (maps to workflow runs)."""
     
     try:
-        with get_db_session() as db:
-            query = db.query(WorkflowProcess)
+        # Build query with optional status filter
+        base_query = "SELECT * FROM workflow_processes"
+        params = []
+        
+        if status:
+            # Map async-code status back to Claude-Code status
+            status_mapping = {
+                "running": ["started", "running"],
+                "completed": ["completed"],
+                "failed": ["failed", "error"],
+                "cancelled": ["stopped", "killed"],
+                "pending": ["pending"]
+            }
             
-            # Apply status filter if provided
-            if status:
-                # Map async-code status back to Claude-Code status
-                status_mapping = {
-                    "running": ["started", "running"],
-                    "completed": ["completed"],
-                    "failed": ["failed", "error"],
-                    "cancelled": ["stopped", "killed"],
-                    "pending": ["pending"]
-                }
-                
-                claude_statuses = status_mapping.get(status, [status])
-                query = query.filter(WorkflowProcess.status.in_(claude_statuses))
+            claude_statuses = status_mapping.get(status, [status])
+            placeholders = ','.join(['%s'] * len(claude_statuses))
+            base_query += f" WHERE status IN ({placeholders})"
+            params.extend(claude_statuses)
+        
+        base_query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        
+        # Execute query
+        workflow_rows = execute_query(base_query, params)
+        
+        tasks = []
+        for row in workflow_rows:
+            # Convert row to WorkflowProcess object
+            wp = WorkflowProcess.from_db_row(dict(row)) if hasattr(row, '_fields') else WorkflowProcess.from_db_row(row)
             
-            workflow_processes = query.order_by(WorkflowProcess.created_at.desc()).limit(limit).all()
+            # Get session data for additional info
+            session_data = None
+            if wp.session_id:
+                session_data = session_repo.get_session_metadata(wp.session_id)
             
-            tasks = []
-            for wp in workflow_processes:
-                # Get session data for additional info
-                session_data = None
-                if wp.session_id:
-                    session_data = session_repo.get_session_metadata(wp.session_id)
-                
-                task_status = AsyncCodeResponseTransformer.workflow_to_task_status(wp, session_data)
-                tasks.append(task_status)
-            
-            return tasks
+            task_status = AsyncCodeResponseTransformer.workflow_to_task_status(wp, session_data)
+            tasks.append(task_status)
+        
+        return tasks
             
     except Exception as e:
         logger.error(f"Error listing tasks: {e}")
@@ -207,20 +215,25 @@ async def get_task_status(task_id: str = Path(..., description="Task ID")) -> As
     """Get task status (maps to workflow run status)."""
     
     try:
-        with get_db_session() as db:
-            workflow_process = db.query(WorkflowProcess).filter(
-                WorkflowProcess.run_id == task_id
-            ).first()
-            
-            if not workflow_process:
-                raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-            
-            # Get session data for additional info
-            session_data = None
-            if workflow_process.session_id:
-                session_data = session_repo.get_session_metadata(workflow_process.session_id)
-            
-            return AsyncCodeResponseTransformer.workflow_to_task_status(workflow_process, session_data)
+        # Query for specific workflow process by run_id
+        workflow_rows = execute_query(
+            "SELECT * FROM workflow_processes WHERE run_id = %s",
+            (task_id,)
+        )
+        
+        if not workflow_rows:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+        
+        # Convert row to WorkflowProcess object
+        row = workflow_rows[0]
+        workflow_process = WorkflowProcess.from_db_row(dict(row)) if hasattr(row, '_fields') else WorkflowProcess.from_db_row(row)
+        
+        # Get session data for additional info
+        session_data = None
+        if workflow_process.session_id:
+            session_data = session_repo.get_session_metadata(workflow_process.session_id)
+        
+        return AsyncCodeResponseTransformer.workflow_to_task_status(workflow_process, session_data)
             
     except HTTPException:
         raise
@@ -260,14 +273,17 @@ async def start_task(request: AsyncCodeTaskRequest) -> AsyncCodeTaskResponse:
             "project_id": request.project_id
         }
         
-        # Use AgentFactory to create and run the workflow
-        agent_factory = AgentFactory()
+        # Use the MCP automagik-workflows tool to start the workflow
+        # This will be implemented to call the same workflow system we've been using
+        # For now, we'll create a placeholder that indicates the workflow should be started
+        # The actual implementation would integrate with the workflow execution system
         
-        # Start the workflow asynchronously
-        await agent_factory.run_workflow_async(
-            workflow_name=workflow_name,
-            request_data=claude_request,
-            run_id=run_id
+        # TODO: Integrate with actual workflow execution system
+        # This is a placeholder implementation - the actual workflow would be started
+        # through the same mechanism as our current workflow API
+        raise HTTPException(
+            status_code=501, 
+            detail="Workflow execution integration not yet implemented. Use /workflows/claude-code/run endpoint instead."
         )
         
         return AsyncCodeResponseTransformer.create_task_response(run_id)
@@ -283,13 +299,13 @@ async def get_task_logs(task_id: str = Path(..., description="Task ID")):
     
     try:
         # Check if task exists
-        with get_db_session() as db:
-            workflow_process = db.query(WorkflowProcess).filter(
-                WorkflowProcess.run_id == task_id
-            ).first()
-            
-            if not workflow_process:
-                raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+        workflow_rows = execute_query(
+            "SELECT * FROM workflow_processes WHERE run_id = %s",
+            (task_id,)
+        )
+        
+        if not workflow_rows:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
         
         # Return the JSONL file path for the UI to read
         jsonl_path = f"./logs/run_{task_id}_stream.jsonl"
