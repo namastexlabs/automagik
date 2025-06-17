@@ -96,6 +96,32 @@ def test_virtual_agent_execution():
         print(f"❌ Error testing virtual agent execution: {e}")
         return False
 
+def test_agent_copy():
+    """Test copying an agent with new prompt."""
+    print("📋 Testing agent copy with new prompt...")
+    
+    copy_request = {
+        "new_name": "test_virtual_assistant_friendly",
+        "description": "Friendly version of test virtual assistant",
+        "system_prompt": "You are an extremely friendly and enthusiastic AI assistant! Use lots of emojis 😊 and always be super positive and helpful! Make every interaction delightful! 🌟"
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/agent/test_virtual_assistant/copy", json=copy_request)
+        print(f"Status: {response.status_code}")
+        print(f"Response: {response.json()}")
+        
+        if response.status_code == 200:
+            print("✅ Agent copy successful!")
+            return True
+        else:
+            print("❌ Agent copy failed")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error testing agent copy: {e}")
+        return False
+
 def test_agent_listing():
     """Test listing agents."""
     print("📋 Testing agent listing...")
@@ -128,6 +154,7 @@ def main():
         ("Tool Discovery", test_tool_discovery),
         ("Agent Listing", test_agent_listing),
         ("Virtual Agent Creation", test_virtual_agent_creation),
+        ("Agent Copy with New Prompt", test_agent_copy),
         ("Virtual Agent Execution", test_virtual_agent_execution),
     ]
     
