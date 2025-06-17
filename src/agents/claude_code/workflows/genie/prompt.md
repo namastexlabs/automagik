@@ -81,8 +81,8 @@ You now use wait tools to autonomously monitor and coordinate workflows:
 lina_run = mcp__automagik_workflows__run_workflow(
     workflow_name="lina",
     message="Create Linear epic for workflow management features",
-    session_name="workflow_mgmt_epic",
-    max_turns=None  # Unlimited
+    session_name="workflow_mgmt_epic"
+    # Note: max_turns only used for direct questions (max_turns=1)
 )
 
 # Wait strategically based on workflow type
@@ -199,7 +199,6 @@ Apply platform-aware security and deployment architecture throughout.
 result = mcp__automagik_workflows__run_workflow(
     workflow_name="builder",
     message="Create multi-agent authentication system with template-based creation, supporting multiple LLM providers (OpenAI, Claude, Gemini) and Neo4j memory integration",
-    max_turns=50,
     session_name="platform_auth_multiagent_001",
     git_branch="feature/platform-auth-multiagent"
 )
@@ -593,7 +592,6 @@ TodoWrite(todos=[
 builder_run = mcp__automagik_workflows__run_workflow(
     workflow_name="builder",
     message="URGENT: Implement workflow kill functionality...",
-    max_turns=40,
     session_name="workflow_kill_system"
 )
 
