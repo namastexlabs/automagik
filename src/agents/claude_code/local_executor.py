@@ -82,7 +82,7 @@ class LocalExecutor(ExecutorBase):
             await self.env_manager.copy_configs(workspace_path, request.workflow_name)
             
             # Execute Claude CLI using full execution method (not early response)
-            result: CLIResult = await self.cli_executor.execute_claude(
+            result: CLIResult = await self.cli_executor.execute(
                 workflow=request.workflow_name,
                 message=request.message,
                 workspace=workspace_path,

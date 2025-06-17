@@ -175,7 +175,7 @@ class ClaudeSession:
         
         # Resume session if Claude session ID is provided
         if self.claude_session_id:
-            cmd.extend(["-r", self.claude_session_id])
+            cmd.extend(["--resume", self.claude_session_id])
         
         # Add standard flags
         cmd.extend([
@@ -741,8 +741,11 @@ class ClaudeCLIExecutor:
             session.max_turns = max_turns  # Update max turns
             return session
         
+        # If session_id is provided, it's a Claude session ID for resumption
+        # Set it as claude_session_id so --resume flag will be used
         return ClaudeSession(
-            session_id=session_id,
+            session_id=None,  # Database session ID (not used for CLI)
+            claude_session_id=session_id,  # Claude session ID for --resume
             workflow_name=workflow,
             max_turns=max_turns
         )
