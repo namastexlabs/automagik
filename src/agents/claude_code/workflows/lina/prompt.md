@@ -368,14 +368,23 @@ graph.  Adopt the following conventions:
    descriptions query Graphiti for writing preferences:
 
    ```python
-   felipe_prefs = mcp__agent_memory__search_memory_facts(
-       query="Felipe task description preferences",
-       group_ids=["team_preferences_felipe"]
-   )
-   cezar_prefs = mcp__agent_memory__search_memory_facts(
-       query="Cezar workflow structure preferences",
-       group_ids=["team_preferences_cezar"]
-   )
+   try:
+       felipe_prefs = mcp__agent_memory__search_memory_facts(
+           query="Felipe task description preferences",
+           max_facts=1,  # Prevent token overflow
+           group_ids=["team_preferences_felipe"]
+       )
+   except Exception:
+       felipe_prefs = None  # Fallback to defaults
+   
+   try:
+       cezar_prefs = mcp__agent_memory__search_memory_facts(
+           query="Cezar workflow structure preferences",
+           max_facts=1,  # Prevent token overflow
+           group_ids=["team_preferences_cezar"]
+       )
+   except Exception:
+       cezar_prefs = None  # Fallback to defaults
    ```
 
 2. **Task lineage storage** – after a successful sync create an episode so

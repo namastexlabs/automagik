@@ -90,11 +90,17 @@ TodoWrite(todos=[
 # Load implementation context
 builder_report = Read(f"/workspace/docs/development/{epic_name}/reports/builder_001.md")
 
-# Search BRAIN for quality standards
-quality_standards = mcp__agent_memory__search_memory_facts(
-    query="testing quality security performance standards",
-    group_ids=["platform_patterns", "team_preferences_felipe", "team_preferences_cezar"]
-)
+# Search BRAIN for quality standards (WITH FALLBACK)
+try:
+    quality_standards = mcp__agent_memory__search_memory_facts(
+        query="testing quality security standards",
+        max_facts=2,  # Prevent token overflow
+        group_ids=["platform_patterns", "team_preferences_felipe"]
+    )
+except Exception:
+    # FALLBACK: Continue without memory if search fails
+    quality_standards = None
+    # Proceed with defaults and continue workflow execution
 ```
 
 ### 2. Comprehensive Validation
@@ -162,14 +168,23 @@ performs the following extra duties:
    from memory *before* running the tests so thresholds are dynamic:
 
    ```python
-   perf_targets = mcp__agent_memory__search_memory_facts(
-       query="performance baseline {feature_type}",
-       group_ids=["performance_patterns"]
-   )
-   coverage_req = mcp__agent_memory__search_memory_facts(
-       query="min coverage",
-       group_ids=["team_preferences_felipe"]
-   )
+   try:
+       perf_targets = mcp__agent_memory__search_memory_facts(
+           query="performance baseline",
+           max_facts=1,  # Prevent token overflow
+           group_ids=["performance_patterns"]
+       )
+   except Exception:
+       perf_targets = None  # Fallback to defaults
+   
+   try:
+       coverage_req = mcp__agent_memory__search_memory_facts(
+           query="min coverage",
+           max_facts=1,  # Prevent token overflow
+           group_ids=["team_preferences_felipe"]
+       )
+   except Exception:
+       coverage_req = None  # Fallback to defaults
    ```
 
 2. **Metric archiving** – after test execution persist objective numbers (not
@@ -204,17 +219,25 @@ than a black-box pass/fail gate.
 
 ### Before Validation - Load Standards
 ```python
-# Search BRAIN for quality standards
-quality_patterns = mcp__agent_memory__search_memory_facts(
-    query="quality testing security performance standards",
-    group_ids=["platform_patterns", "team_preferences_felipe", "team_preferences_cezar"]
-)
+# Search BRAIN for quality standards (WITH FALLBACK)
+try:
+    quality_patterns = mcp__agent_memory__search_memory_facts(
+        query="quality testing security standards",
+        max_facts=2,  # Prevent token overflow
+        group_ids=["platform_patterns", "team_preferences_felipe"]
+    )
+except Exception:
+    quality_patterns = None  # Fallback to defaults
 
-# Search for specific team requirements
-felipe_quality = mcp__agent_memory__search_memory_facts(
-    query="Felipe testing coverage security requirements",
-    group_ids=["team_preferences_felipe"]
-)
+# Search for specific team requirements (WITH FALLBACK)
+try:
+    felipe_quality = mcp__agent_memory__search_memory_facts(
+        query="Felipe testing coverage requirements",
+        max_facts=1,  # Prevent token overflow
+        group_ids=["team_preferences_felipe"]
+    )
+except Exception:
+    felipe_quality = None  # Fallback to defaults
 ```
 
 ### After Validation - Extract for BRAIN
