@@ -662,10 +662,21 @@ class ClaudeCodeAgent(AutomagikAgent):
             **kwargs: Additional parameters (git_branch, max_turns, timeout, etc.)
         """
         try:
-            # Create execution request
+            # Look up existing Claude session ID from database if session_id provided
+            claude_session_id_for_resumption = None
+            session_obj = None
+            
+            if session_id:
+                from src.db import get_session
+                session_obj = get_session(uuid.UUID(session_id))
+                if session_obj and session_obj.metadata:
+                    # Extract actual Claude session ID from metadata for resumption
+                    claude_session_id_for_resumption = session_obj.metadata.get("claude_session_id")
+            
+            # Create execution request with proper Claude session ID for resumption
             request = ClaudeCodeRunRequest(
                 message=input_text,
-                session_id=session_id,
+                session_id=claude_session_id_for_resumption,  # Use Claude session ID, not database session ID
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns", 30),
                 git_branch=kwargs.get("git_branch"),
@@ -674,9 +685,8 @@ class ClaudeCodeAgent(AutomagikAgent):
             )
             
             # Update session metadata with run information
-            from src.db import get_session, update_session
+            from src.db import update_session
             
-            session_obj = get_session(uuid.UUID(session_id))
             if session_obj:
                 metadata = session_obj.metadata or {}
                 metadata.update({
@@ -694,18 +704,24 @@ class ClaudeCodeAgent(AutomagikAgent):
                 agent_context={
                     "workflow_name": workflow_name,
                     "session_id": session_id,
-                    "run_id": run_id,
+                    "run_id": run_id,  # Ensure run_id is always present for logging
                     "db_id": self.db_id
                 }
             )
             
-            # Update session with final status
+            # Update session with final status and correct Claude session ID
             if session_obj:
                 metadata = session_obj.metadata or {}
+                
+                # Extract the ACTUAL Claude session ID from the execution result
+                actual_claude_session_id = result.get("session_id") 
+                if actual_claude_session_id:
+                    # Store the real Claude session ID for future resumption
+                    metadata["claude_session_id"] = actual_claude_session_id
+                
                 metadata.update({
                     "run_status": "completed" if result.get("success") else "failed",
                     "completed_at": datetime.utcnow().isoformat(),
-                    "claude_session_id": result.get("session_id"),
                     "exit_code": result.get("exit_code", -1),
                 })
                 session_obj.metadata = metadata
