@@ -94,7 +94,7 @@ class DebugBuilder:
         """Build execution details section."""
         return {
             "exit_code": metadata.get("exit_code"),
-            "max_turns": metadata.get("max_turns", 30),
+            "max_turns": metadata.get("max_turns"),
             "current_turns": metadata.get("current_turns", 0),
             "timeout_seconds": metadata.get("timeout_seconds", 3600),
             "execution_time": metadata.get("execution_time"),
@@ -215,13 +215,13 @@ class DebugBuilder:
     ) -> Dict[str, Any]:
         """Build performance metrics section."""
         current_turns = metadata.get("current_turns", 0)
-        max_turns = metadata.get("max_turns", 30)
+        max_turns = metadata.get("max_turns")
         execution_time = metadata.get("execution_time", 0)
         
         return {
-            "turn_efficiency_percent": round((current_turns / max_turns) * 100, 1) if max_turns > 0 else 0,
+            "turn_efficiency_percent": round((current_turns / max_turns) * 100, 1) if max_turns and max_turns > 0 else 0,
             "time_per_turn_seconds": round(execution_time / current_turns, 2) if current_turns > 0 else 0,
-            "estimated_completion_percent": min(100, (current_turns / max_turns) * 100) if max_turns > 0 else 0,
+            "estimated_completion_percent": min(100, (current_turns / max_turns) * 100) if max_turns and max_turns > 0 else 0,
             "resource_utilization": self._calculate_resource_utilization(metadata, stream_metrics)
         }
     

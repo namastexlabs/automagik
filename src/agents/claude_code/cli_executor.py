@@ -106,6 +106,9 @@ class CLIResult:
     git_commits: List[str] = None
     streaming_messages: List[Dict[str, Any]] = None
     log_file_path: Optional[str] = None
+    auto_commit_sha: Optional[str] = None
+    pr_url: Optional[str] = None
+    merge_sha: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -177,7 +180,7 @@ class ClaudeSession:
         if self.claude_session_id:
             cmd.extend(["--resume", self.claude_session_id])
         
-        # Add standard flags
+        # Add standard flags  
         cmd.extend([
             "-p",  # Pretty output
             "--output-format", "stream-json",
@@ -278,8 +281,8 @@ class StreamProcessor:
     def _init_json_stream_file(self):
         """Initialize the immutable JSON stream log file."""
         try:
-            # Create logs directory if it doesn't exist
-            logs_dir = Path("./logs")
+            # Create logs directory if it doesn't exist - use absolute path
+            logs_dir = Path("/home/namastex/workspace/am-agents-labs/logs")
             logs_dir.mkdir(exist_ok=True)
             
             # Create JSON stream file for this run
@@ -302,7 +305,7 @@ class StreamProcessor:
     
     def _close_json_stream_file(self):
         """Close the JSON stream file."""
-        if self.json_stream_file:
+        if self.json_stream_file and not self.json_stream_file.closed:
             try:
                 # Write closing metadata
                 metadata = {
@@ -466,19 +469,22 @@ class ClaudeCLIExecutor:
     def __init__(
         self,
         timeout: int = 7200,
-        max_concurrent: int = 5
+        max_concurrent: int = 5,
+        env_manager=None
     ):
         """Initialize CLI executor.
         
         Args:
             timeout: Default timeout in seconds
             max_concurrent: Maximum concurrent executions
+            env_manager: Optional CLIEnvironmentManager instance to reuse
         """
         self.timeout = timeout
         self.max_concurrent = max_concurrent
         self.active_processes: Dict[str, subprocess.Popen] = {}
         self.sessions: Dict[str, ClaudeSession] = {}
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self.env_manager = env_manager
         
         logger.info(f"ClaudeCLIExecutor initialized with timeout={timeout}s")
     
@@ -529,7 +535,7 @@ class ClaudeCLIExecutor:
         timeout = timeout or self.timeout
         
         # Create or get session
-        session = self._get_or_create_session(workflow, session_id, max_turns)
+        session = self._get_or_create_session(workflow, session_id, max_turns, run_id)
         
         # Setup log manager for this run
         log_manager = get_log_manager()
@@ -624,17 +630,7 @@ class ClaudeCLIExecutor:
         logger.info(f"Executing Claude CLI: {' '.join(cmd[:3])}... (full command logged to file)")
         
         try:
-            # Create stream callback for WebSocket if run_id provided
-            ws_callback = None
-            if run_id and stream_callback is None:
-                # Try to import WebSocket streaming function
-                try:
-                    from src.api.routes.claude_code_websocket import stream_claude_output
-                    async def ws_callback(msg):
-                        await stream_claude_output(run_id, msg)
-                    stream_callback = ws_callback
-                except ImportError:
-                    logger.warning("WebSocket streaming not available")
+            # WebSocket streaming removed - was dead code
             
             # Execute process with log streaming
             result = await self._run_process_with_logging(
@@ -693,35 +689,43 @@ class ClaudeCLIExecutor:
         log_manager
     ) -> CLIResult:
         """Run the Claude CLI process with integrated log streaming."""
+        # Initialize variables at the start to avoid UnboundLocalError in finally block
+        stdout_lines, stderr_lines = [], []
+        process = None
+        session_task = None
+        
         async with log_manager.get_log_writer(run_id) as log_writer:
-            await self._log_execution_init(log_writer, session, workspace, cmd, run_id)
-            
-            env = self._prepare_environment(session)
-            await self._log_environment_setup(log_writer, env)
-            
-            working_dir = self._determine_working_directory(workspace)
-            process = await self._create_process(cmd, working_dir, env)
-            
-            await self._log_process_start(log_writer, process, timeout)
-            self.active_processes[session.run_id] = process
-            
-            processor, session_task = await self._setup_stream_processing(
-                stream_callback, log_writer, session, workspace
-            )
-            
             try:
-                stdout_lines, stderr_lines = await self._execute_process_streams(
-                    process, processor, log_writer, timeout
+                await self._log_execution_init(log_writer, session, workspace, cmd, run_id)
+                
+                env = self._prepare_environment(session)
+                await self._log_environment_setup(log_writer, env)
+                
+                working_dir = self._determine_working_directory(workspace)
+                process = await self._create_process(cmd, working_dir, env, session)
+                
+                await self._log_process_start(log_writer, process, timeout, session)
+                self.active_processes[session.run_id] = process
+                
+                processor, session_task = await self._setup_stream_processing(
+                    stream_callback, log_writer, session, workspace
                 )
                 
-            except asyncio.TimeoutError:
-                await self._handle_process_timeout(log_writer, process, timeout)
-                raise
-                
+                try:
+                    stdout_lines, stderr_lines = await self._execute_process_streams(
+                        process, processor, log_writer, timeout
+                    )
+                    
+                except asyncio.TimeoutError:
+                    await self._handle_process_timeout(log_writer, process, timeout)
+                    raise
+                    
             finally:
-                await self._cleanup_process_execution(
-                    session_task, stderr_lines, log_writer, session
-                )
+                # Only cleanup if session_task was created
+                if session_task is not None:
+                    await self._cleanup_process_execution(
+                        session_task, stderr_lines, log_writer, session
+                    )
             
             return await self._build_execution_result(
                 process, processor, stdout_lines, stderr_lines, 
@@ -733,7 +737,8 @@ class ClaudeCLIExecutor:
         self,
         workflow: str,
         session_id: Optional[str],
-        max_turns: int
+        max_turns: int,
+        run_id: Optional[str] = None
     ) -> ClaudeSession:
         """Get existing session or create new one."""
         if session_id and session_id in self.sessions:
@@ -747,7 +752,8 @@ class ClaudeCLIExecutor:
             session_id=None,  # Database session ID (not used for CLI)
             claude_session_id=session_id,  # Claude session ID for --resume
             workflow_name=workflow,
-            max_turns=max_turns
+            max_turns=max_turns,
+            run_id=run_id  # Use the provided run_id instead of generating one
         )
     
     async def _get_git_commits(self, repo_path: Path) -> List[str]:
@@ -824,7 +830,7 @@ class ClaudeCLIExecutor:
         timeout = timeout or self.timeout
         
         # Create or get session
-        session = self._get_or_create_session(workflow, session_id, max_turns)
+        session = self._get_or_create_session(workflow, session_id, max_turns, run_id)
         
         # Setup log manager for this run
         log_manager = get_log_manager()
@@ -853,13 +859,7 @@ class ClaudeCLIExecutor:
             
             # Start the Claude CLI process
             working_dir = self._determine_working_directory(workspace)
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=working_dir,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env
-            )
+            process = await self._create_process(cmd, working_dir, env, session)
             
             # Track active process
             self.active_processes[session.run_id] = process
@@ -1278,37 +1278,107 @@ class ClaudeCLIExecutor:
         env = os.environ.copy()
         env["CLAUDE_SESSION_ID"] = session.run_id
         
-        # Add virtual environment to Python path for uv-managed dependencies
-        # Find .venv in current working directory or parent directories
-        current_dir = Path.cwd()
-        venv_path = None
+        # Enhanced virtual environment detection
+        venv_path = self._detect_virtual_environment()
         
-        # Look for .venv in current directory and up to 3 parent levels
-        for check_dir in [current_dir] + list(current_dir.parents)[:3]:
-            candidate = check_dir / ".venv"
-            if candidate.exists() and candidate.is_dir():
-                venv_path = candidate
-                break
-        
-        if venv_path and venv_path.exists():
-            # Add .venv/bin to PATH so Python finds the right packages
+        if venv_path:
+            # Add venv/bin to beginning of PATH (highest priority)
             venv_bin = str(venv_path / "bin")
             current_path = env.get("PATH", "")
-            if venv_bin not in current_path:
-                env["PATH"] = f"{venv_bin}:{current_path}"
+            env["PATH"] = f"{venv_bin}:{current_path}"
             
             # Set VIRTUAL_ENV for tools that check it
             env["VIRTUAL_ENV"] = str(venv_path)
             
-            # Set PYTHONPATH to include venv site-packages
-            venv_site = str(venv_path / "lib" / "python3.12" / "site-packages")
-            if (venv_path / "lib" / "python3.12" / "site-packages").exists():
-                env["PYTHONPATH"] = venv_site + ":" + env.get("PYTHONPATH", "")
+            # Dynamic Python version detection for PYTHONPATH
+            python_version = self._get_python_version_from_venv(venv_path)
+            if python_version:
+                venv_site = str(venv_path / "lib" / f"python{python_version}" / "site-packages")
+                if Path(venv_site).exists():
+                    env["PYTHONPATH"] = venv_site + ":" + env.get("PYTHONPATH", "")
+            
+            # Force Python executable to use venv Python for subprocess calls
+            env["PYTHON"] = str(venv_path / "bin" / "python")
+            env["PYTHON3"] = str(venv_path / "bin" / "python3")
         
         return env
     
+    def _detect_virtual_environment(self) -> Optional[Path]:
+        """Enhanced virtual environment detection."""
+        current_dir = Path.cwd()
+        
+        # Check multiple venv patterns and unlimited parent traversal
+        venv_names = [".venv", "venv", "virtualenv", ".virtualenv"]
+        
+        # Start from current directory and traverse all parents
+        for check_dir in [current_dir] + list(current_dir.parents):
+            for venv_name in venv_names:
+                candidate = check_dir / venv_name
+                if candidate.exists() and candidate.is_dir():
+                    # Verify it's actually a virtual environment
+                    if (candidate / "bin" / "python").exists() or (candidate / "bin" / "python3").exists():
+                        return candidate
+        
+        # Check VIRTUAL_ENV environment variable
+        if "VIRTUAL_ENV" in os.environ:
+            venv_path = Path(os.environ["VIRTUAL_ENV"])
+            if venv_path.exists():
+                return venv_path
+        
+        return None
+
+    def _get_python_version_from_venv(self, venv_path: Path) -> Optional[str]:
+        """Get Python version from virtual environment."""
+        try:
+            # Try to get version from pyvenv.cfg
+            pyvenv_cfg = venv_path / "pyvenv.cfg"
+            if pyvenv_cfg.exists():
+                with open(pyvenv_cfg, 'r') as f:
+                    for line in f:
+                        if line.startswith("version"):
+                            version = line.split("=")[1].strip()
+                            # Extract major.minor (e.g., "3.12.4" -> "3.12")
+                            return ".".join(version.split(".")[:2])
+            
+            # Fallback: check lib directory structure
+            lib_dir = venv_path / "lib"
+            if lib_dir.exists():
+                for item in lib_dir.iterdir():
+                    if item.is_dir() and item.name.startswith("python"):
+                        return item.name.replace("python", "")
+            
+            # Last resort: use system Python version
+            import sys
+            return f"{sys.version_info.major}.{sys.version_info.minor}"
+            
+        except Exception:
+            return None
+    
     async def _log_environment_setup(self, log_writer, env):
-        """Log environment setup if Claude CLI directory was added to PATH."""
+        """Log comprehensive environment setup including Python path detection."""
+        # Log virtual environment detection
+        venv_path = env.get("VIRTUAL_ENV")
+        python_path = env.get("PYTHON")
+        
+        if venv_path and python_path:
+            await log_writer(
+                f"Virtual environment detected: {venv_path}",
+                "environment",
+                {
+                    "venv_path": venv_path,
+                    "python_executable": python_path,
+                    "pythonpath": env.get("PYTHONPATH", ""),
+                    "venv_detected": True
+                }
+            )
+        else:
+            await log_writer(
+                "No virtual environment detected, using system Python",
+                "environment",
+                {"venv_detected": False, "warning": "Dependencies may not be available"}
+            )
+        
+        # Existing Claude CLI path logic
         if _CLAUDE_EXECUTABLE_PATH:
             claude_dir = os.path.dirname(_CLAUDE_EXECUTABLE_PATH)
             current_path = env.get("PATH", "")
@@ -1330,7 +1400,7 @@ class ClaudeCLIExecutor:
         else:
             return str(workspace / "am-agents-labs")
     
-    async def _create_process(self, cmd, working_dir, env):
+    async def _create_process(self, cmd, working_dir, env, session=None):
         """Create the Claude CLI subprocess."""
         return await asyncio.create_subprocess_exec(
             *cmd,
@@ -1340,7 +1410,7 @@ class ClaudeCLIExecutor:
             env=env
         )
     
-    async def _log_process_start(self, log_writer, process, timeout):
+    async def _log_process_start(self, log_writer, process, timeout, session):
         """Log process start information."""
         await log_writer(
             f"Process started with PID {process.pid}",
@@ -1352,7 +1422,7 @@ class ClaudeCLIExecutor:
         )
         
         # Register process in database for tracking and emergency kill
-        await self._register_workflow_process(process, log_writer)
+        await self._register_workflow_process(process, log_writer, session)
     
     async def _setup_stream_processing(self, stream_callback, log_writer, session, workspace=None):
         """Setup stream processing and session confirmation tracking."""
@@ -1385,7 +1455,7 @@ class ClaudeCLIExecutor:
         
         # Add turn monitoring variables
         turn_count = 0
-        max_turns = processor.session.max_turns if hasattr(processor, 'session') and processor.session else 30
+        max_turns = processor.session.max_turns if hasattr(processor, 'session') and processor.session and processor.session.max_turns else None
         
         async def read_stream(stream, lines_list, is_stdout=True):
             nonlocal turn_count
@@ -1425,8 +1495,12 @@ class ClaudeCLIExecutor:
         
         async def auto_commit_worker(workspace, run_id, interval=60):
             """Background task for periodic auto-commits."""
-            from .cli_environment import CLIEnvironmentManager
-            env_manager = CLIEnvironmentManager()
+            # Use existing env_manager if available, otherwise create new one
+            if self.env_manager:
+                env_manager = self.env_manager
+            else:
+                from .cli_environment import CLIEnvironmentManager
+                env_manager = CLIEnvironmentManager()
             snapshot_count = 0
             
             while not process.stdout.at_eof() and not process.stderr.at_eof():
@@ -1550,7 +1624,7 @@ class ClaudeCLIExecutor:
             log_file_path=str(log_manager.get_log_path(run_id))
         )
     
-    async def _register_workflow_process(self, process, log_writer):
+    async def _register_workflow_process(self, process, log_writer, session):
         """Register workflow process in database for tracking and emergency kill."""
         try:
             # Import here to avoid circular imports
@@ -1558,19 +1632,11 @@ class ClaudeCLIExecutor:
             from src.db.models import WorkflowProcessCreate
             from datetime import datetime
             
-            # Find the session info from active processes
-            run_id = None
-            session = None
-            for rid, proc in self.active_processes.items():
-                if proc == process:
-                    run_id = rid
-                    session = self.sessions.get(rid)
-                    break
+            # Get run_id from session parameter
+            run_id = session.run_id if session else f"unknown_{process.pid}"
             
-            if not run_id:
-                # Try to extract from process environment if available
-                run_id = f"unknown_{process.pid}"
-                logger.warning(f"Could not find run_id for process {process.pid}, using {run_id}")
+            if not session or not session.run_id:
+                logger.warning(f"No session or run_id provided for process {process.pid}, using {run_id}")
             
             # Create workflow process record
             workflow_process = WorkflowProcessCreate(

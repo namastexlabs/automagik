@@ -184,10 +184,47 @@ class CLIEnvironmentManager:
         Returns:
             True if commit successful, False otherwise
         """
+        result = await self.auto_commit_with_options(workspace, run_id, message)
+        return result.get('success', False)
+
+    async def auto_commit_with_options(
+        self, 
+        workspace: Path, 
+        run_id: str, 
+        message: str = None,
+        create_pr: bool = False,
+        merge_to_main: bool = False,
+        pr_title: str = None,
+        pr_body: str = None,
+        workflow_name: str = None
+    ) -> Dict[str, Any]:
+        """Enhanced auto-commit with PR creation and merging options.
+        
+        Args:
+            workspace: Worktree workspace directory path
+            run_id: Run identifier for commit message
+            message: Optional custom commit message
+            create_pr: Whether to create a PR after committing
+            merge_to_main: Whether to merge to main branch after committing
+            pr_title: Custom PR title
+            pr_body: Custom PR body
+            workflow_name: Workflow name for better commit/PR messages
+            
+        Returns:
+            Dict with success status and operation results
+        """
+        result = {
+            'success': False,
+            'commit_sha': None,
+            'pr_url': None,
+            'merge_sha': None,
+            'operations': []
+        }
+        
         try:
             if not workspace.exists():
                 logger.warning(f"Workspace {workspace} does not exist for auto-commit")
-                return False
+                return result
             
             # Add all changes
             add_process = await asyncio.create_subprocess_exec(
@@ -209,10 +246,13 @@ class CLIEnvironmentManager:
             
             if not stdout.decode().strip():
                 logger.debug(f"No changes to commit in worktree {workspace}")
-                return True
+                result['success'] = True
+                result['operations'].append('no_changes')
+                return result
             
             # Create commit message
-            commit_msg = message or f"auto-snapshot: workflow run {run_id} progress"
+            workflow_prefix = f"{workflow_name}: " if workflow_name else ""
+            commit_msg = message or f"auto-snapshot: {workflow_prefix}workflow progress (run {run_id[:8]})"
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             full_message = f"{commit_msg}\n\nAuto-committed at {timestamp} by worktree workflow system"
             
@@ -225,16 +265,250 @@ class CLIEnvironmentManager:
             )
             stdout, stderr = await commit_process.communicate()
             
-            if commit_process.returncode == 0:
-                logger.info(f"Auto-committed snapshot for run {run_id}: {commit_msg}")
-                return True
-            else:
+            if commit_process.returncode != 0:
                 logger.warning(f"Auto-commit failed for run {run_id}: {stderr.decode()}")
-                return False
+                return result
+            
+            # Get commit SHA
+            sha_process = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "HEAD",
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            sha_stdout, _ = await sha_process.communicate()
+            result['commit_sha'] = sha_stdout.decode().strip()
+            result['operations'].append('commit')
+            
+            logger.info(f"Auto-committed snapshot for run {run_id}: {commit_msg}")
+            
+            # Create PR if requested
+            if create_pr:
+                pr_result = await self._create_pull_request(
+                    workspace, run_id, pr_title, pr_body, workflow_name, commit_msg
+                )
+                if pr_result:
+                    result['pr_url'] = pr_result
+                    result['operations'].append('pr_created')
+                    logger.info(f"Created PR for run {run_id}: {pr_result}")
+            
+            # Merge to main if requested
+            if merge_to_main:
+                merge_result = await self._merge_to_main(workspace, run_id)
+                if merge_result:
+                    result['merge_sha'] = merge_result
+                    result['operations'].append('merged_to_main')
+                    logger.info(f"Merged to main for run {run_id}: {merge_result}")
+            
+            result['success'] = True
+            return result
                 
         except Exception as e:
-            logger.error(f"Error during auto-commit for run {run_id}: {e}")
-            return False
+            logger.error(f"Error during auto-commit with options for run {run_id}: {e}")
+            return result
+
+    async def _create_pull_request(
+        self, 
+        workspace: Path, 
+        run_id: str, 
+        pr_title: str = None,
+        pr_body: str = None,
+        workflow_name: str = None,
+        commit_msg: str = None
+    ) -> Optional[str]:
+        """Create a pull request for the current branch.
+        
+        Args:
+            workspace: Worktree workspace directory path
+            run_id: Run identifier
+            pr_title: Custom PR title
+            pr_body: Custom PR body
+            workflow_name: Workflow name for default PR content
+            commit_msg: Commit message for default PR content
+            
+        Returns:
+            PR URL if successful, None otherwise
+        """
+        try:
+            # Get current branch name
+            branch_process = await asyncio.create_subprocess_exec(
+                "git", "branch", "--show-current",
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            branch_stdout, _ = await branch_process.communicate()
+            current_branch = branch_stdout.decode().strip()
+            
+            if not current_branch:
+                logger.error(f"Could not determine current branch for run {run_id}")
+                return None
+            
+            # Generate PR title and body if not provided
+            if not pr_title:
+                workflow_prefix = f"{workflow_name}: " if workflow_name else ""
+                pr_title = f"{workflow_prefix}Workflow run {run_id}"
+            
+            if not pr_body:
+                changes_summary = commit_msg or "Auto-generated changes from workflow execution"
+                pr_body = f"""## Summary
+{changes_summary}
+
+## Changes
+This PR contains changes generated by the Claude Code workflow system.
+
+**Run ID:** `{run_id}`
+**Workflow:** {workflow_name or 'Unknown'}
+**Branch:** `{current_branch}`
+
+## Review Notes
+- Changes were automatically committed during workflow execution
+- Please review all modifications before merging
+
+🤖 Generated with [Claude Code](https://claude.ai/code)"""
+
+            # Create PR using gh CLI
+            gh_process = await asyncio.create_subprocess_exec(
+                "gh", "pr", "create",
+                "--title", pr_title,
+                "--body", pr_body,
+                "--base", "main",
+                "--head", current_branch,
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await gh_process.communicate()
+            
+            if gh_process.returncode == 0:
+                pr_url = stdout.decode().strip()
+                logger.info(f"Created PR for run {run_id}: {pr_url}")
+                return pr_url
+            else:
+                logger.warning(f"Failed to create PR for run {run_id}: {stderr.decode()}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error creating PR for run {run_id}: {e}")
+            return None
+
+    async def _merge_to_main(self, workspace: Path, run_id: str) -> Optional[str]:
+        """Merge the current branch to main branch.
+        
+        Args:
+            workspace: Worktree workspace directory path
+            run_id: Run identifier
+            
+        Returns:
+            Merge commit SHA if successful, None otherwise
+        """
+        try:
+            # Get current branch name
+            branch_process = await asyncio.create_subprocess_exec(
+                "git", "branch", "--show-current",
+                cwd=str(workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            branch_stdout, _ = await branch_process.communicate()
+            current_branch = branch_stdout.decode().strip()
+            
+            if not current_branch or current_branch == "main":
+                logger.warning(f"Cannot merge: already on main or no branch detected for run {run_id}")
+                return None
+            
+            # Get main repository path from worktree structure
+            # workspace is: /path/to/main_repo/worktrees/builder_run_xxxx
+            # main_repo is: /path/to/main_repo
+            main_repo_path = workspace.parent.parent
+            
+            # Verify main repo path is correct
+            main_git_dir = main_repo_path / ".git"
+            if not main_git_dir.is_dir():
+                logger.error(f"Main repository not found at {main_repo_path}")
+                return None
+            
+            logger.info(f"Using main repository at: {main_repo_path}")
+            
+            # Pull latest changes to ensure we're up-to-date
+            pull_process = await asyncio.create_subprocess_exec(
+                "git", "pull", "origin", "main",
+                cwd=str(main_repo_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            pull_stdout, pull_stderr = await pull_process.communicate()
+            if pull_process.returncode != 0:
+                logger.error(f"Failed to pull latest changes: {pull_stderr.decode()}")
+                return None
+            
+            # Fetch latest changes from the workflow branch
+            fetch_process = await asyncio.create_subprocess_exec(
+                "git", "fetch", "origin", current_branch,
+                cwd=str(main_repo_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            fetch_stdout, fetch_stderr = await fetch_process.communicate()
+            if fetch_process.returncode != 0:
+                logger.error(f"Failed to fetch branch {current_branch}: {fetch_stderr.decode()}")
+                return None
+            
+            # Switch to main
+            checkout_process = await asyncio.create_subprocess_exec(
+                "git", "checkout", "main",
+                cwd=str(main_repo_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            checkout_stdout, checkout_stderr = await checkout_process.communicate()
+            if checkout_process.returncode != 0:
+                logger.error(f"Failed to checkout main branch: {checkout_stderr.decode()}")
+                return None
+            
+            # Merge the workflow branch with --no-ff to preserve branch history
+            merge_msg = f"Merge workflow run {run_id} from {current_branch}\n\nAuto-merged by Claude Code workflow system"
+            merge_process = await asyncio.create_subprocess_exec(
+                "git", "merge", "--no-ff", current_branch, "-m", merge_msg,
+                cwd=str(main_repo_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await merge_process.communicate()
+            
+            if merge_process.returncode == 0:
+                # Get merge commit SHA
+                sha_process = await asyncio.create_subprocess_exec(
+                    "git", "rev-parse", "HEAD",
+                    cwd=str(main_repo_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                sha_stdout, _ = await sha_process.communicate()
+                merge_sha = sha_stdout.decode().strip()
+                
+                logger.info(f"Merged branch {current_branch} to main for run {run_id}: {merge_sha}")
+                return merge_sha
+            else:
+                # Check if merge conflict occurred
+                if "CONFLICT" in stderr.decode() or merge_process.returncode == 1:
+                    logger.error(f"Merge conflict detected for run {run_id}. Aborting merge.")
+                    # Abort the merge
+                    abort_process = await asyncio.create_subprocess_exec(
+                        "git", "merge", "--abort",
+                        cwd=str(main_repo_path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await abort_process.communicate()
+                    logger.warning(f"Merge aborted for run {run_id} due to conflicts")
+                else:
+                    logger.error(f"Failed to merge to main for run {run_id}: {stderr.decode()}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error merging to main for run {run_id}: {e}")
+            return None
     
     async def cleanup(self, workspace: Path, force: bool = False) -> bool:
         """Remove worktree workspace and all contents.
@@ -324,6 +598,28 @@ class CLIEnvironmentManager:
             results[run_id] = await self.cleanup(workspace, force)
         
         return results
+    
+    async def cleanup_by_run_id(self, run_id: str, force: bool = False) -> bool:
+        """Clean up workspace by run_id.
+        
+        Args:
+            run_id: The run ID to clean up
+            force: Force cleanup even if processes might be running
+            
+        Returns:
+            True if cleanup successful, False otherwise
+        """
+        workspace = self.active_workspaces.get(run_id)
+        if not workspace:
+            # Construct workspace path from run_id in case it's not in active_workspaces
+            repo_root = Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
+            workspace = repo_root / "worktrees" / f"builder_run_{run_id}"
+        
+        # Ensure workspace is a Path object
+        if isinstance(workspace, str):
+            workspace = Path(workspace)
+        
+        return await self.cleanup(workspace, force)
     
     async def get_workspace_info(self, run_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a workspace.

@@ -293,6 +293,92 @@ def find_claude_code_log(run_id: str) -> Optional[str]:
     return None
 
 
+def find_claude_stream_file(run_id: str) -> Optional[str]:
+    """Find Claude Code stream JSONL file by run_id."""
+    log_dir = "/home/namastex/workspace/am-agents-labs/logs"
+    if not os.path.exists(log_dir):
+        return None
+    
+    # Look for stream files matching the run_id pattern
+    stream_file = os.path.join(log_dir, f"run_{run_id}_stream.jsonl")
+    if os.path.exists(stream_file):
+        return stream_file
+    
+    return None
+
+
+def parse_stream_file(stream_file_path: str) -> Dict[str, Any]:
+    """Parse Claude Code stream JSONL file and extract real-time data."""
+    if not os.path.exists(stream_file_path):
+        return {
+            "error": "Stream file not found",
+            "status": "unknown",
+            "available": False
+        }
+    
+    try:
+        data = {
+            "status": "running",
+            "available": True,
+            "messages": [],
+            "session_info": {},
+            "final_result": None,
+            "cost_usd": 0.0,
+            "turns": 0,
+            "completed": False
+        }
+        
+        with open(stream_file_path, 'r') as f:
+            for line in f:
+                try:
+                    event = json.loads(line.strip())
+                    data["messages"].append(event)
+                    
+                    # Extract key information
+                    if event.get("type") == "system" and event.get("subtype") == "init":
+                        data["session_info"] = {
+                            "session_id": event.get("session_id"),
+                            "model": event.get("model"),
+                            "tools_count": len(event.get("tools", [])),
+                            "mcp_servers": event.get("mcp_servers", [])
+                        }
+                        data["status"] = "running"
+                    
+                    elif event.get("type") == "result":
+                        data["completed"] = True
+                        data["cost_usd"] = event.get("total_cost_usd", 0.0)
+                        data["turns"] = event.get("num_turns", 0)
+                        
+                        if event.get("subtype") == "success":
+                            data["status"] = "completed"
+                            data["final_result"] = event.get("result")
+                        else:
+                            data["status"] = "failed"
+                            data["final_result"] = f"Error: {event.get('subtype', 'unknown')}"
+                    
+                    elif event.get("type") == "assistant":
+                        # Extract assistant responses for preview
+                        message = event.get("message", {})
+                        content = message.get("content", [])
+                        if content and isinstance(content, list):
+                            for item in content:
+                                if item.get("type") == "text":
+                                    # Store latest response as preview
+                                    data["latest_response"] = item.get("text", "")
+                        
+                except (json.JSONDecodeError, KeyError):
+                    continue
+        
+        return data
+        
+    except Exception as e:
+        return {
+            "error": f"Failed to parse stream file: {str(e)}",
+            "status": "error",
+            "available": False
+        }
+
+
 async def execute_agent_async(
     run_id: str,
     agent_name: str,
@@ -792,23 +878,23 @@ async def get_run_status(run_id: str):
         from src.db.repository import message as message_repo
         messages = message_repo.list_messages(target_session.id)
         
-        # Try to find and parse Claude Code log file for rich data
-        log_file_path = find_claude_code_log(run_id)
-        log_data = {}
-        if log_file_path:
-            log_data = parse_log_file(log_file_path)
-            logger.info(f"Parsed log file for run {run_id}: {log_file_path}")
+        # Try to find and parse Claude Code stream file for real-time data
+        stream_file_path = find_claude_stream_file(run_id)
+        stream_data = {}
+        if stream_file_path:
+            stream_data = parse_stream_file(stream_file_path)
+            logger.info(f"Parsed stream file for run {run_id}: {stream_file_path}")
         else:
-            logger.warning(f"No log file found for run {run_id}")
+            logger.warning(f"No stream file found for run {run_id}")
         
-        # Extract result - prefer log data, fallback to database
+        # Extract result - prefer stream data, fallback to database
         result_content = None
-        if log_data.get("claude_response", {}).get("final_result"):
-            # Use Claude's actual final result from log
-            result_content = log_data["claude_response"]["final_result"]
-        elif log_data.get("claude_response", {}).get("final_content"):
-            # Use final content from assistant message
-            result_content = log_data["claude_response"]["final_content"]
+        if stream_data.get("final_result"):
+            # Use Claude's actual final result from stream
+            result_content = stream_data["final_result"]
+        elif stream_data.get("latest_response"):
+            # Use latest response from stream
+            result_content = stream_data["latest_response"]
         else:
             # Fallback to database message
             assistant_messages = [msg for msg in messages if msg.role == 'assistant']
@@ -816,67 +902,47 @@ async def get_run_status(run_id: str):
                 latest = assistant_messages[-1]
                 result_content = latest.text_content
         
-        # Determine status - prefer log data, fallback to metadata
-        status = "unknown"
-        if log_data.get("phase") == "completed":
-            if log_data.get("execution_summary", {}).get("success"):
-                status = "completed"
-            else:
-                status = "failed"
-        elif log_data.get("phase") in ["session_active", "workflow_starting"]:
-            status = "running"
-        elif log_data.get("phase") == "initializing":
-            status = "running"
-        else:
+        # Determine status - prefer stream data, fallback to metadata
+        status = stream_data.get("status", "unknown")
+        if status == "unknown":
             # Fallback to metadata
-            status = metadata.get('run_status', 'unknown')
+            status = metadata.get('run_status', 'pending')
         
-        # Build comprehensive progress object with ALL rich data
+        # Build comprehensive progress object with real-time stream data
         progress = {
             "message_count": len(messages),
-            "log_available": bool(log_file_path),
-            "log_file_path": log_file_path
+            "stream_available": bool(stream_file_path),
+            "stream_file_path": stream_file_path
         }
         
-        # Add all log data if available
-        if log_data.get("available"):
+        # Add all stream data if available
+        if stream_data.get("available"):
             progress.update({
-                "phase": log_data.get("phase", "unknown"),
-                "execution_summary": log_data.get("execution_summary", {}),
-                "session_info": log_data.get("session_info", {}),
-                "performance_metrics": log_data.get("performance_metrics", {}),
-                "claude_response": {
-                    # Include response metadata but not raw content (that's in result field)
-                    "message_count": log_data.get("claude_response", {}).get("message_count", 0),
-                    "cost_usd": log_data.get("claude_response", {}).get("cost_usd"),
-                    "num_turns": log_data.get("claude_response", {}).get("num_turns"),
-                    "session_id": log_data.get("claude_response", {}).get("session_id"),
-                    "is_error": log_data.get("claude_response", {}).get("is_error")
-                },
-                "container_info": log_data.get("container_info", {}),
-                "workflow_context": log_data.get("workflow_context", {}),
-                "tool_usage": log_data.get("tool_usage", {}),
-                "git_info": log_data.get("git_info", {}),
-                "progress_tracking": log_data.get("progress_tracking", {}),
-                "timestamps": log_data.get("timestamps", {}),
-                "total_events": len(log_data.get("raw_events", []))
+                "status": stream_data.get("status", "unknown"),
+                "completed": stream_data.get("completed", False),
+                "session_info": stream_data.get("session_info", {}),
+                "cost_usd": stream_data.get("cost_usd", 0.0),
+                "turns": stream_data.get("turns", 0),
+                "messages_count": len(stream_data.get("messages", [])),
+                "latest_response": stream_data.get("latest_response", ""),
+                "real_time": True  # Indicates this is from real-time stream
             })
         else:
-            # Log data not available, add error info
-            if log_data.get("error"):
-                progress["log_error"] = log_data["error"]
+            # Stream data not available, add error info
+            if stream_data.get("error"):
+                progress["stream_error"] = stream_data["error"]
         
         return RunStatusResponse(
             run_id=run_id,
             status=status,
-            agent_name=metadata.get('agent_name', log_data.get("workflow_context", {}).get("workflow_name", "unknown")),
+            agent_name=metadata.get('agent_name', "unknown"),
             created_at=target_session.created_at.isoformat() if target_session.created_at else None,
-            started_at=metadata.get('started_at') or log_data.get("timestamps", {}).get("init"),
-            completed_at=metadata.get('completed_at') or log_data.get("timestamps", {}).get("completion") or (
+            started_at=metadata.get('started_at'),
+            completed_at=metadata.get('completed_at') or (
                 target_session.run_finished_at.isoformat() if target_session.run_finished_at else None
             ),
-            result=result_content,  # Real Claude response content
-            error=metadata.get('error') or log_data.get("error"),
+            result=result_content,  # Real Claude response content from stream
+            error=metadata.get('error') or stream_data.get("error"),
             progress=progress  # Rich progress data with ALL metrics
         )
         
