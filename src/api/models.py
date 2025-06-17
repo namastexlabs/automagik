@@ -222,6 +222,22 @@ class AgentDeleteResponse(BaseResponseModel):
     message: str
     agent_name: str
 
+class AgentCopyRequest(BaseResponseModel):
+    """Request model for copying an existing agent."""
+    new_name: str = Field(..., description="Name for the copied agent")
+    description: Optional[str] = Field(None, description="New description for the copied agent")
+    system_prompt: Optional[str] = Field(None, description="New system prompt for the copied agent")
+    model: Optional[str] = Field(None, description="New model for the copied agent")
+    tool_config: Optional[Dict[str, Any]] = Field(None, description="New tool configuration")
+
+class AgentCopyResponse(BaseResponseModel):
+    """Response model for agent copying."""
+    status: str = "success"
+    message: str
+    source_agent: str
+    new_agent: str
+    agent_id: int
+
 class ToolInfo(BaseResponseModel):
     """Information about an available tool."""
     name: str = Field(..., description="Tool name")
