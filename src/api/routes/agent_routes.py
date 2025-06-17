@@ -21,7 +21,7 @@ from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
 from src.db.repository import agent as agent_repo
 from src.db.repository import prompt as prompt_repo
-from src.db.models import Agent, Prompt
+from src.db.models import Agent, Prompt, PromptCreate
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -920,14 +920,7 @@ async def create_agent(request: AgentCreateRequest):
                         detail=f"Virtual agent tools invalid: {'; '.join(tool_errors)}"
                     )
         
-        # Handle system prompt - create in prompts table if provided  
-        prompt_id = None
-        if config.get("system_prompt"):
-            prompt_id = await _create_agent_prompt(agent_id=None, prompt_text=config["system_prompt"], agent_name=request.name)
-            # Remove from config since it's now in prompts table
-            del config["system_prompt"]
-        
-        # Create Agent model
+        # Create Agent model first (without prompt reference)
         agent = Agent(
             name=request.name,
             type=request.type,
@@ -935,15 +928,29 @@ async def create_agent(request: AgentCreateRequest):
             description=request.description,
             config=config,
             active=True,
-            active_default_prompt_id=prompt_id
+            active_default_prompt_id=None  # Will be set after prompt creation
         )
         
-        # Create the agent in database
+        # Create the agent in database first
         agent_id = agent_repo.create_agent(agent)
         
-        # Update prompt with actual agent_id if prompt was created
-        if prompt_id and agent_id:
-            await _update_prompt_agent_id(prompt_id, agent_id)
+        # Handle system prompt - create in prompts table after agent exists
+        prompt_id = None
+        if config.get("system_prompt"):
+            prompt_id = await _create_agent_prompt(agent_id=agent_id, prompt_text=config["system_prompt"], agent_name=request.name)
+            # Update agent with prompt reference
+            if prompt_id:
+                from src.db.connection import execute_query
+                from fastapi.concurrency import run_in_threadpool
+                await run_in_threadpool(
+                    lambda: execute_query(
+                        "UPDATE agents SET active_default_prompt_id = %s, updated_at = NOW() WHERE id = %s",
+                        (prompt_id, agent_id),
+                        fetch=False
+                    )
+                )
+            # Remove from config since it's now in prompts table
+            del config["system_prompt"]
         
         if agent_id is None:
             raise HTTPException(
@@ -1091,12 +1098,6 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
         # Ensure it's marked as virtual (copies are always virtual)
         new_config["agent_source"] = "virtual"
         
-        # Handle system prompt - create in prompts table if provided
-        prompt_id = None
-        if request.system_prompt:
-            # Create prompt in database
-            prompt_id = await _create_agent_prompt(agent_id=None, prompt_text=request.system_prompt, agent_name=request.new_name)
-        
         if request.tool_config:
             new_config["tool_config"] = request.tool_config
         
@@ -1107,7 +1108,7 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
             # Use source agent model as fallback
             new_config["default_model"] = source_agent.model
         
-        # Create the copied agent
+        # Create the copied agent first (without prompt reference)
         copied_agent = Agent(
             name=request.new_name,
             type=source_agent.type,
@@ -1115,7 +1116,7 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
             description=request.description or f"Copy of {source_agent_name}",
             config=new_config,
             active=True,
-            active_default_prompt_id=prompt_id  # Link to prompt if created
+            active_default_prompt_id=None  # Will be set after prompt creation
         )
         
         # Validate virtual agent configuration
@@ -1129,12 +1130,24 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
                     detail=f"Copied agent configuration invalid: {'; '.join(validation_errors)}"
                 )
         
-        # Create the agent in database
+        # Create the agent in database first
         agent_id = agent_repo.create_agent(copied_agent)
         
-        # Update prompt with actual agent_id if prompt was created
-        if prompt_id and agent_id:
-            await _update_prompt_agent_id(prompt_id, agent_id)
+        # Handle system prompt - create in prompts table after agent exists
+        prompt_id = None
+        if request.system_prompt:
+            prompt_id = await _create_agent_prompt(agent_id=agent_id, prompt_text=request.system_prompt, agent_name=request.new_name)
+            # Update agent with prompt reference
+            if prompt_id:
+                from src.db.connection import execute_query
+                from fastapi.concurrency import run_in_threadpool
+                await run_in_threadpool(
+                    lambda: execute_query(
+                        "UPDATE agents SET active_default_prompt_id = %s, updated_at = NOW() WHERE id = %s",
+                        (prompt_id, agent_id),
+                        fetch=False
+                    )
+                )
         
         if agent_id is None:
             raise HTTPException(
@@ -1346,8 +1359,11 @@ async def _create_agent_prompt(agent_id: Optional[int], prompt_text: str, agent_
     try:
         from fastapi.concurrency import run_in_threadpool
         
-        prompt = Prompt(
-            agent_id=agent_id or 0,  # Temporary, will be updated after agent creation
+        if not agent_id:
+            raise ValueError("Agent ID is required for prompt creation")
+            
+        prompt_create = PromptCreate(
+            agent_id=agent_id,
             prompt_text=prompt_text,
             version=1,
             is_active=True,
@@ -1356,7 +1372,7 @@ async def _create_agent_prompt(agent_id: Optional[int], prompt_text: str, agent_
             name=f"{agent_name} - Default Prompt"
         )
         
-        prompt_id = await run_in_threadpool(prompt_repo.create_prompt, prompt)
+        prompt_id = await run_in_threadpool(prompt_repo.create_prompt, prompt_create)
         logger.info(f"Created prompt {prompt_id} for agent {agent_name}")
         return prompt_id
         
@@ -1374,13 +1390,17 @@ async def _update_prompt_agent_id(prompt_id: int, agent_id: int) -> None:
     """
     try:
         from fastapi.concurrency import run_in_threadpool
+        from src.db.connection import execute_query
         
-        # Get the prompt
-        prompt = await run_in_threadpool(prompt_repo.get_prompt, prompt_id)
-        if prompt:
-            prompt.agent_id = agent_id
-            await run_in_threadpool(prompt_repo.update_prompt, prompt)
-            logger.debug(f"Updated prompt {prompt_id} with agent_id {agent_id}")
-            
+        # Update the prompt with direct SQL since PromptUpdate doesn't have agent_id field
+        await run_in_threadpool(
+            lambda: execute_query(
+                "UPDATE prompts SET agent_id = %s, updated_at = NOW() WHERE id = %s",
+                (agent_id, prompt_id),
+                fetch=False
+            )
+        )
+        logger.debug(f"Updated prompt {prompt_id} with agent_id {agent_id}")
+        
     except Exception as e:
         logger.error(f"Error updating prompt {prompt_id} with agent_id {agent_id}: {e}") 
