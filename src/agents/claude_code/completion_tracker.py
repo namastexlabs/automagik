@@ -78,8 +78,9 @@ class CompletionTracker:
                 elapsed = (datetime.utcnow() - start_time).total_seconds()
                 if elapsed > max_wait_time:
                     logger.warning(f"Completion tracking timed out for run {run_id}")
-                    await cls._update_session_status(session_id, "timeout", {
+                    await cls._update_session_status(session_id, "failed", {
                         "error": f"Execution timed out after {max_wait_time}s",
+                        "timeout_reason": "max_wait_time_exceeded",
                         "completed_at": datetime.utcnow().isoformat(),
                         "last_updated": datetime.utcnow().isoformat()
                     })
