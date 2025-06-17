@@ -689,6 +689,9 @@ class ClaudeCLIExecutor:
         log_manager
     ) -> CLIResult:
         """Run the Claude CLI process with integrated log streaming."""
+        # Initialize variables at the start to avoid UnboundLocalError in finally block
+        stdout_lines, stderr_lines = [], []
+        
         async with log_manager.get_log_writer(run_id) as log_writer:
             await self._log_execution_init(log_writer, session, workspace, cmd, run_id)
             
@@ -705,8 +708,6 @@ class ClaudeCLIExecutor:
                 stream_callback, log_writer, session, workspace
             )
             
-            # Initialize variables to avoid UnboundLocalError in finally block
-            stdout_lines, stderr_lines = [], []
             
             try:
                 stdout_lines, stderr_lines = await self._execute_process_streams(
