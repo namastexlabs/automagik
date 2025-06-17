@@ -1085,6 +1085,13 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
         if request.tool_config:
             new_config["tool_config"] = request.tool_config
         
+        # Set default_model for virtual agents (required by validator)
+        if request.model:
+            new_config["default_model"] = request.model
+        elif not new_config.get("default_model"):
+            # Use source agent model as fallback
+            new_config["default_model"] = source_agent.model
+        
         # Create the copied agent
         copied_agent = Agent(
             name=request.new_name,
