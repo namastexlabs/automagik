@@ -70,7 +70,7 @@ class ProgressTracker:
                 assistant_messages = sum(1 for entry in log_entries 
                                        if entry.get("event_type") == "claude_stream_assistant")
                 current_turns = max(current_turns, assistant_messages)
-            max_turns = metadata.get("max_turns", 30)
+            max_turns = metadata.get("max_turns")  # No default, unlimited if not specified
             
             # Execution status - check completion indicators
             run_status = metadata.get("run_status", "").lower()
@@ -82,7 +82,7 @@ class ProgressTracker:
             if run_status in ["completed", "failed"] or completed_at:
                 completion_percentage = 100.0
             else:
-                completion_percentage = min(100.0, (current_turns / max_turns) * 100) if max_turns > 0 else 0
+                completion_percentage = min(100.0, (current_turns / max_turns) * 100) if max_turns and max_turns > 0 else 0
             
             # Phase detection based on metadata and log entries
             current_phase = self._detect_current_phase(log_entries, current_turns, metadata)
@@ -105,7 +105,7 @@ class ProgressTracker:
             logger.error(f"Error calculating progress: {e}")
             return {
                 "turns": 0,
-                "max_turns": 30,
+                "max_turns": None,  # Unlimited by default
                 "completion_percentage": 0.0,
                 "current_phase": "unknown",
                 "phases_completed": [],
