@@ -167,7 +167,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 message=input_text,
                 session_id=self.context.get("session_id"),
                 workflow_name=workflow_name,
-                max_turns=int(self.config.get("max_turns", "30")),
+                max_turns=int(self.config["max_turns"]) if "max_turns" in self.config else None,
                 git_branch=git_branch,
                 timeout=self.config.get("container_timeout"),
                 repository_url=self.context.get("repository_url")  # Pass repository URL from context
@@ -457,7 +457,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 message=input_text,
                 session_id=session_id,
                 workflow_name=workflow_name,
-                max_turns=kwargs.get("max_turns", 30),
+                max_turns=kwargs.get("max_turns"),
                 git_branch=git_branch,
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
                 repository_url=kwargs.get("repository_url")
@@ -579,7 +579,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 message=input_text,
                 session_id=kwargs.get("session_id"),
                 workflow_name=workflow_name,
-                max_turns=kwargs.get("max_turns", 30),
+                max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch", self.config.get("git_branch")),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout"))
             )
@@ -678,7 +678,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 message=input_text,
                 session_id=claude_session_id_for_resumption,  # Use Claude session ID, not database session ID
                 workflow_name=workflow_name,
-                max_turns=kwargs.get("max_turns", 30),
+                max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch"),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
                 repository_url=kwargs.get("repository_url")
