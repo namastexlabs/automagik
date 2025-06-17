@@ -106,6 +106,9 @@ class CLIResult:
     git_commits: List[str] = None
     streaming_messages: List[Dict[str, Any]] = None
     log_file_path: Optional[str] = None
+    auto_commit_sha: Optional[str] = None
+    pr_url: Optional[str] = None
+    merge_sha: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -624,17 +627,7 @@ class ClaudeCLIExecutor:
         logger.info(f"Executing Claude CLI: {' '.join(cmd[:3])}... (full command logged to file)")
         
         try:
-            # Create stream callback for WebSocket if run_id provided
-            ws_callback = None
-            if run_id and stream_callback is None:
-                # Try to import WebSocket streaming function
-                try:
-                    from src.api.routes.claude_code_websocket import stream_claude_output
-                    async def ws_callback(msg):
-                        await stream_claude_output(run_id, msg)
-                    stream_callback = ws_callback
-                except ImportError:
-                    logger.warning("WebSocket streaming not available")
+            # WebSocket streaming removed - was dead code
             
             # Execute process with log streaming
             result = await self._run_process_with_logging(
