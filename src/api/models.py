@@ -187,6 +187,62 @@ class AgentInfo(BaseResponseModel):
     name: str
     description: Optional[str] = None
 
+class AgentCreateRequest(BaseResponseModel):
+    """Request model for creating a new agent."""
+    name: str = Field(..., description="Agent name")
+    type: str = Field(default="pydanticai", description="Agent type")
+    model: str = Field(default="openai:gpt-4o-mini", description="Default model")
+    description: Optional[str] = Field(None, description="Agent description")
+    config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Agent configuration")
+
+class AgentUpdateRequest(BaseResponseModel):
+    """Request model for updating an existing agent."""
+    type: Optional[str] = Field(None, description="Agent type")
+    model: Optional[str] = Field(None, description="Default model")
+    description: Optional[str] = Field(None, description="Agent description")
+    config: Optional[Dict[str, Any]] = Field(None, description="Agent configuration")
+    active: Optional[bool] = Field(None, description="Whether agent is active")
+
+class AgentCreateResponse(BaseResponseModel):
+    """Response model for agent creation."""
+    status: str = "success"
+    message: str
+    agent_id: int
+    agent_name: str
+
+class AgentUpdateResponse(BaseResponseModel):
+    """Response model for agent update."""
+    status: str = "success"
+    message: str
+    agent_name: str
+
+class AgentDeleteResponse(BaseResponseModel):
+    """Response model for agent deletion."""
+    status: str = "success"
+    message: str
+    agent_name: str
+
+class ToolInfo(BaseResponseModel):
+    """Information about an available tool."""
+    name: str = Field(..., description="Tool name")
+    type: str = Field(..., description="Tool type: 'mcp' or 'code'")
+    description: str = Field(..., description="Tool description")
+    server_name: Optional[str] = Field(None, description="MCP server name (for MCP tools)")
+    module: Optional[str] = Field(None, description="Module path (for code tools)")
+    context_signature: str = Field(default="RunContext[Dict]", description="Context signature")
+    parameters: List[Dict[str, Any]] = Field(default_factory=list, description="Tool parameters")
+
+class ToolExecuteRequest(BaseResponseModel):
+    """Request model for executing a tool."""
+    context: Dict[str, Any] = Field(default_factory=dict, description="Tool execution context")
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="Tool parameters")
+
+class ToolExecuteResponse(BaseResponseModel):
+    """Response model for tool execution."""
+    status: str = "success"
+    result: Any = Field(None, description="Tool execution result")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
 class AgentRunResponse(BaseResponseModel):
     """Response model for agent execution."""
     status: str = "success"
