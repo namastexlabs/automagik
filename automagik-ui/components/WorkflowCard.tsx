@@ -12,11 +12,14 @@ interface WorkflowCardProps {
 
 export default function WorkflowCard({ initialWorkflow, onStatusChange }: WorkflowCardProps) {
   const [workflow, setWorkflow] = useState<WorkflowStatus>(initialWorkflow);
+  const [isPolling, setIsPolling] = useState(false);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
     if (workflow.status === 'running' || workflow.status === 'pending') {
+      setIsPolling(true);
+      
       const pollStatus = async () => {
         try {
           const updatedStatus = await getWorkflowStatus(workflow.run_id);
@@ -28,29 +31,35 @@ export default function WorkflowCard({ initialWorkflow, onStatusChange }: Workfl
               description: updatedStatus.message,
               duration: 5000,
             });
+            setIsPolling(false);
             clearInterval(intervalId);
-          } else if (updatedStatus.status === 'failed') {
-            toast.error(`Workflow "${updatedStatus.workflow_name}" failed`, {
-              description: 'Check logs for details',
+          } else if (updatedStatus.status === 'failed' || updatedStatus.status === 'timeout') {
+            toast.error(`Workflow "${updatedStatus.workflow_name}" ${updatedStatus.status}`, {
+              description: updatedStatus.error || 'Check logs for details',
               duration: 8000,
             });
+            setIsPolling(false);
             clearInterval(intervalId);
           }
         } catch (error) {
           console.error('Failed to poll workflow status:', error);
+          // Don't stop polling on transient errors
         }
       };
 
-      // Poll every 3 seconds
-      intervalId = setInterval(pollStatus, 3000);
+      // Poll every 2 seconds (matching async-code-web)
+      intervalId = setInterval(pollStatus, 2000);
       
-      // Initial poll
+      // Initial poll immediately
       pollStatus();
+    } else {
+      setIsPolling(false);
     }
 
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
+        setIsPolling(false);
       }
     };
   }, [workflow.run_id, workflow.status, onStatusChange]);
