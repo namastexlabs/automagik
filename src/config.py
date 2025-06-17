@@ -167,8 +167,8 @@ class Settings(BaseSettings):
 
     # Agent Settings
     AM_TIMEZONE: str = Field(
-        default="UTC", 
-        description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York')"
+        default="America/Sao_Paulo", 
+        description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York', 'America/Sao_Paulo')"
     )
     AM_AGENTS_NAMES: Optional[str] = Field(
         default=None,

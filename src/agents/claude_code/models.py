@@ -15,7 +15,7 @@ class ClaudeCodeRunRequest(BaseModel):
     message: str = Field(..., description="The task message for Claude to execute")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuity")
     workflow_name: str = Field("bug-fixer", description="Name of the workflow to execute")
-    max_turns: int = Field(default=30, ge=1, le=100, description="Maximum number of Claude turns")
+    max_turns: Optional[int] = Field(None, ge=1, le=200, description="Maximum number of Claude turns (optional, unlimited if not specified)")
     git_branch: Optional[str] = Field(
         None, 
         description="Git branch to work on (defaults to current branch)"
@@ -96,7 +96,7 @@ class ProgressInfo(BaseModel):
     """Progress information for workflow execution."""
     
     turns: int = Field(..., description="Current number of turns completed")
-    max_turns: int = Field(..., description="Maximum turns allowed")
+    max_turns: Optional[int] = Field(None, description="Maximum turns allowed (None for unlimited)")
     completion_percentage: float = Field(..., description="Completion percentage (0-100)")
     current_phase: str = Field(..., description="Current workflow phase")
     phases_completed: List[str] = Field(default_factory=list, description="List of completed phases")
