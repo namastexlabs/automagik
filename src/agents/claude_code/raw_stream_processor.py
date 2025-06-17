@@ -198,6 +198,8 @@ class RawStreamProcessor:
     def _process_assistant_message(self, event: Dict[str, Any]) -> None:
         """Process assistant message event."""
         self.metrics.assistant_messages += 1
+        # Real-time turn counting for progress tracking
+        self.metrics.total_turns = self.metrics.assistant_messages
         
         message = event.get("message", {})
         content = message.get("content", [])

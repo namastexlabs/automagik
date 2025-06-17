@@ -62,8 +62,14 @@ class ProgressTracker:
             Progress information dictionary
         """
         try:
-            # Get turn counts from metadata (most reliable)
-            current_turns = metadata.get("total_turns", metadata.get("current_turns", 0))
+            # Get turn counts from metadata (prioritize current_turns for real-time tracking)
+            current_turns = metadata.get("current_turns", metadata.get("total_turns", 0))
+            
+            # If metadata turns are 0, count from log entries for real-time tracking
+            if current_turns == 0 and log_entries:
+                assistant_messages = sum(1 for entry in log_entries 
+                                       if entry.get("event_type") == "claude_stream_assistant")
+                current_turns = max(current_turns, assistant_messages)
             max_turns = metadata.get("max_turns", 30)
             
             # Execution status - check completion indicators
