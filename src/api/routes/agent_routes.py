@@ -9,11 +9,17 @@ from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks
 from starlette.responses import JSONResponse
 from starlette import status
 from pydantic import ValidationError, BaseModel, Field
-from src.api.models import AgentInfo, AgentRunRequest
+from src.api.models import (
+    AgentInfo, AgentRunRequest, AgentCreateRequest, AgentUpdateRequest, 
+    AgentCreateResponse, AgentUpdateResponse, AgentDeleteResponse,
+    ToolInfo, ToolExecuteRequest, ToolExecuteResponse
+)
 from src.api.controllers.agent_controller import list_registered_agents, handle_agent_run
 from src.utils.session_queue import get_session_queue
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
+from src.db.repository import agent as agent_repo
+from src.db.models import Agent
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -876,4 +882,337 @@ async def get_run_status(run_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting run status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get run status: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Failed to get run status: {str(e)}")
+
+
+# AGENT CRUD ENDPOINTS
+
+@agent_router.post("/agent/create", response_model=AgentCreateResponse, tags=["Agents"],
+                  summary="Create a new virtual agent",
+                  description="Create a new virtual agent with configuration. Supports both virtual and code-based agents.")
+async def create_agent(request: AgentCreateRequest):
+    """Create a new agent (virtual or code-based)."""
+    try:
+        logger.info(f"Creating agent: {request.name}")
+        
+        # Validate virtual agent configuration if applicable
+        config = request.config or {}
+        if config.get("agent_source") == "virtual":
+            from src.agents.common.virtual_agent_validator import VirtualAgentConfigValidator
+            
+            validation_errors = VirtualAgentConfigValidator.validate_config(config)
+            if validation_errors:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Virtual agent configuration invalid: {'; '.join(validation_errors)}"
+                )
+            
+            # Validate tool names if tools are enabled
+            tool_config = config.get("tool_config", {})
+            enabled_tools = tool_config.get("enabled_tools", [])
+            if enabled_tools:
+                tool_errors = VirtualAgentConfigValidator.validate_tool_names(enabled_tools)
+                if tool_errors:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Virtual agent tools invalid: {'; '.join(tool_errors)}"
+                    )
+        
+        # Create Agent model
+        agent = Agent(
+            name=request.name,
+            type=request.type,
+            model=request.model,
+            description=request.description,
+            config=config,
+            active=True
+        )
+        
+        # Create the agent in database
+        agent_id = agent_repo.create_agent(agent)
+        
+        if agent_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create agent {request.name}"
+            )
+        
+        logger.info(f"Successfully created agent {request.name} with ID {agent_id}")
+        
+        return AgentCreateResponse(
+            status="success",
+            message=f"Agent '{request.name}' created successfully",
+            agent_id=agent_id,
+            agent_name=request.name
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating agent {request.name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create agent: {str(e)}")
+
+
+@agent_router.put("/agent/{agent_name}", response_model=AgentUpdateResponse, tags=["Agents"],
+                 summary="Update an existing agent",
+                 description="Update an existing agent's configuration.")
+async def update_agent(agent_name: str, request: AgentUpdateRequest):
+    """Update an existing agent."""
+    try:
+        logger.info(f"Updating agent: {agent_name}")
+        
+        # Get existing agent
+        existing_agent = agent_repo.get_agent_by_name(agent_name)
+        if not existing_agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent '{agent_name}' not found"
+            )
+        
+        # Update fields that were provided
+        if request.type is not None:
+            existing_agent.type = request.type
+        if request.model is not None:
+            existing_agent.model = request.model
+        if request.description is not None:
+            existing_agent.description = request.description
+        if request.config is not None:
+            existing_agent.config = request.config
+        if request.active is not None:
+            existing_agent.active = request.active
+        
+        # Update the agent in database
+        agent_id = agent_repo.update_agent(existing_agent)
+        
+        if agent_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update agent {agent_name}"
+            )
+        
+        logger.info(f"Successfully updated agent {agent_name}")
+        
+        return AgentUpdateResponse(
+            status="success",
+            message=f"Agent '{agent_name}' updated successfully",
+            agent_name=agent_name
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating agent {agent_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update agent: {str(e)}")
+
+
+@agent_router.delete("/agent/{agent_name}", response_model=AgentDeleteResponse, tags=["Agents"],
+                    summary="Delete an agent",
+                    description="Delete an agent by name.")
+async def delete_agent(agent_name: str):
+    """Delete an agent by name."""
+    try:
+        logger.info(f"Deleting agent: {agent_name}")
+        
+        # Get existing agent
+        existing_agent = agent_repo.get_agent_by_name(agent_name)
+        if not existing_agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent '{agent_name}' not found"
+            )
+        
+        # Delete the agent from database
+        success = agent_repo.delete_agent(existing_agent.id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete agent {agent_name}"
+            )
+        
+        logger.info(f"Successfully deleted agent {agent_name}")
+        
+        return AgentDeleteResponse(
+            status="success",
+            message=f"Agent '{agent_name}' deleted successfully",
+            agent_name=agent_name
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting agent {agent_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")
+
+
+# TOOL MANAGEMENT ENDPOINTS
+
+@agent_router.get("/tools", response_model=List[ToolInfo], tags=["Tools"],
+                 summary="List available tools",
+                 description="List all available tools from MCP servers and code modules.")
+async def list_tools():
+    """List all available tools."""
+    try:
+        logger.info("Listing available tools")
+        
+        tools = []
+        
+        # Get MCP tools
+        try:
+            from src.db.repository import mcp as mcp_repo
+            mcp_servers = mcp_repo.list_mcp_servers()
+            
+            for server in mcp_servers:
+                if server.tools_discovered:
+                    try:
+                        tools_discovered = json.loads(server.tools_discovered)
+                        for tool in tools_discovered:
+                            tools.append(ToolInfo(
+                                name=tool.get("name", "unknown"),
+                                type="mcp",
+                                description=tool.get("description", ""),
+                                server_name=server.name,
+                                context_signature="RunContext[Dict]",
+                                parameters=_extract_tool_parameters(tool.get("inputSchema", {}))
+                            ))
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse tools for server {server.name}: {e}")
+                        
+        except Exception as e:
+            logger.warning(f"Failed to load MCP tools: {e}")
+        
+        # Get code-based tools
+        try:
+            code_tools = _discover_code_tools()
+            tools.extend(code_tools)
+        except Exception as e:
+            logger.warning(f"Failed to load code tools: {e}")
+        
+        logger.info(f"Found {len(tools)} available tools")
+        return tools
+        
+    except Exception as e:
+        logger.error(f"Error listing tools: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
+
+
+@agent_router.post("/tools/{tool_name}/run", response_model=ToolExecuteResponse, tags=["Tools"],
+                  summary="Execute a tool directly",
+                  description="Execute a specific tool with provided context and parameters.")
+async def execute_tool(tool_name: str, request: ToolExecuteRequest):
+    """Execute a tool directly."""
+    try:
+        logger.info(f"Executing tool: {tool_name}")
+        
+        # Find the tool
+        tool_info = await _find_tool_by_name(tool_name)
+        if not tool_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Tool '{tool_name}' not found"
+            )
+        
+        # Execute the tool based on type
+        if tool_info.type == "mcp":
+            result = await _execute_mcp_tool(tool_info, request.context, request.parameters)
+        elif tool_info.type == "code":
+            result = await _execute_code_tool(tool_info, request.context, request.parameters)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown tool type: {tool_info.type}"
+            )
+        
+        logger.info(f"Successfully executed tool {tool_name}")
+        
+        return ToolExecuteResponse(
+            status="success",
+            result=result
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_name}: {e}")
+        return ToolExecuteResponse(
+            status="error",
+            error=str(e)
+        )
+
+
+# HELPER FUNCTIONS
+
+def _extract_tool_parameters(input_schema: Dict) -> List[Dict[str, Any]]:
+    """Extract tool parameters from input schema."""
+    parameters = []
+    properties = input_schema.get("properties", {})
+    required = input_schema.get("required", [])
+    
+    for param_name, param_info in properties.items():
+        parameters.append({
+            "name": param_name,
+            "type": param_info.get("type", "string"),
+            "description": param_info.get("description", ""),
+            "required": param_name in required
+        })
+    
+    return parameters
+
+
+def _discover_code_tools() -> List[ToolInfo]:
+    """Discover code-based tools from src/tools/ modules."""
+    tools = []
+    
+    # Common tools that we know exist
+    common_tools = [
+        {
+            "name": "memory",
+            "description": "Agent memory operations",
+            "module": "src.agents.common.memory"
+        },
+        {
+            "name": "datetime",
+            "description": "Date and time utilities",
+            "module": "src.agents.common.datetime"
+        },
+        {
+            "name": "evolution_send_message",
+            "description": "Send WhatsApp messages via Evolution API",
+            "module": "src.tools.evolution.tool"
+        }
+    ]
+    
+    for tool_info in common_tools:
+        tools.append(ToolInfo(
+            name=tool_info["name"],
+            type="code",
+            description=tool_info["description"],
+            module=tool_info["module"],
+            context_signature="RunContext[Dict]",
+            parameters=[]  # Would need to inspect actual tool signatures
+        ))
+    
+    return tools
+
+
+async def _find_tool_by_name(tool_name: str) -> Optional[ToolInfo]:
+    """Find a tool by name."""
+    all_tools = await list_tools()
+    for tool in all_tools:
+        if tool.name == tool_name:
+            return tool
+    return None
+
+
+async def _execute_mcp_tool(tool_info: ToolInfo, context: Dict, parameters: Dict) -> Any:
+    """Execute an MCP tool."""
+    # TODO: Implement MCP tool execution
+    # This would need to use the MCP client to call the tool on the appropriate server
+    raise HTTPException(status_code=501, detail="MCP tool execution not yet implemented")
+
+
+async def _execute_code_tool(tool_info: ToolInfo, context: Dict, parameters: Dict) -> Any:
+    """Execute a code-based tool."""
+    # TODO: Implement code tool execution
+    # This would need to dynamically import and call the tool function
+    raise HTTPException(status_code=501, detail="Code tool execution not yet implemented") 
