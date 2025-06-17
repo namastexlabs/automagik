@@ -208,24 +208,46 @@ async def run_claude_workflow(
             )
             user_id = str(user_repo.create_user(new_user))
 
-        # Create session for the run
-        from src.db.models import Session
-
-        session = Session(
-            agent_id=None,  # Will be set when agent is loaded
-            name=request.session_name or f"claude-code-{workflow_name}-{run_id}",
-            platform="claude-code-api",
-            user_id=uuid.UUID(user_id) if user_id else None,
-            metadata={
-                "run_id": run_id,
-                "run_status": "pending",
-                "workflow_name": workflow_name,
-                "created_at": datetime.utcnow().isoformat(),
-                "request": request.dict(),
-                "agent_type": "claude-code",
-            },
-        )
-        session_id = session_repo.create_session(session)
+        # Handle session creation or continuation
+        session_id = None
+        session = None
+        
+        # Check for session continuation by session_id or session_name
+        if request.session_id:
+            # Continue existing session by database session_id
+            session_id = uuid.UUID(request.session_id)
+            session = session_repo.get_session(session_id)
+            if not session:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Session {request.session_id} not found"
+                )
+        elif request.session_name:
+            # Try to find existing session by name for continuation
+            from src.db import get_session_by_name
+            session = get_session_by_name(request.session_name)
+            if session:
+                session_id = session.id
+            
+        if not session_id:
+            # Create new session
+            from src.db.models import Session
+            
+            session = Session(
+                agent_id=None,  # Will be set when agent is loaded
+                name=request.session_name or f"claude-code-{workflow_name}-{run_id}",
+                platform="claude-code-api",
+                user_id=uuid.UUID(user_id) if user_id else None,
+                metadata={
+                    "run_id": run_id,
+                    "run_status": "pending",
+                    "workflow_name": workflow_name,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "request": request.dict(),
+                    "agent_type": "claude-code",
+                },
+            )
+            session_id = session_repo.create_session(session)
 
         # Start execution asynchronously without waiting for first response
         # This avoids stream contamination from trying to capture early output
