@@ -84,6 +84,23 @@ class ClaudeWorkflowRequest(BaseModel):
         description="Execution timeout in seconds (1-4 hours)",
         example=10800,
     )
+    
+    # PR creation options (UI-driven)
+    create_pr_on_success: bool = Field(
+        default=False,
+        description="Create a Pull Request when workflow completes successfully (UI option)",
+        example=False,
+    )
+    pr_title: Optional[str] = Field(
+        None,
+        description="Custom title for the PR (defaults to workflow name and run ID)",
+        example="feat: Implement JWT authentication system",
+    )
+    pr_body: Optional[str] = Field(
+        None,
+        description="Custom body for the PR (defaults to auto-generated summary)",
+        example="## Summary\nImplements JWT authentication with secure token handling\n\n## Changes\n- Added JWT middleware\n- Created auth endpoints\n- Updated user model",
+    )
 
 
 class ClaudeWorkflowResponse(BaseModel):
@@ -97,6 +114,17 @@ class ClaudeWorkflowResponse(BaseModel):
     session_id: str = Field(description="Session identifier")
     workflow_name: str = Field(description="The executed workflow name")
     started_at: str = Field(description="ISO timestamp when workflow started")
+    
+    # Git operation results (populated when workflow completes)
+    auto_commit_sha: Optional[str] = Field(
+        None, description="SHA of the final auto-commit (if any)"
+    )
+    pr_url: Optional[str] = Field(
+        None, description="URL of the created Pull Request (if any)"
+    )
+    merge_sha: Optional[str] = Field(
+        None, description="SHA of the merge commit to main (if any)"
+    )
 
 
 
