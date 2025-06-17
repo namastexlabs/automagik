@@ -67,6 +67,12 @@ class AgentFactory:
             
         logger.debug(f"Creating agent of type {agent_type} with framework {framework}")
         
+        # Check for virtual agent first
+        agent_source = config.get("agent_source")
+        if agent_source == "virtual":
+            logger.info(f"Creating virtual agent: {agent_type}")
+            return cls._create_virtual_agent(agent_type, config)
+        
         # Default to simple agent
         if not agent_type:
             agent_type = "simple"
@@ -334,6 +340,20 @@ class AgentFactory:
             config = {
                 "name": agent_name
             }
+            
+            # Check if this is a virtual agent by looking in the database
+            try:
+                from src.db.repository.agent import get_agent_by_name as get_db_agent
+                db_agent = get_db_agent(agent_name)
+                if db_agent and db_agent.config:
+                    # Merge database config
+                    if isinstance(db_agent.config, dict):
+                        config.update(db_agent.config)
+                        logger.debug(f"Loaded config for agent {agent_name} from database")
+                    else:
+                        logger.warning(f"Agent {agent_name} has invalid config in database")
+            except Exception as e:
+                logger.debug(f"Could not load config for agent {agent_name} from database: {e}")
                 
             # Create a new agent instance from scratch - most reliable way to avoid shared state
             logger.debug(f"Creating fresh agent instance for {agent_name}")
@@ -520,3 +540,95 @@ class AgentFactory:
             # This approach keeps backward-compatibility while ensuring only one concurrent
             # coroutine builds/initializes a given agent template at a time.
             return cls.get_agent(agent_name)
+    
+    @classmethod
+    def _create_virtual_agent(cls, agent_name: str, config: Dict[str, any]) -> AutomagikAgent:
+        """Create a virtual agent from database configuration.
+        
+        Args:
+            agent_name: Name of the virtual agent
+            config: Agent configuration dictionary
+            
+        Returns:
+            AutomagikAgent instance configured from database
+        """
+        logger.info(f"Creating virtual agent: {agent_name}")
+        
+        try:
+            # Create AutomagikAgent instance with virtual config
+            agent = AutomagikAgent(config)
+            agent.name = agent_name
+            
+            # Set up tools from tool_config if provided
+            tool_config = config.get("tool_config", {})
+            if tool_config:
+                cls._setup_virtual_tools(agent, tool_config)
+            
+            # Set up model from config
+            cls._setup_model_selection(agent, config)
+            
+            logger.info(f"Successfully created virtual agent: {agent_name}")
+            return agent
+            
+        except Exception as e:
+            logger.error(f"Error creating virtual agent {agent_name}: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Return placeholder agent with error info
+            return PlaceholderAgent({
+                "name": f"{agent_name}_virtual_error",
+                "error": f"Failed to create virtual agent: {str(e)}"
+            })
+    
+    @classmethod
+    def _setup_virtual_tools(cls, agent: AutomagikAgent, tool_config: Dict[str, any]) -> None:
+        """Set up tools for a virtual agent from configuration.
+        
+        Args:
+            agent: The AutomagikAgent instance
+            tool_config: Tool configuration dictionary
+        """
+        enabled_tools = tool_config.get("enabled_tools", [])
+        permissions = tool_config.get("tool_permissions", {})
+        
+        logger.debug(f"Setting up virtual agent tools: {enabled_tools}")
+        
+        # Load tools by name from the tool registry
+        for tool_name in enabled_tools:
+            try:
+                # Get tool from registry and apply permissions
+                tool_permissions = permissions.get(tool_name, {})
+                logger.debug(f"Registering tool {tool_name} with permissions: {tool_permissions}")
+                
+                # For now, just log the tools - actual tool registration would happen
+                # in the agent initialization where tools are loaded
+                # This is a placeholder for the full tool integration
+                
+            except Exception as e:
+                logger.warning(f"Failed to register tool {tool_name}: {str(e)}")
+    
+    @classmethod
+    def _setup_model_selection(cls, agent: AutomagikAgent, config: Dict[str, any]) -> None:
+        """Set up model selection for a virtual agent.
+        
+        Args:
+            agent: The AutomagikAgent instance
+            config: Agent configuration dictionary
+        """
+        # Check for class-level model override (future Model Descriptor Pattern)
+        if hasattr(agent.__class__, 'model'):
+            if callable(agent.__class__.model):
+                model = agent.__class__.model(agent, config)
+                logger.debug(f"Using callable model selector: {model}")
+            else:
+                model = agent.__class__.model
+                logger.debug(f"Using class-level model: {model}")
+        else:
+            # Use model from virtual agent config
+            model = config.get("default_model", "openai:gpt-4o-mini")
+            logger.debug(f"Using config model: {model}")
+        
+        # Update the agent's model configuration
+        if hasattr(agent, 'config') and hasattr(agent.config, 'model'):
+            agent.config.model = model
+        elif hasattr(agent, 'config'):
+            agent.config.config["model"] = model
