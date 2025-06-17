@@ -47,11 +47,11 @@ class ClaudeWorkflowRequest(BaseModel):
         description="The main task description or prompt for Claude",
         example="Implement user authentication system with JWT tokens",
     )
-    max_turns: int = Field(
-        default=30,
+    max_turns: Optional[int] = Field(
+        None,
         ge=1,
-        le=100,
-        description="Maximum conversation turns for the workflow",
+        le=200,
+        description="Maximum conversation turns for the workflow (unlimited if not specified)",
         example=50,
     )
 
@@ -84,6 +84,23 @@ class ClaudeWorkflowRequest(BaseModel):
         description="Execution timeout in seconds (1-4 hours)",
         example=10800,
     )
+    
+    # PR creation options (UI-driven)
+    create_pr_on_success: bool = Field(
+        default=False,
+        description="Create a Pull Request when workflow completes successfully (UI option)",
+        example=False,
+    )
+    pr_title: Optional[str] = Field(
+        None,
+        description="Custom title for the PR (defaults to workflow name and run ID)",
+        example="feat: Implement JWT authentication system",
+    )
+    pr_body: Optional[str] = Field(
+        None,
+        description="Custom body for the PR (defaults to auto-generated summary)",
+        example="## Summary\nImplements JWT authentication with secure token handling\n\n## Changes\n- Added JWT middleware\n- Created auth endpoints\n- Updated user model",
+    )
 
 
 class ClaudeWorkflowResponse(BaseModel):
@@ -97,6 +114,17 @@ class ClaudeWorkflowResponse(BaseModel):
     session_id: str = Field(description="Session identifier")
     workflow_name: str = Field(description="The executed workflow name")
     started_at: str = Field(description="ISO timestamp when workflow started")
+    
+    # Git operation results (populated when workflow completes)
+    auto_commit_sha: Optional[str] = Field(
+        None, description="SHA of the final auto-commit (if any)"
+    )
+    pr_url: Optional[str] = Field(
+        None, description="URL of the created Pull Request (if any)"
+    )
+    merge_sha: Optional[str] = Field(
+        None, description="SHA of the merge commit to main (if any)"
+    )
 
 
 
@@ -646,7 +674,7 @@ async def get_claude_code_run_status(
         stream_status = StreamParser.get_current_status(stream_events)
         stream_result = StreamParser.extract_result(stream_events)
         stream_metrics = StreamParser.extract_metrics(stream_events)
-        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns", 30))
+        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns"))
         stream_session = StreamParser.extract_session_info(stream_events)
         
         # Get messages for additional context
@@ -788,11 +816,15 @@ async def get_claude_code_run_status(
             performance_score=85.0 if result_info["success"] else 60.0  # Simple scoring
         )
 
-        # Build progress info using stream data as primary source
+        # Build progress info - use ProgressTracker when StreamParser returns 0%
+        stream_completion = stream_progress.get("completion_percentage", 0)
+        tracker_completion = progress_info["completion_percentage"]
+        final_completion = tracker_completion if stream_completion == 0 else stream_completion
+        
         progress_info_obj = ProgressInfo(
             turns=stream_progress.get("turns", progress_info["turns"]),
             max_turns=stream_progress.get("max_turns", progress_info["max_turns"]),
-            completion_percentage=stream_progress.get("completion_percentage", progress_info["completion_percentage"]),
+            completion_percentage=final_completion,
             current_phase=stream_progress.get("current_phase", progress_info["current_phase"]),
             phases_completed=progress_info["phases_completed"],  # Keep from original
             is_running=stream_progress.get("is_running", progress_info["is_running"]),
