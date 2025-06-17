@@ -125,11 +125,16 @@ reports = {
     "guardian": Read(f"/workspace/docs/development/{epic_name}/reports/guardian_001.md")
 }
 
-# Search BRAIN for deployment patterns
-deployment_knowledge = mcp__agent_memory__search_memory_facts(
-    query="deployment procedures Docker production",
-    group_ids=["deployment_procedures", "platform_patterns"]
-)
+# Search BRAIN for deployment patterns (WITH FALLBACK)
+try:
+    deployment_knowledge = mcp__agent_memory__search_memory_facts(
+        query="deployment procedures Docker",
+        max_facts=2,  # Prevent token overflow
+        group_ids=["deployment_procedures", "platform_patterns"]
+    )
+except Exception:
+    # FALLBACK: Continue without memory if search fails
+    deployment_knowledge = None
 ```
 
 ### 2. Final Validation and PR Creation
@@ -192,10 +197,14 @@ The final hand-off to production is a *gold-mine* of operational data.  Store it
    procedures so you don’t reinvent rollbacks, health-checks or scaling rules:
 
    ```python
-   rollback_proc = mcp__agent_memory__search_memory_facts(
-       query="rollback procedure",
-       group_ids=["deployment_procedures"]
-   )
+   try:
+       rollback_proc = mcp__agent_memory__search_memory_facts(
+           query="rollback procedure",
+           max_facts=1,  # Prevent token overflow
+           group_ids=["deployment_procedures"]
+       )
+   except Exception:
+       rollback_proc = None  # Fallback to defaults
    ```
 
 2. **Release episode** – once the PR is opened add an episode that ties
@@ -228,17 +237,25 @@ available for future search and analytics.
 
 ### Before Shipping - Load Knowledge
 ```python
-# Search BRAIN for deployment patterns
-deployment_knowledge = mcp__agent_memory__search_memory_facts(
-    query="deployment procedures production Docker",
-    group_ids=["deployment_procedures", "platform_patterns"]
-)
+# Search BRAIN for deployment patterns (WITH FALLBACK)
+try:
+    deployment_knowledge = mcp__agent_memory__search_memory_facts(
+        query="deployment procedures Docker",
+        max_facts=2,  # Prevent token overflow
+        group_ids=["deployment_procedures", "platform_patterns"]
+    )
+except Exception:
+    deployment_knowledge = None  # Fallback to defaults
 
-# Search for team shipping preferences
-team_shipping = mcp__agent_memory__search_memory_facts(
-    query="team shipping deployment preferences",
-    group_ids=["team_preferences_felipe", "team_preferences_cezar"]
-)
+# Search for team shipping preferences (WITH FALLBACK)
+try:
+    team_shipping = mcp__agent_memory__search_memory_facts(
+        query="team shipping preferences",
+        max_facts=1,  # Prevent token overflow
+        group_ids=["team_preferences_felipe"]
+    )
+except Exception:
+    team_shipping = None  # Fallback to defaults
 ```
 
 ### After Shipping - Extract for BRAIN
