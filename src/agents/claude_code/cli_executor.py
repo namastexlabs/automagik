@@ -305,7 +305,7 @@ class StreamProcessor:
     
     def _close_json_stream_file(self):
         """Close the JSON stream file."""
-        if self.json_stream_file:
+        if self.json_stream_file and not self.json_stream_file.closed:
             try:
                 # Write closing metadata
                 metadata = {
@@ -469,19 +469,22 @@ class ClaudeCLIExecutor:
     def __init__(
         self,
         timeout: int = 7200,
-        max_concurrent: int = 5
+        max_concurrent: int = 5,
+        env_manager=None
     ):
         """Initialize CLI executor.
         
         Args:
             timeout: Default timeout in seconds
             max_concurrent: Maximum concurrent executions
+            env_manager: Optional CLIEnvironmentManager instance to reuse
         """
         self.timeout = timeout
         self.max_concurrent = max_concurrent
         self.active_processes: Dict[str, subprocess.Popen] = {}
         self.sessions: Dict[str, ClaudeSession] = {}
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self.env_manager = env_manager
         
         logger.info(f"ClaudeCLIExecutor initialized with timeout={timeout}s")
     
@@ -695,7 +698,7 @@ class ClaudeCLIExecutor:
             working_dir = self._determine_working_directory(workspace)
             process = await self._create_process(cmd, working_dir, env, session)
             
-            await self._log_process_start(log_writer, process, timeout)
+            await self._log_process_start(log_writer, process, timeout, session)
             self.active_processes[session.run_id] = process
             
             processor, session_task = await self._setup_stream_processing(
@@ -1332,7 +1335,7 @@ class ClaudeCLIExecutor:
             env=env
         )
     
-    async def _log_process_start(self, log_writer, process, timeout):
+    async def _log_process_start(self, log_writer, process, timeout, session):
         """Log process start information."""
         await log_writer(
             f"Process started with PID {process.pid}",
@@ -1344,7 +1347,7 @@ class ClaudeCLIExecutor:
         )
         
         # Register process in database for tracking and emergency kill
-        await self._register_workflow_process(process, log_writer)
+        await self._register_workflow_process(process, log_writer, session)
     
     async def _setup_stream_processing(self, stream_callback, log_writer, session, workspace=None):
         """Setup stream processing and session confirmation tracking."""
@@ -1377,7 +1380,7 @@ class ClaudeCLIExecutor:
         
         # Add turn monitoring variables
         turn_count = 0
-        max_turns = processor.session.max_turns if hasattr(processor, 'session') and processor.session else 30
+        max_turns = processor.session.max_turns if hasattr(processor, 'session') and processor.session and processor.session.max_turns else None
         
         async def read_stream(stream, lines_list, is_stdout=True):
             nonlocal turn_count
@@ -1417,8 +1420,12 @@ class ClaudeCLIExecutor:
         
         async def auto_commit_worker(workspace, run_id, interval=60):
             """Background task for periodic auto-commits."""
-            from .cli_environment import CLIEnvironmentManager
-            env_manager = CLIEnvironmentManager()
+            # Use existing env_manager if available, otherwise create new one
+            if self.env_manager:
+                env_manager = self.env_manager
+            else:
+                from .cli_environment import CLIEnvironmentManager
+                env_manager = CLIEnvironmentManager()
             snapshot_count = 0
             
             while not process.stdout.at_eof() and not process.stderr.at_eof():
@@ -1542,7 +1549,7 @@ class ClaudeCLIExecutor:
             log_file_path=str(log_manager.get_log_path(run_id))
         )
     
-    async def _register_workflow_process(self, process, log_writer):
+    async def _register_workflow_process(self, process, log_writer, session):
         """Register workflow process in database for tracking and emergency kill."""
         try:
             # Import here to avoid circular imports
@@ -1550,19 +1557,11 @@ class ClaudeCLIExecutor:
             from src.db.models import WorkflowProcessCreate
             from datetime import datetime
             
-            # Find the session info from active processes
-            run_id = None
-            session = None
-            for rid, proc in self.active_processes.items():
-                if proc == process:
-                    run_id = rid
-                    session = self.sessions.get(rid)
-                    break
+            # Get run_id from session parameter
+            run_id = session.run_id if session else f"unknown_{process.pid}"
             
-            if not run_id:
-                # Try to extract from process environment if available
-                run_id = f"unknown_{process.pid}"
-                logger.warning(f"Could not find run_id for process {process.pid}, using {run_id}")
+            if not session or not session.run_id:
+                logger.warning(f"No session or run_id provided for process {process.pid}, using {run_id}")
             
             # Create workflow process record
             workflow_process = WorkflowProcessCreate(

@@ -21,7 +21,8 @@ from src.db.connection import execute_query
 logger = logging.getLogger(__name__)
 
 # Create router for async-code compatibility endpoints
-async_code_router = APIRouter(prefix="/api/v1", tags=["Async-Code-Compatibility"])
+# Note: No prefix here because main router already adds /api/v1
+async_code_router = APIRouter(tags=["Async-Code-Compatibility"])
 
 
 # Compatibility models for async-code format
