@@ -12,6 +12,7 @@ from pydantic import ValidationError, BaseModel, Field
 from src.api.models import (
     AgentInfo, AgentRunRequest, AgentCreateRequest, AgentUpdateRequest, 
     AgentCreateResponse, AgentUpdateResponse, AgentDeleteResponse,
+    AgentCopyRequest, AgentCopyResponse,
     ToolInfo, ToolExecuteRequest, ToolExecuteResponse
 )
 from src.api.controllers.agent_controller import list_registered_agents, handle_agent_run
@@ -1043,6 +1044,92 @@ async def delete_agent(agent_name: str):
     except Exception as e:
         logger.error(f"Error deleting agent {agent_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")
+
+
+@agent_router.post("/agent/{source_agent_name}/copy", response_model=AgentCopyResponse, tags=["Agents"],
+                  summary="Copy an existing agent with modifications",
+                  description="Create a copy of an existing agent with optional prompt and configuration changes.")
+async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
+    """Copy an existing agent with modifications."""
+    try:
+        logger.info(f"Copying agent {source_agent_name} to {request.new_name}")
+        
+        # Get source agent
+        source_agent = agent_repo.get_agent_by_name(source_agent_name)
+        if not source_agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Source agent '{source_agent_name}' not found"
+            )
+        
+        # Check if new agent name already exists
+        existing_agent = agent_repo.get_agent_by_name(request.new_name)
+        if existing_agent:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Agent '{request.new_name}' already exists"
+            )
+        
+        # Copy source agent configuration
+        new_config = {}
+        if source_agent.config:
+            new_config = source_agent.config.copy()
+        
+        # Ensure it's marked as virtual (copies are always virtual)
+        new_config["agent_source"] = "virtual"
+        
+        # Apply requested modifications
+        if request.system_prompt:
+            new_config["system_prompt"] = request.system_prompt
+        
+        if request.tool_config:
+            new_config["tool_config"] = request.tool_config
+        
+        # Create the copied agent
+        copied_agent = Agent(
+            name=request.new_name,
+            type=source_agent.type,
+            model=request.model or source_agent.model,
+            description=request.description or f"Copy of {source_agent_name}",
+            config=new_config,
+            active=True
+        )
+        
+        # Validate virtual agent configuration
+        if new_config.get("agent_source") == "virtual":
+            from src.agents.common.virtual_agent_validator import VirtualAgentConfigValidator
+            
+            validation_errors = VirtualAgentConfigValidator.validate_config(new_config)
+            if validation_errors:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Copied agent configuration invalid: {'; '.join(validation_errors)}"
+                )
+        
+        # Create the agent in database
+        agent_id = agent_repo.create_agent(copied_agent)
+        
+        if agent_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create copied agent {request.new_name}"
+            )
+        
+        logger.info(f"Successfully copied agent {source_agent_name} to {request.new_name} with ID {agent_id}")
+        
+        return AgentCopyResponse(
+            status="success",
+            message=f"Agent '{source_agent_name}' copied to '{request.new_name}' successfully",
+            source_agent=source_agent_name,
+            new_agent=request.new_name,
+            agent_id=agent_id
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error copying agent {source_agent_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to copy agent: {str(e)}")
 
 
 # TOOL MANAGEMENT ENDPOINTS
