@@ -92,11 +92,43 @@ class LocalExecutor(ExecutorBase):
                 run_id=run_id
             )
             
-            # Auto-commit all changes as snapshot before cleanup
+            # Auto-commit and merge back to main (unless workflow uses current workspace)
             try:
-                commit_message = f"auto-snapshot: {request.workflow_name} workflow completed"
-                await self.env_manager.auto_commit_snapshot(workspace_path, run_id, commit_message)
-                logger.info(f"Auto-committed final snapshot for run {run_id}")
+                commit_message = f"feat: {request.workflow_name} workflow completed"
+                
+                # Check if this workflow uses current workspace (no git operations)
+                workflow_uses_current_workspace = await self._workflow_uses_current_workspace(request.workflow_name)
+                
+                if not workflow_uses_current_workspace:
+                    # Default: auto-commit and merge to main
+                    # PR creation only if explicitly requested via UI
+                    create_pr = getattr(request, 'create_pr_on_success', False)
+                    pr_title = getattr(request, 'pr_title', None)
+                    pr_body = getattr(request, 'pr_body', None)
+                    
+                    git_ops_result = await self.env_manager.auto_commit_with_options(
+                        workspace_path, 
+                        run_id, 
+                        commit_message,
+                        create_pr=create_pr,
+                        merge_to_main=True,  # Always merge back to main
+                        pr_title=pr_title,
+                        pr_body=pr_body,
+                        workflow_name=request.workflow_name
+                    )
+                    
+                    if git_ops_result['success']:
+                        logger.info(f"Auto-committed and merged to main for run {run_id}")
+                        if git_ops_result.get('pr_url'):
+                            logger.info(f"Created PR: {git_ops_result['pr_url']}")
+                        
+                        # Store git operation results in the result
+                        result.auto_commit_sha = git_ops_result.get('commit_sha')
+                        result.pr_url = git_ops_result.get('pr_url')
+                        result.merge_sha = git_ops_result.get('merge_sha')
+                else:
+                    logger.info(f"Skipping git operations for {request.workflow_name} (uses current workspace)")
+                    
             except Exception as commit_error:
                 logger.warning(f"Auto-commit failed for run {run_id}: {commit_error}")
             
@@ -242,3 +274,19 @@ class LocalExecutor(ExecutorBase):
             logger.info("LocalExecutor cleanup completed")
         except Exception as e:
             logger.error(f"Error during LocalExecutor cleanup: {str(e)}")
+
+    async def _workflow_uses_current_workspace(self, workflow_name: str) -> bool:
+        """Check if a workflow uses current workspace (no worktree git operations)."""
+        try:
+            from pathlib import Path
+            workflow_env_path = Path(__file__).parent / "workflows" / workflow_name / ".env"
+            
+            if workflow_env_path.exists():
+                with open(workflow_env_path, 'r') as f:
+                    content = f.read()
+                    return 'current_workspace=true' in content
+            
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking workflow env for {workflow_name}: {e}")
+            return False
