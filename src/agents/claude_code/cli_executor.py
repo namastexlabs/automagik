@@ -655,30 +655,14 @@ class ClaudeCLIExecutor:
         except Exception as e:
             logger.error(f"CLI execution failed: {e}")
             
-            # Enhanced error handling for chunk/separator errors
-            if "Separator is found, but chunk is longer than limit" in str(e):
-                logger.error(f"Text chunking error detected - likely in agent-memory processing")
-                logger.error(f"This error typically occurs when processing large content that exceeds chunk size limits")
-            
             # Log error to file if we have a run_id
             if actual_run_id:
                 try:
                     async with log_manager.get_log_writer(actual_run_id) as log_writer:
-                        error_data = {"error_type": type(e).__name__, "traceback": str(e)}
-                        
-                        # Add specific chunking error context
-                        if "Separator is found, but chunk is longer than limit" in str(e):
-                            error_data.update({
-                                "chunking_error": True,
-                                "component": "agent-memory",
-                                "recommendation": "reduce_content_size_or_increase_chunk_limit",
-                                "description": "Text chunking failure - content exceeds maximum chunk size"
-                            })
-                        
                         await log_writer(
                             f"Execution failed: {str(e)}",
                             "error",
-                            error_data
+                            {"error_type": type(e).__name__, "traceback": str(e)}
                         )
                 except Exception:
                     pass  # Don't fail on logging errors
@@ -707,37 +691,41 @@ class ClaudeCLIExecutor:
         """Run the Claude CLI process with integrated log streaming."""
         # Initialize variables at the start to avoid UnboundLocalError in finally block
         stdout_lines, stderr_lines = [], []
+        process = None
+        session_task = None
         
         async with log_manager.get_log_writer(run_id) as log_writer:
-            await self._log_execution_init(log_writer, session, workspace, cmd, run_id)
-            
-            env = self._prepare_environment(session)
-            await self._log_environment_setup(log_writer, env)
-            
-            working_dir = self._determine_working_directory(workspace)
-            process = await self._create_process(cmd, working_dir, env, session)
-            
-            await self._log_process_start(log_writer, process, timeout, session)
-            self.active_processes[session.run_id] = process
-            
-            processor, session_task = await self._setup_stream_processing(
-                stream_callback, log_writer, session, workspace
-            )
-            
-            
             try:
-                stdout_lines, stderr_lines = await self._execute_process_streams(
-                    process, processor, log_writer, timeout
+                await self._log_execution_init(log_writer, session, workspace, cmd, run_id)
+                
+                env = self._prepare_environment(session)
+                await self._log_environment_setup(log_writer, env)
+                
+                working_dir = self._determine_working_directory(workspace)
+                process = await self._create_process(cmd, working_dir, env, session)
+                
+                await self._log_process_start(log_writer, process, timeout, session)
+                self.active_processes[session.run_id] = process
+                
+                processor, session_task = await self._setup_stream_processing(
+                    stream_callback, log_writer, session, workspace
                 )
                 
-            except asyncio.TimeoutError:
-                await self._handle_process_timeout(log_writer, process, timeout)
-                raise
-                
+                try:
+                    stdout_lines, stderr_lines = await self._execute_process_streams(
+                        process, processor, log_writer, timeout
+                    )
+                    
+                except asyncio.TimeoutError:
+                    await self._handle_process_timeout(log_writer, process, timeout)
+                    raise
+                    
             finally:
-                await self._cleanup_process_execution(
-                    session_task, stderr_lines, log_writer, session
-                )
+                # Only cleanup if session_task was created
+                if session_task is not None:
+                    await self._cleanup_process_execution(
+                        session_task, stderr_lines, log_writer, session
+                    )
             
             return await self._build_execution_result(
                 process, processor, stdout_lines, stderr_lines, 
