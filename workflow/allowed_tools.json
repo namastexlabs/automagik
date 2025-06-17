@@ -1,0 +1,31 @@
+{
+  "allowed_tools": [
+    "Task",
+    "TodoRead",
+    "TodoWrite",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Bash",
+    "Grep",
+    "LS",
+    "Glob",
+    "mcp__git__git_status",
+    "mcp__git__git_diff_unstaged",
+    "mcp__git__git_diff_staged",
+    "mcp__git__git_diff",
+    "mcp__git__git_commit",
+    "mcp__git__git_add",
+    "mcp__git__git_reset",
+    "mcp__git__git_log",
+    "mcp__git__git_create_branch",
+    "mcp__git__git_checkout",
+    "mcp__git__git_show",
+    "WebSearch",
+    "mcp__ide__getDiagnostics",
+    "mcp__ide__executeCode",
+    "ListMcpResourcesTool",
+    "ReadMcpResourceTool"
+  ]
+}

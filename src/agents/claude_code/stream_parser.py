@@ -226,7 +226,7 @@ class StreamParser:
         return "pending"
     
     @staticmethod
-    def get_progress_info(events: List[Dict[str, Any]], max_turns: int = 30) -> Dict[str, Any]:
+    def get_progress_info(events: List[Dict[str, Any]], max_turns: Optional[int] = None) -> Dict[str, Any]:
         """Extract progress information from events.
         
         Args:
@@ -242,7 +242,11 @@ class StreamParser:
         turns = len(assistant_messages)
         
         # Calculate percentage
-        percentage = min(100, int((turns / max_turns) * 100))
+        if max_turns is not None:
+            percentage = min(100, int((turns / max_turns) * 100))
+        else:
+            # No max_turns limit - show percentage based on activity phases
+            percentage = min(100, max(0, turns * 5))  # 5% per turn, capped at 100%
         
         # Determine current phase
         tool_calls = StreamParser.extract_tool_calls(events)
