@@ -20,7 +20,8 @@ from src.utils.session_queue import get_session_queue
 from src.db.repository import session as session_repo
 from src.db.repository import user as user_repo
 from src.db.repository import agent as agent_repo
-from src.db.models import Agent
+from src.db.repository import prompt as prompt_repo
+from src.db.models import Agent, Prompt
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -919,6 +920,13 @@ async def create_agent(request: AgentCreateRequest):
                         detail=f"Virtual agent tools invalid: {'; '.join(tool_errors)}"
                     )
         
+        # Handle system prompt - create in prompts table if provided  
+        prompt_id = None
+        if config.get("system_prompt"):
+            prompt_id = await _create_agent_prompt(agent_id=None, prompt_text=config["system_prompt"], agent_name=request.name)
+            # Remove from config since it's now in prompts table
+            del config["system_prompt"]
+        
         # Create Agent model
         agent = Agent(
             name=request.name,
@@ -926,11 +934,16 @@ async def create_agent(request: AgentCreateRequest):
             model=request.model,
             description=request.description,
             config=config,
-            active=True
+            active=True,
+            active_default_prompt_id=prompt_id
         )
         
         # Create the agent in database
         agent_id = agent_repo.create_agent(agent)
+        
+        # Update prompt with actual agent_id if prompt was created
+        if prompt_id and agent_id:
+            await _update_prompt_agent_id(prompt_id, agent_id)
         
         if agent_id is None:
             raise HTTPException(
@@ -1078,9 +1091,11 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
         # Ensure it's marked as virtual (copies are always virtual)
         new_config["agent_source"] = "virtual"
         
-        # Apply requested modifications
+        # Handle system prompt - create in prompts table if provided
+        prompt_id = None
         if request.system_prompt:
-            new_config["system_prompt"] = request.system_prompt
+            # Create prompt in database
+            prompt_id = await _create_agent_prompt(agent_id=None, prompt_text=request.system_prompt, agent_name=request.new_name)
         
         if request.tool_config:
             new_config["tool_config"] = request.tool_config
@@ -1099,7 +1114,8 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
             model=request.model or source_agent.model,
             description=request.description or f"Copy of {source_agent_name}",
             config=new_config,
-            active=True
+            active=True,
+            active_default_prompt_id=prompt_id  # Link to prompt if created
         )
         
         # Validate virtual agent configuration
@@ -1115,6 +1131,10 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
         
         # Create the agent in database
         agent_id = agent_repo.create_agent(copied_agent)
+        
+        # Update prompt with actual agent_id if prompt was created
+        if prompt_id and agent_id:
+            await _update_prompt_agent_id(prompt_id, agent_id)
         
         if agent_id is None:
             raise HTTPException(
@@ -1309,4 +1329,58 @@ async def _execute_code_tool(tool_info: ToolInfo, context: Dict, parameters: Dic
     """Execute a code-based tool."""
     # TODO: Implement code tool execution
     # This would need to dynamically import and call the tool function
-    raise HTTPException(status_code=501, detail="Code tool execution not yet implemented") 
+    raise HTTPException(status_code=501, detail="Code tool execution not yet implemented")
+
+
+async def _create_agent_prompt(agent_id: Optional[int], prompt_text: str, agent_name: str) -> Optional[int]:
+    """Create a prompt in the database for an agent.
+    
+    Args:
+        agent_id: Agent ID (None if agent not created yet)
+        prompt_text: The prompt text content
+        agent_name: Name of the agent (for prompt naming)
+        
+    Returns:
+        Prompt ID if successful, None otherwise
+    """
+    try:
+        from fastapi.concurrency import run_in_threadpool
+        
+        prompt = Prompt(
+            agent_id=agent_id or 0,  # Temporary, will be updated after agent creation
+            prompt_text=prompt_text,
+            version=1,
+            is_active=True,
+            is_default_from_code=False,
+            status_key="default",
+            name=f"{agent_name} - Default Prompt"
+        )
+        
+        prompt_id = await run_in_threadpool(prompt_repo.create_prompt, prompt)
+        logger.info(f"Created prompt {prompt_id} for agent {agent_name}")
+        return prompt_id
+        
+    except Exception as e:
+        logger.error(f"Error creating prompt for agent {agent_name}: {e}")
+        return None
+
+
+async def _update_prompt_agent_id(prompt_id: int, agent_id: int) -> None:
+    """Update prompt with correct agent_id after agent creation.
+    
+    Args:
+        prompt_id: ID of the prompt to update
+        agent_id: Correct agent ID to set
+    """
+    try:
+        from fastapi.concurrency import run_in_threadpool
+        
+        # Get the prompt
+        prompt = await run_in_threadpool(prompt_repo.get_prompt, prompt_id)
+        if prompt:
+            prompt.agent_id = agent_id
+            await run_in_threadpool(prompt_repo.update_prompt, prompt)
+            logger.debug(f"Updated prompt {prompt_id} with agent_id {agent_id}")
+            
+    except Exception as e:
+        logger.error(f"Error updating prompt {prompt_id} with agent_id {agent_id}: {e}") 
