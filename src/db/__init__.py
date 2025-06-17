@@ -15,7 +15,10 @@ from src.db.models import (
     AgentMCPServerDB,
     MCPConfig,
     MCPConfigCreate,
-    MCPConfigUpdate
+    MCPConfigUpdate,
+    WorkflowProcess,
+    WorkflowProcessCreate,
+    WorkflowProcessUpdate
 )
 
 # Export connection utilities
@@ -100,6 +103,17 @@ from src.db.repository.mcp import (
     delete_mcp_config_by_name,
     get_agent_mcp_configs,
     get_configs_by_server_type
+)
+
+# Import workflow process repository functions
+from src.db.repository.workflow_process import (
+    create_workflow_process,
+    get_workflow_process,
+    list_workflow_processes,
+    update_workflow_process,
+    mark_process_terminated,
+    get_stale_processes,
+    cleanup_old_processes
 )
 
 # Import UUID-compatible user repository functions
