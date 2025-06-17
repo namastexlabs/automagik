@@ -46,7 +46,8 @@ class LocalExecutor(ExecutorBase):
         )
         self.cli_executor = ClaudeCLIExecutor(
             timeout=timeout,
-            max_concurrent=max_concurrent
+            max_concurrent=max_concurrent,
+            env_manager=self.env_manager
         )
         
         logger.info(f"LocalExecutor initialized with workspace base: {workspace_base}")
@@ -94,7 +95,7 @@ class LocalExecutor(ExecutorBase):
             
             # Auto-commit and merge back to main (unless workflow uses current workspace)
             try:
-                commit_message = f"feat: {request.workflow_name} workflow completed"
+                commit_message = f"feat: {request.workflow_name} workflow completed (run {run_id[:8]})"
                 
                 # Check if this workflow uses current workspace (no git operations)
                 workflow_uses_current_workspace = await self._workflow_uses_current_workspace(request.workflow_name)
@@ -134,7 +135,7 @@ class LocalExecutor(ExecutorBase):
             
             # Cleanup if configured
             if self.cleanup_on_complete and result.success:
-                await self.env_manager.cleanup(run_id)
+                await self.env_manager.cleanup_by_run_id(run_id)
             
             # Convert CLIResult to expected format
             return result.to_dict()
@@ -144,7 +145,7 @@ class LocalExecutor(ExecutorBase):
             # Cleanup on error
             if self.cleanup_on_complete:
                 try:
-                    await self.env_manager.cleanup(run_id)
+                    await self.env_manager.cleanup_by_run_id(run_id)
                 except Exception as cleanup_error:
                     logger.error(f"Cleanup error: {cleanup_error}")
             
@@ -207,7 +208,7 @@ class LocalExecutor(ExecutorBase):
             
             # Auto-commit initial snapshot (workflow may continue in background)
             try:
-                commit_message = f"auto-snapshot: {request.workflow_name} workflow started"
+                commit_message = f"auto-snapshot: {request.workflow_name} workflow started (run {run_id[:8]})"
                 await self.env_manager.auto_commit_snapshot(workspace_path, run_id, commit_message)
                 logger.info(f"Auto-committed initial snapshot for run {run_id}")
             except Exception as commit_error:
