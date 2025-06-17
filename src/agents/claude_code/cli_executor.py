@@ -270,6 +270,52 @@ class StreamProcessor:
         self.completed = False
         self.session_confirmed = False  # Track when session ID is extracted
         
+        # Initialize raw JSON stream log file
+        self.json_stream_file = None
+        if run_id:
+            self._init_json_stream_file()
+    
+    def _init_json_stream_file(self):
+        """Initialize the immutable JSON stream log file."""
+        try:
+            # Create logs directory if it doesn't exist
+            logs_dir = Path("./logs")
+            logs_dir.mkdir(exist_ok=True)
+            
+            # Create JSON stream file for this run
+            json_stream_path = logs_dir / f"run_{self.run_id}_stream.jsonl"
+            self.json_stream_file = open(json_stream_path, 'w', encoding='utf-8')
+            
+            # Write metadata header
+            metadata = {
+                "_metadata": True,
+                "run_id": self.run_id,
+                "started_at": datetime.utcnow().isoformat(),
+                "type": "stream_start"
+            }
+            self.json_stream_file.write(json.dumps(metadata) + '\n')
+            self.json_stream_file.flush()
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize JSON stream file: {e}")
+            self.json_stream_file = None
+    
+    def _close_json_stream_file(self):
+        """Close the JSON stream file."""
+        if self.json_stream_file:
+            try:
+                # Write closing metadata
+                metadata = {
+                    "_metadata": True,
+                    "run_id": self.run_id,
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "type": "stream_end"
+                }
+                self.json_stream_file.write(json.dumps(metadata) + '\n')
+                self.json_stream_file.close()
+            except Exception as e:
+                logger.error(f"Failed to close JSON stream file: {e}")
+        
     async def process_line(self, line: str) -> Optional[Dict[str, Any]]:
         """Process a line from Claude CLI output.
         
@@ -293,6 +339,17 @@ class StreamProcessor:
         
         try:
             data = json.loads(line)
+            
+            # Save raw JSON to immutable stream file
+            if self.json_stream_file:
+                try:
+                    # Add timestamp to each event for later analysis
+                    data_with_timestamp = data.copy()
+                    data_with_timestamp["_timestamp"] = datetime.utcnow().isoformat()
+                    self.json_stream_file.write(json.dumps(data_with_timestamp) + '\n')
+                    self.json_stream_file.flush()  # Ensure immediate write
+                except Exception as e:
+                    logger.error(f"Failed to write to JSON stream file: {e}")
             
             # Log each parsed JSON event as individual log entry for metric extraction
             if self.log_writer:
@@ -398,6 +455,8 @@ class StreamProcessor:
     
     def get_final_result(self) -> str:
         """Get the final result text."""
+        # Close JSON stream file when getting final result
+        self._close_json_stream_file()
         return self.result_text or "No result generated"
 
 
