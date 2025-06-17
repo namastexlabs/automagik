@@ -151,9 +151,9 @@ class ResultExtractor:
         
         # Check for max turns reached
         current_turns = metadata.get("current_turns", metadata.get("total_turns", 0))
-        max_turns = metadata.get("max_turns", 30)
+        max_turns = metadata.get("max_turns")  # No default, unlimited if not specified
         
-        if current_turns >= max_turns:
+        if max_turns and current_turns >= max_turns:
             return "max_turns_reached"
         
         # Check run status in metadata

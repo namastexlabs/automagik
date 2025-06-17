@@ -47,11 +47,11 @@ class ClaudeWorkflowRequest(BaseModel):
         description="The main task description or prompt for Claude",
         example="Implement user authentication system with JWT tokens",
     )
-    max_turns: int = Field(
-        default=30,
+    max_turns: Optional[int] = Field(
+        None,
         ge=1,
-        le=100,
-        description="Maximum conversation turns for the workflow",
+        le=200,
+        description="Maximum conversation turns for the workflow (unlimited if not specified)",
         example=50,
     )
 
