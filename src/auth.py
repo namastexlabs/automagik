@@ -8,6 +8,10 @@ API_KEY_NAME = "x-api-key"
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Skip auth for CORS preflight requests (OPTIONS)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+            
         # Skip auth for health check, root, and documentation endpoints
         no_auth_paths = [
             "/health",

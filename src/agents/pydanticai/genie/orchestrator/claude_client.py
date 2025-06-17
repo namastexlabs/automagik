@@ -26,7 +26,7 @@ class ClaudeCodeClient:
         workflow_name: str,
         task_context: str,
         epic_state: EpicState,
-        max_turns: int = 30
+        max_turns: Optional[int] = None
     ) -> Dict[str, Any]:
         """Execute a workflow via Claude Code API.
         
