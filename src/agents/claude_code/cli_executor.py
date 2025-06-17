@@ -1274,37 +1274,107 @@ class ClaudeCLIExecutor:
         env = os.environ.copy()
         env["CLAUDE_SESSION_ID"] = session.run_id
         
-        # Add virtual environment to Python path for uv-managed dependencies
-        # Find .venv in current working directory or parent directories
-        current_dir = Path.cwd()
-        venv_path = None
+        # Enhanced virtual environment detection
+        venv_path = self._detect_virtual_environment()
         
-        # Look for .venv in current directory and up to 3 parent levels
-        for check_dir in [current_dir] + list(current_dir.parents)[:3]:
-            candidate = check_dir / ".venv"
-            if candidate.exists() and candidate.is_dir():
-                venv_path = candidate
-                break
-        
-        if venv_path and venv_path.exists():
-            # Add .venv/bin to PATH so Python finds the right packages
+        if venv_path:
+            # Add venv/bin to beginning of PATH (highest priority)
             venv_bin = str(venv_path / "bin")
             current_path = env.get("PATH", "")
-            if venv_bin not in current_path:
-                env["PATH"] = f"{venv_bin}:{current_path}"
+            env["PATH"] = f"{venv_bin}:{current_path}"
             
             # Set VIRTUAL_ENV for tools that check it
             env["VIRTUAL_ENV"] = str(venv_path)
             
-            # Set PYTHONPATH to include venv site-packages
-            venv_site = str(venv_path / "lib" / "python3.12" / "site-packages")
-            if (venv_path / "lib" / "python3.12" / "site-packages").exists():
-                env["PYTHONPATH"] = venv_site + ":" + env.get("PYTHONPATH", "")
+            # Dynamic Python version detection for PYTHONPATH
+            python_version = self._get_python_version_from_venv(venv_path)
+            if python_version:
+                venv_site = str(venv_path / "lib" / f"python{python_version}" / "site-packages")
+                if Path(venv_site).exists():
+                    env["PYTHONPATH"] = venv_site + ":" + env.get("PYTHONPATH", "")
+            
+            # Force Python executable to use venv Python for subprocess calls
+            env["PYTHON"] = str(venv_path / "bin" / "python")
+            env["PYTHON3"] = str(venv_path / "bin" / "python3")
         
         return env
     
+    def _detect_virtual_environment(self) -> Optional[Path]:
+        """Enhanced virtual environment detection."""
+        current_dir = Path.cwd()
+        
+        # Check multiple venv patterns and unlimited parent traversal
+        venv_names = [".venv", "venv", "virtualenv", ".virtualenv"]
+        
+        # Start from current directory and traverse all parents
+        for check_dir in [current_dir] + list(current_dir.parents):
+            for venv_name in venv_names:
+                candidate = check_dir / venv_name
+                if candidate.exists() and candidate.is_dir():
+                    # Verify it's actually a virtual environment
+                    if (candidate / "bin" / "python").exists() or (candidate / "bin" / "python3").exists():
+                        return candidate
+        
+        # Check VIRTUAL_ENV environment variable
+        if "VIRTUAL_ENV" in os.environ:
+            venv_path = Path(os.environ["VIRTUAL_ENV"])
+            if venv_path.exists():
+                return venv_path
+        
+        return None
+
+    def _get_python_version_from_venv(self, venv_path: Path) -> Optional[str]:
+        """Get Python version from virtual environment."""
+        try:
+            # Try to get version from pyvenv.cfg
+            pyvenv_cfg = venv_path / "pyvenv.cfg"
+            if pyvenv_cfg.exists():
+                with open(pyvenv_cfg, 'r') as f:
+                    for line in f:
+                        if line.startswith("version"):
+                            version = line.split("=")[1].strip()
+                            # Extract major.minor (e.g., "3.12.4" -> "3.12")
+                            return ".".join(version.split(".")[:2])
+            
+            # Fallback: check lib directory structure
+            lib_dir = venv_path / "lib"
+            if lib_dir.exists():
+                for item in lib_dir.iterdir():
+                    if item.is_dir() and item.name.startswith("python"):
+                        return item.name.replace("python", "")
+            
+            # Last resort: use system Python version
+            import sys
+            return f"{sys.version_info.major}.{sys.version_info.minor}"
+            
+        except Exception:
+            return None
+    
     async def _log_environment_setup(self, log_writer, env):
-        """Log environment setup if Claude CLI directory was added to PATH."""
+        """Log comprehensive environment setup including Python path detection."""
+        # Log virtual environment detection
+        venv_path = env.get("VIRTUAL_ENV")
+        python_path = env.get("PYTHON")
+        
+        if venv_path and python_path:
+            await log_writer(
+                f"Virtual environment detected: {venv_path}",
+                "environment",
+                {
+                    "venv_path": venv_path,
+                    "python_executable": python_path,
+                    "pythonpath": env.get("PYTHONPATH", ""),
+                    "venv_detected": True
+                }
+            )
+        else:
+            await log_writer(
+                "No virtual environment detected, using system Python",
+                "environment",
+                {"venv_detected": False, "warning": "Dependencies may not be available"}
+            )
+        
+        # Existing Claude CLI path logic
         if _CLAUDE_EXECUTABLE_PATH:
             claude_dir = os.path.dirname(_CLAUDE_EXECUTABLE_PATH)
             current_path = env.get("PATH", "")
