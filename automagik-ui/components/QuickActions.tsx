@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AutomagikAPI, WorkflowType } from '@/lib/api';
+import { startWorkflow, WorkflowType } from '@/lib/api';
 
 interface QuickActionsProps {
   workflows: WorkflowType[];
@@ -24,8 +24,8 @@ export default function QuickActions({ workflows, onWorkflowStart }: QuickAction
     setError('');
 
     try {
-      const result = await AutomagikAPI.runWorkflow(selectedWorkflow, message);
-      onWorkflowStart(result.run_id);
+      const result = await startWorkflow(selectedWorkflow, { message });
+      onWorkflowStart(result.run_id || Date.now().toString());
       setMessage('');
       setSelectedWorkflow('');
     } catch (err) {

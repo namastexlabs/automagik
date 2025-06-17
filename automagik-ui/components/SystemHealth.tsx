@@ -1,30 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AutomagikAPI, SystemHealth as SystemHealthType } from '@/lib/api';
+import { getSystemHealth, SystemStatus } from '@/lib/api';
 
 export default function SystemHealth() {
-  const [health, setHealth] = useState<SystemHealthType | null>(null);
+  const [health, setHealth] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchHealth = async () => {
     try {
-      const healthData = await AutomagikAPI.getSystemHealth();
+      const healthData = await getSystemHealth();
       setHealth(healthData);
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Failed to fetch system health:', error);
       setHealth({
-        status: 'down',
-        services: {
-          api: 'error',
-          database: 'error',
-          mcp: 'error',
-          memory: 'error'
-        },
-        uptime: 0,
-        version: 'unknown'
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        version: 'unknown',
+        environment: 'unknown'
       });
     } finally {
       setLoading(false);
@@ -132,23 +127,21 @@ export default function SystemHealth() {
       </div>
 
       <div className="space-y-3 mb-6">
-        {Object.entries(health.services).map(([service, status]) => (
-          <div key={service} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center">
-              {getStatusIcon(status)}
-              <span className="ml-3 font-medium text-gray-700 capitalize">{service}</span>
-            </div>
-            <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(status)}`}>
-              {status}
-            </span>
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center">
+            {getStatusIcon(health.status)}
+            <span className="ml-3 font-medium text-gray-700">API Server</span>
           </div>
-        ))}
+          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(health.status)}`}>
+            {health.status}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
         <div>
-          <div className="text-sm text-gray-600">Uptime</div>
-          <div className="text-lg font-semibold text-gray-900">{formatUptime(health.uptime)}</div>
+          <div className="text-sm text-gray-600">Environment</div>
+          <div className="text-lg font-semibold text-gray-900 capitalize">{health.environment}</div>
         </div>
         <div>
           <div className="text-sm text-gray-600">Version</div>
