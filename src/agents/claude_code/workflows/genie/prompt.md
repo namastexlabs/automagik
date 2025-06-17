@@ -82,7 +82,7 @@ lina_run = mcp__automagik_workflows__run_workflow(
     workflow_name="lina",
     message="Create Linear epic for workflow management features",
     session_name="workflow_mgmt_epic",
-    max_turns=30
+    max_turns=None  # Unlimited
 )
 
 # Wait strategically based on workflow type
