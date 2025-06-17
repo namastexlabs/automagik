@@ -674,7 +674,7 @@ async def get_claude_code_run_status(
         stream_status = StreamParser.get_current_status(stream_events)
         stream_result = StreamParser.extract_result(stream_events)
         stream_metrics = StreamParser.extract_metrics(stream_events)
-        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns", 30))
+        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns"))
         stream_session = StreamParser.extract_session_info(stream_events)
         
         # Get messages for additional context
@@ -816,11 +816,15 @@ async def get_claude_code_run_status(
             performance_score=85.0 if result_info["success"] else 60.0  # Simple scoring
         )
 
-        # Build progress info using stream data as primary source
+        # Build progress info - use ProgressTracker when StreamParser returns 0%
+        stream_completion = stream_progress.get("completion_percentage", 0)
+        tracker_completion = progress_info["completion_percentage"]
+        final_completion = tracker_completion if stream_completion == 0 else stream_completion
+        
         progress_info_obj = ProgressInfo(
             turns=stream_progress.get("turns", progress_info["turns"]),
             max_turns=stream_progress.get("max_turns", progress_info["max_turns"]),
-            completion_percentage=stream_progress.get("completion_percentage", progress_info["completion_percentage"]),
+            completion_percentage=final_completion,
             current_phase=stream_progress.get("current_phase", progress_info["current_phase"]),
             phases_completed=progress_info["phases_completed"],  # Keep from original
             is_running=stream_progress.get("is_running", progress_info["is_running"]),
