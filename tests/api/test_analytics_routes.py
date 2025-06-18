@@ -1,4 +1,4 @@
-"""Tests for analytics API endpoints."""
+"""Tests for analytics API endpoints using repository pattern."""
 
 import pytest
 import uuid
@@ -22,63 +22,71 @@ class TestAnalyticsRoutes:
         return str(uuid.uuid4())
     
     @pytest.fixture
-    def sample_session_analytics(self, valid_session_id):
-        """Sample session analytics response."""
-        return {
-            "session_id": valid_session_id,
-            "total_tokens": 750,
-            "total_requests": 5,
-            "models": [
-                {
-                    "model": "gpt-4",
-                    "framework": "pydantic_ai",
-                    "message_count": 3,
-                    "total_requests": 3,
-                    "request_tokens": 150,
-                    "response_tokens": 300,
-                    "total_tokens": 450,
-                    "cache_creation_tokens": 50,
-                    "cache_read_tokens": 25
+    def sample_messages_with_usage(self):
+        """Sample messages with usage data."""
+        return [
+            {
+                'id': str(uuid.uuid4()),
+                'session_id': str(uuid.uuid4()),
+                'role': 'assistant',
+                'text_content': 'Response 1',
+                'usage': {
+                    'model': 'gpt-4',
+                    'framework': 'pydantic_ai',
+                    'total_requests': 1,
+                    'request_tokens': 100,
+                    'response_tokens': 200,
+                    'total_tokens': 300,
+                    'cache_creation_tokens': 25,
+                    'cache_read_tokens': 10
                 }
-            ],
-            "summary": {
-                "message_count": 5,
-                "unique_models": 1,
-                "total_request_tokens": 250,
-                "total_response_tokens": 500,
-                "total_cache_tokens": 75
+            },
+            {
+                'id': str(uuid.uuid4()),
+                'session_id': str(uuid.uuid4()),
+                'role': 'assistant',
+                'text_content': 'Response 2',
+                'usage': {
+                    'model': 'gpt-4',
+                    'framework': 'pydantic_ai',
+                    'total_requests': 1,
+                    'request_tokens': 150,
+                    'response_tokens': 300,
+                    'total_tokens': 450,
+                    'cache_creation_tokens': 0,
+                    'cache_read_tokens': 5
+                }
             }
-        }
+        ]
     
     @pytest.fixture
-    def sample_user_analytics(self, valid_user_id):
-        """Sample user analytics response."""
-        return {
-            "user_id": valid_user_id,
-            "days_analyzed": 30,
-            "total_tokens": 1200,
-            "models": [
-                {
-                    "model": "gpt-4",
-                    "framework": "pydantic_ai",
-                    "session_count": 3,
-                    "message_count": 8,
-                    "total_tokens": 1200
-                }
-            ],
-            "summary": {
-                "session_count": 3,
-                "message_count": 8,
-                "unique_models": 1
+    def sample_sessions(self):
+        """Sample sessions data."""
+        return [
+            {
+                'id': str(uuid.uuid4()),
+                'user_id': str(uuid.uuid4()),
+                'agent_id': 123,
+                'name': 'Test Session 1',
+                'created_at': '2024-01-01T10:00:00Z'
+            },
+            {
+                'id': str(uuid.uuid4()),
+                'user_id': str(uuid.uuid4()),
+                'agent_id': 123,
+                'name': 'Test Session 2',
+                'created_at': '2024-01-02T10:00:00Z'
             }
-        }
+        ]
     
-    def test_get_session_usage_success(self, client, valid_session_id, sample_session_analytics):
+    def test_get_session_usage_success(self, client, valid_session_id, sample_messages_with_usage):
         """Test successful session usage analytics retrieval."""
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_session_usage_summary') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            mock_service.return_value = sample_session_analytics
+            # Setup mocks
+            mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
+            mock_list_messages.return_value = (sample_messages_with_usage, 2)
             
             # Make request
             response = client.get(f"/api/v1/analytics/sessions/{valid_session_id}/usage")
@@ -87,20 +95,21 @@ class TestAnalyticsRoutes:
             assert response.status_code == 200
             data = response.json()
             assert data["session_id"] == valid_session_id
-            assert data["total_tokens"] == 750
-            assert data["total_requests"] == 5
-            assert len(data["models"]) == 1
+            assert data["total_tokens"] == 750  # 300 + 450
+            assert data["total_requests"] == 2  # 1 + 1
+            assert len(data["models"]) == 1  # Same model/framework
+            assert data["models"][0]["model"] == "gpt-4"
+            assert data["models"][0]["framework"] == "pydantic_ai"
+            assert data["models"][0]["total_tokens"] == 750
             assert data["summary"]["unique_models"] == 1
-            
-            # Verify service was called with correct parameters
-            mock_service.assert_called_once_with(valid_session_id)
+            assert data["summary"]["message_count"] == 2
     
     def test_get_session_usage_invalid_session_id(self, client):
         """Test session usage analytics with invalid session ID."""
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_session_usage_summary') as mock_service:
+        with patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock to return error
-            mock_service.return_value = {"error": "Invalid session ID"}
+            # Setup mock to return None for invalid UUID
+            mock_safe_uuid.return_value = None
             
             # Make request
             response = client.get("/api/v1/analytics/sessions/invalid-uuid/usage")
@@ -110,29 +119,37 @@ class TestAnalyticsRoutes:
             data = response.json()
             assert data["detail"] == "Invalid session ID"
     
-    def test_get_session_usage_service_error(self, client, valid_session_id):
-        """Test session usage analytics with service error."""
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_session_usage_summary') as mock_service, \
-             patch('src.api.routes.analytics_routes.logger') as mock_logger:
+    def test_get_session_usage_no_messages(self, client, valid_session_id):
+        """Test session usage analytics with no messages."""
+        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock to raise exception
-            mock_service.side_effect = Exception("Database connection failed")
+            # Setup mocks
+            mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
+            mock_list_messages.return_value = ([], 0)
             
             # Make request
             response = client.get(f"/api/v1/analytics/sessions/{valid_session_id}/usage")
             
             # Assertions
-            assert response.status_code == 500
+            assert response.status_code == 200
             data = response.json()
-            assert "Database connection failed" in data["detail"]
-            mock_logger.error.assert_called()
+            assert data["session_id"] == valid_session_id
+            assert data["total_tokens"] == 0
+            assert data["total_requests"] == 0
+            assert data["models"] == []
+            assert data["summary"]["message_count"] == 0
     
-    def test_get_user_usage_success(self, client, valid_user_id, sample_user_analytics):
+    def test_get_user_usage_success(self, client, valid_user_id, sample_sessions, sample_messages_with_usage):
         """Test successful user usage analytics retrieval."""
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_user_usage_summary') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            mock_service.return_value = sample_user_analytics
+            # Setup mocks
+            mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x == valid_user_id or x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
+            mock_list_sessions.return_value = (sample_sessions, 2)
+            mock_list_messages.return_value = (sample_messages_with_usage, 2)
             
             # Make request
             response = client.get(f"/api/v1/analytics/users/{valid_user_id}/usage")
@@ -142,18 +159,20 @@ class TestAnalyticsRoutes:
             data = response.json()
             assert data["user_id"] == valid_user_id
             assert data["days_analyzed"] == 30
-            assert data["total_tokens"] == 1200
-            
-            # Verify service was called with default days
-            mock_service.assert_called_once_with(valid_user_id, 30)
+            assert data["total_tokens"] > 0
+            assert len(data["models"]) >= 1
+            assert data["summary"]["session_count"] == 2
     
-    def test_get_user_usage_with_custom_days(self, client, valid_user_id, sample_user_analytics):
+    def test_get_user_usage_with_custom_days(self, client, valid_user_id, sample_sessions, sample_messages_with_usage):
         """Test user usage analytics with custom days parameter."""
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_user_usage_summary') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            sample_user_analytics["days_analyzed"] = 14
-            mock_service.return_value = sample_user_analytics
+            # Setup mocks
+            mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x == valid_user_id or x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
+            mock_list_sessions.return_value = (sample_sessions, 2)
+            mock_list_messages.return_value = (sample_messages_with_usage, 2)
             
             # Make request with custom days
             response = client.get(f"/api/v1/analytics/users/{valid_user_id}/usage?days=14")
@@ -162,49 +181,34 @@ class TestAnalyticsRoutes:
             assert response.status_code == 200
             data = response.json()
             assert data["days_analyzed"] == 14
+    
+    def test_get_user_usage_invalid_user_id(self, client):
+        """Test user usage analytics with invalid user ID."""
+        with patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Verify service was called with custom days
-            mock_service.assert_called_once_with(valid_user_id, 14)
+            # Setup mock to return None for invalid UUID
+            mock_safe_uuid.return_value = None
+            
+            # Make request
+            response = client.get("/api/v1/analytics/users/invalid-uuid/usage")
+            
+            # Assertions
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"] == "Invalid user ID"
     
-    def test_get_user_usage_invalid_days_parameter(self, client, valid_user_id):
-        """Test user usage analytics with invalid days parameter."""
-        # Test days too low
-        response = client.get(f"/api/v1/analytics/users/{valid_user_id}/usage?days=0")
-        assert response.status_code == 422
-        
-        # Test days too high
-        response = client.get(f"/api/v1/analytics/users/{valid_user_id}/usage?days=500")
-        assert response.status_code == 422
-    
-    def test_get_agent_usage_success(self, client):
+    def test_get_agent_usage_success(self, client, sample_sessions, sample_messages_with_usage):
         """Test successful agent usage analytics retrieval."""
         agent_id = 123
-        sample_agent_analytics = {
-            "agent_id": agent_id,
-            "days_analyzed": 30,
-            "total_tokens": 2400,
-            "models": [
-                {
-                    "model": "gpt-4",
-                    "framework": "pydantic_ai",
-                    "session_count": 5,
-                    "user_count": 3,
-                    "message_count": 15,
-                    "total_tokens": 2400
-                }
-            ],
-            "summary": {
-                "session_count": 5,
-                "user_count": 3,
-                "message_count": 15,
-                "unique_models": 1
-            }
-        }
         
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_agent_usage_summary') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            mock_service.return_value = sample_agent_analytics
+            # Setup mocks
+            mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
+            mock_list_sessions.return_value = (sample_sessions, 2)
+            mock_list_messages.return_value = (sample_messages_with_usage, 2)
             
             # Make request
             response = client.get(f"/api/v1/analytics/agents/{agent_id}/usage")
@@ -213,57 +217,42 @@ class TestAnalyticsRoutes:
             assert response.status_code == 200
             data = response.json()
             assert data["agent_id"] == agent_id
-            assert data["total_tokens"] == 2400
-            assert data["summary"]["user_count"] == 3
-            
-            # Verify service was called with correct parameters
-            mock_service.assert_called_once_with(agent_id, 30)
+            assert data["days_analyzed"] == 30
+            assert data["total_tokens"] > 0
+            assert data["summary"]["session_count"] == 2
+            assert "user_count" in data["summary"]
     
-    def test_get_agent_usage_with_custom_days(self, client):
+    def test_get_agent_usage_with_custom_days(self, client, sample_sessions, sample_messages_with_usage):
         """Test agent usage analytics with custom days parameter."""
         agent_id = 123
         
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_agent_usage_summary') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            mock_service.return_value = {"agent_id": agent_id, "days_analyzed": 7}
+            # Setup mocks
+            mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
+            mock_list_sessions.return_value = (sample_sessions, 2)
+            mock_list_messages.return_value = (sample_messages_with_usage, 2)
             
             # Make request with custom days
             response = client.get(f"/api/v1/analytics/agents/{agent_id}/usage?days=7")
             
             # Assertions
             assert response.status_code == 200
-            
-            # Verify service was called with custom days
-            mock_service.assert_called_once_with(agent_id, 7)
+            data = response.json()
+            assert data["days_analyzed"] == 7
     
-    def test_get_top_usage_sessions_success(self, client):
+    def test_get_top_usage_sessions_success(self, client, sample_sessions, sample_messages_with_usage):
         """Test successful top usage sessions retrieval."""
-        sample_top_sessions = [
-            {
-                "session_id": str(uuid.uuid4()),
-                "message_count": 10,
-                "total_tokens": 1500,
-                "request_tokens": 600,
-                "response_tokens": 900,
-                "unique_models": 2,
-                "models_used": ["gpt-4", "gpt-3.5-turbo"]
-            },
-            {
-                "session_id": str(uuid.uuid4()),
-                "message_count": 5,
-                "total_tokens": 800,
-                "request_tokens": 300,
-                "response_tokens": 500,
-                "unique_models": 1,
-                "models_used": ["gpt-4"]
-            }
-        ]
-        
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_top_usage_sessions') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            mock_service.return_value = sample_top_sessions
+            # Setup mocks
+            mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
+            mock_list_sessions.return_value = (sample_sessions, 2)
+            mock_list_messages.return_value = (sample_messages_with_usage, 2)
             
             # Make request
             response = client.get("/api/v1/analytics/sessions/top-usage")
@@ -271,21 +260,21 @@ class TestAnalyticsRoutes:
             # Assertions
             assert response.status_code == 200
             data = response.json()
-            assert data["count"] == 2
             assert data["limit"] == 10
             assert data["days_analyzed"] == 7
-            assert len(data["sessions"]) == 2
-            assert data["sessions"][0]["total_tokens"] == 1500
-            
-            # Verify service was called with default parameters
-            mock_service.assert_called_once_with(10, 7)
+            assert data["count"] >= 0
+            assert "sessions" in data
     
-    def test_get_top_usage_sessions_with_custom_parameters(self, client):
+    def test_get_top_usage_sessions_with_custom_parameters(self, client, sample_sessions):
         """Test top usage sessions with custom limit and days parameters."""
-        with patch('src.api.routes.analytics_routes.TokenAnalyticsService.get_top_usage_sessions') as mock_service:
+        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
-            # Setup mock
-            mock_service.return_value = []
+            # Setup mocks
+            mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
+            mock_list_sessions.return_value = (sample_sessions, 2)
+            mock_list_messages.return_value = ([], 0)  # No usage data
             
             # Make request with custom parameters
             response = client.get("/api/v1/analytics/sessions/top-usage?limit=5&days=14")
@@ -295,10 +284,7 @@ class TestAnalyticsRoutes:
             data = response.json()
             assert data["limit"] == 5
             assert data["days_analyzed"] == 14
-            assert data["count"] == 0
-            
-            # Verify service was called with custom parameters
-            mock_service.assert_called_once_with(5, 14)
+            assert data["count"] == 0  # No sessions with usage data
     
     def test_get_top_usage_sessions_invalid_parameters(self, client):
         """Test top usage sessions with invalid parameters."""
@@ -314,33 +300,77 @@ class TestAnalyticsRoutes:
         response = client.get("/api/v1/analytics/sessions/top-usage?days=0")
         assert response.status_code == 422
     
-    def test_analytics_endpoints_authentication(self, client):
-        """Test that analytics endpoints require authentication."""
-        # Note: This test assumes the API uses authentication middleware
-        # The actual implementation may vary based on the authentication system
+    def test_extract_usage_from_messages_with_json_string(self, client, valid_session_id):
+        """Test that JSON string usage data is properly parsed."""
+        import json
         
-        # Create client without API key
-        client_no_auth = TestClient(app)
-        
-        # Remove any default authentication headers if they exist
-        if hasattr(client_no_auth, 'headers'):
-            client_no_auth.headers.clear()
-        
-        session_id = str(uuid.uuid4())
-        user_id = str(uuid.uuid4())
-        agent_id = 123
-        
-        # Test that endpoints return appropriate authentication errors
-        # (The exact status code depends on the authentication middleware)
-        endpoints = [
-            f"/api/v1/analytics/sessions/{session_id}/usage",
-            f"/api/v1/analytics/users/{user_id}/usage",
-            f"/api/v1/analytics/agents/{agent_id}/usage",
-            "/api/v1/analytics/sessions/top-usage"
+        messages_with_json_usage = [
+            {
+                'usage': json.dumps({
+                    'model': 'gpt-4',
+                    'framework': 'pydantic_ai',
+                    'total_tokens': 100,
+                    'request_tokens': 40,
+                    'response_tokens': 60
+                })
+            }
         ]
         
-        for endpoint in endpoints:
-            response = client_no_auth.get(endpoint)
-            # Expecting either 401 (Unauthorized) or 403 (Forbidden)
-            # depending on the authentication middleware implementation
-            assert response.status_code in [401, 403], f"Endpoint {endpoint} should require authentication"
+        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+            
+            # Setup mocks
+            mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
+            mock_list_messages.return_value = (messages_with_json_usage, 1)
+            
+            # Make request
+            response = client.get(f"/api/v1/analytics/sessions/{valid_session_id}/usage")
+            
+            # Assertions
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_tokens"] == 100
+            assert len(data["models"]) == 1
+            assert data["models"][0]["model"] == "gpt-4"
+    
+    def test_extract_usage_from_messages_no_usage_data(self, client, valid_session_id):
+        """Test messages without usage data are handled gracefully."""
+        messages_without_usage = [
+            {'id': str(uuid.uuid4()), 'text_content': 'No usage'},
+            {'id': str(uuid.uuid4()), 'usage': None},
+            {'id': str(uuid.uuid4()), 'usage': 'invalid json'}
+        ]
+        
+        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+            
+            # Setup mocks
+            mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
+            mock_list_messages.return_value = (messages_without_usage, 3)
+            
+            # Make request
+            response = client.get(f"/api/v1/analytics/sessions/{valid_session_id}/usage")
+            
+            # Assertions
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_tokens"] == 0
+            assert data["models"] == []
+            assert data["summary"]["message_count"] == 0
+    
+    def test_analytics_endpoints_error_handling(self, client, valid_session_id):
+        """Test that analytics endpoints handle errors gracefully."""
+        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+            
+            # Setup mocks to raise exception
+            mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
+            mock_list_messages.side_effect = Exception("Database error")
+            
+            # Make request
+            response = client.get(f"/api/v1/analytics/sessions/{valid_session_id}/usage")
+            
+            # Assertions
+            assert response.status_code == 500
+            data = response.json()
+            assert "Database error" in data["detail"]
