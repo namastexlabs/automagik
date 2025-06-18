@@ -1026,9 +1026,13 @@ async def kill_claude_code_run(
         
         if not kill_result:
             # Try alternative kill methods if executor didn't find the process
-            from src.agents.claude_code.cli_executor import ClaudeCLIExecutor
-            cli_executor = ClaudeCLIExecutor()
-            kill_result = await cli_executor.cancel_execution(run_id)
+            # Use SDK executor for consistent process management
+            from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+            from src.agents.claude_code.cli_environment import CLIEnvironmentManager
+            
+            env_manager = CLIEnvironmentManager()
+            sdk_executor = ClaudeSDKExecutor(environment_manager=env_manager)
+            kill_result = await sdk_executor.cancel_execution(run_id)
         
         # Update session metadata with kill information
         kill_time = datetime.utcnow()
@@ -1104,14 +1108,19 @@ async def claude_code_health() -> Dict[str, Any]:
             "feature_enabled": False,
         }
 
-        # Check if claude CLI is available
-        from src.agents.claude_code.cli_executor import (
-            is_claude_available,
-            get_claude_path,
-        )
-
-        claude_available = is_claude_available()
-        claude_path = get_claude_path()
+        # Check if SDK executor is available
+        try:
+            from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+            from src.agents.claude_code.cli_environment import CLIEnvironmentManager
+            
+            # Test SDK executor availability
+            env_manager = CLIEnvironmentManager()
+            sdk_executor = ClaudeSDKExecutor(environment_manager=env_manager)
+            claude_available = True
+            claude_path = "SDK Executor (Post-Migration)"
+        except Exception as e:
+            claude_available = False
+            claude_path = f"SDK Executor unavailable: {str(e)}"
 
         health_status["feature_enabled"] = claude_available
         health_status["claude_cli_path"] = claude_path
