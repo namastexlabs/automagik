@@ -816,10 +816,23 @@ async def get_claude_code_run_status(
             performance_score=85.0 if result_info["success"] else 60.0  # Simple scoring
         )
 
-        # Build progress info - use ProgressTracker when StreamParser returns 0%
+        # Build progress info - prioritize StreamParser, but detect workflow completion
         stream_completion = stream_progress.get("completion_percentage", 0)
         tracker_completion = progress_info["completion_percentage"]
-        final_completion = tracker_completion if stream_completion == 0 else stream_completion
+        
+        # If workflow is complete (success/failure), force 100% completion
+        if result_info.get("success") is not None:  # Workflow has finished (success or failure)
+            final_completion = 100
+        elif stream_completion > 0:  # StreamParser has valid progress
+            final_completion = stream_completion
+        else:  # Fall back to ProgressTracker only if workflow is still running
+            final_completion = tracker_completion
+        
+        # Determine if workflow is still running
+        if result_info.get("success") is not None:  # Workflow has finished
+            final_is_running = False
+        else:
+            final_is_running = stream_progress.get("is_running", progress_info["is_running"])
         
         progress_info_obj = ProgressInfo(
             turns=stream_progress.get("turns", progress_info["turns"]),
@@ -827,7 +840,7 @@ async def get_claude_code_run_status(
             completion_percentage=final_completion,
             current_phase=stream_progress.get("current_phase", progress_info["current_phase"]),
             phases_completed=progress_info["phases_completed"],  # Keep from original
-            is_running=stream_progress.get("is_running", progress_info["is_running"]),
+            is_running=final_is_running,
             estimated_completion=progress_info["estimated_completion"]  # Keep from original
         )
 

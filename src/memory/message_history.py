@@ -334,7 +334,8 @@ class MessageHistory:
         tool_calls: Optional[List[Dict]] = None, 
         tool_outputs: Optional[List[Dict]] = None,
         agent_id: Optional[int] = None,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        usage: Optional[Dict[str, Any]] = None
     ) -> ModelMessage:
         """Add an assistant response message to the history.
         
@@ -345,6 +346,7 @@ class MessageHistory:
             tool_outputs: Optional list of outputs from tool calls.
             agent_id: Optional agent ID associated with the message.
             system_prompt: Optional system prompt to store directly with the message.
+            usage: Optional token usage information from the AI framework.
             
         Returns:
             The created assistant response message.
@@ -459,6 +461,7 @@ class MessageHistory:
                         tool_calls=tool_calls_dict,
                         tool_outputs=tool_outputs_dict,
                         system_prompt=system_prompt,
+                        usage=usage,
                         created_at=datetime.now(timezone.utc),
                         updated_at=datetime.now(timezone.utc)
                     )
@@ -526,12 +529,14 @@ class MessageHistory:
                 # Handle assistant message with potential tool calls and outputs
                 tool_calls = message.get("tool_calls", [])
                 tool_outputs = message.get("tool_outputs", [])
+                usage = message.get("usage", None)
                 return self.add_response(
                     content, 
                     tool_calls=tool_calls, 
                     tool_outputs=tool_outputs,
                     agent_id=agent_id,
-                    system_prompt=message.get("system_prompt", None)
+                    system_prompt=message.get("system_prompt", None),
+                    usage=usage
                 )
             else:
                 logger.warning(f"Unknown message role: {role}")
