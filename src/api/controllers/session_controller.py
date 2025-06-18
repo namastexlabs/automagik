@@ -6,6 +6,7 @@ from src.db.connection import safe_uuid
 from src.memory.message_history import MessageHistory
 from src.api.models import SessionListResponse, SessionInfo
 from src.db.repository.session import get_system_prompt
+from src.services.token_analytics import TokenAnalyticsService
 from typing import Dict, Any
 import uuid
 from fastapi.concurrency import run_in_threadpool
@@ -132,6 +133,14 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
         # Conditionally add system_prompt to the response data
         if show_system_prompt:
             response_data["system_prompt"] = system_prompt
+        
+        # Add token usage analytics for the session
+        try:
+            token_analytics = TokenAnalyticsService.get_session_usage_summary(session_id)
+            response_data["token_analytics"] = token_analytics
+        except Exception as e:
+            logger.warning(f"Failed to get token analytics for session {session_id}: {e}")
+            response_data["token_analytics"] = None
             
         return response_data
     except HTTPException:

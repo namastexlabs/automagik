@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, Any
 
 
 class AgentResponse(BaseModel):
@@ -16,3 +16,4 @@ class AgentResponse(BaseModel):
     tool_outputs: List[Dict] = Field(default_factory=list)
     raw_message: Optional[Union[Dict, List]] = None 
     system_prompt: Optional[str] = None
+    usage: Optional[Dict[str, Any]] = Field(None, description="Token usage information")
