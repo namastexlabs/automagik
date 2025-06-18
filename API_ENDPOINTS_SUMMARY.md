@@ -22,23 +22,22 @@ GET    /tools/mcp/servers         # List available MCP servers from .mcp.json
 - **Execution Tracking**: All tool executions are logged with metrics
 - **Filtering**: Filter by type (code/mcp), category, agent restrictions
 
-### Creating MCP Tools:
+### Creating MCP Servers:
 ```json
 POST /tools/create/mcp
 {
-  "name": "my_custom_tool",
-  "description": "Custom MCP tool",
-  "mcp_server_name": "git",
-  "mcp_tool_name": "git_log",
-  "parameters_schema": {
-    "type": "object",
-    "properties": {
-      "path": {"type": "string", "description": "Repository path"}
-    },
-    "required": ["path"]
+  "name": "mcp-sqlite",
+  "command": "npx",
+  "args": ["-y", "mcp-sqlite", "data/automagik_agents.db"],
+  "agent_names": ["*"],
+  "tools": {
+    "include": ["*"]
   },
-  "categories": ["git", "version-control"],
-  "enabled": true
+  "env": {
+    "API_KEY": "optional-env-var"
+  },
+  "description": "SQLite database operations",
+  "categories": ["database", "sqlite"]
 }
 ```
 
@@ -76,9 +75,9 @@ POST /tools/create/mcp
 
 ## 🔄 How It Works Together
 
-1. **MCP Servers**: Configure in `.mcp.json` file (6 servers already configured)
+1. **MCP Servers**: Configure in `.mcp.json` file (6 servers already configured) OR create new ones via `POST /tools/create/mcp`
 2. **Code Tools**: Automatically discovered from `src/tools/` (104 tools)
-3. **MCP Tools**: Manually create via `POST /tools/create/mcp` endpoint
+3. **MCP Tools**: Automatically discovered when MCP servers start up
 4. **Execute Tools**: Use `/tools/{name}/execute` to run both code and MCP tools uniformly
 5. **Monitor Usage**: Check `/tools/{name}` for execution statistics and performance metrics
 
@@ -88,7 +87,7 @@ POST /tools/create/mcp
 
 - ✅ **104 Code Tools** automatically discovered and available
 - ✅ **6 MCP Servers** configured in `.mcp.json` file
-- ✅ **0 MCP Tools** manually created (use `/tools/create/mcp` to add them)
+- ✅ **0 MCP Tools** discovered (add servers via `/tools/create/mcp` to get tools)
 - ✅ **Tool Database** properly synced with automatic discovery
 - ✅ **API Fully Functional** with proper tool/server separation
 - ✅ **Database Issues Fixed** - SQLite compatibility resolved
@@ -98,12 +97,12 @@ POST /tools/create/mcp
 
 ## 🚀 Next Steps
 
-1. **Create MCP Tools**: Use `POST /tools/create/mcp` to manually create tools for MCP servers
+1. **Add MCP Servers**: Use `POST /tools/create/mcp` to add new MCP servers to `.mcp.json`
 2. **Check Available Servers**: Use `GET /tools/mcp/servers` to see configured MCP servers
 3. **Execute Tools**: Use `/tools/{name}/execute` for both code and MCP tools
 4. **Monitor Performance**: Check tool execution stats via `/tools/{name}` endpoint
 
 The system now provides the correct architecture:
 - **Code Tools**: Auto-discovered from filesystem
-- **MCP Servers**: Configured via `.mcp.json` file  
-- **MCP Tools**: Manually created via API endpoints
+- **MCP Servers**: Configured via `.mcp.json` file OR created via API
+- **MCP Tools**: Auto-discovered when MCP servers initialize
