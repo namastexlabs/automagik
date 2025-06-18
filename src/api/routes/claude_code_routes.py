@@ -671,15 +671,37 @@ async def get_claude_code_run_status(
 
         metadata = target_session.metadata or {}
 
-        # Parse JSON stream file as primary source of truth
-        stream_events = StreamParser.parse_stream_file(run_id)
+        # Try to get real-time data from SDK executor first
+        sdk_status_data = None
+        try:
+            from src.agents.models.agent_factory import AgentFactory
+            agent = AgentFactory.create_agent("claude-code", {})
+            if hasattr(agent, 'executor') and hasattr(agent.executor, 'get_execution_status'):
+                sdk_status_data = agent.executor.get_execution_status(run_id)
+        except Exception as e:
+            logger.debug(f"Could not get SDK status data: {e}")
         
-        # Use stream parser to extract data
-        stream_status = StreamParser.get_current_status(stream_events)
-        stream_result = StreamParser.extract_result(stream_events)
-        stream_metrics = StreamParser.extract_metrics(stream_events)
-        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns"))
-        stream_session = StreamParser.extract_session_info(stream_events)
+        # Parse JSON stream file as fallback source (only if SDK data not available)
+        stream_events = []
+        stream_status = None
+        stream_result = {}
+        stream_metrics = {}
+        stream_progress = {}
+        stream_session = {}
+        
+        if not sdk_status_data:
+            # Only try to parse legacy stream files if SDK data is not available
+            try:
+                # Don't warn about missing files when using SDK (they won't exist)
+                stream_events = StreamParser.parse_stream_file(run_id, warn_if_missing=False)
+                stream_status = StreamParser.get_current_status(stream_events)
+                stream_result = StreamParser.extract_result(stream_events)
+                stream_metrics = StreamParser.extract_metrics(stream_events)
+                stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns"))
+                stream_session = StreamParser.extract_session_info(stream_events)
+            except Exception as e:
+                logger.debug(f"Could not parse legacy stream file for {run_id}: {e}")
+                # Use empty defaults
         
         # Get messages for additional context
         from src.db.repository import message as message_repo
@@ -866,8 +888,15 @@ async def get_claude_code_run_status(
         completed_at = None
         execution_time_seconds = None
         
-        # Use stream status as primary source, fallback to metadata
-        workflow_status = stream_status or metadata.get("run_status", "unknown")
+        # Use proper status priority: SDK > session metadata > stream status
+        if sdk_status_data and sdk_status_data.get("status"):
+            workflow_status = sdk_status_data.get("status")
+        elif metadata.get("run_status"):
+            workflow_status = metadata.get("run_status")
+        elif stream_status:
+            workflow_status = stream_status
+        else:
+            workflow_status = "unknown"
         completed_at_str = metadata.get("completed_at")
         
         if completed_at_str:
@@ -885,18 +914,35 @@ async def get_claude_code_run_status(
             if workflow_status in ["running", "unknown"]:
                 workflow_status = "completed"
 
-        # Build enhanced response
-        enhanced_response = EnhancedStatusResponse(
-            run_id=run_id,
-            status=workflow_status,
-            workflow_name=metadata.get("workflow_name", "unknown"),
-            started_at=started_at,
-            completed_at=completed_at,
-            execution_time_seconds=execution_time_seconds,
-            progress=progress_info_obj,
-            metrics=metrics_info,
-            result=result_info_obj
-        )
+        # Build enhanced response - prioritize SDK data when available
+        if sdk_status_data:
+            # Use SDK stream processor data directly - it's more accurate and real-time
+            logger.info(f"Using real-time SDK status data for run {run_id}")
+            enhanced_response = EnhancedStatusResponse(
+                run_id=run_id,
+                status=sdk_status_data.get("status", workflow_status),
+                workflow_name=sdk_status_data.get("workflow_name", metadata.get("workflow_name", "unknown")),
+                started_at=datetime.fromisoformat(sdk_status_data["started_at"]) if sdk_status_data.get("started_at") else started_at,
+                completed_at=datetime.fromisoformat(sdk_status_data["completed_at"]) if sdk_status_data.get("completed_at") else completed_at,
+                execution_time_seconds=sdk_status_data.get("execution_time_seconds", execution_time_seconds),
+                progress=ProgressInfo(**sdk_status_data["progress"]),
+                metrics=MetricsInfo(**sdk_status_data["metrics"]),
+                result=ResultInfo(**sdk_status_data["result"])
+            )
+        else:
+            # Fallback to legacy parsing methods
+            logger.debug(f"Using legacy status data for run {run_id}")
+            enhanced_response = EnhancedStatusResponse(
+                run_id=run_id,
+                status=workflow_status,
+                workflow_name=metadata.get("workflow_name", "unknown"),
+                started_at=started_at,
+                completed_at=completed_at,
+                execution_time_seconds=execution_time_seconds,
+                progress=progress_info_obj,
+                metrics=metrics_info,
+                result=result_info_obj
+            )
 
         # Add debug information if requested
         if debug:
