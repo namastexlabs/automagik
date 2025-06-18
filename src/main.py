@@ -261,12 +261,10 @@ def create_app() -> FastAPI:
             db_type = provider.get_database_type()
             
             if db_type == "sqlite":
-                # SQLite initialization is handled automatically by the provider
+                # SQLite needs migration system too
                 logger.info(f"Using {db_type} database provider")
-                # Test the connection to ensure everything is working
-                with provider.get_connection() as conn:
-                    conn.execute("SELECT 1")
-                logger.info("✅ SQLite database ready")
+                db_init(force=False)
+                logger.info("✅ SQLite database initialized with migrations")
             else:
                 # Use the existing PostgreSQL initialization
                 db_init(force=False)
