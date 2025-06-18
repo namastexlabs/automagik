@@ -1,9 +1,43 @@
-import { Tables } from './supabase'
+// Type definitions without Supabase dependencies
 
-// Supabase types
-export type Project = Tables<'projects'>
-export type Task = Tables<'tasks'>
-export type User = Tables<'users'>
+// Project type
+export interface Project {
+    id: number
+    name: string
+    description?: string
+    repo_url: string
+    created_at: string
+    updated_at?: string
+    user_id: string
+}
+
+// Task type
+export interface Task {
+    id: number
+    status: string
+    prompt: string
+    repo_url: string
+    branch?: string
+    agent?: string
+    model?: string
+    created_at: string
+    updated_at?: string
+    project_id?: number
+    user_id: string
+    pr_url?: string
+    pr_number?: number
+    commit_hash?: string
+    error?: string
+    has_patch?: boolean
+    chat_messages?: ChatMessage[]
+}
+
+// User type
+export interface User {
+    id: string
+    email: string
+    created_at?: string
+}
 
 // Chat message interface for tasks
 export interface ChatMessage {

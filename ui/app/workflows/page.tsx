@@ -55,32 +55,31 @@ export default function WorkflowsPage() {
         try {
             if (!silent) setIsLoading(true);
             
-            // Using the existing API endpoint for workflows (tasks)
-            const response = await fetch(`http://localhost:28881/api/v1/workflows/`, {
+            // Use the correct Claude Code runs endpoint
+            const response = await fetch(`http://localhost:28881/api/v1/workflows/claude-code/runs`, {
                 headers: {
                     'x-api-key': 'namastex888'
                 }
             });
 
             if (!response.ok) {
-                // Fallback to tasks endpoint if workflows endpoint doesn't exist
-                const tasksResponse = await fetch(`http://localhost:28881/api/v1/tasks`, {
-                    headers: {
-                        'x-api-key': 'namastex888'
-                    }
-                });
-                
-                if (tasksResponse.ok) {
-                    const tasksData = await tasksResponse.json();
-                    const tasksList = Object.values(tasksData.tasks || {}) as Workflow[];
-                    setWorkflows(tasksList);
-                } else {
-                    throw new Error('Failed to fetch workflows');
-                }
-            } else {
-                const data = await response.json();
-                setWorkflows(data.workflows || []);
+                throw new Error('Failed to fetch workflows');
             }
+            
+            const data = await response.json();
+            // Map runs to expected Workflow interface
+            const workflowRuns = data.runs.map((run: any) => ({
+                id: run.run_id, // Use run_id as id
+                status: run.status,
+                prompt: run.workflow_name,
+                repo_url: run.repository_url || '',
+                target_branch: run.git_branch || 'main',
+                agent: run.workflow_name,
+                created_at: run.started_at,
+                project_id: null,
+                chat_messages: []
+            }));
+            setWorkflows(workflowRuns);
         } catch (error) {
             console.error('Error loading workflows:', error);
             if (!silent) {
@@ -94,7 +93,7 @@ export default function WorkflowsPage() {
 
     const handleKillWorkflow = async (workflowId: number) => {
         try {
-            const response = await fetch(`http://localhost:28881/api/v1/workflows/${workflowId}/kill`, {
+            const response = await fetch(`http://localhost:28881/api/v1/workflows/claude-code/run/${workflowId}/kill`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
