@@ -229,21 +229,45 @@ async def execute_tool_endpoint(
         )
 
 
-@tool_router.post("/", response_model=ToolCreateResponse)
-async def create_tool_endpoint(tool_data: ToolCreate = Body(..., description="Tool creation data")):
-    """Create a new tool."""
+class MCPToolCreateRequest(BaseModel):
+    """Request for creating MCP tool."""
+    name: str = Field(..., description="Tool name")
+    description: Optional[str] = Field(None, description="Tool description")
+    mcp_server_name: str = Field(..., description="MCP server name")
+    mcp_tool_name: str = Field(..., description="MCP tool name")
+    parameters_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema for parameters")
+    categories: List[str] = Field(default_factory=list, description="Tool categories")
+    enabled: bool = Field(True, description="Whether tool is enabled")
+
+
+@tool_router.post("/create/mcp", response_model=ToolCreateResponse)
+async def create_mcp_tool_endpoint(tool_data: MCPToolCreateRequest = Body(..., description="MCP tool creation data")):
+    """Create a new MCP tool."""
     try:
-        logger.info(f"Creating new tool: {tool_data.name}")
+        logger.info(f"Creating new MCP tool: {tool_data.name}")
         
         # Check if tool already exists
         existing_tool = get_tool_by_name(tool_data.name)
         if existing_tool:
             raise HTTPException(status_code=409, detail=f"Tool '{tool_data.name}' already exists")
         
-        # Create the tool
-        created_tool = create_tool(tool_data)
+        # Create the MCP tool
+        tool_create = ToolCreate(
+            name=tool_data.name,
+            type="mcp",
+            description=tool_data.description,
+            mcp_server_name=tool_data.mcp_server_name,
+            mcp_tool_name=tool_data.mcp_tool_name,
+            parameters_schema=tool_data.parameters_schema,
+            capabilities=[],  # Will be discovered
+            categories=tool_data.categories,
+            enabled=tool_data.enabled,
+            agent_restrictions=[]  # Default to all agents
+        )
+        
+        created_tool = create_tool(tool_create)
         if not created_tool:
-            raise HTTPException(status_code=500, detail="Failed to create tool")
+            raise HTTPException(status_code=500, detail="Failed to create MCP tool")
         
         # Convert to API format
         tool_info = ToolInfo(
@@ -256,18 +280,18 @@ async def create_tool_endpoint(tool_data: ToolCreate = Body(..., description="To
             parameters=_convert_schema_to_parameters(created_tool.parameters_schema)
         )
         
-        logger.info(f"Successfully created tool: {tool_data.name}")
+        logger.info(f"Successfully created MCP tool: {tool_data.name}")
         
         return ToolCreateResponse(
             tool=tool_info,
-            message=f"Tool '{tool_data.name}' created successfully"
+            message=f"MCP tool '{tool_data.name}' created successfully"
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating tool: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create tool: {str(e)}")
+        logger.error(f"Error creating MCP tool: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create MCP tool: {str(e)}")
 
 
 @tool_router.put("/{tool_name}", response_model=ToolUpdateResponse)
@@ -350,6 +374,72 @@ async def list_tool_categories():
     except Exception as e:
         logger.error(f"Error listing categories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list categories: {str(e)}")
+
+
+class MCPServerInfo(BaseModel):
+    """Information about available MCP servers."""
+    name: str = Field(..., description="Server name")
+    type: str = Field(..., description="Server type (stdio/sse)")
+    command: Optional[str] = Field(None, description="Command for stdio servers")
+    url: Optional[str] = Field(None, description="URL for SSE servers")
+    agent_names: List[str] = Field(..., description="Agents that can use this server")
+
+
+class MCPServersResponse(BaseModel):
+    """Response for listing MCP servers."""
+    servers: List[MCPServerInfo]
+    total_count: int
+    configured_in: str = ".mcp.json"
+
+
+@tool_router.get("/mcp/servers", response_model=MCPServersResponse)
+async def list_mcp_servers():
+    """Get available MCP servers from .mcp.json configuration."""
+    try:
+        import json
+        import os
+        
+        mcp_config_path = ".mcp.json"
+        if not os.path.exists(mcp_config_path):
+            return MCPServersResponse(servers=[], total_count=0)
+        
+        with open(mcp_config_path, 'r') as f:
+            config = json.load(f)
+        
+        servers = []
+        mcp_servers = config.get("mcpServers", {})
+        
+        for server_name, server_config in mcp_servers.items():
+            # Determine server type
+            if "command" in server_config:
+                server_type = "stdio"
+                command = f"{server_config['command']} {' '.join(server_config.get('args', []))}"
+                url = None
+            elif "url" in server_config:
+                server_type = "sse"
+                command = None
+                url = server_config["url"]
+            else:
+                server_type = "unknown"
+                command = None
+                url = None
+            
+            servers.append(MCPServerInfo(
+                name=server_name,
+                type=server_type,
+                command=command,
+                url=url,
+                agent_names=server_config.get("agent_names", ["*"])
+            ))
+        
+        return MCPServersResponse(
+            servers=servers,
+            total_count=len(servers)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error listing MCP servers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list MCP servers: {str(e)}")
 
 
 
