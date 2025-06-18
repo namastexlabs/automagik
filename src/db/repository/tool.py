@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 
 from src.db.connection import execute_query
-from src.db.models.tool import ToolDB, ToolExecutionDB, ToolCreate, ToolUpdate
+from src.db.models import ToolDB, ToolExecutionDB, ToolCreate, ToolUpdate
 
 logger = logging.getLogger(__name__)
 

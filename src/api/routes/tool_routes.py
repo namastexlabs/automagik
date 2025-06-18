@@ -22,7 +22,7 @@ from src.db.repository.tool import (
     get_tool_execution_stats,
     log_tool_execution
 )
-from src.db.models.tool import ToolCreate, ToolUpdate
+from src.db.models import ToolCreate, ToolUpdate
 from src.services.tool_discovery import get_tool_discovery_service
 from src.services.tool_execution import execute_tool
 from src.api.models import ToolInfo, ToolExecuteRequest, ToolExecuteResponse
