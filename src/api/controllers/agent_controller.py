@@ -551,14 +551,22 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 # Check if response_content is an object with attributes or a dict
                 if hasattr(response_content, "text"):
                     # Object with attributes (AgentResponse)
-                    response_text = response_content.text
+                    response_text = (
+                        response_content.text or 
+                        getattr(response_content, "response", None) or
+                        str(response_content)
+                    )
                     success = getattr(response_content, "success", True)
                     tool_calls = getattr(response_content, "tool_calls", [])
                     tool_outputs = getattr(response_content, "tool_outputs", [])
                     usage_info = getattr(response_content, "usage", None)
                 else:
-                    # Dictionary
-                    response_text = response_content.get("text", str(response_content))
+                    # Dictionary - handle different response field names
+                    response_text = (
+                        response_content.get("text") or 
+                        response_content.get("response") or 
+                        str(response_content)
+                    )
                     success = response_content.get("success", True)
                     tool_calls = response_content.get("tool_calls", [])
                     tool_outputs = response_content.get("tool_outputs", [])
