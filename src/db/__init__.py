@@ -18,7 +18,11 @@ from src.db.models import (
     MCPConfigUpdate,
     WorkflowProcess,
     WorkflowProcessCreate,
-    WorkflowProcessUpdate
+    WorkflowProcessUpdate,
+    ToolDB,
+    ToolExecutionDB,
+    ToolCreate,
+    ToolUpdate
 )
 
 # Export connection utilities
@@ -126,4 +130,19 @@ from src.db.repository.user import (
     update_user,
     delete_user,
     ensure_default_user_exists,
+)
+
+# Import tool repository functions
+from src.db.repository.tool import (
+    list_tools,
+    get_tool_by_name,
+    get_tool_by_id,
+    create_tool,
+    update_tool,
+    delete_tool,
+    get_tools_by_mcp_server,
+    get_tools_by_category,
+    log_tool_execution,
+    get_tool_execution_stats,
+    get_tool_categories
 )
