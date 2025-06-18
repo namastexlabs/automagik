@@ -62,6 +62,7 @@ dependencies = [
     "docker>=7.1.0",
     "langgraph-checkpoint-postgres>=2.0.21",
     "aiofiles>=24.1.0",
+    "claude-code-sdk>=0.1.0",
 ]
 
 [project.urls]
