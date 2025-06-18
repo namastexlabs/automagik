@@ -6,12 +6,83 @@ from src.db.connection import safe_uuid
 from src.memory.message_history import MessageHistory
 from src.api.models import SessionListResponse, SessionInfo
 from src.db.repository.session import get_system_prompt
-from typing import Dict, Any
+from src.db import list_session_messages
+from typing import Dict, Any, List
 import uuid
+import json
+from datetime import datetime
 from fastapi.concurrency import run_in_threadpool
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+
+def _extract_usage_from_messages(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Helper function to extract and aggregate usage data from messages."""
+    total_tokens = 0
+    total_requests = 0
+    models = {}
+    message_count = 0
+    
+    for message in messages:
+        usage = message.get('usage')
+        if not usage:
+            continue
+        
+        # Parse usage data if it's a string
+        if isinstance(usage, str):
+            try:
+                usage = json.loads(usage)
+            except:
+                continue
+        
+        if not isinstance(usage, dict):
+            continue
+            
+        message_count += 1
+            
+        model = usage.get('model', 'unknown')
+        framework = usage.get('framework', 'unknown')
+        key = f"{model}_{framework}"
+        
+        if key not in models:
+            models[key] = {
+                "model": model,
+                "framework": framework,
+                "message_count": 0,
+                "total_requests": 0,
+                "request_tokens": 0,
+                "response_tokens": 0,
+                "total_tokens": 0,
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0
+            }
+        
+        models[key]["message_count"] += 1
+        models[key]["total_requests"] += usage.get('total_requests', 0)
+        models[key]["request_tokens"] += usage.get('request_tokens', 0)
+        models[key]["response_tokens"] += usage.get('response_tokens', 0)
+        models[key]["total_tokens"] += usage.get('total_tokens', 0)
+        models[key]["cache_creation_tokens"] += usage.get('cache_creation_tokens', 0)
+        models[key]["cache_read_tokens"] += usage.get('cache_read_tokens', 0)
+        
+        total_tokens += usage.get('total_tokens', 0)
+        total_requests += usage.get('total_requests', 0)
+    
+    return {
+        "session_id": None,  # Will be set by caller
+        "total_tokens": total_tokens,
+        "total_requests": total_requests,
+        "models": list(models.values()),
+        "summary": {
+            "message_count": message_count,
+            "unique_models": len(models),
+            "total_request_tokens": sum(m["request_tokens"] for m in models.values()),
+            "total_response_tokens": sum(m["response_tokens"] for m in models.values()),
+            "total_cache_tokens": sum(m["cache_creation_tokens"] + m["cache_read_tokens"] for m in models.values()),
+            "analysis_timestamp": datetime.utcnow().isoformat()
+        }
+    }
 
 async def get_sessions(page: int, page_size: int, sort_desc: bool) -> SessionListResponse:
     """
@@ -132,6 +203,20 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
         # Conditionally add system_prompt to the response data
         if show_system_prompt:
             response_data["system_prompt"] = system_prompt
+        
+        # Add token usage analytics for the session
+        try:
+            session_uuid = safe_uuid(session_id)
+            if session_uuid:
+                messages, _ = await run_in_threadpool(list_session_messages, session_uuid)
+                token_analytics = _extract_usage_from_messages(messages)
+                token_analytics["session_id"] = session_id
+                response_data["token_analytics"] = token_analytics
+            else:
+                response_data["token_analytics"] = None
+        except Exception as e:
+            logger.warning(f"Failed to get token analytics for session {session_id}: {e}")
+            response_data["token_analytics"] = None
             
         return response_data
     except HTTPException:

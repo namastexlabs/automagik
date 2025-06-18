@@ -126,6 +126,7 @@ class Message(BaseDBModel):
     user_feedback: Optional[str] = Field(None, description="User feedback")
     flagged: Optional[str] = Field(None, description="Flagged status")
     context: Optional[Dict[str, Any]] = Field(None, description="Message context")
+    usage: Optional[Dict[str, Any]] = Field(None, description="Token usage information")
     created_at: Optional[datetime] = Field(None, description="Created at timestamp")
     updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
 
@@ -136,7 +137,7 @@ class Message(BaseDBModel):
             return None
         
         # Handle JSON fields - deserialize if they're strings
-        json_fields = ["raw_payload", "channel_payload", "tool_calls", "tool_outputs", "context"]
+        json_fields = ["raw_payload", "channel_payload", "tool_calls", "tool_outputs", "context", "usage"]
         for field in json_fields:
             if field in row and isinstance(row[field], str):
                 import json

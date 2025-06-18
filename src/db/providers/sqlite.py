@@ -618,6 +618,38 @@ class SQLiteProvider(DatabaseProvider):
         CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(enabled);
         CREATE INDEX IF NOT EXISTS idx_tools_mcp_server ON tools(mcp_server_name) WHERE mcp_server_name IS NOT NULL;
 
+        -- ---------------------------------------------
+        -- Workflow execution process tracking (NMSTX-317)
+        -- ---------------------------------------------
+
+        -- The workflow_processes table keeps a lightweight heartbeat of all
+        -- workflow runs that are currently executing (or have executed
+        -- recently) inside the Automagik worker pool.  The data is used for
+        -- real-time monitoring in the UI and to implement the emergency kill
+        -- endpoint.  It purposely lives outside of the Jobs / Sessions
+        -- hierarchy so that a stuck workflow can always be cleaned up even if
+        -- higher-level records are corrupted.
+
+        CREATE TABLE IF NOT EXISTS workflow_processes (
+            run_id TEXT PRIMARY KEY,
+            pid INTEGER,
+            status TEXT NOT NULL DEFAULT 'running',
+            workflow_name TEXT,
+            session_id TEXT,
+            user_id TEXT,
+            started_at TEXT DEFAULT (datetime('now')),
+            workspace_path TEXT,
+            last_heartbeat TEXT DEFAULT (datetime('now')),
+            process_info TEXT DEFAULT '{}',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_workflow_processes_status ON workflow_processes(status);
+        CREATE INDEX IF NOT EXISTS idx_workflow_processes_started_at ON workflow_processes(started_at);
+        CREATE INDEX IF NOT EXISTS idx_workflow_processes_last_heartbeat ON workflow_processes(last_heartbeat);
+        CREATE INDEX IF NOT EXISTS idx_workflow_processes_session_id ON workflow_processes(session_id);
+
         -- Enable foreign key constraints
         PRAGMA foreign_keys = ON;
         """
