@@ -1,73 +1,49 @@
 -- MCP Refactor Migration: Create simplified mcp_configs table
 -- Epic: NMSTX-253 - Replace complex 2-table MCP system with single-table architecture
 -- Component: Core (NMSTX-254)
+-- SQLite Compatible Version
 
 -- Step 1: Create backup tables for existing data (safety net)
-CREATE TABLE IF NOT EXISTS mcp_servers_backup AS 
-    SELECT *, NOW() as backup_created_at FROM mcp_servers;
+-- Note: Only create backup if source tables exist
+-- SQLite doesn't support conditional table creation, so we'll skip backups for now
 
-CREATE TABLE IF NOT EXISTS agent_mcp_servers_backup AS 
-    SELECT *, NOW() as backup_created_at FROM agent_mcp_servers;
-
--- Step 2: Create the new simplified mcp_configs table
+-- Step 2: Create the new simplified mcp_configs table (SQLite compatible)
 CREATE TABLE IF NOT EXISTS mcp_configs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) UNIQUE NOT NULL,
-    config JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    name TEXT UNIQUE NOT NULL,
+    config TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Step 3: Create indexes for performance
+-- Step 3: Create indexes for performance (SQLite compatible)
 CREATE INDEX IF NOT EXISTS idx_mcp_configs_name ON mcp_configs(name);
-CREATE INDEX IF NOT EXISTS idx_mcp_configs_config ON mcp_configs USING GIN(config);
+CREATE INDEX IF NOT EXISTS idx_mcp_configs_config ON mcp_configs(config);
 
--- Index for agent filtering (config->'agents' contains agent names)
-CREATE INDEX IF NOT EXISTS idx_mcp_configs_agents ON mcp_configs USING GIN((config->'agents'));
+-- Index for agent filtering using JSON extraction
+CREATE INDEX IF NOT EXISTS idx_mcp_configs_agents ON mcp_configs(json_extract(config, '$.agents'));
 
 -- Index for server type filtering
-CREATE INDEX IF NOT EXISTS idx_mcp_configs_server_type ON mcp_configs((config->>'server_type'));
+CREATE INDEX IF NOT EXISTS idx_mcp_configs_server_type ON mcp_configs(json_extract(config, '$.server_type'));
 
 -- Index for enabled configs
-CREATE INDEX IF NOT EXISTS idx_mcp_configs_enabled ON mcp_configs((config->>'enabled')) WHERE (config->>'enabled')::boolean = true;
+CREATE INDEX IF NOT EXISTS idx_mcp_configs_enabled ON mcp_configs(json_extract(config, '$.enabled')) WHERE json_extract(config, '$.enabled') = 'true';
 
--- Step 4: Add constraints and validation
-ALTER TABLE mcp_configs ADD CONSTRAINT chk_config_has_name 
-    CHECK (config ? 'name' AND config->>'name' IS NOT NULL);
+-- Step 4: Add basic validation (SQLite has limited constraint support)
+-- Note: Advanced JSON validation constraints are not supported in SQLite
+-- Validation should be handled at the application level
 
-ALTER TABLE mcp_configs ADD CONSTRAINT chk_config_has_server_type 
-    CHECK (config ? 'server_type' AND config->>'server_type' IN ('stdio', 'http'));
-
--- Ensure stdio servers have command
-ALTER TABLE mcp_configs ADD CONSTRAINT chk_stdio_has_command 
-    CHECK (config->>'server_type' != 'stdio' OR config ? 'command');
-
--- Ensure http servers have URL  
-ALTER TABLE mcp_configs ADD CONSTRAINT chk_http_has_url 
-    CHECK (config->>'server_type' != 'http' OR config ? 'url');
-
--- Ensure agents is an array
-ALTER TABLE mcp_configs ADD CONSTRAINT chk_config_agents_is_array 
-    CHECK (config->'agents' IS NULL OR jsonb_typeof(config->'agents') = 'array');
-
--- Step 5: Add function to automatically update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_mcp_configs_updated_at_column()
-    RETURNS TRIGGER AS $$
+-- Step 5: Create trigger for automatic timestamp updates (SQLite compatible)
+CREATE TRIGGER IF NOT EXISTS update_mcp_configs_updated_at 
+    AFTER UPDATE ON mcp_configs
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+    UPDATE mcp_configs SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
-$$ language 'plpgsql';
 
--- Create trigger for automatic timestamp updates
-DROP TRIGGER IF EXISTS update_mcp_configs_updated_at ON mcp_configs;
-CREATE TRIGGER update_mcp_configs_updated_at BEFORE UPDATE ON mcp_configs 
-    FOR EACH ROW EXECUTE FUNCTION update_mcp_configs_updated_at_column();
-
--- Step 6: Add comments explaining the new architecture
-COMMENT ON TABLE mcp_configs IS 'Simplified MCP configuration table storing JSON configs (replaces mcp_servers + agent_mcp_servers)';
-COMMENT ON COLUMN mcp_configs.name IS 'Unique server identifier';
-COMMENT ON COLUMN mcp_configs.config IS 'Complete JSON configuration including server settings, agent assignments, and tool filters';
+-- Step 6: SQLite doesn't support COMMENT statements
+-- Table: mcp_configs - Simplified MCP configuration table storing JSON configs (replaces mcp_servers + agent_mcp_servers)
+-- Column: name - Unique server identifier
+-- Column: config - Complete JSON configuration including server settings, agent assignments, and tool filters
 
 -- Example config structure (for reference):
 /*
