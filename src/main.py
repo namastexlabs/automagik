@@ -312,6 +312,16 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error initializing MCP client manager: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
+        # Initialize tools (discover and sync to database)
+        try:
+            logger.info("🔧 Initializing tool discovery and management...")
+            from src.services.startup import startup_initialization
+            await startup_initialization()
+            logger.info("✅ Tool system initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Error initializing tool system: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
         # Start Graphiti queue
         try:
             logger.info("🚀 Starting Graphiti queue...")

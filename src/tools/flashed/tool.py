@@ -123,3 +123,24 @@ async def get_user_energy(ctx: RunContext[Dict]) -> Dict[str, Any]:
         if not user_id:
             raise ValueError("user_id not found in context")
         return await provider.get_user_energy(user_id)
+
+async def get_user_by_pretty_id(pretty_id: str) -> Dict[str, Any]:
+    """Get user data by their prettyId (conversation code).
+    
+    Args:
+        pretty_id: User prettyId (conversation code)
+        
+    Returns:
+        User data containing:
+        - user: Object with user information:
+          - id: User UUID
+          - createdAt: Account creation timestamp
+          - name: Full name
+          - phone: Contact phone number
+          - email: Email address
+          - birthDate: Date of birth
+          - metadata: Additional user metadata
+    """
+    provider = FlashedProvider()
+    async with provider:
+        return await provider.get_user_by_pretty_id(pretty_id)
