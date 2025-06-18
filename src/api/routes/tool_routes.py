@@ -7,10 +7,8 @@ import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Path, Body
+from fastapi import APIRouter, HTTPException, Query, Path, Body
 from pydantic import BaseModel, Field
-
-from src.auth import get_api_key
 from src.db.repository.tool import (
     list_tools as db_list_tools,
     get_tool_by_name,
@@ -70,7 +68,7 @@ class ToolDeleteResponse(BaseModel):
 
 
 # Main endpoints
-@tool_router.get("/", response_model=ToolListResponse, dependencies=[Depends(get_api_key)])
+@tool_router.get("/", response_model=ToolListResponse)
 async def list_tools(
     tool_type: Optional[str] = Query(None, description="Filter by tool type: code, mcp, hybrid"),
     enabled_only: bool = Query(True, description="Show only enabled tools"),
@@ -131,7 +129,7 @@ async def list_tools(
         raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
 
 
-@tool_router.get("/{tool_name}", response_model=ToolDetailResponse, dependencies=[Depends(get_api_key)])
+@tool_router.get("/{tool_name}", response_model=ToolDetailResponse)
 async def get_tool_details(tool_name: str = Path(..., description="Tool name")):
     """Get detailed information about a specific tool."""
     try:
@@ -164,7 +162,7 @@ async def get_tool_details(tool_name: str = Path(..., description="Tool name")):
         raise HTTPException(status_code=500, detail=f"Failed to get tool details: {str(e)}")
 
 
-@tool_router.post("/{tool_name}/execute", response_model=ToolExecuteResponse, dependencies=[Depends(get_api_key)])
+@tool_router.post("/{tool_name}/execute", response_model=ToolExecuteResponse)
 async def execute_tool_endpoint(
     tool_name: str = Path(..., description="Tool name"),
     request: ToolExecuteRequest = Body(..., description="Execution request")
@@ -231,7 +229,7 @@ async def execute_tool_endpoint(
         )
 
 
-@tool_router.post("/", response_model=ToolCreateResponse, dependencies=[Depends(get_api_key)])
+@tool_router.post("/", response_model=ToolCreateResponse)
 async def create_tool_endpoint(tool_data: ToolCreate = Body(..., description="Tool creation data")):
     """Create a new tool."""
     try:
@@ -272,7 +270,7 @@ async def create_tool_endpoint(tool_data: ToolCreate = Body(..., description="To
         raise HTTPException(status_code=500, detail=f"Failed to create tool: {str(e)}")
 
 
-@tool_router.put("/{tool_name}", response_model=ToolUpdateResponse, dependencies=[Depends(get_api_key)])
+@tool_router.put("/{tool_name}", response_model=ToolUpdateResponse)
 async def update_tool_endpoint(
     tool_name: str = Path(..., description="Tool name"),
     tool_data: ToolUpdate = Body(..., description="Tool update data")
@@ -316,7 +314,7 @@ async def update_tool_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to update tool: {str(e)}")
 
 
-@tool_router.delete("/{tool_name}", response_model=ToolDeleteResponse, dependencies=[Depends(get_api_key)])
+@tool_router.delete("/{tool_name}", response_model=ToolDeleteResponse)
 async def delete_tool_endpoint(tool_name: str = Path(..., description="Tool name")):
     """Delete a tool."""
     try:
@@ -343,7 +341,7 @@ async def delete_tool_endpoint(tool_name: str = Path(..., description="Tool name
         raise HTTPException(status_code=500, detail=f"Failed to delete tool: {str(e)}")
 
 
-@tool_router.get("/categories/list", response_model=List[str], dependencies=[Depends(get_api_key)])
+@tool_router.get("/categories/list", response_model=List[str])
 async def list_tool_categories():
     """Get all available tool categories."""
     try:
