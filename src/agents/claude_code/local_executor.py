@@ -69,8 +69,9 @@ class LocalExecutor(ExecutorBase):
         run_id = agent_context.get('run_id', str(int(time.time())))
         
         try:
-            # Create workspace using environment manager
-            workspace_path = await self.env_manager.create_workspace(run_id)
+            # Create workspace using environment manager with workflow name for persistent workspaces
+            workflow_name_for_workspace = request.workflow_name if request.persistent else None
+            workspace_path = await self.env_manager.create_workspace(run_id, workflow_name_for_workspace)
             
             # Setup repository
             await self.env_manager.setup_repository(
