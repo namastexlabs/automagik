@@ -259,14 +259,106 @@ class SQLiteProvider(DatabaseProvider):
         """Initialize SQLite database schema if not already created."""
         try:
             with self.get_connection() as conn:
-                # Check if tables exist by trying to query the agents table
+                # Check if core tables exist to determine if full schema initialization is needed
                 cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'")
                 if cursor.fetchone() is None:
                     logger.info("Initializing SQLite database schema...")
                     self._create_schema(conn)
                     logger.info("✅ SQLite database schema initialized successfully")
+                else:
+                    # Database already initialized – check for tables added by newer migrations
+                    # This is a lightweight forward-compatibility safeguard so old databases
+                    # created before the MCP + Tools refactor keep working without a manual
+                    # migration step.
+                    missing_table_statements = {
+                        "mcp_configs": """
+                        CREATE TABLE IF NOT EXISTS mcp_configs (
+                            id TEXT PRIMARY KEY,
+                            name TEXT UNIQUE NOT NULL,
+                            config TEXT NOT NULL,
+                            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_mcp_configs_name ON mcp_configs(name);
+                        """,
+                        "tools": """
+                        CREATE TABLE IF NOT EXISTS tools (
+                            id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
+                            name TEXT NOT NULL UNIQUE,
+                            type TEXT NOT NULL CHECK (type IN ('code', 'mcp', 'hybrid')),
+                            description TEXT,
+                            module_path TEXT,
+                            function_name TEXT,
+                            mcp_server_name TEXT,
+                            mcp_tool_name TEXT,
+                            parameters_schema TEXT,
+                            capabilities TEXT DEFAULT '[]',
+                            categories TEXT DEFAULT '[]',
+                            enabled INTEGER DEFAULT 1,
+                            agent_restrictions TEXT DEFAULT '[]',
+                            execution_count INTEGER DEFAULT 0,
+                            last_executed_at TEXT,
+                            average_execution_time_ms INTEGER DEFAULT 0,
+                            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_tools_name ON tools(name);
+                        CREATE INDEX IF NOT EXISTS idx_tools_type ON tools(type);
+                        CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(enabled);
+                        CREATE INDEX IF NOT EXISTS idx_tools_mcp_server ON tools(mcp_server_name) WHERE mcp_server_name IS NOT NULL;
+                        """,
+                        # tool_executions depends on tools table FK, so ensure tools first
+                        "tool_executions": """
+                        CREATE TABLE IF NOT EXISTS tool_executions (
+                            id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
+                            tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+                            agent_name TEXT,
+                            session_id TEXT,
+                            parameters TEXT,
+                            context TEXT,
+                            status TEXT CHECK (status IN ('success', 'error', 'timeout')),
+                            result TEXT,
+                            error_message TEXT,
+                            execution_time_ms INTEGER,
+                            executed_at TEXT NOT NULL DEFAULT (datetime('now'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_tool_executions_tool_id ON tool_executions(tool_id);
+                        CREATE INDEX IF NOT EXISTS idx_tool_executions_agent_name ON tool_executions(agent_name);
+                        CREATE INDEX IF NOT EXISTS idx_tool_executions_session_id ON tool_executions(session_id);
+                        CREATE INDEX IF NOT EXISTS idx_tool_executions_status ON tool_executions(status);
+                        CREATE INDEX IF NOT EXISTS idx_tool_executions_executed_at ON tool_executions(executed_at);
+                        """,
+                        "workflow_processes": """
+                        CREATE TABLE IF NOT EXISTS workflow_processes (
+                            run_id TEXT PRIMARY KEY,
+                            pid INTEGER,
+                            status TEXT NOT NULL DEFAULT 'running',
+                            workflow_name TEXT,
+                            session_id TEXT,
+                            user_id TEXT,
+                            started_at TEXT DEFAULT (datetime('now')),
+                            workspace_path TEXT,
+                            last_heartbeat TEXT DEFAULT (datetime('now')),
+                            process_info TEXT DEFAULT '{}',
+                            created_at TEXT DEFAULT (datetime('now')),
+                            updated_at TEXT DEFAULT (datetime('now'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_status ON workflow_processes(status);
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_started_at ON workflow_processes(started_at);
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_last_heartbeat ON workflow_processes(last_heartbeat);
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_session_id ON workflow_processes(session_id);
+                        """
+                    }
+
+                    for table_name, ddl in missing_table_statements.items():
+                        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+                        if cursor.fetchone() is None:
+                            logger.info(f"Adding missing table '{table_name}' to existing SQLite database…")
+                            conn.executescript(ddl)
+                            conn.commit()
+                            logger.info(f"✅ Created table '{table_name}' and related indexes")
         except Exception as e:
-            logger.error(f"Failed to initialize SQLite schema: {e}")
+            logger.error(f"Failed to initialize or upgrade SQLite schema: {e}")
             raise
     
     def _create_schema(self, conn: sqlite3.Connection):
