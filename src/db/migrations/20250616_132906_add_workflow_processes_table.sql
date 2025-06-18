@@ -5,6 +5,7 @@
 
 -- Create workflow_processes table for tracking active workflow executions
 -- Note: Uses TEXT for process_info in SQLite, JSONB in PostgreSQL (handled by provider)
+-- SQLite-compatible timestamps using datetime('now')
 CREATE TABLE IF NOT EXISTS workflow_processes (
     run_id TEXT PRIMARY KEY,
     pid INTEGER,
@@ -12,12 +13,12 @@ CREATE TABLE IF NOT EXISTS workflow_processes (
     workflow_name TEXT,
     session_id TEXT,
     user_id TEXT,
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TEXT DEFAULT (datetime('now')),
     workspace_path TEXT,
-    last_heartbeat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_heartbeat TEXT DEFAULT (datetime('now')), 
     process_info TEXT DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Create indexes for efficient queries (compatible with both databases)

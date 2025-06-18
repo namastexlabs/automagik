@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProtectedRoute } from "@/components/protected-route";
 import { TaskStatusBadge } from "@/components/task-status-badge";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface WorkflowDetails {
     run_id: string;
@@ -107,79 +108,31 @@ export default function WorkflowDetailPage() {
                     }));
             }
 
-            // Mock file changes for demonstration
-            const mockFileChanges: FileChange[] = statusData.status === "completed" ? [
-                {
-                    path: "src/components/NewFeature.tsx",
-                    status: "added",
-                    additions: 150,
-                    deletions: 0,
-                    diff: `+import React from 'react';
-+
-+export const NewFeature: React.FC = () => {
-+  return (
-+    <div className="feature-container">
-+      <h2>New Feature Component</h2>
-+      <p>This component was automatically generated</p>
-+    </div>
-+  );
-+};`
-                },
-                {
-                    path: "src/App.tsx",
-                    status: "modified",
-                    additions: 5,
-                    deletions: 2,
-                    diff: ` import React from 'react';
- import './App.css';
-+import { NewFeature } from './components/NewFeature';
- 
- function App() {
-   return (
-     <div className="App">
-       <header className="App-header">
--        <p>Hello World</p>
-+        <p>Welcome to the enhanced app</p>
-+        <NewFeature />
-       </header>
-     </div>
-   );`
-                }
-            ] : [];
+            // Get real file changes from workflow result (no more mocked data)
+            const fileChanges: FileChange[] = statusData.result?.files_created?.map((file: string) => ({
+                path: file,
+                status: "added" as const,
+                additions: 0,
+                deletions: 0
+            })) || [];
 
-            // Mock messages for demonstration
-            const mockMessages: ChatMessage[] = [
-                {
-                    role: "user",
-                    content: "Create a new React component for displaying user profiles",
-                    timestamp: new Date(Date.now() - 300000).toISOString()
-                },
-                {
-                    role: "assistant",
-                    content: "I'll create a new React component for displaying user profiles. Let me analyze the project structure and create the component with proper TypeScript types and styling.",
-                    timestamp: new Date(Date.now() - 280000).toISOString()
-                },
-                {
-                    role: "assistant",
-                    content: "I've successfully created the UserProfile component with the following features:\n- TypeScript interface for user data\n- Responsive design with Tailwind CSS\n- Avatar display with fallback\n- User information cards\n- Social links section",
-                    timestamp: new Date(Date.now() - 180000).toISOString()
-                }
-            ];
+            // Get real conversation data from workflow progress (no more mocked data)
+            const messages: ChatMessage[] = statusData.progress?.messages || [];
 
             const workflowDetails: WorkflowDetails = {
                 run_id: workflowId,
                 status: statusData.status || "pending",
                 workflow_name: statusData.workflow_name || "Claude Code Workflow",
-                repository_url: statusData.repository_url || "https://github.com/example/repo",
+                repository_url: statusData.repository_url || process.env.NEXT_PUBLIC_REPO_URL || "",
                 git_branch: statusData.git_branch || "main",
                 started_at: statusData.started_at || new Date().toISOString(),
                 completed_at: statusData.completed_at,
                 error: statusData.error,
-                commit_hash: statusData.commit_hash || "abc123def456",
-                ai_model: "Claude 3.5 Sonnet",
-                files_changed: mockFileChanges,
+                commit_hash: statusData.result?.git_commits?.[0] || "",
+                ai_model: statusData.metrics?.model || "Claude 3.5 Sonnet",
+                files_changed: fileChanges,
                 logs: logs,
-                messages: mockMessages
+                messages: messages
             };
 
             setWorkflow(workflowDetails);
@@ -300,10 +253,10 @@ export default function WorkflowDetailPage() {
     if (!workflow) {
         return (
             <ProtectedRoute>
-                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-                    <div className="text-center">
-                        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                        <h2 className="text-xl font-semibold mb-2">Workflow not found</h2>
+                <div className="min-h-screen bg-background flex items-center justify-center">
+                    <div className="text-center animate-fade-in">
+                        <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                        <h2 className="text-xl font-semibold mb-2 text-foreground">Workflow not found</h2>
                         <Button onClick={() => router.push('/workflows')} variant="outline">
                             Back to Workflows
                         </Button>
@@ -315,9 +268,9 @@ export default function WorkflowDetailPage() {
 
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+            <div className="min-h-screen bg-background">
                 {/* Header */}
-                <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+                <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
                     <div className="container mx-auto px-6 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
@@ -331,7 +284,7 @@ export default function WorkflowDetailPage() {
                                     Back
                                 </Button>
                                 <div className="flex items-center gap-3">
-                                    <h1 className="text-xl font-semibold">Workflow #{workflow.run_id}</h1>
+                                    <h1 className="text-xl font-semibold text-foreground">Workflow #{workflow.run_id.slice(0, 8)}...</h1>
                                     <TaskStatusBadge status={workflow.status} />
                                     {isPolling && (
                                         <Badge variant="outline" className="gap-1">
@@ -364,7 +317,7 @@ export default function WorkflowDetailPage() {
                 </header>
 
                 {/* Main Content */}
-                <main className="container mx-auto px-6 py-8 max-w-7xl">
+                <main className="container mx-auto px-6 py-8 max-w-7xl animate-fade-in">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Left Column - Main Content */}
                         <div className="lg:col-span-2 space-y-6">
@@ -376,9 +329,9 @@ export default function WorkflowDetailPage() {
                                 <CardContent>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-sm text-slate-500 mb-1">Repository</p>
+                                            <p className="text-sm text-muted-foreground mb-1">Repository</p>
                                             <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium">{workflow.repository_url}</p>
+                                                <p className="text-sm font-medium text-foreground">{workflow.repository_url || 'Not specified'}</p>
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
@@ -390,30 +343,30 @@ export default function WorkflowDetailPage() {
                                             </div>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-slate-500 mb-1">Branch</p>
+                                            <p className="text-sm text-muted-foreground mb-1">Branch</p>
                                             <div className="flex items-center gap-2">
-                                                <GitBranch className="w-4 h-4 text-slate-400" />
-                                                <p className="text-sm font-medium">{workflow.git_branch}</p>
+                                                <GitBranch className="w-4 h-4 text-muted-foreground" />
+                                                <p className="text-sm font-medium text-foreground">{workflow.git_branch}</p>
                                             </div>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-slate-500 mb-1">AI Model</p>
+                                            <p className="text-sm text-muted-foreground mb-1">AI Model</p>
                                             <div className="flex items-center gap-2">
-                                                <Bot className="w-4 h-4 text-slate-400" />
-                                                <p className="text-sm font-medium">{workflow.ai_model}</p>
+                                                <Bot className="w-4 h-4 text-muted-foreground" />
+                                                <p className="text-sm font-medium text-foreground">{workflow.ai_model}</p>
                                             </div>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-slate-500 mb-1">Started</p>
-                                            <p className="text-sm font-medium">
+                                            <p className="text-sm text-muted-foreground mb-1">Started</p>
+                                            <p className="text-sm font-medium text-foreground">
                                                 {new Date(workflow.started_at).toLocaleString()}
                                             </p>
                                         </div>
                                         {workflow.commit_hash && (
                                             <div>
-                                                <p className="text-sm text-slate-500 mb-1">Commit</p>
+                                                <p className="text-sm text-muted-foreground mb-1">Commit</p>
                                                 <div className="flex items-center gap-2">
-                                                    <code className="text-xs bg-slate-100 px-2 py-1 rounded">
+                                                    <code className="text-xs bg-muted px-2 py-1 rounded">
                                                         {workflow.commit_hash.substring(0, 7)}
                                                     </code>
                                                     <Button
