@@ -323,15 +323,27 @@ def get_tool_execution_stats(tool_id: uuid.UUID, days: int = 30) -> Dict[str, An
 def get_tool_categories() -> List[str]:
     """Get all unique tool categories."""
     try:
+        # SQLite-compatible version - get all categories and parse JSON in Python
         results = execute_query(
             """
-            SELECT DISTINCT jsonb_array_elements_text(categories) as category
+            SELECT DISTINCT categories
             FROM tools 
-            WHERE categories != '[]'::jsonb
-            ORDER BY category
+            WHERE categories IS NOT NULL AND categories != '[]'
             """
         )
-        return [row[0] for row in results]
+        
+        categories = set()
+        for row in results:
+            categories_json = row[0]
+            if categories_json and categories_json != '[]':
+                try:
+                    parsed_categories = json.loads(categories_json)
+                    if isinstance(parsed_categories, list):
+                        categories.update(parsed_categories)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+        
+        return sorted(list(categories))
     except Exception as e:
         logger.error(f"Error getting tool categories: {str(e)}")
         return []
