@@ -1,55 +1,74 @@
-# Tool Management & MCP Server API Endpoints
+# Tool Management API Endpoints
 
 ## 🔧 Tool Management Endpoints (`/tools`)
 
-**Purpose**: View and execute tools that are automatically discovered from code and MCP servers.
+**Purpose**: View and execute tools that are automatically discovered from code and manually created for MCP.
 
 ### Available Endpoints:
 ```
 GET    /tools                     # List all available tools with filtering
 GET    /tools/{name}              # Get specific tool details + execution stats  
 POST   /tools/{name}/execute      # Execute a tool with parameters
+POST   /tools/create/mcp          # Create a new MCP tool manually
 PUT    /tools/{name}              # Update tool configuration (enable/disable, etc.)
-DELETE /tools/{name}              # Delete a tool (not recommended for discovered tools)
+DELETE /tools/{name}              # Delete a tool 
 GET    /tools/categories/list     # List all tool categories
+GET    /tools/mcp/servers         # List available MCP servers from .mcp.json
 ```
 
 ### Key Features:
-- **Automatic Discovery**: Tools are automatically discovered from `src/tools/` directory
-- **104 Code Tools**: Currently discovering all built-in code tools
-- **MCP Tools**: Will automatically appear when MCP servers are configured
+- **Code Tools**: Automatically discovered from `src/tools/` directory (104 tools)
+- **MCP Tools**: Manually created via `/tools/create/mcp` endpoint
 - **Execution Tracking**: All tool executions are logged with metrics
 - **Filtering**: Filter by type (code/mcp), category, agent restrictions
 
+### Creating MCP Tools:
+```json
+POST /tools/create/mcp
+{
+  "name": "my_custom_tool",
+  "description": "Custom MCP tool",
+  "mcp_server_name": "git",
+  "mcp_tool_name": "git_log",
+  "parameters_schema": {
+    "type": "object",
+    "properties": {
+      "path": {"type": "string", "description": "Repository path"}
+    },
+    "required": ["path"]
+  },
+  "categories": ["git", "version-control"],
+  "enabled": true
+}
+```
+
 ---
 
-## 🌐 MCP Server Management Endpoints (`/mcp`)
+## 🌐 MCP Server Configuration (`.mcp.json`)
 
-**Purpose**: Configure and manage MCP servers that provide external tools.
+**Purpose**: MCP servers are configured via `.mcp.json` file in the project root.
 
-### Available Endpoints:
-```
-GET    /mcp/configs                        # List all MCP server configurations
-POST   /mcp/configs                        # Create new MCP server configuration
-GET    /mcp/configs/{name}                 # Get specific MCP server details
-PUT    /mcp/configs/{name}                 # Update MCP server configuration  
-DELETE /mcp/configs/{name}                 # Delete MCP server configuration
-GET    /mcp/agents/{agent_name}/configs    # Get MCP servers for specific agent
-```
+### Current Configuration:
+- **6 MCP Servers** configured in `.mcp.json`:
+  - `mcp-sqlite`: Database operations
+  - `git`: Git operations  
+  - `linear`: Linear project management
+  - `agent-memory`: Agent memory management
+  - `deepwiki`: Documentation access
+  - `automagik-workflows`: Workflow automation
 
-### Creating MCP Servers:
+### .mcp.json Structure:
 ```json
-POST /mcp/configs
 {
-  "name": "my-mcp-server",
-  "server_type": "stdio",
-  "command": ["npx", "my-mcp-package"],
-  "agents": ["*"],
-  "tools": {"include": ["*"]},
-  "environment": {"API_KEY": "your-key"},
-  "timeout": 30000,
-  "enabled": true,
-  "auto_start": true
+  "mcpServers": {
+    "server-name": {
+      "command": "npx",
+      "args": ["-y", "package-name"],
+      "agent_names": ["*"],
+      "tools": {"include": ["*"]},
+      "env": {"API_KEY": "value"}
+    }
+  }
 }
 ```
 
@@ -57,29 +76,34 @@ POST /mcp/configs
 
 ## 🔄 How It Works Together
 
-1. **Configure MCP Server**: Use `/mcp/configs` endpoints to add external MCP servers
-2. **Automatic Tool Discovery**: Once MCP server is configured, its tools automatically appear in `/tools` endpoints
-3. **Execute Tools**: Use `/tools/{name}/execute` to run both code and MCP tools uniformly
-4. **Monitor Usage**: Check `/tools/{name}` for execution statistics and performance metrics
+1. **MCP Servers**: Configure in `.mcp.json` file (6 servers already configured)
+2. **Code Tools**: Automatically discovered from `src/tools/` (104 tools)
+3. **MCP Tools**: Manually create via `POST /tools/create/mcp` endpoint
+4. **Execute Tools**: Use `/tools/{name}/execute` to run both code and MCP tools uniformly
+5. **Monitor Usage**: Check `/tools/{name}` for execution statistics and performance metrics
 
 ---
 
 ## 📊 Current Status
 
 - ✅ **104 Code Tools** automatically discovered and available
-- ✅ **0 MCP Servers** currently configured (use `/mcp/configs` to add them)
+- ✅ **6 MCP Servers** configured in `.mcp.json` file
+- ✅ **0 MCP Tools** manually created (use `/tools/create/mcp` to add them)
 - ✅ **Tool Database** properly synced with automatic discovery
-- ✅ **API Fully Functional** with comprehensive tool management
+- ✅ **API Fully Functional** with proper tool/server separation
+- ✅ **Database Issues Fixed** - SQLite compatibility resolved
+- ✅ **Clean API Docs** - No more confusing x-api-key requirements
 
 ---
 
 ## 🚀 Next Steps
 
-1. **Add MCP Servers**: Use `POST /mcp/configs` to configure external MCP servers
-2. **Watch Tool Count Grow**: Once MCP servers are added, tools will automatically appear in `/tools`
-3. **Execute Tools**: Use the unified `/tools/{name}/execute` endpoint for all tools
+1. **Create MCP Tools**: Use `POST /tools/create/mcp` to manually create tools for MCP servers
+2. **Check Available Servers**: Use `GET /tools/mcp/servers` to see configured MCP servers
+3. **Execute Tools**: Use `/tools/{name}/execute` for both code and MCP tools
 4. **Monitor Performance**: Check tool execution stats via `/tools/{name}` endpoint
 
-The system now provides a clean separation between:
-- **Tools** (automatically discovered, read-only listing, executable)
-- **MCP Servers** (manually configured, full CRUD operations)
+The system now provides the correct architecture:
+- **Code Tools**: Auto-discovered from filesystem
+- **MCP Servers**: Configured via `.mcp.json` file  
+- **MCP Tools**: Manually created via API endpoints
