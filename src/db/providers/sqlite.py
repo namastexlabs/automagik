@@ -459,6 +459,40 @@ class SQLiteProvider(DatabaseProvider):
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Create tools table for unified tool management
+        CREATE TABLE IF NOT EXISTS tools (
+            id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
+            name TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL CHECK (type IN ('code', 'mcp', 'hybrid')),
+            description TEXT,
+            
+            -- For code tools
+            module_path TEXT,
+            function_name TEXT,
+            
+            -- For MCP tools  
+            mcp_server_name TEXT,
+            mcp_tool_name TEXT,
+            
+            -- Tool metadata
+            parameters_schema TEXT,
+            capabilities TEXT DEFAULT '[]',
+            categories TEXT DEFAULT '[]',
+            
+            -- Tool configuration
+            enabled INTEGER DEFAULT 1,
+            agent_restrictions TEXT DEFAULT '[]',
+            
+            -- Execution metadata
+            execution_count INTEGER DEFAULT 0,
+            last_executed_at TEXT,
+            average_execution_time_ms INTEGER DEFAULT 0,
+            
+            -- Audit fields
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         -- Create indexes for better performance
         CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
         CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
@@ -485,6 +519,12 @@ class SQLiteProvider(DatabaseProvider):
         
         -- New MCP configs indexes (NMSTX-253 Refactor)
         CREATE INDEX IF NOT EXISTS idx_mcp_configs_name ON mcp_configs(name);
+        
+        -- Tools table indexes
+        CREATE INDEX IF NOT EXISTS idx_tools_name ON tools(name);
+        CREATE INDEX IF NOT EXISTS idx_tools_type ON tools(type);
+        CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(enabled);
+        CREATE INDEX IF NOT EXISTS idx_tools_mcp_server ON tools(mcp_server_name) WHERE mcp_server_name IS NOT NULL;
 
         -- Enable foreign key constraints
         PRAGMA foreign_keys = ON;
