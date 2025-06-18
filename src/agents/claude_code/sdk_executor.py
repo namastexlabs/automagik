@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from uuid import uuid4
 
-from claude_code_sdk import ClaudeCodeClient, ClaudeCodeOptions
+from claude_code_sdk import query, ClaudeCodeOptions
 
 from .executor_base import ExecutorBase
 from .models import ClaudeCodeRunRequest
@@ -65,7 +65,6 @@ class ClaudeSDKExecutor(ExecutorBase):
         """
         self.environment_manager = environment_manager
         self.active_sessions: Dict[str, Any] = {}
-        self.client = ClaudeCodeClient()
         
     def _build_options(self, workspace: Path, **kwargs) -> ClaudeCodeOptions:
         """Build options with file-based configuration loading.

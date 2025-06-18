@@ -75,6 +75,11 @@ try:
     
     # Make models available through module-level attributes
     def __getattr__(name):
+        if name == 'ClaudeCLIExecutor':
+            raise ImportError(
+                "ClaudeCLIExecutor has been removed. "
+                "Use ClaudeSDKExecutor instead."
+            )
         if name in ['ClaudeCodeRunRequest', 'ClaudeCodeRunResponse', 'ClaudeCodeStatusResponse',
                    'WorkflowInfo', 'ExecutionResult', 'ClaudeCodeConfig', 'ExecutionStatus',
                    'WorkflowType', 'GitConfig', 'WorkflowConfig', 'ExecutionMetadata',
