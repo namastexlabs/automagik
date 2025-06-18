@@ -31,8 +31,14 @@ except ImportError:
     FileSystemEventHandler = None
     WATCHDOG_AVAILABLE = False
 
-from pydantic_ai.mcp import MCPServerStdio, MCPServerHTTP
-from pydantic_ai.tools import Tool as PydanticTool
+try:
+    from pydantic_ai.mcp import MCPServerStdio, MCPServerHTTP
+    from pydantic_ai.tools import Tool as PydanticTool
+except ImportError:
+    # Fallback for older versions or if MCP is not available
+    MCPServerStdio = None
+    MCPServerHTTP = None
+    PydanticTool = None
 
 from .exceptions import MCPError
 from src.db.models import MCPConfig
@@ -240,11 +246,11 @@ class MCPManager:
                 # Create MCPConfig object (this will be stored in database in future versions)
                 # For now, we'll simulate the MCPConfig structure
                 def create_file_config_methods(cfg):
-                    def is_enabled():
+                    def is_enabled(self=None):
                         return cfg.get('enabled', True)
-                    def is_assigned_to_agent(agent):
+                    def is_assigned_to_agent(self, agent):
                         return self._is_agent_assigned(cfg.get('agents', []), agent)
-                    def get_server_type():
+                    def get_server_type(self=None):
                         return cfg.get('server_type', 'stdio')
                     def should_include_tool(tool):
                         return self._should_include_tool(cfg.get('tools', {}), tool)
@@ -451,11 +457,11 @@ class MCPManager:
         try:
             # Create a mock MCPConfig object
             def create_config_methods(cfg):
-                def is_enabled():
+                def is_enabled(self=None):
                     return cfg.get('enabled', True)
-                def is_assigned_to_agent(agent):
+                def is_assigned_to_agent(self, agent):
                     return self._is_agent_assigned(cfg.get('agents', ['*']), agent)
-                def get_server_type():
+                def get_server_type(self=None):
                     return cfg.get('server_type', 'stdio')
                 def should_include_tool(tool):
                     return self._should_include_tool(cfg.get('tools', {'include': ['*']}), tool)
@@ -674,14 +680,14 @@ class MCPManager:
                 await self._stop_server(server_name)
                 config = self._config_cache.get(server_name)
                 if config and config.is_enabled():
-                    await self._start_server(config)
+                    await self._create_and_start_server(config)
                     logger.info(f"🔄 Restarted server: {server_name}")
             
             # Start new servers
             for server_name in servers_to_start:
                 config = self._config_cache.get(server_name)
                 if config and config.is_enabled():
-                    await self._start_server(config)
+                    await self._create_and_start_server(config)
                     logger.info(f"🔺 Started new server: {server_name}")
             
             # Clear agent tools cache to force reload
@@ -719,14 +725,14 @@ class MCPManager:
                 if hasattr(config, 'id') and config.id.startswith('file-'):
                     try:
                         # Check if config already exists in database
-                        existing = await get_mcp_config_by_name(config.name)
+                        existing = get_mcp_config_by_name(config.name)
                         if not existing:
                             # Create new database entry
                             config_create = MCPConfigCreate(
                                 name=config.name,
                                 config=config.config
                             )
-                            await create_mcp_config(config_create)
+                            create_mcp_config(config_create)
                             logger.debug(f"Synced config to database: {config.name}")
                     except Exception as e:
                         logger.warning(f"Could not sync config {config.name} to database: {e}")
