@@ -19,7 +19,6 @@ import { TaskStatusBadge } from "@/components/task-status-badge";
 import { PRStatusBadge } from "@/components/pr-status-badge";
 import { useAuth } from "@/contexts/auth-context";
 import { ApiService } from "@/lib/api-service";
-import { SupabaseService } from "@/lib/supabase-service";
 import { Project, Task } from "@/types";
 import { ClaudeIcon } from "@/components/icon/claude";
 import { OpenAIIcon } from "@/components/icon/openai";
@@ -81,7 +80,7 @@ export default function Home() {
         const interval = setInterval(async () => {
             try {
                 const updatedTasks = await Promise.all(
-                    runningTasks.map(task => SupabaseService.getTask(task.id))
+                    runningTasks.map(task => ApiService.getTask(user!.id, task.id))
                 );
 
                 setTasks(prevTasks => 
@@ -128,10 +127,11 @@ export default function Home() {
         if (!user?.id) return;
         
         try {
-            const taskData = await SupabaseService.getTasks();
+            const taskData = await ApiService.getTasks(user.id);
             setTasks(taskData);
         } catch (error) {
             console.error('Error loading tasks:', error);
+            toast.error('Failed to load tasks');
         }
     };
 
@@ -372,7 +372,7 @@ export default function Home() {
                                                             <Github className="w-3 h-3 flex-shrink-0" />
                                                             <span className="truncate">{project.name}</span>
                                                             <span className="text-slate-500 text-xs flex-shrink-0">
-                                                                ({project.repo_owner}/{project.repo_name})
+                                                                ({project.repo_url.split('/').slice(-2).join('/')})
                                                             </span>
                                                         </div>
                                                     </SelectItem>
@@ -518,7 +518,7 @@ export default function Home() {
                                                         <PRStatusBadge 
                                                             prUrl={task.pr_url}
                                                             prNumber={task.pr_number}
-                                                            prBranch={task.pr_branch}
+                                                            prBranch={task.branch}
                                                             variant="badge"
                                                             size="sm"
                                                         />
@@ -534,7 +534,7 @@ export default function Home() {
                                                     {task.project ? (
                                                         <>
                                                             <FolderGit2 className="w-3 h-3" />
-                                                            {task.project.repo_name}
+                                                            {task.project.name}
                                                         </>
                                                     ) : (
                                                         <>
