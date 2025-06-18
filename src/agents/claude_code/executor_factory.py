@@ -1,7 +1,7 @@
 """Factory for creating appropriate executor based on configuration.
 
 This module provides the ExecutorFactory class that creates the appropriate
-executor (Local mode only) based on configuration.
+executor (Local or SDK mode) based on configuration.
 """
 
 import logging
@@ -21,18 +21,18 @@ class ExecutorFactory:
         mode: Optional[str] = None,
         **kwargs
     ) -> ExecutorBase:
-        """Create a local executor.
+        """Create an executor based on mode.
         
         Args:
-            mode: Execution mode (only 'local' supported). 
+            mode: Execution mode ('local' or 'sdk'). 
                   If None, defaults to 'local'.
             **kwargs: Additional arguments for the executor
             
         Returns:
-            LocalExecutor instance
+            LocalExecutor or ClaudeSDKExecutor instance
             
         Raises:
-            ValueError: If mode is not 'local'
+            ValueError: If mode is not 'local' or 'sdk'
         """
         # Determine execution mode
         if mode is None:
@@ -58,6 +58,30 @@ class ExecutorFactory:
                 cleanup_on_complete=cleanup_on_complete,
                 git_cache_enabled=git_cache_enabled
             )
+        
+        elif mode == "sdk":
+            # Import SDK executor
+            from .sdk_executor import ClaudeSDKExecutor
+            
+            # Create environment manager if needed
+            environment_manager = None
+            if kwargs.get('use_environment_manager', True):
+                from .local_executor import LocalEnvironmentManager
+                
+                workspace_base = kwargs.get('workspace_base', 
+                                          os.environ.get("CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"))
+                cleanup_on_complete = kwargs.get('cleanup_on_complete',
+                                               os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true")
+                git_cache_enabled = kwargs.get('git_cache_enabled',
+                                             os.environ.get("CLAUDE_LOCAL_GIT_CACHE", "false").lower() == "true")
+                
+                environment_manager = LocalEnvironmentManager(
+                    workspace_base=workspace_base,
+                    cleanup_on_complete=cleanup_on_complete,
+                    git_cache_enabled=git_cache_enabled
+                )
+            
+            return ClaudeSDKExecutor(environment_manager=environment_manager)
             
         else:
-            raise ValueError(f"Invalid execution mode: {mode}. Only 'local' mode is supported.")
+            raise ValueError(f"Invalid execution mode: {mode}. Only 'local' or 'sdk' modes are supported.")
