@@ -11,7 +11,8 @@ from datetime import datetime
 
 from src.tools.flashed.tool import (
     get_user_data, get_user_score, get_user_roadmap, 
-    get_user_objectives, get_last_card_round, get_user_energy
+    get_user_objectives, get_last_card_round, get_user_energy,
+    get_user_by_pretty_id
 )
 
 logger = logging.getLogger(__name__)
@@ -51,19 +52,72 @@ class FlashinhoProUserMatcher:
         
         return phone_digits
     
-    async def identify_user(self) -> Optional[str]:
+    def extract_pretty_id_from_message(self, message: str) -> Optional[str]:
+        """Extract prettyId from the standard WhatsApp identification message.
+        
+        Expected message format:
+        "Olá, quero conversar com o Flashinho!\nMeu código de conversa: {prettyId}"
+        
+        Args:
+            message: The user's message text
+            
+        Returns:
+            The extracted prettyId if found, None otherwise
+        """
+        if not message:
+            return None
+            
+        # Pattern to match the specific message format
+        # Looking for "Meu código de conversa:" followed by the prettyId
+        pattern = r"(?i)meu\s+código\s+de\s+conversa:\s*([A-Za-z0-9]+)"
+        
+        match = re.search(pattern, message)
+        if match:
+            pretty_id = match.group(1).strip()
+            logger.info(f"Extracted prettyId from message: {pretty_id}")
+            return pretty_id
+            
+        # Alternative pattern - sometimes the message might have variations
+        # Looking for "código:" followed by alphanumeric characters
+        alt_pattern = r"(?i)código:\s*([A-Za-z0-9]+)"
+        alt_match = re.search(alt_pattern, message)
+        if alt_match:
+            pretty_id = alt_match.group(1).strip()
+            logger.info(f"Extracted prettyId using alternative pattern: {pretty_id}")
+            return pretty_id
+            
+        return None
+    
+    async def identify_user(self, message_text: Optional[str] = None) -> Optional[str]:
         """Identify Flashed user from Evolution/WhatsApp context.
+        
+        Args:
+            message_text: Optional message text to extract prettyId from
         
         Returns:
             Flashed user ID if found, None otherwise
         """
         try:
+            # Strategy 0: Check for prettyId in message first (highest priority)
+            if message_text:
+                pretty_id = self.extract_pretty_id_from_message(message_text)
+                if pretty_id:
+                    user_data = await self._find_user_by_pretty_id(pretty_id)
+                    if user_data and user_data.get("user", {}).get("id"):
+                        user_id = user_data["user"]["id"]
+                        self.flashed_user_id = user_id
+                        logger.info(f"Found user via prettyId {pretty_id}: {user_id}")
+                        # Update context with user data for future use
+                        self.context["flashed_user_id"] = user_id
+                        self.context["user_identification_method"] = "prettyId"
+                        return user_id
+            
             # Extract phone and email from Evolution context
             whatsapp_phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
             user_email = self.context.get("user_email")
             
             if not whatsapp_phone and not user_email:
-                logger.warning("No phone number or email available for user identification")
+                logger.warning("No phone number, email, or prettyId available for user identification")
                 return None
                 
             # Normalize phone number if available
@@ -150,6 +204,21 @@ class FlashinhoProUserMatcher:
             return await find_user_by_email(email)
         except Exception as e:
             logger.error(f"Error in email lookup for {email}: {str(e)}")
+            return None
+
+    async def _find_user_by_pretty_id(self, pretty_id: str) -> Optional[Dict[str, Any]]:
+        """Find user by prettyId using the Flashed API.
+        
+        Args:
+            pretty_id: User prettyId (conversation code)
+            
+        Returns:
+            User data if found, None otherwise
+        """
+        try:
+            return await get_user_by_pretty_id(pretty_id)
+        except Exception as e:
+            logger.error(f"Error in prettyId lookup for {pretty_id}: {str(e)}")
             return None
     
     async def load_user_variables(self) -> Dict[str, Any]:
@@ -276,14 +345,17 @@ class FlashinhoProUserMatcher:
         except Exception:
             return date_str  # Return original if parsing fails
     
-    async def get_enriched_context(self) -> Dict[str, Any]:
+    async def get_enriched_context(self, message_text: Optional[str] = None) -> Dict[str, Any]:
         """Get complete enriched context for Flashinho Pro.
+        
+        Args:
+            message_text: Optional message text to extract prettyId from
         
         Returns:
             Context dictionary with user variables and identification info
         """
-        # Identify user first
-        user_id = await self.identify_user()
+        # Identify user first (with message text for prettyId detection)
+        user_id = await self.identify_user(message_text)
         
         # Load variables if user found
         if user_id:
@@ -338,14 +410,15 @@ class FlashinhoProUserMatcher:
 
 
 # Convenience function for agent integration
-async def enrich_flashinho_pro_context(context: Dict[str, Any]) -> Dict[str, Any]:
+async def enrich_flashinho_pro_context(context: Dict[str, Any], message_text: Optional[str] = None) -> Dict[str, Any]:
     """Convenience function to enrich context for Flashinho Pro agent.
     
     Args:
         context: Original agent context
+        message_text: Optional message text to extract prettyId from
         
     Returns:
         Enriched context with user variables
     """
     matcher = FlashinhoProUserMatcher(context)
-    return await matcher.get_enriched_context()
+    return await matcher.get_enriched_context(message_text)
