@@ -64,28 +64,6 @@ export default function WorkflowDetailPage() {
 
     const workflowId = params.id as string;
 
-    useEffect(() => {
-        if (workflowId) {
-            loadWorkflowDetails();
-            // Start polling if workflow is running
-            const interval = setInterval(() => {
-                if (workflow?.status === "running" || workflow?.status === "pending") {
-                    loadWorkflowDetails(true);
-                }
-            }, 2000);
-            return () => clearInterval(interval);
-        }
-    }, [workflowId, workflow?.status, loadWorkflowDetails]);
-
-    // Auto-scroll logs and messages
-    useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [workflow?.logs]);
-
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [workflow?.messages]);
-
     const loadWorkflowDetails = useCallback(async (silent = false) => {
         try {
             if (!silent) setIsLoading(true);
@@ -215,6 +193,28 @@ export default function WorkflowDetailPage() {
             setIsPolling(false);
         }
     }, [workflowId]);
+
+    useEffect(() => {
+        if (workflowId) {
+            loadWorkflowDetails();
+            // Start polling if workflow is running
+            const interval = setInterval(() => {
+                if (workflow?.status === "running" || workflow?.status === "pending") {
+                    loadWorkflowDetails(true);
+                }
+            }, 2000);
+            return () => clearInterval(interval);
+        }
+    }, [workflowId, workflow?.status, loadWorkflowDetails]);
+
+    // Auto-scroll logs and messages
+    useEffect(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [workflow?.logs]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [workflow?.messages]);
 
     const handleKillWorkflow = async () => {
         try {
