@@ -40,16 +40,99 @@ async def initialize_tools() -> None:
         # Don't raise exception - let the app start even if tool discovery fails
         
 
+async def sync_mcp_json_to_database() -> None:
+    """Sync .mcp.json file to database configurations."""
+    try:
+        logger.info("📄 Syncing .mcp.json to database...")
+        
+        import json
+        import os
+        from src.db.repository.mcp import create_mcp_config, get_mcp_config_by_name
+        from src.db.models import MCPConfigCreate
+        
+        mcp_config_path = ".mcp.json"
+        if not os.path.exists(mcp_config_path):
+            logger.warning(f"⚠️  {mcp_config_path} file not found")
+            return
+        
+        # Load .mcp.json
+        with open(mcp_config_path, 'r') as f:
+            mcp_data = json.load(f)
+        
+        mcp_servers = mcp_data.get("mcpServers", {})
+        if not mcp_servers:
+            logger.info("📋 No MCP servers found in .mcp.json")
+            return
+        
+        logger.info(f"🔗 Found {len(mcp_servers)} MCP servers in .mcp.json")
+        
+        # Sync each server to database
+        synced_count = 0
+        updated_count = 0
+        
+        for server_name, server_config in mcp_servers.items():
+            try:
+                # Check if config already exists
+                existing_config = get_mcp_config_by_name(server_name)
+                
+                # Determine server type
+                if "command" in server_config:
+                    server_type = "stdio"
+                elif "url" in server_config:
+                    server_type = "sse"
+                else:
+                    server_type = "unknown"
+                
+                # Prepare config data
+                config_data = {
+                    "server_type": server_type,
+                    "enabled": True,
+                    **server_config
+                }
+                
+                if existing_config:
+                    # Update existing config
+                    from src.db.repository.mcp import update_mcp_config_by_name
+                    from src.db.models import MCPConfigUpdate
+                    
+                    update_success = update_mcp_config_by_name(
+                        server_name, 
+                        MCPConfigUpdate(config=config_data)
+                    )
+                    if update_success:
+                        updated_count += 1
+                        logger.info(f"   🔄 Updated MCP config: {server_name}")
+                else:
+                    # Create new config
+                    create_data = MCPConfigCreate(
+                        name=server_name,
+                        config=config_data
+                    )
+                    
+                    config_id = create_mcp_config(create_data)
+                    if config_id:
+                        synced_count += 1
+                        logger.info(f"   ✅ Created MCP config: {server_name}")
+                
+            except Exception as e:
+                logger.warning(f"   ❌ Failed to sync MCP server {server_name}: {e}")
+        
+        logger.info(f"✅ MCP sync complete: {synced_count} created, {updated_count} updated")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to sync .mcp.json to database: {e}")
+
+
 async def initialize_mcp_servers() -> None:
-    """Initialize MCP servers from configuration."""
+    """Initialize MCP servers from database configurations."""
     try:
         logger.info("🔌 Initializing MCP servers...")
         
         # Import here to avoid circular imports
-        from src.mcp.client_manager import get_mcp_client_manager
+        from src.mcp.client import get_mcp_client_manager
         from src.db.repository.mcp import list_mcp_configs
         
-        mcp_manager = get_mcp_client_manager()
+        mcp_manager = await get_mcp_client_manager()
         if not mcp_manager:
             logger.warning("⚠️  MCP client manager not available")
             return
@@ -58,10 +141,10 @@ async def initialize_mcp_servers() -> None:
         mcp_configs = list_mcp_configs()
         
         if not mcp_configs:
-            logger.info("📋 No MCP server configurations found")
+            logger.info("📋 No MCP server configurations found in database")
             return
             
-        logger.info(f"🔗 Found {len(mcp_configs)} MCP server configurations")
+        logger.info(f"🔗 Found {len(mcp_configs)} MCP server configurations in database")
         
         # Initialize each server
         initialized_count = 0
@@ -85,10 +168,13 @@ async def startup_initialization() -> None:
     """Run all startup initialization tasks."""
     logger.info("🚀 Starting platform initialization...")
     
-    # Initialize MCP servers first
+    # First, sync .mcp.json to database to ensure all servers are available
+    await sync_mcp_json_to_database()
+    
+    # Then initialize MCP servers from database
     await initialize_mcp_servers()
     
-    # Then discover and initialize tools (depends on MCP servers)
+    # Finally discover and initialize tools (depends on MCP servers)
     await initialize_tools()
     
     logger.info("✅ Platform initialization complete!")

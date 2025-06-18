@@ -11,9 +11,9 @@ from typing import Dict, List, Any, Optional, Callable, Union
 from datetime import datetime
 
 from src.db.repository.tool import create_tool, get_tool_by_name, list_tools
-from src.db.repository.mcp import list_mcp_servers
+from src.db.repository.mcp import list_mcp_configs
 from src.db.models import ToolCreate
-from src.mcp import get_mcp_client_manager
+from src.mcp.client import get_mcp_client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -282,26 +282,26 @@ class ToolDiscoveryService:
         
         try:
             # Get MCP client manager
-            mcp_manager = get_mcp_client_manager()
+            mcp_manager = await get_mcp_client_manager()
             if not mcp_manager:
                 logger.warning("MCP client manager not available")
                 return tools
             
             # Get list of MCP servers from database
-            mcp_servers = list_mcp_servers()
+            mcp_configs = list_mcp_configs()
             
-            for server in mcp_servers:
+            for config in mcp_configs:
                 try:
                     # Get tools from the server
-                    server_tools = await mcp_manager.list_tools(server.name)
+                    server_tools = await mcp_manager.list_tools(config.name)
                     
                     for tool_data in server_tools:
-                        tool_info = self._process_mcp_tool(tool_data, server.name)
+                        tool_info = self._process_mcp_tool(tool_data, config.name)
                         if tool_info:
                             tools.append(tool_info)
                             
                 except Exception as e:
-                    logger.warning(f"Failed to get tools from MCP server {server.name}: {e}")
+                    logger.warning(f"Failed to get tools from MCP server {config.name}: {e}")
             
         except Exception as e:
             logger.error(f"Error discovering MCP tools: {e}")
