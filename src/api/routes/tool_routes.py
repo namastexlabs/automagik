@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Query, Path, Body
 from pydantic import BaseModel, Field
 
-from src.auth import verify_api_key
+from src.auth import get_api_key
 from src.db.repository.tool import (
     list_tools as db_list_tools,
     get_tool_by_name,
@@ -93,7 +93,7 @@ class MCPServerCreateResponse(BaseModel):
 
 
 # Main endpoints
-@tool_router.get("/", response_model=ToolListResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.get("/", response_model=ToolListResponse, dependencies=[Depends(get_api_key)])
 async def list_tools(
     tool_type: Optional[str] = Query(None, description="Filter by tool type: code, mcp, hybrid"),
     enabled_only: bool = Query(True, description="Show only enabled tools"),
@@ -154,7 +154,7 @@ async def list_tools(
         raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
 
 
-@tool_router.get("/{tool_name}", response_model=ToolDetailResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.get("/{tool_name}", response_model=ToolDetailResponse, dependencies=[Depends(get_api_key)])
 async def get_tool_details(tool_name: str = Path(..., description="Tool name")):
     """Get detailed information about a specific tool."""
     try:
@@ -187,7 +187,7 @@ async def get_tool_details(tool_name: str = Path(..., description="Tool name")):
         raise HTTPException(status_code=500, detail=f"Failed to get tool details: {str(e)}")
 
 
-@tool_router.post("/{tool_name}/execute", response_model=ToolExecuteResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.post("/{tool_name}/execute", response_model=ToolExecuteResponse, dependencies=[Depends(get_api_key)])
 async def execute_tool_endpoint(
     tool_name: str = Path(..., description="Tool name"),
     request: ToolExecuteRequest = Body(..., description="Execution request")
@@ -254,7 +254,7 @@ async def execute_tool_endpoint(
         )
 
 
-@tool_router.post("/", response_model=ToolCreateResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.post("/", response_model=ToolCreateResponse, dependencies=[Depends(get_api_key)])
 async def create_tool_endpoint(tool_data: ToolCreate = Body(..., description="Tool creation data")):
     """Create a new tool."""
     try:
@@ -295,7 +295,7 @@ async def create_tool_endpoint(tool_data: ToolCreate = Body(..., description="To
         raise HTTPException(status_code=500, detail=f"Failed to create tool: {str(e)}")
 
 
-@tool_router.put("/{tool_name}", response_model=ToolUpdateResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.put("/{tool_name}", response_model=ToolUpdateResponse, dependencies=[Depends(get_api_key)])
 async def update_tool_endpoint(
     tool_name: str = Path(..., description="Tool name"),
     tool_data: ToolUpdate = Body(..., description="Tool update data")
@@ -339,7 +339,7 @@ async def update_tool_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to update tool: {str(e)}")
 
 
-@tool_router.delete("/{tool_name}", response_model=ToolDeleteResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.delete("/{tool_name}", response_model=ToolDeleteResponse, dependencies=[Depends(get_api_key)])
 async def delete_tool_endpoint(tool_name: str = Path(..., description="Tool name")):
     """Delete a tool."""
     try:
@@ -366,7 +366,7 @@ async def delete_tool_endpoint(tool_name: str = Path(..., description="Tool name
         raise HTTPException(status_code=500, detail=f"Failed to delete tool: {str(e)}")
 
 
-@tool_router.get("/categories/list", response_model=List[str], dependencies=[Depends(verify_api_key)])
+@tool_router.get("/categories/list", response_model=List[str], dependencies=[Depends(get_api_key)])
 async def list_tool_categories():
     """Get all available tool categories."""
     try:
@@ -377,7 +377,7 @@ async def list_tool_categories():
         raise HTTPException(status_code=500, detail=f"Failed to list categories: {str(e)}")
 
 
-@tool_router.post("/discover", response_model=ToolDiscoveryResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.post("/discover", response_model=ToolDiscoveryResponse, dependencies=[Depends(get_api_key)])
 async def discover_tools():
     """Discover and sync all available tools."""
     try:
@@ -405,7 +405,7 @@ async def discover_tools():
 
 
 # MCP server management endpoints
-@tool_router.post("/mcp/servers", response_model=MCPServerCreateResponse, dependencies=[Depends(verify_api_key)])
+@tool_router.post("/mcp/servers", response_model=MCPServerCreateResponse, dependencies=[Depends(get_api_key)])
 async def create_mcp_server(request: MCPServerCreateRequest = Body(..., description="MCP server creation request")):
     """Create a new MCP server configuration and discover its tools."""
     try:
