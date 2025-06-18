@@ -100,13 +100,17 @@ class PydanticAIFramework(AgentAIFramework):
             tool_calls = self.extract_tool_calls(result)
             tool_outputs = self.extract_tool_outputs(result)
             
+            # Extract usage information
+            usage_info = self.extract_usage_info(result)
+            
             # Create response (using updated API)
             response = AgentResponse(
                 text=result.output if hasattr(result, 'output') else str(result),
                 success=True,
                 tool_calls=tool_calls,
                 tool_outputs=tool_outputs,
-                system_prompt=system_prompt
+                system_prompt=system_prompt,
+                usage=usage_info
             )
             
             return response
@@ -198,6 +202,67 @@ class PydanticAIFramework(AgentAIFramework):
             logger.error(f"Error extracting tool outputs: {e}")
             
         return tool_outputs
+    
+    def extract_usage_info(self, result: Any) -> Optional[Dict[str, Any]]:
+        """Extract usage information from PydanticAI result."""
+        if not result:
+            return None
+        
+        try:
+            usage_info = {
+                "framework": "pydantic_ai",
+                "model": self.config.model,
+                "total_requests": 0,
+                "request_tokens": 0,
+                "response_tokens": 0, 
+                "total_tokens": 0,
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0,
+                "per_message_usage": []
+            }
+            
+            # Extract usage from all messages in the result
+            if hasattr(result, 'all_messages'):
+                messages = result.all_messages()
+                
+                for message in messages:
+                    if hasattr(message, 'usage') and message.usage:
+                        usage = message.usage
+                        
+                        # Aggregate totals
+                        usage_info["total_requests"] += usage.requests or 0
+                        usage_info["request_tokens"] += usage.request_tokens or 0
+                        usage_info["response_tokens"] += usage.response_tokens or 0
+                        usage_info["total_tokens"] += usage.total_tokens or 0
+                        
+                        # Store per-message usage details
+                        message_usage = {
+                            "requests": usage.requests,
+                            "request_tokens": usage.request_tokens,
+                            "response_tokens": usage.response_tokens,
+                            "total_tokens": usage.total_tokens,
+                            "details": usage.details
+                        }
+                        usage_info["per_message_usage"].append(message_usage)
+                        
+                        # Extract cache-related tokens from details
+                        if usage.details:
+                            for key, value in usage.details.items():
+                                if isinstance(value, int):
+                                    if "cache_creation" in key.lower():
+                                        usage_info["cache_creation_tokens"] += value
+                                    elif "cache_read" in key.lower():
+                                        usage_info["cache_read_tokens"] += value
+            
+            # Only return usage info if we found actual usage data
+            if usage_info["total_requests"] > 0 or usage_info["total_tokens"] > 0:
+                return usage_info
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting usage info: {e}")
+            return None
     
     def convert_tools(self, tools: List[Any]) -> List[Any]:
         """Convert tools to PydanticAI format."""
