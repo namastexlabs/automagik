@@ -1239,176 +1239,22 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
 
 
 # TOOL MANAGEMENT ENDPOINTS
-
-@agent_router.get("/tools", response_model=List[ToolInfo], tags=["Tools"],
-                 summary="List available tools",
-                 description="List all available tools from MCP servers and code modules.")
-async def list_tools():
-    """List all available tools."""
-    try:
-        logger.info("Listing available tools")
-        
-        tools = []
-        
-        # Get MCP tools
-        try:
-            from src.db.repository import mcp as mcp_repo
-            mcp_servers = mcp_repo.list_mcp_servers()
-            
-            for server in mcp_servers:
-                if server.tools_discovered:
-                    try:
-                        tools_discovered = json.loads(server.tools_discovered)
-                        for tool in tools_discovered:
-                            tools.append(ToolInfo(
-                                name=tool.get("name", "unknown"),
-                                type="mcp",
-                                description=tool.get("description", ""),
-                                server_name=server.name,
-                                context_signature="RunContext[Dict]",
-                                parameters=_extract_tool_parameters(tool.get("inputSchema", {}))
-                            ))
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to parse tools for server {server.name}: {e}")
-                        
-        except Exception as e:
-            logger.warning(f"Failed to load MCP tools: {e}")
-        
-        # Get code-based tools
-        try:
-            code_tools = _discover_code_tools()
-            tools.extend(code_tools)
-        except Exception as e:
-            logger.warning(f"Failed to load code tools: {e}")
-        
-        logger.info(f"Found {len(tools)} available tools")
-        return tools
-        
-    except Exception as e:
-        logger.error(f"Error listing tools: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
-
-
-@agent_router.post("/tools/{tool_name}/run", response_model=ToolExecuteResponse, tags=["Tools"],
-                  summary="Execute a tool directly",
-                  description="Execute a specific tool with provided context and parameters.")
-async def execute_tool(tool_name: str, request: ToolExecuteRequest):
-    """Execute a tool directly."""
-    try:
-        logger.info(f"Executing tool: {tool_name}")
-        
-        # Find the tool
-        tool_info = await _find_tool_by_name(tool_name)
-        if not tool_info:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Tool '{tool_name}' not found"
-            )
-        
-        # Execute the tool based on type
-        if tool_info.type == "mcp":
-            result = await _execute_mcp_tool(tool_info, request.context, request.parameters)
-        elif tool_info.type == "code":
-            result = await _execute_code_tool(tool_info, request.context, request.parameters)
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown tool type: {tool_info.type}"
-            )
-        
-        logger.info(f"Successfully executed tool {tool_name}")
-        
-        return ToolExecuteResponse(
-            status="success",
-            result=result
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error executing tool {tool_name}: {e}")
-        return ToolExecuteResponse(
-            status="error",
-            error=str(e)
-        )
-
-
-# HELPER FUNCTIONS
-
-def _extract_tool_parameters(input_schema: Dict) -> List[Dict[str, Any]]:
-    """Extract tool parameters from input schema."""
-    parameters = []
-    properties = input_schema.get("properties", {})
-    required = input_schema.get("required", [])
-    
-    for param_name, param_info in properties.items():
-        parameters.append({
-            "name": param_name,
-            "type": param_info.get("type", "string"),
-            "description": param_info.get("description", ""),
-            "required": param_name in required
-        })
-    
-    return parameters
-
-
-def _discover_code_tools() -> List[ToolInfo]:
-    """Discover code-based tools from src/tools/ modules."""
-    tools = []
-    
-    # Common tools that we know exist
-    common_tools = [
-        {
-            "name": "memory",
-            "description": "Agent memory operations",
-            "module": "src.agents.common.memory"
-        },
-        {
-            "name": "datetime",
-            "description": "Date and time utilities",
-            "module": "src.agents.common.datetime"
-        },
-        {
-            "name": "evolution_send_message",
-            "description": "Send WhatsApp messages via Evolution API",
-            "module": "src.tools.evolution.tool"
-        }
-    ]
-    
-    for tool_info in common_tools:
-        tools.append(ToolInfo(
-            name=tool_info["name"],
-            type="code",
-            description=tool_info["description"],
-            module=tool_info["module"],
-            context_signature="RunContext[Dict]",
-            parameters=[]  # Would need to inspect actual tool signatures
-        ))
-    
-    return tools
-
-
-async def _find_tool_by_name(tool_name: str) -> Optional[ToolInfo]:
-    """Find a tool by name."""
-    all_tools = await list_tools()
-    for tool in all_tools:
-        if tool.name == tool_name:
-            return tool
-    return None
-
-
-async def _execute_mcp_tool(tool_info: ToolInfo, context: Dict, parameters: Dict) -> Any:
-    """Execute an MCP tool."""
-    # TODO: Implement MCP tool execution
-    # This would need to use the MCP client to call the tool on the appropriate server
-    raise HTTPException(status_code=501, detail="MCP tool execution not yet implemented")
-
-
-async def _execute_code_tool(tool_info: ToolInfo, context: Dict, parameters: Dict) -> Any:
-    """Execute a code-based tool."""
-    # TODO: Implement code tool execution
-    # This would need to dynamically import and call the tool function
-    raise HTTPException(status_code=501, detail="Code tool execution not yet implemented")
+# 
+# NOTE: Tool management endpoints have been moved to src/api/routes/tool_routes.py
+# for better organization and comprehensive functionality. The new endpoints provide:
+# - GET /tools - List all tools with filtering and search
+# - GET /tools/{tool_name} - Get tool details with execution stats
+# - POST /tools/{tool_name}/execute - Execute tools with proper logging
+# - POST /tools - Create new tools
+# - PUT /tools/{tool_name} - Update existing tools  
+# - DELETE /tools/{tool_name} - Delete tools
+# - GET /tools/categories/list - List all categories
+# - POST /tools/discover - Discover and sync all tools
+# - POST /tools/mcp/servers - Create MCP server configurations
+#
+# The old hardcoded tool discovery has been replaced with dynamic discovery
+# that scans src/tools/ directories and connects to MCP servers for comprehensive
+# tool management with proper database persistence and execution metrics.
 
 
 async def _create_agent_prompt(agent_id: Optional[int], prompt_text: str, agent_name: str) -> Optional[int]:
