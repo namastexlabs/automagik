@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
 
-from src.db.connection import execute_query, execute_non_query
+from src.db.connection import execute_query
 from src.db.models.tool import ToolDB, ToolExecutionDB, ToolCreate, ToolUpdate
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ def create_tool(tool_data: ToolCreate) -> Optional[ToolDB]:
         tool_id = uuid.uuid4()
         now = datetime.utcnow()
         
-        execute_non_query(
+        execute_query(
             """
             INSERT INTO tools (
                 id, name, type, description, module_path, function_name,
@@ -109,7 +109,8 @@ def create_tool(tool_data: ToolCreate) -> Optional[ToolDB]:
                 json.dumps(tool_data.agent_restrictions),
                 now,
                 now
-            )
+            ),
+            fetch=False
         )
         
         return get_tool_by_id(tool_id)
@@ -164,7 +165,7 @@ def update_tool(name: str, tool_data: ToolUpdate) -> Optional[ToolDB]:
             WHERE name = %s
         """
         
-        execute_non_query(query, tuple(params))
+        execute_query(query, tuple(params), fetch=False)
         return get_tool_by_name(name)
         
     except Exception as e:
@@ -175,9 +176,10 @@ def update_tool(name: str, tool_data: ToolUpdate) -> Optional[ToolDB]:
 def delete_tool(name: str) -> bool:
     """Delete a tool."""
     try:
-        execute_non_query(
+        execute_query(
             "DELETE FROM tools WHERE name = %s",
-            (name,)
+            (name,),
+            fetch=False
         )
         return True
     except Exception as e:
@@ -224,7 +226,7 @@ def log_tool_execution(
 ) -> bool:
     """Log tool execution for metrics."""
     try:
-        execute_non_query(
+        execute_query(
             """
             INSERT INTO tool_executions (
                 tool_id, agent_name, session_id, parameters, context,
@@ -242,11 +244,12 @@ def log_tool_execution(
                 error_message,
                 execution_time_ms,
                 datetime.utcnow()
-            )
+            ),
+            fetch=False
         )
         
         # Update tool execution statistics
-        execute_non_query(
+        execute_query(
             """
             UPDATE tools 
             SET 
@@ -258,7 +261,8 @@ def log_tool_execution(
                 END
             WHERE id = %s
             """,
-            (datetime.utcnow(), execution_time_ms, execution_time_ms, str(tool_id))
+            (datetime.utcnow(), execution_time_ms, execution_time_ms, str(tool_id)),
+            fetch=False
         )
         
         return True
