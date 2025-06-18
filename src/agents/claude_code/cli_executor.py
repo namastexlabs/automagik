@@ -690,7 +690,8 @@ class ClaudeCLIExecutor:
     ) -> CLIResult:
         """Run the Claude CLI process with integrated log streaming."""
         # Initialize variables at the start to avoid UnboundLocalError in finally block
-        stdout_lines, stderr_lines = [], []
+        stdout_lines = []
+        stderr_lines = []
         process = None
         session_task = None
         
@@ -723,9 +724,16 @@ class ClaudeCLIExecutor:
             finally:
                 # Only cleanup if session_task was created
                 if session_task is not None:
-                    await self._cleanup_process_execution(
-                        session_task, stderr_lines, log_writer, session
-                    )
+                    # Defensive check to ensure stderr_lines is always available
+                    try:
+                        await self._cleanup_process_execution(
+                            session_task, stderr_lines, log_writer, session
+                        )
+                    except NameError:
+                        # Fallback if stderr_lines is somehow undefined
+                        await self._cleanup_process_execution(
+                            session_task, [], log_writer, session
+                        )
             
             return await self._build_execution_result(
                 process, processor, stdout_lines, stderr_lines, 
