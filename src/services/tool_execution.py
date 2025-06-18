@@ -12,8 +12,8 @@ except ImportError:
         def __init__(self, data):
             self.data = data
 
-from src.db.models.tool import ToolDB
-from src.mcp.client_manager import get_mcp_client_manager
+from src.db.models import ToolDB
+from src.mcp import get_mcp_client_manager
 
 logger = logging.getLogger(__name__)
 

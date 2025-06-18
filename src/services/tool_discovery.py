@@ -12,8 +12,8 @@ from datetime import datetime
 
 from src.db.repository.tool import create_tool, get_tool_by_name, list_tools
 from src.db.repository.mcp import list_mcp_servers
-from src.db.models.tool import ToolCreate
-from src.mcp.client_manager import get_mcp_client_manager
+from src.db.models import ToolCreate
+from src.mcp import get_mcp_client_manager
 
 logger = logging.getLogger(__name__)
 
