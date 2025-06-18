@@ -1,12 +1,15 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { getSupabase } from '@/lib/supabase'
+import React, { createContext, useContext, useState } from 'react'
+
+interface SimpleUser {
+    id: string
+    email: string
+}
 
 interface AuthContextType {
-    user: User | null
-    session: Session | null
+    user: SimpleUser | null
+    session: { api_key: string } | null
     loading: boolean
     signOut: () => Promise<void>
 }
@@ -26,35 +29,17 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-    const [user, setUser] = useState<User | null>(null)
-    const [session, setSession] = useState<Session | null>(null)
-    const [loading, setLoading] = useState(true)
-
-    useEffect(() => {
-        const supabase = getSupabase()
-        
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session)
-            setUser(session?.user ?? null)
-            setLoading(false)
-        })
-
-        // Listen for auth changes
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
-            setSession(session)
-            setUser(session?.user ?? null)
-            setLoading(false)
-        })
-
-        return () => subscription.unsubscribe()
-    }, [])
+    // For now, we'll use a hardcoded user since we're using API key auth
+    const [user] = useState<SimpleUser>({
+        id: 'api-user-1',
+        email: 'api@namastex.ai'
+    })
+    const [session] = useState({ api_key: 'namastex888' })
+    const [loading] = useState(false)
 
     const signOut = async () => {
-        const supabase = getSupabase()
-        await supabase.auth.signOut()
+        // In a real app, you might clear local storage or redirect
+        window.location.href = '/'
     }
 
     const value = {
@@ -65,4 +50,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-} 
+}

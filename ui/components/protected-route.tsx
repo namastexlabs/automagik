@@ -14,7 +14,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     useEffect(() => {
         if (!loading && !user) {
-            router.push('/signin')
+            // With API key auth, we always have a user
+            // router.push('/signin')
         }
     }, [user, loading, router])
 
