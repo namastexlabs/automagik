@@ -11,11 +11,13 @@ from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
 from src.tools.flashed.tool import (
     get_user_data, get_user_score, get_user_roadmap, 
-    get_user_objectives, get_last_card_round, get_user_energy
+    get_user_objectives, get_last_card_round, get_user_energy,
+    get_user_by_pretty_id
 )
 from src.tools.flashed.provider import FlashedProvider
 from .prompts.prompt import AGENT_PROMPT, AGENT_FREE
 from .memory_manager import update_flashinho_pro_memories, initialize_flashinho_pro_memories
+from .user_identification import FlashinhoProUserMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +72,7 @@ class FlashinhoPro(AutomagikAgent):
         logger.info("Flashinho Pro initialized with dynamic model selection based on user status")
     
     def _register_flashed_tools(self) -> None:
-        """Register all 6 Flashed API tools for educational gaming functionality."""
+        """Register all Flashed API tools for educational gaming functionality."""
         # Register tools using the tool registry (same method used by MultimodalAgent)
         self.tool_registry.register_tool(get_user_data)
         self.tool_registry.register_tool(get_user_score)
@@ -78,8 +80,9 @@ class FlashinhoPro(AutomagikAgent):
         self.tool_registry.register_tool(get_user_objectives)
         self.tool_registry.register_tool(get_last_card_round)
         self.tool_registry.register_tool(get_user_energy)
+        self.tool_registry.register_tool(get_user_by_pretty_id)
         
-        logger.debug("Registered 6 Flashed API tools")
+        logger.debug("Registered 7 Flashed API tools including prettyId lookup")
     
     async def _check_user_pro_status(self, user_id: Optional[str] = None) -> bool:
         """Check if user has Pro subscription status.
@@ -157,6 +160,54 @@ class FlashinhoPro(AutomagikAgent):
                     self.dependencies.prompt = AGENT_FREE
             logger.info(f"User {user_id} is a Free user. Using model: {self.free_model}")
     
+    async def _check_for_prettyid_identification(self, input_text: str) -> Optional[str]:
+        """Check if the message contains a prettyId and update context accordingly.
+        
+        Args:
+            input_text: The user's message text
+            
+        Returns:
+            User ID if found via prettyId, None otherwise
+        """
+        try:
+            # Use the user matcher to detect prettyId and fetch user data
+            matcher = FlashinhoProUserMatcher(self.context)
+            pretty_id = matcher.extract_pretty_id_from_message(input_text)
+            
+            if pretty_id:
+                logger.info(f"Detected prettyId in message: {pretty_id}")
+                
+                # Fetch user data using the prettyId
+                user_data = await matcher._find_user_by_pretty_id(pretty_id)
+                
+                if user_data and user_data.get("user", {}).get("id"):
+                    user_id = user_data["user"]["id"]
+                    
+                    # Update context with user information
+                    self.context["flashed_user_id"] = user_id
+                    self.context["user_identification_method"] = "prettyId"
+                    self.context["pretty_id"] = pretty_id
+                    
+                    # Update context with additional user data
+                    user_info = user_data["user"]
+                    if user_info.get("name"):
+                        self.context["user_name"] = user_info["name"]
+                    if user_info.get("phone"):
+                        self.context["user_phone_number"] = user_info["phone"]
+                    if user_info.get("email"):
+                        self.context["user_email"] = user_info["email"]
+                    
+                    logger.info(f"Successfully identified user via prettyId {pretty_id}: {user_id}")
+                    return user_id
+                else:
+                    logger.warning(f"No user found for prettyId: {pretty_id}")
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error checking for prettyId identification: {str(e)}")
+            return None
+
     async def _ensure_user_memories_ready(self, user_id: Optional[str] = None) -> None:
         """Ensure user memories are initialized and updated for prompt variables.
         
@@ -196,12 +247,21 @@ class FlashinhoPro(AutomagikAgent):
         """Enhanced run method with user identification and memory-based personalization."""
         
         try:
-            # Extract user information from context (populated by Evolution handler)
-            user_id = self.context.get("user_id") or self.context.get("flashed_user_id")
+            # First check for prettyId in the message and update context if found
+            prettyid_user_id = await self._check_for_prettyid_identification(input_text)
+            
+            # Extract user information from context (populated by Evolution handler or prettyId detection)
+            user_id = (
+                prettyid_user_id or 
+                self.context.get("user_id") or 
+                self.context.get("flashed_user_id")
+            )
             whatsapp_phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
             whatsapp_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
             
-            logger.info(f"Flashinho Pro processing message from {whatsapp_name} ({whatsapp_phone})")
+            # Log identification method for debugging
+            identification_method = self.context.get("user_identification_method", "context")
+            logger.info(f"Flashinho Pro processing message from {whatsapp_name} ({whatsapp_phone}) - User ID: {user_id} via {identification_method}")
             
             # Check user Pro status and update model/prompt accordingly
             await self._update_model_and_prompt_based_on_status(user_id)

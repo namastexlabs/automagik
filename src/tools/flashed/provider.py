@@ -353,6 +353,25 @@ class FlashedProvider():
             logger.error(f"Error finding user by email: {str(e)}")
             return None
 
+    async def get_user_by_pretty_id(self, pretty_id: str) -> Dict[str, Any]:
+        """Get user data by their prettyId.
+        
+        Args:
+            pretty_id: User prettyId (conversation code)
+            
+        Returns:
+            User data containing:
+            - user: Object with user information:
+              - id: User UUID
+              - createdAt: Account creation timestamp
+              - name: Full name
+              - phone: Contact phone number
+              - email: Email address
+              - birthDate: Date of birth
+              - metadata: Additional user metadata
+        """
+        return await self._request("GET", f"/admin/user/{pretty_id}", header={"Authorization": self.auth_token})
+
     async def get_user_preferences(self, user_id: str) -> Dict[str, Any]:
         """Get user preferences.
         
