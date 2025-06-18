@@ -108,13 +108,35 @@ export default function WorkflowDetailPage() {
                     }));
             }
 
-            // Get real file changes from workflow result (no more mocked data)
-            const fileChanges: FileChange[] = statusData.result?.files_created?.map((file: string) => ({
-                path: file,
-                status: "added" as const,
-                additions: 0,
-                deletions: 0
-            })) || [];
+            // Try to get enhanced file changes from details endpoint
+            let fileChanges: FileChange[] = [];
+            try {
+                const detailsResponse = await fetch(
+                    `http://localhost:28881/api/v1/workflows/claude-code/run/${workflowId}/details`,
+                    {
+                        headers: {
+                            'x-api-key': 'namastex888'
+                        }
+                    }
+                );
+                
+                if (detailsResponse.ok) {
+                    const detailsData = await detailsResponse.json();
+                    fileChanges = detailsData.data?.files_changed || [];
+                }
+            } catch (detailsError) {
+                console.warn('Could not fetch enhanced file changes, using basic data:', detailsError);
+            }
+            
+            // Fallback to basic file changes from status
+            if (fileChanges.length === 0) {
+                fileChanges = statusData.result?.files_created?.map((file: string) => ({
+                    path: file,
+                    status: "added" as const,
+                    additions: 0,
+                    deletions: 0
+                })) || [];
+            }
 
             // Get real conversation data from workflow progress (no more mocked data)
             const messages: ChatMessage[] = statusData.progress?.messages || [];
