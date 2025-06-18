@@ -5,6 +5,7 @@ from .agent_routes import agent_router
 from .message_routes import message_router
 from .prompt_routes import prompt_router
 from .mcp_routes import router as mcp_router
+from .tool_routes import tool_router
 from .claude_code_routes import claude_code_router
 from .async_code_compatibility import async_code_router
 from src.api.memory_routes import memory_router
@@ -23,3 +24,4 @@ main_router.include_router(user_router)
 main_router.include_router(memory_router)
 main_router.include_router(message_router)
 main_router.include_router(mcp_router)
+main_router.include_router(tool_router)
