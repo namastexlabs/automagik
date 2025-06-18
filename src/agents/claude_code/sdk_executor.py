@@ -1,337 +1,380 @@
-"""Claude SDK Executor - Drop-in replacement for ClaudeCLIExecutor using official SDK.
+"""SDK Executor for Claude Code agent using the official SDK.
 
-This module provides a ClaudeSDKExecutor that maintains API compatibility with 
-ClaudeCLIExecutor while using the claude-code-sdk instead of subprocess execution.
+This module provides an executor that uses the Claude Code SDK instead of
+directly calling the CLI. It includes environment variable injection support.
 """
 
 import asyncio
-import json
 import logging
-import time
+import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List, AsyncIterator, Callable, Tuple
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
-from claude_code_sdk import ClaudeCodeOptions, query, McpServerConfig
-from claude_code_sdk import UserMessage, AssistantMessage, SystemMessage, ResultMessage
-
-from .cli_executor import CLIResult
+from .executor_base import ExecutorBase
+from .models import ClaudeCodeRunRequest
 from .cli_environment import CLIEnvironmentManager
+from .sdk_transport import EnvironmentAwareTransport, SDKEnvironmentInjector
 
 logger = logging.getLogger(__name__)
 
+# Check if SDK is available
+try:
+    from claude_code import ClaudeCode, ClaudeCodeOptions, query
+    SDK_AVAILABLE = True
+except ImportError:
+    SDK_AVAILABLE = False
+    logger.warning("Claude Code SDK not available. Install with: pip install claude-code")
 
-class ClaudeSDKExecutor:
-    """Drop-in replacement for ClaudeCLIExecutor using official SDK."""
+
+@dataclass
+class SDKResult:
+    """Result from SDK execution."""
+    success: bool
+    session_id: Optional[str]
+    messages: List[Dict[str, Any]]
+    exit_code: int
+    execution_time: float
+    logs: str
+    error: Optional[str] = None
     
-    def __init__(self, environment_manager: CLIEnvironmentManager):
-        """Initialize SDK executor.
-        
-        Args:
-            environment_manager: Manager for CLI environments
-        """
-        self.env_mgr = environment_manager
-        logger.info("ClaudeSDKExecutor initialized")
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary format expected by agent."""
+        return {
+            'success': self.success,
+            'session_id': self.session_id,
+            'result': '\n'.join(str(msg) for msg in self.messages),
+            'exit_code': self.exit_code,
+            'execution_time': self.execution_time,
+            'logs': self.logs,
+            'error': self.error,
+            'messages': self.messages
+        }
+
+
+class ClaudeSDKExecutor(ExecutorBase):
+    """Executor that uses the Claude Code SDK with environment injection."""
     
-    def _build_options(
+    def __init__(
         self,
-        workspace: Path,
-        max_tokens: Optional[int] = None,
-        max_thinking_tokens: Optional[int] = None,
-        model: Optional[str] = None,
-        resume_session_id: Optional[str] = None,
-        max_turns: Optional[int] = None,
-    ) -> ClaudeCodeOptions:
-        """Build SDK options from parameters and workspace files.
+        environment_manager: CLIEnvironmentManager,
+        workspace_base: str = "/tmp/claude-workspace",
+        cleanup_on_complete: bool = True,
+        timeout: int = 7200,
+        max_concurrent: int = 5
+    ):
+        """Initialize the SDK executor.
         
         Args:
-            workspace: Path to workspace directory
-            max_tokens: Maximum output tokens (not supported by SDK yet)
-            max_thinking_tokens: Maximum thinking tokens
-            model: Model to use
-            resume_session_id: Session ID to resume
-            max_turns: Maximum conversation turns
+            environment_manager: CLIEnvironmentManager instance
+            workspace_base: Base directory for workspaces
+            cleanup_on_complete: Whether to cleanup after execution
+            timeout: Default timeout in seconds
+            max_concurrent: Maximum concurrent executions
+        """
+        if not SDK_AVAILABLE:
+            raise RuntimeError("Claude Code SDK is not installed")
+            
+        self.env_mgr = environment_manager
+        self.workspace_base = Path(workspace_base)
+        self.cleanup_on_complete = cleanup_on_complete
+        self.timeout = timeout
+        self.max_concurrent = max_concurrent
+        self.env_injector = SDKEnvironmentInjector(environment_manager)
+        
+        # Initialize SDK client
+        self._claude = ClaudeCode()
+        
+        logger.info(f"ClaudeSDKExecutor initialized with workspace base: {workspace_base}")
+    
+    def _build_options(self, workspace: Path, **kwargs) -> ClaudeCodeOptions:
+        """Build SDK options for execution.
+        
+        Args:
+            workspace: Workspace directory path
+            **kwargs: Additional options
             
         Returns:
-            Configured ClaudeCodeOptions instance
+            ClaudeCodeOptions configured for execution
         """
         options = ClaudeCodeOptions()
         
-        # Core options
-        if max_thinking_tokens:
-            options.max_thinking_tokens = max_thinking_tokens
-        if model:
-            options.model = model
-        if resume_session_id:
-            # Use resume instead of continue_session (correct SDK field)
-            options.resume = resume_session_id
-        if max_turns:
-            options.max_turns = max_turns
-        
-        # Working directory
+        # Set workspace directory
         options.cwd = str(workspace)
         
-        # Load prompt.md if exists - IMPORTANT: Use system_prompt, NOT append_system_prompt
-        prompt_file = workspace / "prompt.md"
-        if prompt_file.exists():
-            options.system_prompt = prompt_file.read_text().strip()
-            logger.info(f"Loaded system prompt from {prompt_file}")
+        # Set timeout if provided
+        if 'timeout' in kwargs:
+            options.timeout = kwargs['timeout'] * 1000  # Convert to milliseconds
         
-        # Load MCP configuration
-        mcp_file = workspace / ".mcp.json"
-        if mcp_file.exists():
-            try:
-                with open(mcp_file) as f:
-                    mcp_config = json.load(f)
-                    # Convert to SDK format - SDK expects dict[str, McpServerConfig]
-                    servers = mcp_config.get("servers", {})
-                    options.mcp_servers = {}
-                    for name, config in servers.items():
-                        # Create McpServerConfig from dict
-                        options.mcp_servers[name] = McpServerConfig(**config)
-                    logger.info(f"Loaded MCP configuration with {len(options.mcp_servers)} servers")
-            except Exception as e:
-                logger.warning(f"Failed to load MCP config from {mcp_file}: {e}")
+        # Set max turns if provided
+        if 'max_turns' in kwargs:
+            options.max_turns = kwargs['max_turns']
         
-        # Load allowed tools
-        tools_file = workspace / "allowed_tools.json"
-        if tools_file.exists():
-            try:
-                with open(tools_file) as f:
-                    options.allowed_tools = json.load(f)
-                    logger.info(f"Loaded {len(options.allowed_tools)} allowed tools")
-            except Exception as e:
-                logger.warning(f"Failed to load allowed tools from {tools_file}: {e}")
+        # Set allowed tools
+        if 'allowed_tools' in kwargs:
+            options.allowed_tools = kwargs['allowed_tools']
         else:
-            # Default tools if no file exists
+            # Default tools for workflows
             options.allowed_tools = [
-                "Bash", "LS", "Read", "Write", "Edit", "Glob", "Grep", "Task"
+                "Bash", "LS", "Read", "Write", "Edit", 
+                "Glob", "Grep", "Task"
             ]
-            logger.info("Using default allowed tools")
         
-        # Set permission mode to avoid interactive prompts
+        # Set permission mode to avoid prompts
         options.permission_mode = "acceptEdits"
+        
+        # Enable verbose mode for better debugging
+        options.verbose = True
+        
+        # NOTE: When SDK supports custom_env, add it here:
+        # options.custom_env = self.env_mgr.as_dict(workspace)
         
         return options
     
-    async def execute(
-        self,
-        prompt: str,
-        *,
-        workspace: Path,
-        max_tokens: Optional[int] = None,
-        max_thinking_tokens: Optional[int] = None,
-        model: Optional[str] = None,
-        resume_session_id: Optional[str] = None,
-        timeout: Optional[float] = None,
-        max_turns: Optional[int] = None,
-        **kwargs
-    ) -> CLIResult:
-        """Execute prompt and return complete result.
+    async def _create_subprocess_with_env(
+        self, 
+        options: ClaudeCodeOptions,
+        workspace: Path
+    ) -> ClaudeCodeOptions:
+        """Enhance options with custom environment variables.
+        
+        NOTE: This is a workaround until SDK supports custom env injection.
         
         Args:
-            prompt: User prompt to execute
+            options: SDK options to enhance
             workspace: Workspace directory path
-            max_tokens: Maximum output tokens (not yet supported by SDK)
-            max_thinking_tokens: Maximum thinking tokens
-            model: Model to use
-            resume_session_id: Session ID to resume
-            timeout: Execution timeout in seconds
-            max_turns: Maximum conversation turns
-            **kwargs: Additional arguments (ignored for compatibility)
             
         Returns:
-            CLIResult with execution details
+            Enhanced options (currently unchanged as we use process injection)
         """
-        options = self._build_options(
-            workspace, 
-            max_tokens, 
-            max_thinking_tokens, 
-            model, 
-            resume_session_id,
-            max_turns
-        )
+        # Get environment variables
+        custom_env = self.env_mgr.as_dict(workspace)
         
-        messages = []
+        # TODO: When SDK supports custom env, use:
+        # options.custom_env = custom_env
+        # 
+        # For now, we'll use the workaround in execute methods
+        
+        return options
+    
+    async def execute_claude_task(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a Claude task using the SDK.
+        
+        Args:
+            request: Execution request with task details
+            agent_context: Agent context including session info
+            
+        Returns:
+            Dictionary with execution results
+        """
+        import time
         start_time = time.time()
-        session_id = resume_session_id  # Keep track of session
+        run_id = agent_context.get('run_id', str(int(time.time())))
         
         try:
-            # Apply timeout if specified
-            if timeout:
-                async with asyncio.timeout(timeout):
-                    async for message in query(prompt=prompt, options=options):
-                        messages.append(self._convert_message(message))
-                        # Extract session ID from system messages if available
-                        if isinstance(message, SystemMessage) and hasattr(message, 'session_id'):
-                            session_id = getattr(message, 'session_id')
-            else:
-                async for message in query(prompt=prompt, options=options):
-                    messages.append(self._convert_message(message))
-                    # Extract session ID from system messages if available
-                    if isinstance(message, SystemMessage) and hasattr(message, 'session_id'):
-                        session_id = getattr(message, 'session_id')
-                        
-        except asyncio.TimeoutError:
-            # Handle timeout gracefully
-            return CLIResult(
-                success=False,
-                session_id=session_id,
-                result="Execution timed out",
-                exit_code=1,
-                execution_time=time.time() - start_time,
-                logs="",
-                error=f"Execution timed out after {timeout} seconds",
-                streaming_messages=messages
+            # Create workspace
+            workspace_path = await self.env_mgr.create_workspace(run_id)
+            
+            # Setup repository
+            await self.env_mgr.setup_repository(
+                workspace_path,
+                request.git_branch,
+                request.repository_url
             )
+            
+            # Copy configs
+            await self.env_mgr.copy_configs(workspace_path, request.workflow_name)
+            
+            # Build SDK options
+            options = self._build_options(
+                workspace_path,
+                timeout=request.timeout,
+                max_turns=request.max_turns
+            )
+            
+            # Execute with environment injection
+            messages = []
+            session_id = request.session_id
+            
+            # Use environment injection workaround
+            transport = self.env_injector.create_transport(workspace_path)
+            
+            try:
+                # Inject environment variables
+                transport.inject_environment()
+                
+                # Execute query using SDK
+                async for message in query(request.message, options):
+                    messages.append(message)
+                    
+                    # Extract session ID from first message if available
+                    if not session_id and isinstance(message, dict):
+                        session_id = message.get('session_id', session_id)
+                
+                success = True
+                exit_code = 0
+                error = None
+                
+            except Exception as e:
+                logger.error(f"SDK execution failed: {e}")
+                success = False
+                exit_code = 1
+                error = str(e)
+                
+            finally:
+                # Restore environment
+                transport.restore_environment()
+            
+            # Calculate execution time
+            execution_time = time.time() - start_time
+            
+            # Build result
+            result = SDKResult(
+                success=success,
+                session_id=session_id,
+                messages=messages,
+                exit_code=exit_code,
+                execution_time=execution_time,
+                logs='\n'.join(str(msg) for msg in messages),
+                error=error
+            )
+            
+            # Handle cleanup if configured
+            if self.cleanup_on_complete and success:
+                await self.env_mgr.cleanup_by_run_id(run_id)
+            
+            return result.to_dict()
+            
         except Exception as e:
-            logger.error(f"SDK execution error: {e}", exc_info=True)
-            return CLIResult(
-                success=False,
-                session_id=session_id,
-                result=str(e),
-                exit_code=1,
-                execution_time=time.time() - start_time,
-                logs="",
-                error=str(e),
-                streaming_messages=messages
-            )
-        
-        # Extract result text from messages
-        result_text = self._extract_result_text(messages)
-        
-        return CLIResult(
-            success=True,
-            session_id=session_id,
-            result=result_text,
-            exit_code=0,
-            execution_time=time.time() - start_time,
-            logs="",  # SDK doesn't provide raw logs
-            streaming_messages=messages
-        )
+            logger.error(f"Error in SDK executor: {e}")
+            
+            # Cleanup on error
+            if self.cleanup_on_complete:
+                try:
+                    await self.env_mgr.cleanup_by_run_id(run_id)
+                except Exception as cleanup_error:
+                    logger.error(f"Cleanup error: {cleanup_error}")
+            
+            return {
+                'success': False,
+                'session_id': None,
+                'result': '',
+                'exit_code': 1,
+                'execution_time': time.time() - start_time,
+                'logs': '',
+                'error': str(e)
+            }
     
     async def execute_until_first_response(
-        self,
-        prompt: str,
-        *,
-        workspace: Path,
-        **kwargs
-    ) -> Tuple[List[Dict[str, Any]], asyncio.Task]:
-        """Execute until first assistant response for UI streaming.
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute and return after first substantial response.
         
         Args:
-            prompt: User prompt to execute
-            workspace: Workspace directory path
-            **kwargs: Additional options passed to execute
+            request: Execution request with task details
+            agent_context: Agent context including session info
             
         Returns:
-            Tuple of (consumed messages, continuation task)
+            Dictionary with first response data
         """
-        options = self._build_options(workspace, **kwargs)
-        consumed = []
+        import time
+        run_id = agent_context.get('run_id', str(int(time.time())))
         
-        # Create a queue for message passing
-        queue: asyncio.Queue = asyncio.Queue()
-        
-        async def stream_messages():
-            """Stream all messages to queue."""
-            try:
-                async for message in query(prompt=prompt, options=options):
-                    await queue.put(message)
-            finally:
-                await queue.put(None)  # Sentinel
-        
-        # Start streaming task
-        stream_task = asyncio.create_task(stream_messages())
-        
-        # Consume until first assistant response
-        while True:
-            message = await queue.get()
-            if message is None:  # Stream ended
-                break
+        try:
+            # Create workspace
+            workspace_path = await self.env_mgr.create_workspace(run_id)
             
-            converted = self._convert_message(message)
-            consumed.append(converted)
+            # Setup repository
+            await self.env_mgr.setup_repository(
+                workspace_path,
+                request.git_branch,
+                request.repository_url
+            )
             
-            # Check if this is an assistant message with content
-            if (isinstance(message, AssistantMessage) and 
-                hasattr(message, 'content') and 
-                message.content):
-                break
-        
-        # Create continuation task
-        async def continue_stream():
-            """Continue consuming from queue."""
-            remaining = []
-            while True:
-                message = await queue.get()
-                if message is None:
-                    break
-                remaining.append(self._convert_message(message))
-            await stream_task  # Ensure task completes
-            return consumed + remaining
-        
-        continuation_task = asyncio.create_task(continue_stream())
-        return consumed, continuation_task
+            # Copy configs
+            await self.env_mgr.copy_configs(workspace_path, request.workflow_name)
+            
+            # Build SDK options
+            options = self._build_options(
+                workspace_path,
+                timeout=request.timeout,
+                max_turns=1  # Only get first response
+            )
+            
+            # Use environment injection
+            async with self.env_injector.execute_with_env(
+                workspace_path,
+                self._get_first_response,
+                request.message,
+                options
+            ) as first_response:
+                return {
+                    'session_id': first_response.get('session_id'),
+                    'first_response': str(first_response),
+                    'streaming_started': True
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting first response: {e}")
+            return {
+                'session_id': None,
+                'first_response': '',
+                'streaming_started': False,
+                'error': str(e)
+            }
     
-    def _convert_message(self, message) -> Dict[str, Any]:
-        """Convert SDK message to CLI format.
+    async def _get_first_response(self, message: str, options: ClaudeCodeOptions) -> Dict[str, Any]:
+        """Helper to get first response from SDK.
         
         Args:
-            message: SDK message object
+            message: User message to send
+            options: SDK options
             
         Returns:
-            Dictionary in CLI message format
+            First response from SDK
         """
-        # Convert SDK message types to CLI format
-        msg_dict = {
-            "type": message.__class__.__name__.lower().replace("message", ""),
-            "timestamp": time.time()
-        }
+        async for response in query(message, options):
+            # Return first substantial response
+            if response and isinstance(response, dict):
+                return response
         
-        if isinstance(message, UserMessage):
-            msg_dict["role"] = "user"
-            msg_dict["content"] = getattr(message, "content", "")
-        elif isinstance(message, AssistantMessage):
-            msg_dict["role"] = "assistant"
-            # Extract content from content blocks
-            content_blocks = getattr(message, "content", [])
-            content_parts = []
-            for block in content_blocks:
-                if hasattr(block, "text"):
-                    content_parts.append(block.text)
-            msg_dict["content"] = " ".join(content_parts)
-            # Extract any tool uses if present
-            if hasattr(message, "tool_uses"):
-                msg_dict["tool_uses"] = message.tool_uses
-        elif isinstance(message, SystemMessage):
-            msg_dict["role"] = "system"
-            # Extract from data dict
-            data = getattr(message, "data", {})
-            msg_dict["content"] = data.get("message", "")
-        elif isinstance(message, ResultMessage):
-            msg_dict["role"] = "result"
-            msg_dict["result"] = getattr(message, "result", "")
-            msg_dict["success"] = not getattr(message, "is_error", False)
-            msg_dict["session_id"] = getattr(message, "session_id", None)
-        
-        return msg_dict
+        return {}
     
-    def _extract_result_text(self, messages: List[Dict[str, Any]]) -> str:
-        """Extract result text from messages.
+    async def get_execution_logs(self, execution_id: str) -> str:
+        """Get execution logs.
         
         Args:
-            messages: List of message dictionaries
+            execution_id: Session ID
             
         Returns:
-            Combined result text
+            Execution logs as string
         """
-        result_parts = []
+        # SDK doesn't provide direct log access
+        # Would need to implement log storage during execution
+        logger.warning("Log retrieval not implemented for SDK executor")
+        return "Log retrieval not available for SDK executor"
+    
+    async def cancel_execution(self, execution_id: str) -> bool:
+        """Cancel a running execution.
         
-        for msg in messages:
-            if msg.get("role") == "assistant" and msg.get("content"):
-                result_parts.append(msg["content"])
-            elif msg.get("role") == "result" and msg.get("result"):
-                result_parts.append(msg["result"])
-        
-        return "\n\n".join(result_parts)
+        Args:
+            execution_id: Session ID
+            
+        Returns:
+            True if cancelled successfully, False otherwise
+        """
+        # SDK doesn't provide direct cancellation
+        # Would need to track running tasks and cancel them
+        logger.warning("Execution cancellation not implemented for SDK executor")
+        return False
+    
+    async def cleanup(self) -> None:
+        """Clean up all resources."""
+        # Clean up all active workspaces
+        await self.env_mgr.cleanup_all(force=True)
