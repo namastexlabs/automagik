@@ -1,10 +1,11 @@
 -- Create comprehensive tools management table
 -- This migration creates the tools table for unified tool management
+-- SQLite Compatible Version
 
 CREATE TABLE IF NOT EXISTS tools (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL UNIQUE,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('code', 'mcp', 'hybrid')),
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    name TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL CHECK (type IN ('code', 'mcp', 'hybrid')),
     description TEXT,
     
     -- For code tools
@@ -15,68 +16,63 @@ CREATE TABLE IF NOT EXISTS tools (
     mcp_server_name TEXT,
     mcp_tool_name TEXT,
     
-    -- Tool metadata
-    parameters_schema JSONB,
-    capabilities JSONB DEFAULT '[]'::jsonb,
-    categories JSONB DEFAULT '[]'::jsonb,
+    -- Tool metadata (JSON stored as TEXT in SQLite)
+    parameters_schema TEXT,
+    capabilities TEXT DEFAULT '[]',
+    categories TEXT DEFAULT '[]',
     
     -- Tool configuration
-    enabled BOOLEAN DEFAULT TRUE,
-    agent_restrictions JSONB DEFAULT '[]'::jsonb,
+    enabled INTEGER DEFAULT 1,
+    agent_restrictions TEXT DEFAULT '[]',
     
     -- Execution metadata
     execution_count INTEGER DEFAULT 0,
-    last_executed_at TIMESTAMP,
+    last_executed_at TEXT,
     average_execution_time_ms INTEGER DEFAULT 0,
     
     -- Audit fields
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_tools_name ON tools(name);
 CREATE INDEX IF NOT EXISTS idx_tools_type ON tools(type);
 CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(enabled);
-CREATE INDEX IF NOT EXISTS idx_tools_mcp_server ON tools(mcp_server_name) WHERE mcp_server_name IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tools_mcp_server ON tools(mcp_server_name);
 
--- Create GIN indexes for JSONB fields
-CREATE INDEX IF NOT EXISTS idx_tools_parameters_schema ON tools USING GIN (parameters_schema);
-CREATE INDEX IF NOT EXISTS idx_tools_capabilities ON tools USING GIN (capabilities);
-CREATE INDEX IF NOT EXISTS idx_tools_categories ON tools USING GIN (categories);
-CREATE INDEX IF NOT EXISTS idx_tools_agent_restrictions ON tools USING GIN (agent_restrictions);
+-- Create indexes for JSON fields using json_extract
+CREATE INDEX IF NOT EXISTS idx_tools_parameters_schema ON tools(parameters_schema);
+CREATE INDEX IF NOT EXISTS idx_tools_capabilities ON tools(capabilities);
+CREATE INDEX IF NOT EXISTS idx_tools_categories ON tools(categories);
+CREATE INDEX IF NOT EXISTS idx_tools_agent_restrictions ON tools(agent_restrictions);
 
--- Create trigger for updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+-- Create trigger for updated_at (SQLite compatible)
+CREATE TRIGGER IF NOT EXISTS update_tools_updated_at 
+    AFTER UPDATE ON tools
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+    UPDATE tools SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
-$$ language 'plpgsql';
 
-CREATE TRIGGER update_tools_updated_at BEFORE UPDATE ON tools 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Create tool execution log table for metrics
+-- Create tool execution log table for metrics (SQLite compatible)
 CREATE TABLE IF NOT EXISTS tool_executions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tool_id UUID NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
-    agent_name VARCHAR(255),
-    session_id VARCHAR(255),
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+    agent_name TEXT,
+    session_id TEXT,
     
-    -- Execution details
-    parameters JSONB,
-    context JSONB,
+    -- Execution details (JSON stored as TEXT)
+    parameters TEXT,
+    context TEXT,
     
     -- Results
-    status VARCHAR(50) CHECK (status IN ('success', 'error', 'timeout')),
-    result JSONB,
+    status TEXT CHECK (status IN ('success', 'error', 'timeout')),
+    result TEXT,
     error_message TEXT,
     execution_time_ms INTEGER,
     
     -- Audit
-    executed_at TIMESTAMP NOT NULL DEFAULT NOW()
+    executed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Create indexes for tool executions
@@ -89,10 +85,10 @@ CREATE INDEX IF NOT EXISTS idx_tool_executions_executed_at ON tool_executions(ex
 -- Tools will be automatically discovered and inserted at startup
 -- See src/services/tool_discovery.py for automatic discovery logic
 
--- Add comment to table
-COMMENT ON TABLE tools IS 'Unified tool management table for code and MCP tools';
-COMMENT ON COLUMN tools.type IS 'Tool type: code (built-in), mcp (external), hybrid (both)';
-COMMENT ON COLUMN tools.parameters_schema IS 'JSON schema for tool parameters validation';
-COMMENT ON COLUMN tools.capabilities IS 'Array of tool capabilities/features';
-COMMENT ON COLUMN tools.categories IS 'Array of tool categories for organization';
-COMMENT ON COLUMN tools.agent_restrictions IS 'Array of agent names that can use this tool (empty = all agents)';
+-- SQLite doesn't support COMMENT statements
+-- Table: tools - Unified tool management table for code and MCP tools
+-- Column: type - Tool type: code (built-in), mcp (external), hybrid (both)
+-- Column: parameters_schema - JSON schema for tool parameters validation
+-- Column: capabilities - Array of tool capabilities/features
+-- Column: categories - Array of tool categories for organization
+-- Column: agent_restrictions - Array of agent names that can use this tool (empty = all agents)
