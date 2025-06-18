@@ -250,7 +250,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             logger.info(f"Routing to orchestrated execution for agent: {agent_name}")
             response = await handle_orchestrated_agent_run(agent_name, request)
             # Convert to Dict format for backward compatibility
-            return {
+            response_data = {
                 "status": response.status,
                 "message": response.message,
                 "session_id": response.session_id,
@@ -262,6 +262,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 "data": response.data,
                 "errors": response.errors,
             }
+            
+            # Add usage information if available
+            if hasattr(response, 'usage') and response.usage:
+                response_data["usage"] = response.usage
+                
+            return response_data
 
         # Continue with regular agent execution for non-orchestrated agents
         logger.info(f"Using regular execution for agent: {agent_name}")
@@ -532,6 +538,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             )
 
         # Process the response
+        usage_info = None
         if isinstance(response_content, str):
             # Simple string response
             response_text = response_content
@@ -548,12 +555,14 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     success = getattr(response_content, "success", True)
                     tool_calls = getattr(response_content, "tool_calls", [])
                     tool_outputs = getattr(response_content, "tool_outputs", [])
+                    usage_info = getattr(response_content, "usage", None)
                 else:
                     # Dictionary
                     response_text = response_content.get("text", str(response_content))
                     success = response_content.get("success", True)
                     tool_calls = response_content.get("tool_calls", [])
                     tool_outputs = response_content.get("tool_outputs", [])
+                    usage_info = response_content.get("usage", None)
             except (AttributeError, TypeError):
                 # Not a dictionary or expected object, use string representation
                 response_text = str(response_content)
@@ -563,13 +572,19 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
         # Format response according to the original API
         # Ensure session_id is always a string
-        return {
+        response_data = {
             "message": response_text,
             "session_id": str(session_id) if session_id else None,
             "success": success,
             "tool_calls": tool_calls,
             "tool_outputs": tool_outputs,
         }
+        
+        # Add usage information if available
+        if usage_info:
+            response_data["usage"] = usage_info
+            
+        return response_data
     except HTTPException:
         raise
     except Exception as e:
