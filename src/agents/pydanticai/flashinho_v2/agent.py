@@ -17,7 +17,7 @@ from src.tools.flashed.tool import (
 from src.tools.flashed.provider import FlashedProvider
 from .prompts.prompt import AGENT_FREE, AGENT_PROMPT
 from .memory_manager import update_flashinho_pro_memories, initialize_flashinho_pro_memories
-from .user_identification import FlashinhoProUserMatcher
+
 
 logger = logging.getLogger(__name__)
 
@@ -160,139 +160,9 @@ class FlashinhoV2(AutomagikAgent):
                     self.dependencies.prompt = AGENT_FREE
             logger.info(f"User {user_id} is a Free user. Using model: {self.free_model}")
     
-    async def _check_for_prettyid_identification(self, input_text: str) -> Optional[str]:
-        """Check if the message contains a prettyId and update context accordingly.
-        
-        Args:
-            input_text: The user's message text
-            
-        Returns:
-            User ID if found via prettyId, None otherwise
-        """
-        try:
-            # Use the user matcher to detect prettyId and fetch user data
-            matcher = FlashinhoProUserMatcher(self.context)
-            pretty_id = matcher.extract_pretty_id_from_message(input_text)
-            
-            if pretty_id:
-                logger.info(f"Detected prettyId in message: {pretty_id}")
-                
-                # Fetch user data using the prettyId
-                user_data = await matcher._find_user_by_pretty_id(pretty_id)
-                
-                if user_data and user_data.get("user", {}).get("id"):
-                    user_id = user_data["user"]["id"]
-                    
-                    # Update context with user information
-                    self.context["flashed_user_id"] = user_id
-                    self.context["user_identification_method"] = "prettyId"
-                    self.context["pretty_id"] = pretty_id
-                    self.context["flashed_conversation_code"] = pretty_id
-                    
-                    # Update context with additional user data
-                    user_info = user_data["user"]
-                    if user_info.get("name"):
-                        self.context["user_name"] = user_info["name"]
-                        self.context["whatsapp_user_name"] = user_info["name"]
-                    if user_info.get("phone"):
-                        self.context["user_phone_number"] = user_info["phone"]
-                        self.context["whatsapp_user_number"] = user_info["phone"]
-                    if user_info.get("email"):
-                        self.context["user_email"] = user_info["email"]
-                    
-                    # Ensure user exists in our database with the correct UUID and conversation code
-                    await self._ensure_user_in_database(user_id, pretty_id, user_info)
-                    
-                    # Update the main user_id in context to match Flashed API
-                    self.context["user_id"] = user_id
-                    
-                    logger.info(f"Successfully identified user via prettyId {pretty_id}: {user_id}")
-                    logger.info(f"Updated context with user data: name={user_info.get('name')}, phone={user_info.get('phone')}")
-                    
-                    return user_id
-                else:
-                    logger.warning(f"No user data found for prettyId: {pretty_id}")
-                    return None
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error checking for prettyId identification: {str(e)}")
-            return None
+
     
-    async def _ensure_user_in_database(self, flashed_user_id: str, conversation_code: str, user_info: Dict[str, Any]) -> None:
-        """Ensure user exists in our database with correct UUID and conversation code.
-        
-        Args:
-            flashed_user_id: The Flashed API user UUID
-            conversation_code: The conversation code (prettyId)
-            user_info: User information from Flashed API
-        """
-        try:
-            from src.db.repository.user import get_user, create_user, update_user_data
-            from src.db.models import User
-            from datetime import datetime
-            import uuid
-            
-            # Convert to UUID object
-            user_uuid = uuid.UUID(flashed_user_id)
-            
-            # Check if user already exists
-            existing_user = get_user(user_uuid)
-            
-            if existing_user:
-                # User exists, update their data to include conversation code
-                current_user_data = existing_user.user_data or {}
-                needs_update = False
-                
-                # Ensure flashed_user_id is stored
-                if current_user_data.get("flashed_user_id") != flashed_user_id:
-                    current_user_data["flashed_user_id"] = flashed_user_id
-                    needs_update = True
-                
-                # Store/update conversation code
-                if current_user_data.get("flashed_conversation_code") != conversation_code:
-                    current_user_data["flashed_conversation_code"] = conversation_code
-                    needs_update = True
-                    logger.info(f"Updating conversation code for user {user_uuid}: {conversation_code}")
-                
-                # Update name if available and not set
-                if user_info.get("name") and not current_user_data.get("name"):
-                    current_user_data["name"] = user_info["name"]
-                    needs_update = True
-                
-                if needs_update:
-                    update_user_data(user_uuid, current_user_data)
-                    logger.info(f"Updated user {user_uuid} with conversation code and latest info")
-                
-            else:
-                # Create new user with the Flashed UUID as primary key
-                user_data = {
-                    "flashed_user_id": flashed_user_id,
-                    "flashed_conversation_code": conversation_code
-                }
-                
-                if user_info.get("name"):
-                    user_data["name"] = user_info["name"]
-                
-                user_model = User(
-                    id=user_uuid,
-                    email=user_info.get("email"),
-                    phone_number=user_info.get("phone"),
-                    user_data=user_data,
-                    created_at=datetime.now(),
-                    updated_at=datetime.now()
-                )
-                
-                created_id = create_user(user_model)
-                if created_id:
-                    logger.info(f"Created new user {user_uuid} with conversation code {conversation_code}")
-                else:
-                    logger.error(f"Failed to create user {user_uuid}")
-                    
-        except Exception as e:
-            logger.error(f"Error ensuring user in database: {str(e)}")
-            # Don't raise - continue with agent execution even if DB update fails
+
     
     async def _ensure_user_memories_ready(self, user_id: Optional[str] = None) -> None:
         """Ensure user memories are initialized and updated for prompt variables.
@@ -330,52 +200,111 @@ class FlashinhoV2(AutomagikAgent):
         channel_payload: Optional[dict] = None,
         message_limit: Optional[int] = 20
     ) -> AgentResponse:
-        """Enhanced run method with user identification and memory-based personalization."""
+        """Enhanced run method with conversation code requirement and memory-based personalization."""
         
         try:
-            # First check for prettyId in the message and update context if found
-            prettyid_user_id = await self._check_for_prettyid_identification(input_text)
+            # First check if user has conversation code in their user_data
+            user_id = self.context.get("user_id")
+            requires_conversation_code = await self._check_conversation_code_requirement(user_id)
             
-            # Extract user information from context (populated by Evolution handler or prettyId detection)
-            user_id = (
-                prettyid_user_id or 
-                self.context.get("user_id") or 
-                self.context.get("flashed_user_id")
-            )
-            whatsapp_phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-            whatsapp_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
+            if requires_conversation_code:
+                # User needs to provide conversation code first
+                conversation_code_request = self._generate_conversation_code_request()
+                
+                return AgentResponse(
+                    response=conversation_code_request,
+                    confidence=1.0,
+                    model_used=self.free_model,  # Always use free model for code requests
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0
+                )
             
-            # Log identification method for debugging
-            identification_method = self.context.get("user_identification_method", "context")
-            logger.info(f"Flashinho V2 processing message from {whatsapp_name} ({whatsapp_phone}) - User ID: {user_id} via {identification_method}")
+            # Extract user information from context (populated by Evolution handler)
+            user_id = self.context.get("user_id")
+            user_phone = self.context.get("user_phone_number") or self.context.get("whatsapp_user_number")
+            user_name = self.context.get("user_name") or self.context.get("whatsapp_user_name")
             
-            # Check user Pro status and update model/prompt accordingly
-            await self._update_model_and_prompt_based_on_status(user_id)
+            # Check Pro status and update model/prompt if we have user info
+            if user_id:
+                await self._update_model_and_prompt_based_on_status(user_id)
+                
+                # Ensure user memories are ready for prompt template variables
+                await self._ensure_user_memories_ready(user_id)
             
-            # Ensure user memories are ready
-            await self._ensure_user_memories_ready(user_id)
+            # Log context information for debugging
+            logger.info(f"Running agent with user_id: {user_id}, phone: {user_phone}, name: {user_name}")
+            logger.info(f"Using model: {self.model_name}, tools: {len(self.agent.tools) if hasattr(self.agent, 'tools') else 'unknown'}")
             
-            # Use the enhanced framework to handle execution
-            return await self._run_agent(
-                input_text=input_text,
-                system_prompt=system_message,  # Framework will use appropriate prompt with memory substitution
-                message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit) if message_history_obj else [],
+            # Use parent's run method for the actual execution
+            return await super().run(
+                input_text,
                 multimodal_content=multimodal_content,
+                system_message=system_message,
+                message_history_obj=message_history_obj,
                 channel_payload=channel_payload,
                 message_limit=message_limit
             )
             
         except Exception as e:
-            logger.error(f"Error in Flashinho V2 run method: {str(e)}")
-            # Fallback to basic execution - framework will still handle memory substitution
-            return await self._run_agent(
-                input_text=input_text,
-                system_prompt=system_message,
-                message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit) if message_history_obj else [],
-                multimodal_content=multimodal_content,
-                channel_payload=channel_payload,
-                message_limit=message_limit
+            logger.error(f"Error in FlashinhoV2 run method: {str(e)}")
+            # Fallback to basic response
+            return AgentResponse(
+                response=f"Desculpa, mano! Tive um probleminha técnico aqui. 😅 Tenta mandar a mensagem de novo?",
+                confidence=0.0,
+                model_used=self.free_model,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0
             )
+    
+    async def _check_conversation_code_requirement(self, user_id: Optional[str]) -> bool:
+        """Check if user needs to provide conversation code.
+        
+        Args:
+            user_id: User ID to check
+            
+        Returns:
+            True if conversation code is required, False otherwise
+        """
+        try:
+            if not user_id:
+                return True  # No user ID means conversation code required
+            
+            from src.db.repository.user import get_user
+            import uuid
+            
+            # Get user from database
+            user_uuid = uuid.UUID(user_id)
+            user = get_user(user_uuid)
+            
+            if not user:
+                return True  # User not found means conversation code required
+            
+            # Check if user has conversation code in user_data
+            user_data = user.user_data or {}
+            conversation_code = user_data.get("flashed_conversation_code")
+            
+            if not conversation_code:
+                logger.info(f"User {user_id} does not have conversation code - requiring code")
+                return True
+            
+            logger.info(f"User {user_id} has conversation code: {conversation_code}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking conversation code requirement: {str(e)}")
+            return True  # Default to requiring code on error
+    
+    def _generate_conversation_code_request(self) -> str:
+        """Generate a message requesting the conversation code in Flashinho's style.
+        
+        Returns:
+            Message requesting conversation code
+        """
+        return ("E aí, mano! 👋 Pra eu conseguir te dar aquela força nos estudos de forma "
+                "personalizada, preciso do seu código de conversa! 🔑\n\n"
+                "Manda aí seu código pra gente começar com tudo! 🚀✨")
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoV2:
