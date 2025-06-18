@@ -34,6 +34,10 @@ class ClaudeCodeRunRequest(BaseModel):
         None,
         description="Git repository URL to clone (defaults to current repository if not specified)"
     )
+    persistent: bool = Field(
+        default=True,
+        description="Use persistent workspace (reuses existing workspace for workflow)"
+    )
     
     @validator('message')
     def message_not_empty(cls, v):
