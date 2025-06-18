@@ -3,8 +3,9 @@
 import uuid
 from datetime import datetime
 from typing import Optional, Dict, Any, List, ClassVar
+import json
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class BaseDBModel(BaseModel):
@@ -212,18 +213,10 @@ class Prompt(PromptBase):
     
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Prompt":
-        """Create a Prompt instance from a database row.
-        
-        Args:
-            row: Database row as dictionary
-            
-        Returns:
-            Prompt instance
-        """
+        """Create a Prompt instance from a database row."""
         if not row:
             return None
             
-        # Convert database row to model
         return cls(
             id=row["id"],
             agent_id=row["agent_id"],
@@ -238,7 +231,7 @@ class Prompt(PromptBase):
         )
 
 
-# Preference Models [EPIC-SIMULATION-TEST]
+# Preference Models
 class PreferenceBase(BaseDBModel):
     """Base class for Preference models."""
     
@@ -276,14 +269,7 @@ class Preference(PreferenceBase):
     
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Preference":
-        """Create a Preference instance from a database row.
-        
-        Args:
-            row: Database row as dictionary
-            
-        Returns:
-            Preference instance
-        """
+        """Create a Preference instance from a database row."""
         if not row:
             return None
             
@@ -374,7 +360,7 @@ class AgentMCPServerDB(BaseDBModel):
         return cls(**row)
 
 
-# New Simplified MCP Config Models (NMSTX-253 Refactor)
+# New Simplified MCP Config Models
 class MCPConfigBase(BaseDBModel):
     """Base class for MCP Config models."""
     
@@ -409,14 +395,7 @@ class MCPConfig(MCPConfigBase):
     
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "MCPConfig":
-        """Create an MCPConfig instance from a database row.
-        
-        Args:
-            row: Database row as dictionary
-            
-        Returns:
-            MCPConfig instance
-        """
+        """Create an MCPConfig instance from a database row."""
         if not row:
             return None
             
@@ -442,14 +421,7 @@ class MCPConfig(MCPConfigBase):
         return agents if isinstance(agents, list) else []
     
     def is_assigned_to_agent(self, agent_name: str) -> bool:
-        """Check if this MCP server is assigned to a specific agent.
-        
-        Args:
-            agent_name: Name of the agent to check
-            
-        Returns:
-            True if assigned, False otherwise. Returns True for "*" wildcard.
-        """
+        """Check if this MCP server is assigned to a specific agent."""
         agents = self.get_agents()
         return "*" in agents or agent_name in agents
     
@@ -458,14 +430,7 @@ class MCPConfig(MCPConfigBase):
         return self.config.get("tools", {})
     
     def should_include_tool(self, tool_name: str) -> bool:
-        """Check if a tool should be included based on filters.
-        
-        Args:
-            tool_name: Name of the tool to check
-            
-        Returns:
-            True if tool should be included, False if excluded
-        """
+        """Check if a tool should be included based on filters."""
         tools_config = self.get_tools_config()
         
         # Check exclude list first
@@ -511,11 +476,7 @@ class MCPConfig(MCPConfigBase):
         return self.config.get("url")
     
     def validate_config(self) -> bool:
-        """Validate the configuration is complete and consistent.
-        
-        Returns:
-            True if valid, False otherwise
-        """
+        """Validate the configuration is complete and consistent."""
         # Check required fields
         if not self.config.get("name"):
             return False
@@ -532,30 +493,9 @@ class MCPConfig(MCPConfigBase):
             return False
         
         return True
-    
-    def to_legacy_format(self) -> Dict[str, Any]:
-        """Convert to legacy mcp_servers table format for migration compatibility.
-        
-        Returns:
-            Dictionary matching old mcp_servers schema
-        """
-        return {
-            "name": self.name,
-            "server_type": self.get_server_type(),
-            "description": self.config.get("description"),
-            "command": self.get_command() if self.get_server_type() == "stdio" else None,
-            "env": self.get_environment(),
-            "http_url": self.get_url(),
-            "auto_start": self.is_auto_start(),
-            "max_retries": self.get_retry_count(),
-            "timeout_seconds": self.get_timeout() // 1000,  # Convert ms to seconds
-            "tags": self.config.get("tags", []),
-            "priority": self.config.get("priority", 0),
-            "enabled": self.is_enabled()
-        }
 
 
-# Workflow Process Models for Emergency Kill System
+# Workflow Process Models
 class WorkflowProcessBase(BaseDBModel):
     """Base class for Workflow Process models."""
     
@@ -600,18 +540,11 @@ class WorkflowProcess(WorkflowProcessBase):
     
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "WorkflowProcess":
-        """Create a WorkflowProcess instance from a database row.
-        
-        Args:
-            row: Database row as dictionary
-            
-        Returns:
-            WorkflowProcess instance
-        """
+        """Create a WorkflowProcess instance from a database row."""
         if not row:
             return None
         
-        # Handle JSON process_info field - deserialize if it's a string
+        # Handle JSON process_info field
         process_info = row.get("process_info")
         if isinstance(process_info, str):
             import json
@@ -634,39 +567,158 @@ class WorkflowProcess(WorkflowProcessBase):
             created_at=row.get("created_at"),
             updated_at=row.get("updated_at")
         )
+
+
+# Tool Models
+class ToolDB(BaseDBModel):
+    """Database model for tools."""
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    name: str = Field(..., description="Tool name")
+    type: str = Field(..., description="Tool type: code, mcp, or hybrid")
+    description: Optional[str] = Field(None, description="Tool description")
     
-    def is_alive(self) -> bool:
-        """Check if the process is likely still alive based on heartbeat."""
-        if not self.last_heartbeat:
-            return False
-        
-        # Consider process dead if no heartbeat for more than 5 minutes
-        import datetime as dt
-        max_silence = dt.timedelta(minutes=5)
-        time_since_heartbeat = dt.datetime.utcnow() - self.last_heartbeat
-        
-        return time_since_heartbeat <= max_silence
+    # For code tools
+    module_path: Optional[str] = Field(None, description="Python module path")
+    function_name: Optional[str] = Field(None, description="Function name")
     
-    def get_elapsed_time(self) -> Optional[float]:
-        """Get elapsed time since process start in seconds."""
-        if not self.started_at:
-            return None
-        
-        import datetime as dt
-        elapsed = dt.datetime.utcnow() - self.started_at
-        return elapsed.total_seconds()
+    # For MCP tools
+    mcp_server_name: Optional[str] = Field(None, description="MCP server name")
+    mcp_tool_name: Optional[str] = Field(None, description="MCP tool name")
     
-    def update_heartbeat(self) -> None:
-        """Update the last heartbeat timestamp to current time."""
-        import datetime as dt
-        self.last_heartbeat = dt.datetime.utcnow()
+    # Tool metadata
+    parameters_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema for parameters")
+    capabilities: List[str] = Field(default_factory=list, description="Tool capabilities")
+    categories: List[str] = Field(default_factory=list, description="Tool categories")
     
-    def mark_terminated(self, status: str = "terminated") -> None:
-        """Mark the process as terminated with given status."""
-        valid_terminated_statuses = ["completed", "failed", "killed", "terminated"]
-        if status not in valid_terminated_statuses:
-            status = "terminated"
+    # Configuration
+    enabled: bool = Field(True, description="Whether tool is enabled")
+    agent_restrictions: List[str] = Field(default_factory=list, description="Agents that can use this tool")
+    
+    # Execution metadata
+    execution_count: int = Field(0, description="Number of times executed")
+    last_executed_at: Optional[datetime] = Field(None, description="Last execution time")
+    average_execution_time_ms: int = Field(0, description="Average execution time in milliseconds")
+    
+    # Audit fields
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    DB_TABLE: ClassVar[str] = "tools"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "ToolDB":
+        """Create model from database row."""
+        # Handle JSON fields
+        if "parameters_schema" in row and isinstance(row["parameters_schema"], str):
+            try:
+                row["parameters_schema"] = json.loads(row["parameters_schema"])
+            except (json.JSONDecodeError, TypeError):
+                row["parameters_schema"] = None
+                
+        if "capabilities" in row and isinstance(row["capabilities"], str):
+            try:
+                row["capabilities"] = json.loads(row["capabilities"])
+            except (json.JSONDecodeError, TypeError):
+                row["capabilities"] = []
+                
+        if "categories" in row and isinstance(row["categories"], str):
+            try:
+                row["categories"] = json.loads(row["categories"])
+            except (json.JSONDecodeError, TypeError):
+                row["categories"] = []
+                
+        if "agent_restrictions" in row and isinstance(row["agent_restrictions"], str):
+            try:
+                row["agent_restrictions"] = json.loads(row["agent_restrictions"])
+            except (json.JSONDecodeError, TypeError):
+                row["agent_restrictions"] = []
         
-        self.status = status
-        import datetime as dt
-        self.updated_at = dt.datetime.utcnow()
+        return cls(**row)
+    
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v):
+        """Validate tool type."""
+        allowed_types = {'code', 'mcp', 'hybrid'}
+        if v not in allowed_types:
+            raise ValueError(f"Tool type must be one of: {allowed_types}")
+        return v
+
+
+class ToolExecutionDB(BaseDBModel):
+    """Database model for tool execution logs."""
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    tool_id: uuid.UUID = Field(..., description="Tool ID")
+    agent_name: Optional[str] = Field(None, description="Agent that executed the tool")
+    session_id: Optional[str] = Field(None, description="Session ID")
+    
+    # Execution details
+    parameters: Optional[Dict[str, Any]] = Field(None, description="Tool parameters")
+    context: Optional[Dict[str, Any]] = Field(None, description="Execution context")
+    
+    # Results
+    status: str = Field(..., description="Execution status: success, error, timeout")
+    result: Optional[Dict[str, Any]] = Field(None, description="Execution result")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    execution_time_ms: Optional[int] = Field(None, description="Execution time in milliseconds")
+    
+    # Audit
+    executed_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    DB_TABLE: ClassVar[str] = "tool_executions"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "ToolExecutionDB":
+        """Create model from database row."""
+        # Handle JSON fields
+        for field in ["parameters", "context", "result"]:
+            if field in row and isinstance(row[field], str):
+                try:
+                    row[field] = json.loads(row[field])
+                except (json.JSONDecodeError, TypeError):
+                    row[field] = None
+        
+        return cls(**row)
+    
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        """Validate execution status."""
+        allowed_statuses = {'success', 'error', 'timeout'}
+        if v not in allowed_statuses:
+            raise ValueError(f"Status must be one of: {allowed_statuses}")
+        return v
+
+
+class ToolCreate(BaseModel):
+    """Model for creating new tools."""
+    name: str = Field(..., description="Tool name")
+    type: str = Field(..., description="Tool type: code, mcp, or hybrid")
+    description: Optional[str] = Field(None, description="Tool description")
+    
+    # For code tools
+    module_path: Optional[str] = Field(None, description="Python module path")
+    function_name: Optional[str] = Field(None, description="Function name")
+    
+    # For MCP tools
+    mcp_server_name: Optional[str] = Field(None, description="MCP server name")
+    mcp_tool_name: Optional[str] = Field(None, description="MCP tool name")
+    
+    # Tool metadata
+    parameters_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema for parameters")
+    capabilities: List[str] = Field(default_factory=list, description="Tool capabilities")
+    categories: List[str] = Field(default_factory=list, description="Tool categories")
+    
+    # Configuration
+    enabled: bool = Field(True, description="Whether tool is enabled")
+    agent_restrictions: List[str] = Field(default_factory=list, description="Agents that can use this tool")
+
+
+class ToolUpdate(BaseModel):
+    """Model for updating existing tools."""
+    description: Optional[str] = None
+    enabled: Optional[bool] = None
+    parameters_schema: Optional[Dict[str, Any]] = None
+    capabilities: Optional[List[str]] = None
+    categories: Optional[List[str]] = None
+    agent_restrictions: Optional[List[str]] = None
