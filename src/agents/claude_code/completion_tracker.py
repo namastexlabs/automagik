@@ -124,11 +124,26 @@ class CompletionTracker:
                     last_metrics_update = datetime.utcnow()
                     logger.debug(f"Updated real-time progress for run {run_id}: Turn {metrics.total_turns}, Cost ${metrics.total_cost_usd:.4f}")
                 
-                # Check for completion
+                # Check for completion - now includes SDK completion events and session updates
                 completion_found = any(
-                    entry.get("event_type") in ["execution_complete", "process_complete"]
+                    entry.get("event_type") in ["execution_complete", "process_complete", "claude_result"]
                     for entry in log_entries
                 )
+                
+                # Also check if session metadata indicates completion
+                if not completion_found:
+                    try:
+                        from src.db.repository import session as session_repo
+                        sessions = session_repo.list_sessions()
+                        for session in sessions:
+                            if (session.metadata and 
+                                session.metadata.get("run_id") == run_id and
+                                session.metadata.get("run_status") in ["completed", "failed"]):
+                                completion_found = True
+                                logger.info(f"Detected completion via session metadata for run {run_id}")
+                                break
+                    except Exception as e:
+                        logger.debug(f"Could not check session metadata: {e}")
                 
                 if completion_found:
                     logger.info(f"Completion detected for run {run_id}, processing final metrics")

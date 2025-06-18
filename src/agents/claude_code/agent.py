@@ -699,7 +699,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 session_obj.metadata = metadata
                 update_session(session_obj)
             
-            # Execute the workflow - this will run to completion
+            # Execute the workflow - use standard execution to avoid SDK TaskGroup issues
+            # The SDK executor can extract data from the result without streaming complications
             result = await self.executor.execute_claude_task(
                 request=request,
                 agent_context={
@@ -720,11 +721,21 @@ class ClaudeCodeAgent(AutomagikAgent):
                     # Store the real Claude session ID for future resumption
                     metadata["claude_session_id"] = actual_claude_session_id
                 
+                # Determine proper status based on result
+                final_status = "completed" if result.get("success") else "failed"
+                
                 metadata.update({
-                    "run_status": "completed" if result.get("success") else "failed",
+                    "run_status": final_status,
                     "completed_at": datetime.utcnow().isoformat(),
                     "exit_code": result.get("exit_code", -1),
+                    "success": result.get("success", False),
+                    "final_result": result.get("result", ""),
+                    "total_cost_usd": result.get("cost_usd", 0.0),
+                    "total_turns": result.get("total_turns", 0),
+                    "tools_used": result.get("tools_used", [])
                 })
+                
+                logger.info(f"Updated session {session_id} with final status: {final_status}")
                 session_obj.metadata = metadata
                 update_session(session_obj)
             
