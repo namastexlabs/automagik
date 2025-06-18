@@ -203,7 +203,7 @@ export default function ProjectsPage() {
                                                 <CardTitle className="text-lg">{project.name}</CardTitle>
                                                 <CardDescription className="flex items-center gap-1 mt-1">
                                                     <Github className="w-3 h-3" />
-                                                    {project.repo_owner}/{project.repo_name}
+                                                    {project.repo_url.split('/').slice(-2).join('/')}
                                                 </CardDescription>
                                             </div>
                                             <div className="flex gap-1">
