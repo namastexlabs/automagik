@@ -9,7 +9,7 @@ import uuid
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Path, Body
+from fastapi import APIRouter, HTTPException, Path, Body, Query
 from pydantic import BaseModel, Field
 
 from src.agents.models.agent_factory import AgentFactory
@@ -193,6 +193,9 @@ async def run_claude_workflow(
         ..., description="The workflow to execute", example="architect"
     ),
     request: ClaudeWorkflowRequest = Body(...),
+    persistent: bool = Query(
+        True, description="Use persistent workspace (default: true, set false for temporary workspace)"
+    ),
 ) -> ClaudeWorkflowResponse:
     """Execute Claude Code workflow with comprehensive configuration"""
     try:
@@ -290,6 +293,7 @@ async def run_claude_workflow(
                 "timeout": request.timeout,
                 "repository_url": request.repository_url,
                 "run_id": run_id,
+                "persistent": persistent,
             }
             
             # Start workflow execution in background

@@ -681,7 +681,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch"),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
-                repository_url=kwargs.get("repository_url")
+                repository_url=kwargs.get("repository_url"),
+                persistent=kwargs.get("persistent", True)
             )
             
             # Update session metadata with run information
