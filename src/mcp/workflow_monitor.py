@@ -384,12 +384,14 @@ class WorkflowMonitor:
         """Auto-kill a process using the existing kill infrastructure."""
         try:
             # Import kill executors dynamically to avoid circular imports
-            from ..agents.claude_code.cli_executor import ClaudeCLIExecutor
+            from ..agents.claude_code.sdk_executor import ClaudeSDKExecutor
             from ..agents.claude_code.local_executor import LocalExecutor
+            from ..agents.claude_code.cli_environment import CLIEnvironmentManager
             
-            # Try CLI executor first
-            cli_executor = ClaudeCLIExecutor()
-            kill_result = await cli_executor.cancel_execution(process.run_id)
+            # Try SDK executor first
+            env_manager = CLIEnvironmentManager()
+            sdk_executor = ClaudeSDKExecutor(environment_manager=env_manager)
+            kill_result = await sdk_executor.cancel_execution(process.run_id)
             
             if kill_result:
                 return True
