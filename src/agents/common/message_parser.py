@@ -133,7 +133,8 @@ def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dic
                           tool_outputs: Optional[List[Dict[str, Any]]] = None,
                           system_prompt: Optional[str] = None,
                           agent_id: Optional[int] = None,
-                          channel_payload: Optional[Dict] = None) -> Dict[str, Any]:
+                          channel_payload: Optional[Dict] = None,
+                          usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Format a message for database storage.
     
     Args:
@@ -143,6 +144,8 @@ def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dic
         tool_outputs: Optional list of tool outputs
         system_prompt: Optional system prompt
         agent_id: Optional agent ID
+        channel_payload: Optional channel-specific data
+        usage: Optional token usage information
     Returns:
         Formatted message dictionary
     """
@@ -163,6 +166,9 @@ def format_message_for_db(role: str, content: str, tool_calls: Optional[List[Dic
     
     if channel_payload:
         message["channel_payload"] = channel_payload
+    
+    if usage:
+        message["usage"] = usage
     
     return message
 

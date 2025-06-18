@@ -898,6 +898,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 tool_calls=getattr(response, 'tool_calls', None),
                 tool_outputs=getattr(response, 'tool_outputs', None),
                 system_prompt=getattr(response, "system_prompt", None),
+                usage=getattr(response, 'usage', None),
                 agent_id=self.db_id
             )
             message_history.add_message(agent_db_message)
