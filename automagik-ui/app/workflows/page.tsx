@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, GitBranch, StopCircle, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Play } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Settings, GitBranch, StopCircle, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Play, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ interface Workflow {
 }
 
 export default function WorkflowsPage() {
+    const router = useRouter();
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -50,32 +52,33 @@ export default function WorkflowsPage() {
         try {
             if (!silent) setIsLoading(true);
             
-            // Using the existing API endpoint for workflows (tasks)
-            const response = await fetch(`http://localhost:28881/api/v1/workflows/`, {
+            // Use the correct Claude Code runs endpoint
+            const response = await fetch(`http://localhost:28881/api/v1/workflows/claude-code/runs`, {
                 headers: {
                     'x-api-key': 'namastex888'
                 }
             });
 
             if (!response.ok) {
-                // Fallback to tasks endpoint if workflows endpoint doesn't exist
-                const tasksResponse = await fetch(`http://localhost:28881/api/v1/tasks`, {
-                    headers: {
-                        'x-api-key': 'namastex888'
-                    }
-                });
-                
-                if (tasksResponse.ok) {
-                    const tasksData = await tasksResponse.json();
-                    const tasksList = Object.values(tasksData.tasks || {}) as Workflow[];
-                    setWorkflows(tasksList);
-                } else {
-                    throw new Error('Failed to fetch workflows');
-                }
-            } else {
-                const data = await response.json();
-                setWorkflows(data.workflows || []);
+                const errorText = await response.text();
+                console.error('Failed to fetch workflows:', response.status, errorText);
+                throw new Error(`Failed to fetch workflows: ${response.status} ${response.statusText}`);
             }
+            
+            const data = await response.json();
+            // Map runs to expected Workflow interface
+            const workflowRuns = (data.runs || []).map((run: any) => ({
+                id: run.run_id, // Use run_id as id
+                status: run.status || 'pending',
+                prompt: run.workflow_name || 'Unnamed Workflow',
+                repo_url: run.repository_url || '',
+                target_branch: run.git_branch || 'main',
+                agent: run.workflow_name || 'claude-code',
+                created_at: run.started_at || new Date().toISOString(),
+                project_id: null,
+                chat_messages: []
+            }));
+            setWorkflows(workflowRuns);
         } catch (error) {
             console.error('Error loading workflows:', error);
             if (!silent) {
@@ -89,7 +92,7 @@ export default function WorkflowsPage() {
 
     const handleKillWorkflow = async (workflowId: number) => {
         try {
-            const response = await fetch(`http://localhost:28881/api/v1/workflows/${workflowId}/kill`, {
+            const response = await fetch(`http://localhost:28881/api/v1/workflows/claude-code/run/${workflowId}/kill`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -98,7 +101,9 @@ export default function WorkflowsPage() {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to kill workflow');
+                const errorText = await response.text();
+                console.error('Failed to kill workflow:', response.status, errorText);
+                throw new Error(`Failed to kill workflow: ${response.status} ${response.statusText}`);
             }
 
             toast.success(`Workflow #${workflowId} killed successfully`);
@@ -258,7 +263,8 @@ export default function WorkflowsPage() {
                                         {workflows.map((workflow) => (
                                             <div
                                                 key={workflow.id}
-                                                className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                                                className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                                                onClick={() => router.push(`/workflows/${workflow.id}`)}
                                             >
                                                 <div className="flex-1 min-w-0 space-y-2">
                                                     <div className="flex items-center gap-3">
@@ -294,7 +300,10 @@ export default function WorkflowsPage() {
                                                 <div className="flex items-center gap-2 ml-4">
                                                     {(workflow.status === "running" || workflow.status === "pending") && (
                                                         <Button
-                                                            onClick={() => handleKillWorkflow(workflow.id)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleKillWorkflow(workflow.id);
+                                                            }}
                                                             variant="destructive"
                                                             size="sm"
                                                             className="gap-2"
@@ -303,6 +312,18 @@ export default function WorkflowsPage() {
                                                             Kill
                                                         </Button>
                                                     )}
+                                                    <Button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            router.push(`/workflows/${workflow.id}`);
+                                                        }}
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="gap-1"
+                                                    >
+                                                        View
+                                                        <ArrowRight className="w-3 h-3" />
+                                                    </Button>
                                                 </div>
                                             </div>
                                         ))}
