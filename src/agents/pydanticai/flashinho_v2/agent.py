@@ -212,12 +212,14 @@ class FlashinhoV2(AutomagikAgent):
                 conversation_code_request = self._generate_conversation_code_request()
                 
                 return AgentResponse(
-                    response=conversation_code_request,
-                    confidence=1.0,
-                    model_used=self.free_model,  # Always use free model for code requests
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    total_tokens=0
+                    text=conversation_code_request,
+                    success=True,
+                    usage={
+                        "model": self.free_model,
+                        "request_tokens": 0,
+                        "response_tokens": 0,
+                        "total_tokens": 0
+                    }
                 )
             
             # Extract user information from context (populated by Evolution handler)
@@ -250,12 +252,15 @@ class FlashinhoV2(AutomagikAgent):
             logger.error(f"Error in FlashinhoV2 run method: {str(e)}")
             # Fallback to basic response
             return AgentResponse(
-                response=f"Desculpa, mano! Tive um probleminha técnico aqui. 😅 Tenta mandar a mensagem de novo?",
-                confidence=0.0,
-                model_used=self.free_model,
-                prompt_tokens=0,
-                completion_tokens=0,
-                total_tokens=0
+                text=f"Desculpa, mano! Tive um probleminha técnico aqui. 😅 Tenta mandar a mensagem de novo?",
+                success=False,
+                error_message=str(e),
+                usage={
+                    "model": self.free_model,
+                    "request_tokens": 0,
+                    "response_tokens": 0,
+                    "total_tokens": 0
+                }
             )
     
     async def _check_conversation_code_requirement(self, user_id: Optional[str]) -> bool:
