@@ -146,19 +146,15 @@ async def initialize_mcp_servers() -> None:
             
         logger.info(f"🔗 Found {len(mcp_configs)} MCP server configurations in database")
         
-        # Initialize each server
-        initialized_count = 0
-        for config in mcp_configs:
-            try:
-                # Add server to manager (this should initialize the connection)
-                await mcp_manager.add_server(config.name, config.config)
-                initialized_count += 1
-                logger.info(f"   ✅ Initialized MCP server: {config.name}")
-                
-            except Exception as e:
-                logger.warning(f"   ❌ Failed to initialize MCP server {config.name}: {e}")
+        # The MCP manager has already loaded and started enabled servers during initialization
+        # Just report the status
+        server_list = mcp_manager.list_servers()
+        initialized_count = len(server_list)
         
-        logger.info(f"✅ MCP server initialization complete: {initialized_count}/{len(mcp_configs)} servers")
+        for server_info in server_list:
+            logger.info(f"   ✅ MCP server running: {server_info['name']} ({server_info['type']})")
+        
+        logger.info(f"✅ MCP server initialization complete: {initialized_count} servers running")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize MCP servers: {e}")
