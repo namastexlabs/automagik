@@ -327,6 +327,26 @@ class SQLiteProvider(DatabaseProvider):
                         CREATE INDEX IF NOT EXISTS idx_tool_executions_session_id ON tool_executions(session_id);
                         CREATE INDEX IF NOT EXISTS idx_tool_executions_status ON tool_executions(status);
                         CREATE INDEX IF NOT EXISTS idx_tool_executions_executed_at ON tool_executions(executed_at);
+                        """,
+                        "workflow_processes": """
+                        CREATE TABLE IF NOT EXISTS workflow_processes (
+                            run_id TEXT PRIMARY KEY,
+                            pid INTEGER,
+                            status TEXT NOT NULL DEFAULT 'running',
+                            workflow_name TEXT,
+                            session_id TEXT,
+                            user_id TEXT,
+                            started_at TEXT DEFAULT (datetime('now')),
+                            workspace_path TEXT,
+                            last_heartbeat TEXT DEFAULT (datetime('now')),
+                            process_info TEXT DEFAULT '{}',
+                            created_at TEXT DEFAULT (datetime('now')),
+                            updated_at TEXT DEFAULT (datetime('now'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_status ON workflow_processes(status);
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_started_at ON workflow_processes(started_at);
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_last_heartbeat ON workflow_processes(last_heartbeat);
+                        CREATE INDEX IF NOT EXISTS idx_workflow_processes_session_id ON workflow_processes(session_id);
                         """
                     }
 
