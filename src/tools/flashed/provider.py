@@ -370,7 +370,7 @@ class FlashedProvider():
               - birthDate: Date of birth
               - metadata: Additional user metadata
         """
-        return await self._request("GET", f"/admin/user/{pretty_id}", header={"Authorization": self.auth_token})
+        return await self._request("GET", f"/user/{pretty_id}", header={"Authorization": self.auth_token})
 
     async def get_user_preferences(self, user_id: str) -> Dict[str, Any]:
         """Get user preferences.
@@ -404,3 +404,18 @@ class FlashedProvider():
             {"timestamp": "2023-01-01T12:05:00Z", "action": "search", "query": "math help"},
             {"timestamp": "2023-01-01T12:10:00Z", "action": "view_lesson", "lesson_id": "algebra-101"}
         ]
+
+    async def check_user_pro_status_by_phone(self, phone: str) -> Dict[str, Any]:
+        """Check if user has Pro status available via phone number.
+        
+        Args:
+            phone: User phone number
+            
+        Returns:
+            Dict containing:
+            - userId: User UUID
+            - isWhatsappProAvailable: Boolean indicating Pro availability
+            - llmModel: Recommended model ("light" or "pro")
+            - userFeedbackMessage: Message for user (optional)
+        """
+        return await self._request("GET", f"/is-whatsapp-pro-available/{phone}", header={"Authorization": self.auth_token})
