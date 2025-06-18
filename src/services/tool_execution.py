@@ -4,13 +4,19 @@ import asyncio
 import importlib
 import logging
 from typing import Dict, Any, Optional
+
 try:
     from pydantic_ai import RunContext
+    PYDANTIC_AI_AVAILABLE = True
 except ImportError:
-    # Fallback if pydantic_ai is not available
+    PYDANTIC_AI_AVAILABLE = False
+    # Define a minimal fallback for when pydantic_ai is not available
     class RunContext:
-        def __init__(self, data):
-            self.data = data
+        def __init__(self, deps, model=None, usage=None, prompt=None):
+            self.deps = deps
+            self.model = model
+            self.usage = usage  
+            self.prompt = prompt
 
 from src.db.models import ToolDB
 from src.mcp import get_mcp_client_manager
@@ -60,8 +66,19 @@ async def _execute_code_tool(
         
         func = getattr(module, tool.function_name)
         
-        # Create RunContext
-        run_context = RunContext(context)
+        # Create RunContext with proper parameters
+        # Extract or create the required parameters for RunContext
+        model = context.get('model') or None
+        usage = context.get('usage') or None  
+        prompt = context.get('prompt') or None
+        
+        # Create RunContext with all required parameters
+        run_context = RunContext(
+            deps=context,  # Pass the full context as dependencies
+            model=model,
+            usage=usage,
+            prompt=prompt
+        )
         
         # Call the function
         if asyncio.iscoroutinefunction(func):
