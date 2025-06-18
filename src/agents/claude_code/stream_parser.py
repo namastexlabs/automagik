@@ -241,8 +241,14 @@ class StreamParser:
         assistant_messages = [m for m in messages if m["role"] == "assistant"]
         turns = len(assistant_messages)
         
+        # Check current status first
+        status = StreamParser.get_current_status(events)
+        
         # Calculate percentage
-        if max_turns is not None:
+        if status in ["completed", "failed"]:
+            # If workflow is completed or failed, always show 100%
+            percentage = 100
+        elif max_turns is not None:
             percentage = min(100, int((turns / max_turns) * 100))
         else:
             # No max_turns limit - show percentage based on activity phases
@@ -252,7 +258,11 @@ class StreamParser:
         tool_calls = StreamParser.extract_tool_calls(events)
         current_phase = "initializing"
         
-        if turns > 0:
+        if status == "completed":
+            current_phase = "completed"
+        elif status == "failed":
+            current_phase = "failed"
+        elif turns > 0:
             if any(tc["name"] in ["Read", "Glob", "Grep"] for tc in tool_calls[-5:]):
                 current_phase = "analyzing"
             elif any(tc["name"] in ["Edit", "Write", "MultiEdit"] for tc in tool_calls[-5:]):
@@ -267,5 +277,5 @@ class StreamParser:
             "max_turns": max_turns,
             "completion_percentage": percentage,
             "current_phase": current_phase,
-            "is_running": StreamParser.get_current_status(events) == "running"
+            "is_running": status == "running"
         }
