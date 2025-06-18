@@ -232,66 +232,76 @@ async def execute_tool_endpoint(
 class MCPToolCreateRequest(BaseModel):
     """Request for creating MCP tool."""
     name: str = Field(..., description="Tool name")
+    command: str = Field(..., description="Command to run (e.g., 'npx')")
+    args: List[str] = Field(..., description="Command arguments")
+    agent_names: List[str] = Field(default=["*"], description="Agents that can use this tool")
+    tools: Dict[str, List[str]] = Field(default={"include": ["*"]}, description="Tool filters")
+    env: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
     description: Optional[str] = Field(None, description="Tool description")
-    mcp_server_name: str = Field(..., description="MCP server name")
-    mcp_tool_name: str = Field(..., description="MCP tool name")
-    parameters_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema for parameters")
     categories: List[str] = Field(default_factory=list, description="Tool categories")
     enabled: bool = Field(True, description="Whether tool is enabled")
 
 
-@tool_router.post("/create/mcp", response_model=ToolCreateResponse)
-async def create_mcp_tool_endpoint(tool_data: MCPToolCreateRequest = Body(..., description="MCP tool creation data")):
-    """Create a new MCP tool."""
+class MCPServerCreateResponse(BaseModel):
+    """Response for MCP server creation."""
+    status: str = "success"
+    server_name: str
+    message: str
+    tools_will_be_discovered: bool = True
+
+
+@tool_router.post("/create/mcp", response_model=MCPServerCreateResponse)
+async def create_mcp_server_endpoint(server_data: MCPToolCreateRequest = Body(..., description="MCP server creation data")):
+    """Create a new MCP server configuration."""
     try:
-        logger.info(f"Creating new MCP tool: {tool_data.name}")
+        logger.info(f"Creating new MCP server: {server_data.name}")
         
-        # Check if tool already exists
-        existing_tool = get_tool_by_name(tool_data.name)
-        if existing_tool:
-            raise HTTPException(status_code=409, detail=f"Tool '{tool_data.name}' already exists")
+        # Read current .mcp.json
+        import json
+        import os
         
-        # Create the MCP tool
-        tool_create = ToolCreate(
-            name=tool_data.name,
-            type="mcp",
-            description=tool_data.description,
-            mcp_server_name=tool_data.mcp_server_name,
-            mcp_tool_name=tool_data.mcp_tool_name,
-            parameters_schema=tool_data.parameters_schema,
-            capabilities=[],  # Will be discovered
-            categories=tool_data.categories,
-            enabled=tool_data.enabled,
-            agent_restrictions=[]  # Default to all agents
-        )
+        mcp_config_path = ".mcp.json"
+        if os.path.exists(mcp_config_path):
+            with open(mcp_config_path, 'r') as f:
+                config = json.load(f)
+        else:
+            config = {"mcpServers": {}}
         
-        created_tool = create_tool(tool_create)
-        if not created_tool:
-            raise HTTPException(status_code=500, detail="Failed to create MCP tool")
+        # Check if server already exists
+        if server_data.name in config.get("mcpServers", {}):
+            raise HTTPException(status_code=409, detail=f"MCP server '{server_data.name}' already exists")
         
-        # Convert to API format
-        tool_info = ToolInfo(
-            name=created_tool.name,
-            type=created_tool.type,
-            description=created_tool.description or "",
-            server_name=created_tool.mcp_server_name,
-            module=created_tool.module_path,
-            context_signature="RunContext[Dict]",
-            parameters=_convert_schema_to_parameters(created_tool.parameters_schema)
-        )
+        # Create server configuration
+        server_config = {
+            "command": server_data.command,
+            "args": server_data.args,
+            "agent_names": server_data.agent_names,
+            "tools": server_data.tools
+        }
         
-        logger.info(f"Successfully created MCP tool: {tool_data.name}")
+        # Add environment variables if provided
+        if server_data.env:
+            server_config["env"] = server_data.env
         
-        return ToolCreateResponse(
-            tool=tool_info,
-            message=f"MCP tool '{tool_data.name}' created successfully"
+        # Add to configuration
+        config["mcpServers"][server_data.name] = server_config
+        
+        # Write back to .mcp.json
+        with open(mcp_config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"Successfully created MCP server: {server_data.name}")
+        
+        return MCPServerCreateResponse(
+            server_name=server_data.name,
+            message=f"MCP server '{server_data.name}' added to .mcp.json configuration. Restart the application to initialize the server and discover its tools."
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating MCP tool: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create MCP tool: {str(e)}")
+        logger.error(f"Error creating MCP server: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create MCP server: {str(e)}")
 
 
 @tool_router.put("/{tool_name}", response_model=ToolUpdateResponse)
