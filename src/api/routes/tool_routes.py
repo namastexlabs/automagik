@@ -23,7 +23,6 @@ from src.db.repository.tool import (
     log_tool_execution
 )
 from src.db.models import ToolCreate, ToolUpdate
-from src.services.tool_discovery import get_tool_discovery_service
 from src.services.tool_execution import execute_tool
 from src.api.models import ToolInfo, ToolExecuteRequest, ToolExecuteResponse
 
@@ -68,28 +67,6 @@ class ToolDeleteResponse(BaseModel):
     message: str
 
 
-class ToolDiscoveryResponse(BaseModel):
-    """Response for tool discovery."""
-    status: str = "success"
-    discovered: Dict[str, List[Dict[str, Any]]]
-    sync_stats: Dict[str, int]
-    message: str
-
-
-class MCPServerCreateRequest(BaseModel):
-    """Request for creating MCP server configuration."""
-    name: str = Field(..., description="Server name")
-    server_type: str = Field(..., description="Server type: stdio or http")
-    config: Dict[str, Any] = Field(..., description="Server configuration")
-    auto_discover: bool = Field(True, description="Auto-discover tools")
-
-
-class MCPServerCreateResponse(BaseModel):
-    """Response for MCP server creation."""
-    status: str = "success"
-    server_name: str
-    tools_discovered: List[str]
-    message: str
 
 
 # Main endpoints
@@ -376,106 +353,6 @@ async def list_tool_categories():
         logger.error(f"Error listing categories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list categories: {str(e)}")
 
-
-@tool_router.post("/discover", response_model=ToolDiscoveryResponse, dependencies=[Depends(get_api_key)])
-async def discover_tools():
-    """Discover and sync all available tools."""
-    try:
-        logger.info("Starting tool discovery and sync")
-        
-        discovery_service = get_tool_discovery_service()
-        
-        # Discover all tools
-        discovered = await discovery_service.discover_all_tools(force_refresh=True)
-        
-        # Sync to database
-        sync_stats = await discovery_service.sync_tools_to_database()
-        
-        logger.info(f"Tool discovery completed: {sync_stats}")
-        
-        return ToolDiscoveryResponse(
-            discovered=discovered,
-            sync_stats=sync_stats,
-            message=f"Discovered and synced {sync_stats['total']} tools"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error during tool discovery: {e}")
-        raise HTTPException(status_code=500, detail=f"Tool discovery failed: {str(e)}")
-
-
-# MCP server management endpoints
-@tool_router.post("/mcp/servers", response_model=MCPServerCreateResponse, dependencies=[Depends(get_api_key)])
-async def create_mcp_server(request: MCPServerCreateRequest = Body(..., description="MCP server creation request")):
-    """Create a new MCP server configuration and discover its tools."""
-    try:
-        logger.info(f"Creating MCP server: {request.name}")
-        
-        # Import MCP repository here to avoid circular imports
-        from src.db.repository.mcp import create_mcp_config, MCPConfigRequest
-        
-        # Create MCP server configuration
-        mcp_config_request = MCPConfigRequest(
-            name=request.name,
-            server_type=request.server_type,
-            config=request.config
-        )
-        
-        created_config = create_mcp_config(mcp_config_request)
-        if not created_config:
-            raise HTTPException(status_code=500, detail="Failed to create MCP server configuration")
-        
-        tools_discovered = []
-        
-        if request.auto_discover:
-            try:
-                # Discover tools from the new server
-                discovery_service = get_tool_discovery_service()
-                discovered = await discovery_service._discover_mcp_tools()
-                
-                # Filter tools from this server
-                server_tools = [
-                    tool for tool in discovered 
-                    if tool.get("server_name") == request.name
-                ]
-                
-                # Sync server tools to database
-                for tool_data in server_tools:
-                    try:
-                        tool_create = ToolCreate(
-                            name=tool_data["name"],
-                            type="mcp",
-                            description=tool_data["description"],
-                            mcp_server_name=tool_data["mcp_server_name"],
-                            mcp_tool_name=tool_data["mcp_tool_name"],
-                            parameters_schema=tool_data.get("parameters_schema"),
-                            capabilities=tool_data.get("capabilities", []),
-                            categories=tool_data.get("categories", [])
-                        )
-                        
-                        created_tool = create_tool(tool_create)
-                        if created_tool:
-                            tools_discovered.append(created_tool.name)
-                            
-                    except Exception as e:
-                        logger.warning(f"Failed to create tool {tool_data['name']}: {e}")
-                        
-            except Exception as e:
-                logger.warning(f"Failed to auto-discover tools for server {request.name}: {e}")
-        
-        logger.info(f"Successfully created MCP server {request.name} with {len(tools_discovered)} tools")
-        
-        return MCPServerCreateResponse(
-            server_name=request.name,
-            tools_discovered=tools_discovered,
-            message=f"MCP server '{request.name}' created with {len(tools_discovered)} tools discovered"
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating MCP server: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create MCP server: {str(e)}")
 
 
 # Helper functions
