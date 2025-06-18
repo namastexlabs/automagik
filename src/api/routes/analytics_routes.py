@@ -1,13 +1,78 @@
-"""Analytics API routes for token usage reporting."""
+"""Analytics API routes for token usage reporting using repository pattern."""
 
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from typing import Optional, Dict, List, Any
 import logging
+import uuid
+from datetime import datetime, timedelta
 
-from src.services.token_analytics import TokenAnalyticsService
+from src.db import list_session_messages, list_sessions
+from src.db.connection import safe_uuid
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 logger = logging.getLogger(__name__)
+
+
+def _extract_usage_from_messages(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Helper function to extract and aggregate usage data from messages."""
+    total_tokens = 0
+    total_requests = 0
+    models = {}
+    message_count = 0
+    
+    for message in messages:
+        usage = message.get('usage')
+        if not usage:
+            continue
+        
+        # Parse usage data if it's a string
+        if isinstance(usage, str):
+            try:
+                import json
+                usage = json.loads(usage)
+            except:
+                continue
+        
+        if not isinstance(usage, dict):
+            continue
+            
+        message_count += 1
+            
+        model = usage.get('model', 'unknown')
+        framework = usage.get('framework', 'unknown')
+        key = f"{model}_{framework}"
+        
+        if key not in models:
+            models[key] = {
+                "model": model,
+                "framework": framework,
+                "message_count": 0,
+                "total_requests": 0,
+                "request_tokens": 0,
+                "response_tokens": 0,
+                "total_tokens": 0,
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0
+            }
+        
+        models[key]["message_count"] += 1
+        models[key]["total_requests"] += usage.get('total_requests', 0)
+        models[key]["request_tokens"] += usage.get('request_tokens', 0)
+        models[key]["response_tokens"] += usage.get('response_tokens', 0)
+        models[key]["total_tokens"] += usage.get('total_tokens', 0)
+        models[key]["cache_creation_tokens"] += usage.get('cache_creation_tokens', 0)
+        models[key]["cache_read_tokens"] += usage.get('cache_read_tokens', 0)
+        
+        total_tokens += usage.get('total_tokens', 0)
+        total_requests += usage.get('total_requests', 0)
+    
+    return {
+        "total_tokens": total_tokens,
+        "total_requests": total_requests,
+        "message_count": message_count,
+        "models": list(models.values()),
+        "unique_models": len(models)
+    }
 
 
 @router.get("/sessions/{session_id}/usage")
@@ -21,12 +86,51 @@ async def get_session_usage(session_id: str):
         Detailed usage summary grouped by model
     """
     try:
-        result = TokenAnalyticsService.get_session_usage_summary(session_id)
+        # Validate session ID
+        session_uuid = safe_uuid(session_id)
+        if not session_uuid:
+            raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
+        # Get all messages for the session
+        messages, total_count = list_session_messages(session_uuid)
         
-        return result
+        if not messages:
+            return {
+                "session_id": session_id,
+                "total_tokens": 0,
+                "total_requests": 0,
+                "models": [],
+                "summary": {
+                    "message_count": 0,
+                    "unique_models": 0,
+                    "total_request_tokens": 0,
+                    "total_response_tokens": 0,
+                    "total_cache_tokens": 0
+                }
+            }
+        
+        # Extract usage data
+        usage_data = _extract_usage_from_messages(messages)
+        
+        # Calculate summary
+        total_request_tokens = sum(m["request_tokens"] for m in usage_data["models"])
+        total_response_tokens = sum(m["response_tokens"] for m in usage_data["models"])
+        total_cache_tokens = sum(m["cache_creation_tokens"] + m["cache_read_tokens"] for m in usage_data["models"])
+        
+        return {
+            "session_id": session_id,
+            "total_tokens": usage_data["total_tokens"],
+            "total_requests": usage_data["total_requests"],
+            "models": usage_data["models"],
+            "summary": {
+                "message_count": usage_data["message_count"],
+                "unique_models": usage_data["unique_models"],
+                "total_request_tokens": total_request_tokens,
+                "total_response_tokens": total_response_tokens,
+                "total_cache_tokens": total_cache_tokens,
+                "analysis_timestamp": datetime.utcnow().isoformat()
+            }
+        }
         
     except HTTPException:
         raise
@@ -50,12 +154,62 @@ async def get_user_usage(
         User usage summary across sessions
     """
     try:
-        result = TokenAnalyticsService.get_user_usage_summary(user_id, days)
+        # Validate user ID
+        user_uuid = safe_uuid(user_id)
+        if not user_uuid:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
         
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
+        # Get user sessions
+        sessions, _ = list_sessions(user_id=user_uuid, page_size=1000)  # Limit to prevent huge queries
         
-        return result
+        if not sessions:
+            return {
+                "user_id": user_id,
+                "days_analyzed": days,
+                "total_tokens": 0,
+                "models": [],
+                "summary": {"session_count": 0, "message_count": 0, "unique_models": 0}
+            }
+        
+        # Collect all messages from all sessions
+        all_messages = []
+        session_count = 0
+        
+        # Filter sessions by date if specified
+        if days:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            
+        for session in sessions:
+            # Skip sessions outside date range
+            if days and session.get('created_at'):
+                try:
+                    session_date = datetime.fromisoformat(session['created_at'].replace('Z', '+00:00'))
+                    if session_date < cutoff_date:
+                        continue
+                except:
+                    pass  # Continue if date parsing fails
+            
+            session_count += 1
+            session_uuid = safe_uuid(session['id'])
+            if session_uuid:
+                messages, _ = list_session_messages(session_uuid)
+                all_messages.extend(messages)
+        
+        # Extract usage data
+        usage_data = _extract_usage_from_messages(all_messages)
+        
+        return {
+            "user_id": user_id,
+            "days_analyzed": days,
+            "total_tokens": usage_data["total_tokens"],
+            "models": usage_data["models"],
+            "summary": {
+                "session_count": session_count,
+                "message_count": usage_data["message_count"],
+                "unique_models": usage_data["unique_models"],
+                "analysis_timestamp": datetime.utcnow().isoformat()
+            }
+        }
         
     except HTTPException:
         raise
@@ -76,15 +230,65 @@ async def get_agent_usage(
         days: Number of days to look back (default: 30)
         
     Returns:
-        Agent usage summary across sessions and users
+        Agent usage summary across sessions
     """
     try:
-        result = TokenAnalyticsService.get_agent_usage_summary(agent_id, days)
+        # Get agent sessions
+        sessions, _ = list_sessions(agent_id=agent_id, page_size=1000)
         
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
+        if not sessions:
+            return {
+                "agent_id": agent_id,
+                "days_analyzed": days,
+                "total_tokens": 0,
+                "models": [],
+                "summary": {"session_count": 0, "user_count": 0, "message_count": 0, "unique_models": 0}
+            }
         
-        return result
+        # Collect all messages from all sessions
+        all_messages = []
+        session_count = 0
+        unique_users = set()
+        
+        # Filter sessions by date if specified
+        if days:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            
+        for session in sessions:
+            # Skip sessions outside date range
+            if days and session.get('created_at'):
+                try:
+                    session_date = datetime.fromisoformat(session['created_at'].replace('Z', '+00:00'))
+                    if session_date < cutoff_date:
+                        continue
+                except:
+                    pass
+            
+            session_count += 1
+            if session.get('user_id'):
+                unique_users.add(session['user_id'])
+            
+            session_uuid = safe_uuid(session['id'])
+            if session_uuid:
+                messages, _ = list_session_messages(session_uuid)
+                all_messages.extend(messages)
+        
+        # Extract usage data
+        usage_data = _extract_usage_from_messages(all_messages)
+        
+        return {
+            "agent_id": agent_id,
+            "days_analyzed": days,
+            "total_tokens": usage_data["total_tokens"],
+            "models": usage_data["models"],
+            "summary": {
+                "session_count": session_count,
+                "user_count": len(unique_users),
+                "message_count": usage_data["message_count"],
+                "unique_models": usage_data["unique_models"],
+                "analysis_timestamp": datetime.utcnow().isoformat()
+            }
+        }
         
     except HTTPException:
         raise
@@ -95,8 +299,8 @@ async def get_agent_usage(
 
 @router.get("/sessions/top-usage")
 async def get_top_usage_sessions(
-    limit: Optional[int] = Query(10, description="Number of sessions to return", ge=1, le=100),
-    days: Optional[int] = Query(7, description="Number of days to analyze", ge=1, le=365)
+    limit: Optional[int] = Query(10, description="Number of top sessions to return", ge=1, le=100),
+    days: Optional[int] = Query(7, description="Number of days to look back", ge=1, le=365)
 ):
     """Get sessions with highest token usage.
     
@@ -108,15 +312,66 @@ async def get_top_usage_sessions(
         List of sessions ordered by token usage
     """
     try:
-        result = TokenAnalyticsService.get_top_usage_sessions(limit, days)
+        # Get all sessions within date range
+        sessions, _ = list_sessions(page_size=1000)  # Get up to 1000 sessions
+        
+        if not sessions:
+            return {
+                "count": 0,
+                "limit": limit,
+                "days_analyzed": days,
+                "sessions": []
+            }
+        
+        session_usage = []
+        
+        # Filter sessions by date if specified
+        if days:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+        
+        for session in sessions:
+            # Skip sessions outside date range
+            if days and session.get('created_at'):
+                try:
+                    session_date = datetime.fromisoformat(session['created_at'].replace('Z', '+00:00'))
+                    if session_date < cutoff_date:
+                        continue
+                except:
+                    pass
+            
+            session_uuid = safe_uuid(session['id'])
+            if not session_uuid:
+                continue
+                
+            messages, _ = list_session_messages(session_uuid)
+            usage_data = _extract_usage_from_messages(messages)
+            
+            if usage_data["total_tokens"] > 0:
+                session_usage.append({
+                    "session_id": str(session['id']),
+                    "message_count": usage_data["message_count"],
+                    "total_tokens": usage_data["total_tokens"],
+                    "request_tokens": sum(m["request_tokens"] for m in usage_data["models"]),
+                    "response_tokens": sum(m["response_tokens"] for m in usage_data["models"]),
+                    "unique_models": usage_data["unique_models"],
+                    "models_used": [m["model"] for m in usage_data["models"]],
+                    "session_start": session.get('created_at'),
+                    "session_end": session.get('updated_at')
+                })
+        
+        # Sort by total tokens and limit
+        session_usage.sort(key=lambda x: x["total_tokens"], reverse=True)
+        session_usage = session_usage[:limit]
         
         return {
-            "sessions": result,
+            "count": len(session_usage),
             "limit": limit,
             "days_analyzed": days,
-            "count": len(result)
+            "sessions": session_usage
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting top usage sessions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
