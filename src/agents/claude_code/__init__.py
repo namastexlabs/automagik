@@ -62,6 +62,9 @@ try:
     ClaudeCodeAgent = _get_claude_code_agent()
     LogManager, get_log_manager = _get_log_manager()
     
+    # Import SDK executor
+    from .sdk_executor import ClaudeSDKExecutor
+    
     # Load models lazily on first access
     _models_cache = None
     def _load_models():
@@ -128,6 +131,7 @@ except Exception as e:
 __all__ = [
     'create_agent',
     'ClaudeCodeAgent',
+    'ClaudeSDKExecutor',
     'LogManager',
     'get_log_manager',
     'ClaudeCodeRunRequest',
