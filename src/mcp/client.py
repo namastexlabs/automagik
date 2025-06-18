@@ -180,18 +180,17 @@ class MCPManager:
     async def _load_mcp_json_file(self) -> None:
         """Load configurations from .mcp.json file.
         
-        This supports the .mcp.json format defined in the architecture:
+        This supports the actual .mcp.json format used in this codebase:
         {
-          "version": "1.0",
-          "configs": [
-            {
-              "name": "agent-memory",
-              "server_type": "stdio",
-              "command": ["python", "-m", "agent_memory.server"],
-              "agents": ["*"],
-              "tools": {"include": ["*"]}
+          "mcpServers": {
+            "server-name": {
+              "command": "npx",
+              "args": ["-y", "package"],
+              "agent_names": ["*"],
+              "tools": {"include": ["*"]},
+              "env": {...}
             }
-          ]
+          }
         }
         """
         try:
@@ -200,56 +199,79 @@ class MCPManager:
             with open(self._config_file_path, 'r') as f:
                 data = json.load(f)
             
-            # Handle the new .mcp.json format from architecture
-            configs_data = data.get('configs', [])
+            # Handle the actual .mcp.json format (mcpServers object)
+            mcp_servers = data.get('mcpServers', {})
             
-            for config_data in configs_data:
-                name = config_data.get('name')
-                if not name:
-                    logger.warning("Skipping config without name in .mcp.json")
-                    continue
+            for server_name, config_data in mcp_servers.items():
+                # Determine server type from config structure
+                if 'command' in config_data:
+                    server_type = 'stdio'
+                elif 'url' in config_data or config_data.get('type') == 'sse':
+                    # Map SSE to HTTP for PydanticAI compatibility
+                    server_type = 'http'
+                else:
+                    server_type = 'stdio'  # Default
                 
                 # Convert .mcp.json format to our internal MCPConfig format
                 internal_config = {
-                    'name': name,
-                    'server_type': config_data.get('server_type', 'stdio'),
-                    'agents': config_data.get('agents', ['*']),
+                    'name': server_name,
+                    'server_type': server_type,
+                    'agents': config_data.get('agent_names', ['*']),
                     'tools': config_data.get('tools', {'include': ['*']}),
                     'enabled': config_data.get('enabled', True),
                     'auto_start': config_data.get('auto_start', True),
                     'timeout': config_data.get('timeout', 30000),
                     'retry_count': config_data.get('retry_count', 3),
-                    'environment': config_data.get('environment', {})
+                    'environment': config_data.get('env', {})
                 }
                 
                 # Add type-specific configuration
-                if config_data.get('server_type') == 'stdio':
-                    internal_config['command'] = config_data.get('command', [])
-                elif config_data.get('server_type') == 'http':
+                if server_type == 'stdio':
+                    # Combine command and args into a single command array
+                    command = config_data.get('command', '')
+                    args = config_data.get('args', [])
+                    if isinstance(command, str):
+                        internal_config['command'] = [command] + args
+                    else:
+                        internal_config['command'] = command + args
+                elif server_type == 'http':
                     internal_config['url'] = config_data.get('url', '')
                 
                 # Create MCPConfig object (this will be stored in database in future versions)
                 # For now, we'll simulate the MCPConfig structure
+                def create_file_config_methods(cfg):
+                    def is_enabled():
+                        return cfg.get('enabled', True)
+                    def is_assigned_to_agent(agent):
+                        return self._is_agent_assigned(cfg.get('agents', []), agent)
+                    def get_server_type():
+                        return cfg.get('server_type', 'stdio')
+                    def should_include_tool(tool):
+                        return self._should_include_tool(cfg.get('tools', {}), tool)
+                    return is_enabled, is_assigned_to_agent, get_server_type, should_include_tool
+                
+                is_enabled_fn, is_assigned_fn, get_type_fn, should_include_fn = create_file_config_methods(internal_config)
+                
                 mock_config = type('MCPConfig', (), {
-                    'name': name,
+                    'name': server_name,
                     'config': internal_config,
-                    'id': f"file-{name}",
+                    'id': f"file-{server_name}",
                     'created_at': datetime.now(),
                     'updated_at': datetime.now(),
-                    'is_enabled': lambda: internal_config.get('enabled', True),
-                    'is_assigned_to_agent': lambda agent: self._is_agent_assigned(internal_config.get('agents', []), agent),
-                    'get_server_type': lambda: internal_config.get('server_type', 'stdio'),
-                    'should_include_tool': lambda tool: self._should_include_tool(internal_config.get('tools', {}), tool)
+                    'is_enabled': is_enabled_fn,
+                    'is_assigned_to_agent': is_assigned_fn,
+                    'get_server_type': get_type_fn,
+                    'should_include_tool': should_include_fn
                 })()
                 
                 # Cache the config (database configs take precedence)
-                if name not in self._config_cache:
-                    self._config_cache[name] = mock_config
-                    logger.debug(f"Loaded config from .mcp.json: {name}")
+                if server_name not in self._config_cache:
+                    self._config_cache[server_name] = mock_config
+                    logger.debug(f"Loaded config from .mcp.json: {server_name}")
                 else:
-                    logger.debug(f"Config {name} already in database, skipping .mcp.json version")
+                    logger.debug(f"Config {server_name} already in database, skipping .mcp.json version")
             
-            logger.info(f"Loaded {len(configs_data)} configurations from .mcp.json")
+            logger.info(f"Loaded {len(mcp_servers)} configurations from .mcp.json")
             
         except FileNotFoundError:
             logger.info(".mcp.json file not found, using database configs only")
@@ -324,7 +346,7 @@ class MCPManager:
                 )
                 
             elif server_type == 'http':
-                # Use PydanticAI's MCPServerHTTP
+                # Use PydanticAI's MCPServerHTTP (supports both HTTP and SSE)
                 url = server_config.get('url', '')
                 
                 server = MCPServerHTTP(
@@ -333,7 +355,8 @@ class MCPManager:
                 )
                 
             else:
-                raise MCPError(f"Unsupported server type: {server_type}")
+                logger.warning(f"Unsupported server type '{server_type}' for server {config.name}, skipping")
+                return
             
             # PydanticAI MCP servers are context managers, not persistent objects
             # For now, just validate that we can create the server object
@@ -414,6 +437,78 @@ class MCPManager:
                 return await self._original_tool(*args, **kwargs)
         
         return PrefixedTool(tool, prefixed_name)
+    
+    async def add_server(self, server_name: str, config: Dict[str, Any]) -> bool:
+        """Add a server configuration and start it.
+        
+        Args:
+            server_name: Name of the server
+            config: Server configuration dictionary
+            
+        Returns:
+            True if server was added successfully
+        """
+        try:
+            # Create a mock MCPConfig object
+            def create_config_methods(cfg):
+                def is_enabled():
+                    return cfg.get('enabled', True)
+                def is_assigned_to_agent(agent):
+                    return self._is_agent_assigned(cfg.get('agents', ['*']), agent)
+                def get_server_type():
+                    return cfg.get('server_type', 'stdio')
+                def should_include_tool(tool):
+                    return self._should_include_tool(cfg.get('tools', {'include': ['*']}), tool)
+                return is_enabled, is_assigned_to_agent, get_server_type, should_include_tool
+            
+            is_enabled_fn, is_assigned_fn, get_type_fn, should_include_fn = create_config_methods(config)
+            
+            mock_config = type('MCPConfig', (), {
+                'name': server_name,
+                'config': config,
+                'id': f"runtime-{server_name}",
+                'created_at': datetime.now(),
+                'updated_at': datetime.now(),
+                'is_enabled': is_enabled_fn,
+                'is_assigned_to_agent': is_assigned_fn,
+                'get_server_type': get_type_fn,
+                'should_include_tool': should_include_fn
+            })()
+            
+            # Add to cache and start server
+            self._config_cache[server_name] = mock_config
+            await self._create_and_start_server(mock_config)
+            
+            logger.info(f"Added and started MCP server: {server_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to add server {server_name}: {str(e)}")
+            return False
+    
+    async def list_tools(self, server_name: str) -> List[Dict[str, Any]]:
+        """List all tools from a specific MCP server.
+        
+        Args:
+            server_name: Name of the MCP server
+            
+        Returns:
+            List of tool information dictionaries
+        """
+        server = self._servers.get(server_name)
+        if not server:
+            logger.warning(f"Server {server_name} not found or not running")
+            return []
+        
+        try:
+            # Note: PydanticAI MCP servers don't expose tools until connected
+            # For now, return empty list - tools will be discovered during actual connections
+            logger.debug(f"Listing tools for server {server_name} (placeholder)")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Failed to list tools from server {server_name}: {str(e)}")
+            return []
     
     async def call_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """Call a tool on a specific MCP server.
