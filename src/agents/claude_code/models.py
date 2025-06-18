@@ -447,15 +447,7 @@ class ExecutionStatus(str, Enum):
 
 
 class WorkflowType(str, Enum):
-    """Available workflow types."""
-    ARCHITECT = "architect"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    FIX = "fix"
-    REFACTOR = "refactor"
-    DOCUMENT = "document"
-    PR = "pr"
+    """Available workflow types - dynamically discovered from filesystem."""
 
 
 class ContainerConfig(BaseModel):

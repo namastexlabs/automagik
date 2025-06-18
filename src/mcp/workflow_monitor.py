@@ -35,15 +35,7 @@ class WorkflowType(Enum):
     BUILDER = "builder" 
     LINA = "lina"
     BRAIN = "brain"
-    GUARDIAN = "guardian"
-    ARCHITECT = "architect"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    FIX = "fix"
-    REFACTOR = "refactor"
-    DOCUMENT = "document"
-    PR = "pr"
+    # Dynamic workflow system - workflows are discovered at runtime
 
 
 @dataclass
@@ -126,106 +118,13 @@ class WorkflowMonitor:
                 stale_threshold_minutes=5,
                 auto_kill_enabled=True
             ),
-            WorkflowType.GUARDIAN: TimeoutConfig(
-                workflow_type=WorkflowType.GUARDIAN,
-                timeout_minutes=35,
-                warning_threshold_minutes=30,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.ARCHITECT: TimeoutConfig(
-                workflow_type=WorkflowType.ARCHITECT,
-                timeout_minutes=45,
-                warning_threshold_minutes=40,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.IMPLEMENT: TimeoutConfig(
-                workflow_type=WorkflowType.IMPLEMENT,
-                timeout_minutes=60,
-                warning_threshold_minutes=50,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.TEST: TimeoutConfig(
-                workflow_type=WorkflowType.TEST,
-                timeout_minutes=30,
-                warning_threshold_minutes=25,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.REVIEW: TimeoutConfig(
-                workflow_type=WorkflowType.REVIEW,
-                timeout_minutes=20,
-                warning_threshold_minutes=17,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.FIX: TimeoutConfig(
-                workflow_type=WorkflowType.FIX,
-                timeout_minutes=25,
-                warning_threshold_minutes=22,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.REFACTOR: TimeoutConfig(
-                workflow_type=WorkflowType.REFACTOR,
-                timeout_minutes=35,
-                warning_threshold_minutes=30,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.DOCUMENT: TimeoutConfig(
-                workflow_type=WorkflowType.DOCUMENT,
-                timeout_minutes=25,
-                warning_threshold_minutes=22,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            ),
-            WorkflowType.PR: TimeoutConfig(
-                workflow_type=WorkflowType.PR,
-                timeout_minutes=15,
-                warning_threshold_minutes=13,
-                heartbeat_interval_seconds=60,
-                stale_threshold_minutes=5,
-                auto_kill_enabled=True
-            )
+            # Dynamic workflows use default timeout config
         }
         
         logger.info("🛡️ GUARDIAN WorkflowMonitor initialized with safety trigger integration")
     
     def get_workflow_type(self, workflow_name: str) -> WorkflowType:
-        """Determine workflow type from workflow name."""
-        workflow_name_lower = workflow_name.lower()
-        
-        # Map workflow names to types
-        workflow_mappings = {
-            'builder': WorkflowType.BUILDER,
-            'lina': WorkflowType.LINA,
-            'brain': WorkflowType.BRAIN,
-            'guardian': WorkflowType.GUARDIAN,
-            'architect': WorkflowType.ARCHITECT,
-            'implement': WorkflowType.IMPLEMENT,
-            'test': WorkflowType.TEST,
-            'review': WorkflowType.REVIEW,
-            'fix': WorkflowType.FIX,
-            'refactor': WorkflowType.REFACTOR,
-            'document': WorkflowType.DOCUMENT,
-            'pr': WorkflowType.PR
-        }
-        
-        for name_pattern, workflow_type in workflow_mappings.items():
-            if name_pattern in workflow_name_lower:
-                return workflow_type
-        
+        """Dynamic workflow system - all workflows use default config."""
         return WorkflowType.DEFAULT
     
     def get_timeout_config(self, workflow_name: str) -> TimeoutConfig:
