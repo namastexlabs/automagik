@@ -10,7 +10,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
 
@@ -159,6 +159,10 @@ class ClaudeSDKExecutor(ExecutorBase):
             if hasattr(options, key) and value is not None:
                 setattr(options, key, value)
         
+        # Handle model parameter specifically
+        if 'model' in kwargs and kwargs['model']:
+            options.model = kwargs['model']
+        
         # Handle max_thinking_tokens if provided
         if 'max_thinking_tokens' in kwargs and kwargs['max_thinking_tokens'] is not None:
             options.max_thinking_tokens = kwargs['max_thinking_tokens']
@@ -186,7 +190,7 @@ class ClaudeSDKExecutor(ExecutorBase):
         # Create a request object
         request = ClaudeCodeRunRequest(
             message=message,
-            model=kwargs.get('model', 'claude-3-5-sonnet-20241022'),
+            model=kwargs.get('model', 'sonnet'),
             max_turns=kwargs.get('max_turns'),
             max_thinking_tokens=kwargs.get('max_thinking_tokens')
         )
@@ -318,12 +322,9 @@ class ClaudeSDKExecutor(ExecutorBase):
         
         # Execute the task using SDK query function - SIMPLIFIED (no TaskGroup error handling)
         messages = []
-        final_result_message = None
         execution_incomplete = False
         
         # Initialize comprehensive metrics tracking
-        total_cost = 0.0
-        total_turns = 0
         tools_used = []
         token_details = {
             'total_tokens': 0,
@@ -361,7 +362,6 @@ class ClaudeSDKExecutor(ExecutorBase):
             execution_incomplete = True
         
         # Continue with message processing (same logic as original)
-        from claude_code_sdk import ResultMessage, AssistantMessage, ToolUseBlock
         
         logger.info(f"SDK Executor (ISOLATED): Processing {len(collected_messages)} collected messages")
         
@@ -424,6 +424,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             # Build options with file-based configs
             options = self._build_options(
                 workspace_path,
+                model=request.model,
                 max_turns=request.max_turns,
                 environment=request.environment
             )
@@ -527,7 +528,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             
             # If no final_result_message was found but we captured metrics during streaming, use those
             if not final_result_message and final_metrics:
-                logger.info(f"SDK Executor: Using captured streaming metrics (no ResultMessage found)")
+                logger.info("SDK Executor: Using captured streaming metrics (no ResultMessage found)")
                 total_cost = final_metrics['total_cost_usd']
                 total_turns = final_metrics['num_turns']
             
@@ -568,7 +569,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             if execution_incomplete:
                 success = False
                 result_text += "\n\n⚠️ EXECUTION TRUNCATED: TaskGroup conflict caused premature termination"
-                logger.error(f"SDK Executor: Marking execution as failed due to TaskGroup conflict")
+                logger.error("SDK Executor: Marking execution as failed due to TaskGroup conflict")
             
             execution_time = time.time() - start_time
             
@@ -596,9 +597,9 @@ class ClaudeSDKExecutor(ExecutorBase):
                 if len(tools_used) > 0:
                     logger.info(f"SDK Executor: Fallback extraction successful - captured {len(tools_used)} tools")
                 else:
-                    logger.error(f"SDK Executor: Both primary and fallback tool extraction failed")
+                    logger.error("SDK Executor: Both primary and fallback tool extraction failed")
             elif len(tools_used) > 0:
-                logger.info(f"SDK Executor: SUCCESS - Tool extraction working correctly!")
+                logger.info("SDK Executor: SUCCESS - Tool extraction working correctly!")
             
             # Extract git commits if any (TODO: parse from tool usage)
             git_commits = []
@@ -696,6 +697,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             # Build options
             options = self._build_options(
                 workspace_path,
+                model=request.model,
                 max_turns=request.max_turns,
                 environment=request.environment
             )
@@ -780,6 +782,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             # Build options with file-based configs
             options = self._build_options(
                 workspace_path,
+                model=request.model,
                 max_turns=request.max_turns,
                 environment=request.environment
             )
