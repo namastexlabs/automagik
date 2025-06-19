@@ -138,6 +138,7 @@ class ResultInfo(BaseModel):
     final_output: Optional[str] = Field(None, description="Final output from Claude (truncated)")
     files_created: List[str] = Field(default_factory=list, description="List of files created during workflow")
     git_commits: List[str] = Field(default_factory=list, description="Git commits created")
+    files_changed: List[Dict[str, Any]] = Field(default_factory=list, description="Git file changes with diffs")
 
 
 class EnhancedStatusResponse(BaseModel):

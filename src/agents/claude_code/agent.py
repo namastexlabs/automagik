@@ -724,18 +724,32 @@ class ClaudeCodeAgent(AutomagikAgent):
                 # Determine proper status based on result
                 final_status = "completed" if result.get("success") else "failed"
                 
+                # Extract comprehensive SDK executor data
+                token_details = result.get("token_details", {})
+                
                 metadata.update({
                     "run_status": final_status,
                     "completed_at": datetime.utcnow().isoformat(),
                     "exit_code": result.get("exit_code", -1),
                     "success": result.get("success", False),
                     "final_result": result.get("result", ""),
-                    "total_cost_usd": result.get("cost_usd", 0.0),
+                    # Cost and turn data
+                    "total_cost_usd": result.get("total_cost_usd", result.get("cost_usd", 0.0)),
                     "total_turns": result.get("total_turns", 0),
-                    "tools_used": result.get("tools_used", [])
+                    # Comprehensive token data from SDK
+                    "total_tokens": token_details.get("total_tokens", result.get("total_tokens", 0)),
+                    "input_tokens": token_details.get("input_tokens", result.get("input_tokens", 0)),
+                    "output_tokens": token_details.get("output_tokens", result.get("output_tokens", 0)),
+                    "cache_created": token_details.get("cache_created", 0),
+                    "cache_read": token_details.get("cache_read", 0),
+                    # Tools data
+                    "tools_used": result.get("tools_used", result.get("tool_names_used", [])),
+                    "tool_names_used": result.get("tool_names_used", result.get("tools_used", [])),
+                    # Store complete execution results for completion tracker
+                    "execution_results": result
                 })
                 
-                logger.info(f"Updated session {session_id} with final status: {final_status}")
+                logger.info(f"Updated session {session_id} with final status: {final_status}, cost: ${metadata.get('total_cost_usd', 0):.4f}, tokens: {metadata.get('total_tokens', 0)}, tools: {len(metadata.get('tools_used', []))}")
                 session_obj.metadata = metadata
                 update_session(session_obj)
             
