@@ -756,10 +756,13 @@ class ClaudeCodeAgent(AutomagikAgent):
             logger.info(f"Background workflow {workflow_name} completed: {result.get('success')}")
             
             # 🩺 SURGEON FIX: Auto-commit changes if workflow succeeded
+            logger.info(f"Auto-commit check: success={result.get('success')}, has_executor={hasattr(self, 'executor')}, has_env_mgr={hasattr(self.executor, 'environment_manager') if hasattr(self, 'executor') else False}")
             if result.get("success") and hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
                 try:
                     # Get workspace path from environment manager for this specific run
+                    logger.info(f"Active workspaces: {list(self.executor.environment_manager.active_workspaces.keys())}")
                     workspace_path = self.executor.environment_manager.active_workspaces.get(run_id)
+                    logger.info(f"Workspace path for {run_id}: {workspace_path}")
                     if workspace_path and workspace_path.exists():
                         logger.info(f"Attempting auto-commit for successful workflow {run_id}")
                         
