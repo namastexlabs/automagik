@@ -23,6 +23,8 @@ from .identification import (
     build_external_key,
     attach_user_by_external_key,
     attach_user_by_flashed_id_lookup,
+    find_user_by_whatsapp_id,
+    user_has_conversation_code,
 )
 from .memories import FlashinhoMemories
 from .session_utils import (
@@ -430,122 +432,61 @@ class FlashinhoV2(AutomagikAgent):
         )
 
     async def _check_conversation_code_requirement(self, user_id: Optional[str]) -> bool:
-        """Check if user needs to provide conversation code.
-        
-        Args:
-            user_id: User ID to check
-            
-        Returns:
-            True if conversation code is required, False otherwise
+        """Return *True* when the current user still needs to supply a
+        conversation-code.
+
+        Logic order:
+            1. Try WhatsApp-lookup (most common entry path).
+            2. If we already have a ``user_id`` – check if that DB user has the
+               code stored.
+            3. Default to *True* on any error (safe-side).
         """
         try:
-            logger.info(f"🧪 Checking conversation code requirement for user_id: {user_id}")
-            
-            # 🍝 SPAGHETTI APPROACH: Check for existing user by whatsapp_id in user_data
-            whatsapp_id = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-            
-            # If no WhatsApp ID in context, try to extract from channel payload
-            if not whatsapp_id and hasattr(self, 'current_channel_payload') and self.current_channel_payload:
-                user_data = self.current_channel_payload.get("user", {})
-                whatsapp_id = user_data.get("phone_number")
-                logger.info(f"🍝 Extracted WhatsApp ID from channel payload: {whatsapp_id}")
-            
+            # 1️⃣  WhatsApp based identification
+            whatsapp_id = (
+                self.context.get("whatsapp_user_number")
+                or self.context.get("user_phone_number")
+            )
+
+            if not whatsapp_id and getattr(self, "current_channel_payload", None):
+                whatsapp_id = (
+                    self.current_channel_payload.get("user", {}).get("phone_number")
+                )
+
             if whatsapp_id:
-                # 🔧 Ensure whatsapp_id is a string to prevent UUID attribute errors
-                if not isinstance(whatsapp_id, str):
-                    whatsapp_id = str(whatsapp_id)
-                logger.info(f"🍝 Checking for existing user with whatsapp_id: {whatsapp_id}")
-                try:
-                    from src.db.repository.user import list_users
-                    
-                    # Get all users and check their user_data for whatsapp_id
-                    users, _ = list_users(page=1, page_size=1000)  # Get all users
-                    
-                    for user in users:
-                        if user.user_data:
-                            stored_whatsapp_id = user.user_data.get("whatsapp_id")
-                            if stored_whatsapp_id:
-                                # Normalize both IDs for comparison - ensure they're strings
-                                stored_normalized = str(stored_whatsapp_id).replace("+", "").replace("-", "").replace("@s.whatsapp.net", "")
-                                current_normalized = str(whatsapp_id).replace("+", "").replace("-", "").replace("@s.whatsapp.net", "")
-                                
-                                logger.info(f"🍝 Comparing stored: '{stored_normalized}' vs current: '{current_normalized}'")
-                                
-                                if stored_normalized == current_normalized:
-                                    # Found user with matching whatsapp_id
-                                    conversation_code = user.user_data.get("flashed_conversation_code")
-                                    if conversation_code:
-                                        logger.info(f"🍝 Found existing user {user.id} with whatsapp_id {whatsapp_id} and conversation code!")
-                                        # 🍝 SPAGHETTI: Update current context to use this user
-                                        self.context["user_id"] = str(user.id)
-                                        self.context["flashed_user_id"] = user.user_data.get("flashed_user_id")
-                                        self.context["flashed_conversation_code"] = conversation_code
-                                        self.context["flashed_user_name"] = user.user_data.get("flashed_user_name")
-                                        self.context["user_identification_method"] = "whatsapp_id_lookup"
-                                        logger.info(f"🍝 Updated context to use existing user {user.id}")
-                                        
-                                        # 🔧 FIX: Sync session history with the identified user
-                                        if hasattr(self, 'current_message_history') and self.current_message_history:
-                                            history_user_id = self.current_message_history.user_id
-                                            if str(user.id) != str(history_user_id):
-                                                logger.info(f"🔄 Syncing session history from {history_user_id} to {user.id}")
-                                                await update_message_history_user_id(self.current_message_history, str(user.id))
-                                                await update_session_user_id(self.current_message_history, str(user.id))
-                                            # Make session persistent after user identification
-                                            await make_session_persistent(self, self.current_message_history, str(user.id))
-                                        
-                                        return False  # No need to ask for conversation code
-                                    else:
-                                        logger.info(f"🍝 Found user {user.id} with whatsapp_id but no conversation code")
-                                        # Update context to use this user but still require conversation code
-                                        self.context["user_id"] = str(user.id)
-                                        
-                                        # 🔧 FIX: Sync session history with the identified user
-                                        if hasattr(self, 'current_message_history') and self.current_message_history:
-                                            history_user_id = self.current_message_history.user_id
-                                            if str(user.id) != str(history_user_id):
-                                                logger.info(f"🔄 Syncing session history from {history_user_id} to {user.id}")
-                                                await update_message_history_user_id(self.current_message_history, str(user.id))
-                                                await update_session_user_id(self.current_message_history, str(user.id))
-                                            # Make session persistent after user identification
-                                            await make_session_persistent(self, self.current_message_history, str(user.id))
-                                        
-                                        return True
-                                    
-                except Exception as e:
-                    logger.error(f"🍝 Error in whatsapp_id lookup: {str(e)}")
-            
+                user = await find_user_by_whatsapp_id(str(whatsapp_id))
+                if user:
+                    # Update context with this user information in all cases.
+                    self.context.update(
+                        {
+                            "user_id": str(user.id),
+                            "flashed_user_id": user.user_data.get("flashed_user_id") if user.user_data else None,
+                            "flashed_conversation_code": user.user_data.get("flashed_conversation_code") if user.user_data else None,
+                            "flashed_user_name": user.user_data.get("flashed_user_name") if user.user_data else None,
+                            "user_identification_method": "whatsapp_id_lookup",
+                        }
+                    )
+
+                    await self._sync_session_after_identification(str(user.id))
+
+                    return not user_has_conversation_code(user)
+
+            # 2️⃣  Fallback to the supplied user_id from context
             if not user_id:
-                return True  # No user ID means conversation code required
-            
-            from src.db.repository.user import get_user
-            
-            # 🔧 Ensure user_id is a string before uuid.UUID conversion
-            if isinstance(user_id, uuid.UUID):
-                user_uuid = user_id
-            else:
-                user_uuid = uuid.UUID(str(user_id))
-            
-            # Get user from database
-            user = get_user(user_uuid)
-            
-            if not user:
-                return True  # User not found means conversation code required
-            
-            # Check if user has conversation code in user_data
-            user_data = user.user_data or {}
-            conversation_code = user_data.get("flashed_conversation_code")
-            
-            if not conversation_code:
-                logger.info(f"User {user_id} does not have conversation code - requiring code")
                 return True
-            
-            logger.info(f"User {user_id} has conversation code: {conversation_code}")
-            return False
-            
+
+            from src.db.repository.user import get_user
+            import uuid as _uuid
+
+            db_user = get_user(_uuid.UUID(str(user_id)))
+            if not db_user:
+                return True
+
+            return not user_has_conversation_code(db_user)
+
         except Exception as e:
-            logger.error(f"Error checking conversation code requirement: {str(e)}")
-            return True  # Default to requiring code on error
+            logger.error("Error checking conversation code requirement: %s", e)
+            return True  # Safe default
 
     async def _try_extract_and_process_conversation_code(self, message: str, user_id: Optional[str]) -> bool:
         """Try to extract conversation code from message and process it.
@@ -849,6 +790,16 @@ class FlashinhoV2(AutomagikAgent):
                     return
         except Exception as e:
             logger.error(f"Error during session_user_key lookup: {e}")
+
+    async def _sync_session_after_identification(self, user_id: str) -> None:
+        """Update history/session tables after we've attached a user."""
+        if not getattr(self, "current_message_history", None):
+            return
+        history = self.current_message_history
+        if str(history.user_id) != str(user_id):
+            await update_message_history_user_id(history, str(user_id))
+            await update_session_user_id(history, str(user_id))
+        await make_session_persistent(self, history, str(user_id))
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoV2:
