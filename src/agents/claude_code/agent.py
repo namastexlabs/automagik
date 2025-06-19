@@ -756,15 +756,15 @@ class ClaudeCodeAgent(AutomagikAgent):
             logger.info(f"Background workflow {workflow_name} completed: {result.get('success')}")
             
             # 🩺 SURGEON FIX: Auto-commit changes if workflow succeeded
-            logger.info(f"Auto-commit check: success={result.get('success')}, has_executor={hasattr(self, 'executor')}, has_env_mgr={hasattr(self.executor, 'environment_manager') if hasattr(self, 'executor') else False}")
-            if result.get("success") and hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
+            logger.info(f"📝 SURGEON AUTO-COMMIT: Checking conditions - Success: {result.get('success')}, Has executor: {hasattr(self, 'executor')}, Has env_mgr: {hasattr(self.executor, 'environment_manager') if hasattr(self, 'executor') else False}")
+            if result.get("success") and hasattr(self, 'executor') and hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
                 try:
                     # Get workspace path from environment manager for this specific run
-                    logger.info(f"Active workspaces: {list(self.executor.environment_manager.active_workspaces.keys())}")
+                    logger.info(f"📝 SURGEON AUTO-COMMIT: Active workspaces: {list(self.executor.environment_manager.active_workspaces.keys())}")
                     workspace_path = self.executor.environment_manager.active_workspaces.get(run_id)
-                    logger.info(f"Workspace path for {run_id}: {workspace_path}")
+                    logger.info(f"📝 SURGEON AUTO-COMMIT: Workspace path for {run_id}: {workspace_path}")
                     if workspace_path and workspace_path.exists():
-                        logger.info(f"Attempting auto-commit for successful workflow {run_id}")
+                        logger.info(f"📝 SURGEON AUTO-COMMIT: Attempting auto-commit for successful workflow {run_id}")
                         
                         # Create meaningful commit message
                         commit_message = f"{workflow_name}: {input_text[:80]}..." if input_text else f"Workflow {workflow_name} - Run {run_id[:8]}"
@@ -780,7 +780,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                         )
                         
                         if commit_result.get('success'):
-                            logger.info(f"Auto-commit successful for run {run_id}: {commit_result.get('commit_sha', 'N/A')}")
+                            logger.info(f"📝 SURGEON AUTO-COMMIT: ✅ SUCCESS for run {run_id}: {commit_result.get('commit_sha', 'N/A')}")
                             # Update session metadata with commit info
                             if session_obj:
                                 metadata = session_obj.metadata or {}
@@ -792,11 +792,15 @@ class ClaudeCodeAgent(AutomagikAgent):
                                 session_obj.metadata = metadata
                                 update_session(session_obj)
                         else:
-                            logger.warning(f"Auto-commit failed for run {run_id}: {commit_result.get('error', 'Unknown error')}")
+                            logger.warning(f"📝 SURGEON AUTO-COMMIT: ❌ FAILED for run {run_id}: {commit_result.get('error', 'Unknown error')}")
+                    else:
+                        logger.warning(f"📝 SURGEON AUTO-COMMIT: ⚠️  No workspace path found for run {run_id}")
                             
                 except Exception as commit_error:
-                    logger.error(f"Auto-commit exception for run {run_id}: {commit_error}")
+                    logger.error(f"📝 SURGEON AUTO-COMMIT: 💥 EXCEPTION for run {run_id}: {commit_error}")
                     # Don't fail the workflow for commit errors
+            else:
+                logger.info(f"📝 SURGEON AUTO-COMMIT: ⏭️  SKIPPED - Conditions not met")
             
         except Exception as e:
             logger.error(f"Error in background workflow execution: {str(e)}")
