@@ -89,6 +89,60 @@ def list_messages(session_id: uuid.UUID, offset: int = 0,
         return []
 
 
+def list_messages_for_user(session_id: uuid.UUID, user_id: Optional[uuid.UUID] = None, 
+                          offset: int = 0, limit: Optional[int] = None, 
+                          sort_desc: bool = False) -> List[Message]:
+    """List messages for a session, optionally filtered by user_id.
+    
+    Args:
+        session_id: The UUID of the session
+        user_id: Optional user UUID to filter messages (None returns all users)
+        offset: Number of messages to skip
+        limit: Maximum number of messages to return (None for all)
+        sort_desc: Sort by descending created_at if True
+        
+    Returns:
+        List of Message objects
+    """
+    try:
+        # Build query with user filtering
+        sort_direction = "DESC" if sort_desc else "ASC"
+        
+        if user_id is not None:
+            # Filter by both session_id and user_id for user-specific history
+            query = f"SELECT * FROM messages WHERE session_id = %s AND user_id = %s ORDER BY created_at {sort_direction}"
+            params = [session_id, user_id]
+        else:
+            # Fall back to session-only filtering (original behavior)
+            query = f"SELECT * FROM messages WHERE session_id = %s ORDER BY created_at {sort_direction}"
+            params = [session_id]
+        
+        # Add limit clause if specified
+        if limit is not None:
+            query += " LIMIT %s"
+            params.append(limit)
+            
+        # Add offset clause if specified
+        if offset > 0:
+            query += " OFFSET %s"
+            params.append(offset)
+            
+        result = execute_query(query, params)
+        
+        messages = []
+        if isinstance(result, list):
+            for row in result:
+                messages.append(Message.from_db_row(row))
+        elif isinstance(result, dict) and 'rows' in result:
+            for row in result['rows']:
+                messages.append(Message.from_db_row(row))
+                
+        return messages
+    except Exception as e:
+        logger.error(f"Error listing messages for session {session_id}, user {user_id}: {str(e)}")
+        return []
+
+
 def count_messages(session_id: uuid.UUID) -> int:
     """Count the total number of messages in a session.
     
