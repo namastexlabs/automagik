@@ -14,6 +14,7 @@ class ClaudeCodeRunRequest(BaseModel):
     
     message: str = Field(..., description="The task message for Claude to execute")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuity")
+    run_id: Optional[str] = Field(None, description="Unique run identifier for database tracking and persistence")
     workflow_name: str = Field("bug-fixer", description="Name of the workflow to execute")
     max_turns: Optional[int] = Field(None, ge=1, le=200, description="Maximum number of Claude turns (optional, unlimited if not specified)")
     git_branch: Optional[str] = Field(
