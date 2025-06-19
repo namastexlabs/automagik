@@ -22,7 +22,7 @@ export default function WorkflowCard({ initialWorkflow, onStatusChange }: Workfl
       
       const pollStatus = async () => {
         try {
-          const updatedStatus = await getWorkflowStatus(workflow.run_id);
+          const updatedStatus = await getWorkflowStatus(workflow.run_id, true); // Use detailed=true
           setWorkflow(updatedStatus);
           onStatusChange?.(updatedStatus);
           
@@ -150,17 +150,43 @@ export default function WorkflowCard({ initialWorkflow, onStatusChange }: Workfl
       </div>
 
       {/* Progress Bar */}
-      {workflow.progress !== undefined && (
+      {workflow.progress && (
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-600 mb-1">
             <span>Progress</span>
-            <span>{workflow.progress}%</span>
+            <span>{workflow.progress.completion_percentage}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className="bg-automagik-600 h-2 rounded-full transition-all duration-300 ease-in-out"
-              style={{ width: `${workflow.progress}%` }}
+              style={{ width: `${workflow.progress.completion_percentage}%` }}
             ></div>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>Turn {workflow.progress.turns}{workflow.progress.max_turns ? ` of ${workflow.progress.max_turns}` : ''}</span>
+            <span className="capitalize">{workflow.progress.current_phase}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Rich Metrics */}
+      {workflow.metrics && (
+        <div className="mb-4 grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded border">
+          <div className="text-center">
+            <div className="text-lg font-semibold text-gray-900">${workflow.metrics.cost_usd.toFixed(4)}</div>
+            <div className="text-xs text-gray-600">Cost</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-gray-900">{workflow.metrics.tokens.cache_efficiency.toFixed(1)}%</div>
+            <div className="text-xs text-gray-600">Cache Efficiency</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-gray-900">{workflow.metrics.performance_score}</div>
+            <div className="text-xs text-gray-600">Performance</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-gray-900">{workflow.metrics.tools_used.length}</div>
+            <div className="text-xs text-gray-600">Tools Used</div>
           </div>
         </div>
       )}
