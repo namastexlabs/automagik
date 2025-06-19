@@ -756,7 +756,8 @@ class WorkflowRunBase(BaseDBModel):
     
     # Workspace management
     workspace_id: Optional[str] = Field(None, description="Claude SDK workspace identifier")
-    workspace_persistent: bool = Field(True, description="Workspace persistence flag")
+    workspace_persistent: bool = Field(True, description="Keep workspace after completion")
+    workspace_auto_merge: bool = Field(False, description="Automatically merge to main branch")
     workspace_cleaned_up: bool = Field(False, description="Workspace cleanup status")
     workspace_path: Optional[str] = Field(None, description="Local filesystem workspace directory")
     
