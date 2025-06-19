@@ -755,6 +755,46 @@ class ClaudeCodeAgent(AutomagikAgent):
             
             logger.info(f"Background workflow {workflow_name} completed: {result.get('success')}")
             
+            # 🩺 SURGEON FIX: Auto-commit changes if workflow succeeded
+            if result.get("success") and hasattr(self, 'environment_manager') and self.environment_manager:
+                try:
+                    # Get workspace path from environment manager
+                    workspace_path = self.environment_manager.workspace
+                    if workspace_path and workspace_path.exists():
+                        logger.info(f"Attempting auto-commit for successful workflow {run_id}")
+                        
+                        # Create meaningful commit message
+                        commit_message = f"{workflow_name}: {input_text[:80]}..." if input_text else f"Workflow {workflow_name} - Run {run_id[:8]}"
+                        
+                        # Execute auto-commit with options
+                        commit_result = await self.environment_manager.auto_commit_with_options(
+                            workspace=workspace_path,
+                            run_id=run_id,
+                            message=commit_message,
+                            create_pr=False,  # Start conservative, can be enhanced later
+                            merge_to_main=False,  # Start conservative 
+                            workflow_name=workflow_name
+                        )
+                        
+                        if commit_result.get('success'):
+                            logger.info(f"Auto-commit successful for run {run_id}: {commit_result.get('commit_sha', 'N/A')}")
+                            # Update session metadata with commit info
+                            if session_obj:
+                                metadata = session_obj.metadata or {}
+                                metadata.update({
+                                    "auto_commit_sha": commit_result.get('commit_sha'),
+                                    "auto_commit_operations": commit_result.get('operations', []),
+                                    "auto_commit_success": True
+                                })
+                                session_obj.metadata = metadata
+                                update_session(session_obj)
+                        else:
+                            logger.warning(f"Auto-commit failed for run {run_id}: {commit_result.get('error', 'Unknown error')}")
+                            
+                except Exception as commit_error:
+                    logger.error(f"Auto-commit exception for run {run_id}: {commit_error}")
+                    # Don't fail the workflow for commit errors
+            
         except Exception as e:
             logger.error(f"Error in background workflow execution: {str(e)}")
             
