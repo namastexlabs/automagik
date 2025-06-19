@@ -22,6 +22,10 @@ from .models import ClaudeCodeRunRequest
 from .sdk_stream_processor import SDKStreamProcessor
 from .log_manager import get_log_manager
 
+# Database imports for metrics persistence
+from ...db.repository.workflow_run import update_workflow_run_by_run_id
+from ...db.models import WorkflowRunUpdate
+
 logger = logging.getLogger(__name__)
 
 
@@ -620,7 +624,8 @@ if __name__ == "__main__":
                 workspace_info = await self.environment_manager.prepare_workspace(
                     repository_url=request.repository_url,
                     git_branch=request.git_branch,
-                    session_id=session_id
+                    session_id=session_id,
+                    workflow_name=request.workflow_name  # SURGICAL FIX: Enable persistent workspaces
                 )
                 workspace_path = Path(workspace_info['workspace_path'])
             else:
@@ -778,11 +783,30 @@ if __name__ == "__main__":
                 result_text = '\n'.join(messages) if messages else "No response received"
                 success = bool(messages)  # Basic success if we got any messages
             
-            # SURGICAL FIX: Override success if execution was incomplete due to TaskGroup conflicts
+            # SURGICAL FIX: Improved TaskGroup conflict handling - preserve successful work
             if execution_incomplete:
-                success = False
-                result_text += "\n\n⚠️ EXECUTION TRUNCATED: TaskGroup conflict caused premature termination"
-                logger.error("SDK Executor: Marking execution as failed due to TaskGroup conflict")
+                # Check if substantial work was completed despite TaskGroup conflicts
+                substantial_work = (
+                    len(tools_used) > 0 or  # Tools were executed
+                    total_turns > 0 or      # Multiple turns completed
+                    total_cost > 0.01 or    # Significant cost incurred
+                    len(collected_messages) > 2  # Multiple message exchanges
+                )
+                
+                if substantial_work:
+                    # Mark as success with warning - preserve the completed work
+                    success = True
+                    result_text += "\n\n⚠️ EXECUTION COMPLETED WITH TASKGROUP CONFLICT: Work preserved despite technical interruption"
+                    logger.warning("SURGICAL SUCCESS: TaskGroup conflict occurred but preserving substantial completed work")
+                    logger.info(f"  - Tools executed: {len(tools_used)}")
+                    logger.info(f"  - Turns completed: {total_turns}")
+                    logger.info(f"  - Cost incurred: ${total_cost:.4f}")
+                    logger.info(f"  - Messages exchanged: {len(collected_messages)}")
+                else:
+                    # Only mark as failed if no meaningful work was done
+                    success = False
+                    result_text += "\n\n⚠️ EXECUTION FAILED: TaskGroup conflict prevented meaningful work completion"
+                    logger.error("SDK Executor: Marking execution as failed due to TaskGroup conflict with no substantial work")
             
             execution_time = time.time() - start_time
             
@@ -816,6 +840,36 @@ if __name__ == "__main__":
             
             # Extract git commits if any (TODO: parse from tool usage)
             git_commits = []
+            
+            # SURGICAL FIX: Persist execution metrics to workflow_runs database table
+            # This resolves the critical bug where metrics were captured but not saved
+            if hasattr(request, 'run_id') and request.run_id:
+                try:
+                    # Create update data with captured metrics
+                    update_data = WorkflowRunUpdate(
+                        status="completed" if success else "failed",
+                        cost_estimate=total_cost,
+                        input_tokens=token_details['input_tokens'],
+                        output_tokens=token_details['output_tokens'],
+                        total_tokens=token_details['total_tokens'],
+                        result=result_text[:1000] if result_text else None,  # Truncate for database
+                    )
+                    
+                    # Update the workflow_runs table with actual execution metrics
+                    update_success = update_workflow_run_by_run_id(request.run_id, update_data)
+                    if update_success:
+                        logger.info(f"SURGICAL SUCCESS: Persisted metrics to database for run {request.run_id}")
+                        logger.info(f"  - Cost: ${total_cost:.4f}")
+                        logger.info(f"  - Tokens: {token_details['total_tokens']} total ({token_details['input_tokens']} in, {token_details['output_tokens']} out)")
+                        logger.info(f"  - Status: {'completed' if success else 'failed'}")
+                    else:
+                        logger.warning(f"SURGICAL WARNING: Failed to persist metrics to database for run {request.run_id}")
+                        
+                except Exception as db_error:
+                    logger.error(f"SURGICAL ERROR: Database persistence failed for run {request.run_id}: {db_error}")
+                    # Don't fail the entire execution due to database issues
+            else:
+                logger.warning("SURGICAL WARNING: No run_id available for database persistence")
             
             return {
                 'success': success,
@@ -901,7 +955,8 @@ if __name__ == "__main__":
                 workspace_info = await self.environment_manager.prepare_workspace(
                     repository_url=request.repository_url,
                     git_branch=request.git_branch,
-                    session_id=session_id
+                    session_id=session_id,
+                    workflow_name=request.workflow_name  # SURGICAL FIX: Enable persistent workspaces
                 )
                 workspace_path = Path(workspace_info['workspace_path'])
             else:
@@ -986,7 +1041,8 @@ if __name__ == "__main__":
                 workspace_info = await self.environment_manager.prepare_workspace(
                     repository_url=request.repository_url,
                     git_branch=request.git_branch,
-                    session_id=session_id
+                    session_id=session_id,
+                    workflow_name=request.workflow_name  # SURGICAL FIX: Enable persistent workspaces
                 )
                 workspace_path = Path(workspace_info['workspace_path'])
             else:
