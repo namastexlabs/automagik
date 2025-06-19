@@ -31,7 +31,8 @@ try:
         return FlashinhoV2(config)
     
 except Exception as e:
-    logger.error(f"Failed to initialize Flashinho V2 module: {str(e)}")
+    error_message = str(e)
+    logger.error(f"Failed to initialize Flashinho V2 module: {error_message}")
     logger.error(f"Traceback: {traceback.format_exc()}")
     
     # Create a placeholder function that returns an error agent
@@ -39,4 +40,4 @@ except Exception as e:
         """Create a placeholder agent due to initialization error."""
         if config is None:
             config = {}
-        return PlaceholderAgent({"name": "flashinho_v2_error", "error": str(e)})
+        return PlaceholderAgent({"name": "flashinho_v2_error", "error": error_message})
