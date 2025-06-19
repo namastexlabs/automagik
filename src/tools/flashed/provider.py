@@ -269,7 +269,7 @@ class FlashedProvider():
         Returns:
             User energy data
         """
-        return await self._request("GET", f"/user-energy/{user_uuid}", header={"Authorization": self.auth_token})
+        return await self._request("GET", f"/check-energy/{user_uuid}", header={"Authorization": self.auth_token})
     
     async def check_user_pro_status(self, user_id: Optional[str] = None) -> bool:
         """Check if user has Pro status.
