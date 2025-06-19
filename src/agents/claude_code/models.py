@@ -20,6 +20,14 @@ class ClaudeCodeRunRequest(BaseModel):
         None, 
         description="Git branch to work on (defaults to current branch)"
     )
+    model: Optional[str] = Field(
+        default="sonnet",
+        description="Claude model to use"
+    )
+    max_thinking_tokens: Optional[int] = Field(
+        None,
+        description="Maximum thinking tokens for reasoning"
+    )
     timeout: Optional[int] = Field(
         default=3600, 
         ge=60, 
@@ -61,6 +69,7 @@ class ClaudeCodeRunRequest(BaseModel):
                 "workflow_name": "bug-fixer",
                 "max_turns": 50,
                 "git_branch": "fix/session-timeout",
+                "model": "sonnet",
                 "timeout": 3600,
                 "environment": {
                     "CUSTOM_VAR": "value"
