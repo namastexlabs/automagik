@@ -25,6 +25,9 @@ __all__ = [
     "build_external_key",
     "attach_user_by_external_key",
     "attach_user_by_flashed_id_lookup",
+    "normalize_phone",
+    "find_user_by_whatsapp_id",
+    "user_has_conversation_code",
 ]
 
 
@@ -115,4 +118,37 @@ async def attach_user_by_flashed_id_lookup(context: Dict[str, Any]) -> bool:
 
     except Exception as e:
         logger.error("Error in flashed_id lookup: %s", e)
-        return False 
+        return False
+
+
+def normalize_phone(phone: str | None) -> str | None:
+    """Return a normalized phone string suitable for comparison."""
+    if not phone:
+        return None
+    return str(phone).replace("+", "").replace("-", "").replace("@s.whatsapp.net", "")
+
+
+async def find_user_by_whatsapp_id(whatsapp_id: str | None):
+    """Return the *first* user whose stored ``whatsapp_id`` matches ``whatsapp_id``.
+
+    It still uses the simple *list all users* approach for now to keep behaviour
+    identical to the original code. Optimisation can happen later under a
+    dedicated task.
+    """
+    if not whatsapp_id:
+        return None
+
+    norm_target = normalize_phone(whatsapp_id)
+    users, _ = list_users(page=1, page_size=1000)
+    for user in users:
+        stored_phone = user.user_data.get("whatsapp_id") if user.user_data else None
+        if stored_phone and normalize_phone(stored_phone) == norm_target:
+            return user
+    return None
+
+
+def user_has_conversation_code(user) -> bool:
+    """Return *True* if the user already stored a Flashed conversation code."""
+    if not user or not user.user_data:
+        return False
+    return bool(user.user_data.get("flashed_conversation_code")) 
