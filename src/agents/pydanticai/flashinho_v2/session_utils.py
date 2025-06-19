@@ -42,17 +42,24 @@ async def update_message_history_user_id(
         # Update the MessageHistory object itself
         message_history_obj.user_id = new_user_uuid
 
-        # Update existing messages already in memory
+        # Update existing messages in the database directly
+        # We need to work with database Message objects, not PydanticAI messages
+        from src.db.repository.message import list_messages
+        session_uuid = uuid.UUID(message_history_obj.session_id)
+        
+        # Get all database messages for this session
+        db_messages = list_messages(session_uuid, sort_desc=False)
         updated = 0
-        for msg in message_history_obj.all_messages():
-            if msg.user_id == old_user_id:
-                msg.user_id = new_user_uuid
-                if update_message(msg):
+        
+        for db_msg in db_messages:
+            # Update messages that either have the old_user_id or None (unassigned messages)
+            if db_msg.user_id == old_user_id or (old_user_id is None and db_msg.user_id is None):
+                db_msg.user_id = new_user_uuid
+                if update_message(db_msg):
                     updated += 1
-        logger.info("✅ Updated %s messages to new user_id %s", updated, new_user_id)
+        logger.info("✅ Updated %s database messages to new user_id %s", updated, new_user_id)
 
         # Also update the session row if needed
-        session_uuid = uuid.UUID(message_history_obj.session_id)
         session = get_session(session_uuid)
         if session and session.user_id == old_user_id:
             session.user_id = new_user_uuid
@@ -73,14 +80,21 @@ async def update_session_user_id(
     if not message_history_obj or not new_user_id:
         return
     try:
-        session_info = message_history_obj.get_session_info()
-        if not session_info:
+        session_uuid = uuid.UUID(message_history_obj.session_id)
+        new_user_uuid = uuid.UUID(new_user_id)
+        
+        # Get the existing session from database
+        session = get_session(session_uuid)
+        if not session:
+            logger.warning(f"Session {session_uuid} not found in database")
             return
-        session = Session(id=session_info.id, user_id=uuid.UUID(new_user_id))
+            
+        # Update the session's user_id
+        session.user_id = new_user_uuid
         update_session(session)
-        logger.info("✅ Updated session %s to user_id %s", session_info.id, new_user_id)
+        logger.info("✅ Updated session %s to user_id %s", session_uuid, new_user_id)
     except Exception as exc:
-        logger.error("Error updating session user_id: %s", exc)
+        logger.error("❌ Error updating session user_id: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +109,9 @@ async def make_session_persistent(
     if not message_history_obj or not user_id:
         return
     try:
-        # Skip if already persistent
+        # Skip if already persistent (only process if currently in local-only mode)
         if not getattr(message_history_obj, "_local_only", False):
+            logger.debug("Session already persistent, skipping")
             return
 
         session_uuid = uuid.UUID(message_history_obj.session_id)
@@ -104,17 +119,48 @@ async def make_session_persistent(
 
         # Save session row if missing
         if not get_session(session_uuid):
+            # Try to get the original session name from agent context
+            session_name = None
+            if hasattr(agent, 'context'):
+                # Try multiple ways to get the session name
+                session_name = (
+                    agent.context.get("session_name") or
+                    agent.context.get("whatsapp_session_name")
+                )
+                
+                # If no session name, build it from phone number (flashinho pattern)
+                if not session_name:
+                    phone = (
+                        agent.context.get("whatsapp_user_number") or 
+                        agent.context.get("user_phone_number")
+                    )
+                    if phone:
+                        # Clean phone number (remove + and other chars)
+                        clean_phone = phone.replace("+", "").replace("-", "").replace(" ", "")
+                        session_name = f"flashinho-v2-{clean_phone}"
+            
+            # Fallback to UUID-based name if no session name found
+            if not session_name:
+                session_name = f"Session-{session_uuid}"
+                
             session_row = Session(
                 id=session_uuid,
                 user_id=user_uuid,
-                name=f"Session-{session_uuid}",
+                name=session_name,
                 platform="automagik",
+                agent_id=getattr(agent, 'db_id', None),
             )
             create_session(session_row)
-            logger.info("✅ Created session %s in DB", session_uuid)
+            logger.info("✅ Created session %s in DB with name: %s", session_uuid, session_name)
 
-        # Save local messages to DB
+        # Save local messages to DB, avoiding duplicates
         local_msgs = getattr(message_history_obj, "_local_messages", [])
+        
+        # Get existing messages to avoid duplicates
+        from src.db.repository.message import list_messages
+        existing_messages = list_messages(session_uuid, sort_desc=False)
+        existing_content = {(msg.role, msg.text_content.strip()) for msg in existing_messages}
+        
         saved = 0
         for local_msg in local_msgs:
             role = "user"
@@ -129,7 +175,14 @@ async def make_session_persistent(
                 for part in local_msg.parts:
                     if isinstance(part, TextPart):
                         content = part.content; break
+            
             if content:
+                # Check if this message already exists
+                content_key = (role, content.strip())
+                if content_key in existing_content:
+                    logger.debug(f"Skipping duplicate message: {role} - {content[:50]}...")
+                    continue
+                
                 msg_row = Message(
                     id=uuid.uuid4(),
                     session_id=session_uuid,
@@ -143,7 +196,8 @@ async def make_session_persistent(
                 )
                 if create_message(msg_row):
                     saved += 1
-        logger.info("💾 Saved %s local messages for session %s", saved, session_uuid)
+                    existing_content.add(content_key)  # Add to set to prevent further duplicates
+        logger.info("💾 Saved %s local messages for session %s (skipped duplicates)", saved, session_uuid)
 
         # Mark session as persistent and reload
         message_history_obj._local_only = False
