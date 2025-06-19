@@ -756,10 +756,10 @@ class ClaudeCodeAgent(AutomagikAgent):
             logger.info(f"Background workflow {workflow_name} completed: {result.get('success')}")
             
             # 🩺 SURGEON FIX: Auto-commit changes if workflow succeeded
-            if result.get("success") and hasattr(self, 'environment_manager') and self.environment_manager:
+            if result.get("success") and hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
                 try:
                     # Get workspace path from environment manager
-                    workspace_path = self.environment_manager.workspace
+                    workspace_path = self.executor.environment_manager.workspace
                     if workspace_path and workspace_path.exists():
                         logger.info(f"Attempting auto-commit for successful workflow {run_id}")
                         
@@ -767,7 +767,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                         commit_message = f"{workflow_name}: {input_text[:80]}..." if input_text else f"Workflow {workflow_name} - Run {run_id[:8]}"
                         
                         # Execute auto-commit with options
-                        commit_result = await self.environment_manager.auto_commit_with_options(
+                        commit_result = await self.executor.environment_manager.auto_commit_with_options(
                             workspace=workspace_path,
                             run_id=run_id,
                             message=commit_message,
