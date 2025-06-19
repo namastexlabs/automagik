@@ -132,6 +132,14 @@ from src.db.repository.user import (
     ensure_default_user_exists,
 )
 
+# Import FlashinhoV2 UUID migration utilities
+from src.db.repository.user_uuid_migration import (
+    ensure_user_uuid_matches_flashed_id,
+    migrate_user_uuid_to_flashed_id,
+    find_user_by_flashed_id,
+    find_user_by_phone_number,
+)
+
 # Import tool repository functions
 from src.db.repository.tool import (
     list_tools,
