@@ -695,17 +695,19 @@ async def get_claude_code_run_status(
             metadata, log_entries, assistant_messages
         )
 
-        # Extract metrics from session metadata (PRIMARY SOURCE) 
-        # Session metadata contains the accurate, final data from SDK execution
+        # SURGICAL FIX: Prioritize workflow_runs database data over session metadata
+        # The database now contains the accurate, final data from SDK execution persistence
         execution_results = metadata.get("execution_results", {})
         token_details = execution_results.get("token_details", {})
         
-        # Primary metrics directly from session metadata (most reliable)
-        real_cost = metadata.get("total_cost_usd", 0.0)
+        # Primary metrics from workflow_runs table (most reliable after surgical fix)
+        real_cost = workflow_run.cost_estimate if workflow_run and workflow_run.cost_estimate is not None else metadata.get("total_cost_usd", 0.0)
+        real_total_tokens = workflow_run.total_tokens if workflow_run and workflow_run.total_tokens is not None else metadata.get("total_tokens", 0)
+        real_input_tokens = workflow_run.input_tokens if workflow_run and workflow_run.input_tokens is not None else metadata.get("input_tokens", token_details.get("input_tokens", 0))
+        real_output_tokens = workflow_run.output_tokens if workflow_run and workflow_run.output_tokens is not None else metadata.get("output_tokens", token_details.get("output_tokens", 0))
+        
+        # Turns and cache data still from metadata (not stored in workflow_runs yet)
         real_turns = metadata.get("total_turns", 0)
-        real_total_tokens = metadata.get("total_tokens", 0)
-        real_input_tokens = metadata.get("input_tokens", token_details.get("input_tokens", 0))
-        real_output_tokens = metadata.get("output_tokens", token_details.get("output_tokens", 0))
         real_cache_created = metadata.get("cache_created", token_details.get("cache_created", 0))
         real_cache_read = metadata.get("cache_read", token_details.get("cache_read", 0))
         
