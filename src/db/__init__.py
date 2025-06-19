@@ -19,6 +19,9 @@ from src.db.models import (
     WorkflowProcess,
     WorkflowProcessCreate,
     WorkflowProcessUpdate,
+    WorkflowRun,
+    WorkflowRunCreate,
+    WorkflowRunUpdate,
     ToolDB,
     ToolExecutionDB,
     ToolCreate,
@@ -145,4 +148,17 @@ from src.db.repository.tool import (
     log_tool_execution,
     get_tool_execution_stats,
     get_tool_categories
+)
+
+# Import workflow run repository functions
+from src.db.repository.workflow_run import (
+    create_workflow_run,
+    get_workflow_run,
+    get_workflow_run_by_run_id,
+    update_workflow_run,
+    update_workflow_run_by_run_id,
+    list_workflow_runs,
+    delete_workflow_run,
+    get_workflow_runs_by_session,
+    get_recent_workflow_runs
 )
