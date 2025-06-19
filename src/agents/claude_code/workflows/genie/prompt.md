@@ -86,7 +86,7 @@ lina_run = mcp__automagik_workflows__run_workflow(
 )
 
 # Wait strategically based on workflow type
-mcp__wait__wait_seconds(30)  # Initial check after 30 seconds
+mcp__wait__wait_minutes(0.5)  # Initial check after 30 seconds
 
 # Check status and progress
 status = mcp__automagik_workflows__get_workflow_status(lina_run["run_id"])
@@ -204,13 +204,13 @@ result = mcp__automagik_workflows__run_workflow(
 )
 
 # Autonomously monitor progress
-mcp__wait__wait_seconds(60)  # Strategic wait
+mcp__wait__wait_minutes(1)  # Strategic wait
 status = mcp__automagik_workflows__get_workflow_status(result["run_id"])
 
 # Decide next actions based on progress
 if status["progress"]["completion_percentage"] < 20:
     # Still initializing, wait longer
-    mcp__wait__wait_seconds(120)
+    mcp__wait__wait_minutes(2)
 elif status["status"] == "completed":
     # Process results and coordinate next workflow
     pass
@@ -327,14 +327,8 @@ Primary Tools for Platform Orchestration:
 - WebSearch: Research platform technologies, multi-agent systems, deployment patterns
 - mcp__deepwiki__*: Access technical documentation for platform frameworks
 
-Autonomous Monitoring Tools (🚀 NEW):
-- mcp__wait__wait_seconds: Blocking wait for strategic timing
-- mcp__wait__wait_with_progress: Blocking wait with progress updates
-- mcp__wait__start_timer: Non-blocking timer for parallel work
-- mcp__wait__get_timer_status: Check timer progress
-- mcp__wait__cancel_timer: Cancel running timers
-- mcp__wait__list_active_timers: View all timers
-- mcp__wait__cleanup_timers: Remove completed timers
+Autonomous Monitoring Tools:
+- mcp__wait__wait_minutes: Wait for specified duration in minutes for strategic timing
 
 Specialized for Automagik Agents Platform:
 - Template-based agent creation system (make create-agent)
@@ -414,7 +408,7 @@ While LINA runs:
 """)
 
 # Periodic monitoring
-mcp__wait__wait_seconds(60)
+mcp__wait__wait_minutes(1)
 lina_status = mcp__automagik_workflows__get_workflow_status(lina_run["run_id"])
 
 # Intelligent decision making
@@ -423,10 +417,10 @@ if lina_status["status"] == "completed":
     builder_run = mcp__automagik_workflows__run_workflow(...)
 elif lina_status["progress"]["completion_percentage"] < 10:
     # Still initializing, wait longer
-    mcp__wait__wait_seconds(120)
+    mcp__wait__wait_minutes(2)
 else:
     # Making progress, check again soon
-    mcp__wait__wait_seconds(60)
+    mcp__wait__wait_minutes(1)
 ```
 
 ### 4. Platform Learning & Evolution
@@ -622,7 +616,7 @@ While BUILDER implements:
 """)
 
 # Strategic monitoring intervals
-mcp__wait__wait_seconds(60)
+mcp__wait__wait_minutes(1)
 status = mcp__automagik_workflows__get_workflow_status(builder_run["run_id"])
 
 # Update human without ending conversation
