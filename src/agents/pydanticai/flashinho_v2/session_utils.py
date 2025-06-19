@@ -151,4 +151,29 @@ async def make_session_persistent(
         message_history_obj._local_messages.clear()
 
     except Exception as exc:
-        logger.error("Error persisting session: %s", exc) 
+        logger.error("Error persisting session: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# ensure_session_row
+# ---------------------------------------------------------------------------
+def ensure_session_row(session_id: uuid.UUID, user_id: uuid.UUID | None = None) -> None:
+    """Idempotently create a *session* row so that FK constraints on
+    *message* inserts never fail.
+
+    This is a thin wrapper used by agents that construct `MessageHistory`
+    objects in *local* mode first and only later persist them.
+    """
+    try:
+        if get_session(session_id):
+            return
+        session_row = Session(
+            id=session_id,
+            user_id=user_id,
+            name=f"Session-{session_id}",
+            platform="automagik",
+        )
+        create_session(session_row)
+        logger.info("✅ ensure_session_row created session %s", session_id)
+    except Exception as exc:
+        logger.error("❌ ensure_session_row failed: %s", exc) 
