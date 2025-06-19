@@ -226,6 +226,13 @@ class CLIEnvironmentManager:
                     shutil.copytree(workflow_src, workflow_dst, dirs_exist_ok=True)
                     logger.debug(f"Copied workflow {workflow_name} to workspace")
                     
+                    # SURGICAL FIX: Copy prompt.md to workspace root where SDK expects it
+                    workflow_prompt = workflow_dst / "prompt.md"
+                    root_prompt = workspace / "prompt.md" 
+                    if workflow_prompt.exists():
+                        shutil.copy2(workflow_prompt, root_prompt)
+                        logger.info(f"Copied prompt.md to workspace root for SDK")
+                    
                     # Also copy workflow-specific configs to workspace root
                     for config_file in config_files:
                         workflow_config = workflow_dst / config_file

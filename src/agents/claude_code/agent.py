@@ -166,6 +166,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=self.context.get("session_id"),
+                run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
                 workflow_name=workflow_name,
                 max_turns=int(self.config["max_turns"]) if "max_turns" in self.config else None,
                 git_branch=git_branch,
@@ -456,6 +457,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=session_id,
+                run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns"),
                 git_branch=git_branch,
@@ -578,6 +580,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=kwargs.get("session_id"),
+                run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch", self.config.get("git_branch")),
@@ -677,6 +680,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=claude_session_id_for_resumption,  # Use Claude session ID, not database session ID
+                run_id=run_id,  # SURGICAL FIX: Pass run_id for database persistence
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch"),
