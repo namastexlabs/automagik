@@ -8,11 +8,11 @@ with proper priority handling and real-time streaming data extraction.
 import asyncio
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 from uuid import uuid4
-from concurrent.futures import ThreadPoolExecutor
 
 from claude_code_sdk import query, ClaudeCodeOptions
 from ...utils.nodejs_detection import ensure_node_in_path
@@ -252,10 +252,10 @@ class ClaudeSDKExecutor(ExecutorBase):
         request: ClaudeCodeRunRequest, 
         agent_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute SDK in completely isolated process context to avoid TaskGroup conflicts.
+        """Execute SDK in completely isolated subprocess to avoid TaskGroup conflicts.
         
-        This method creates a new thread with its own event loop to completely isolate
-        the SDK subprocess execution from the API's background TaskGroup management.
+        This method creates a separate Python process to completely isolate
+        the SDK execution from the API's TaskGroup management.
         
         Args:
             request: Execution request with task details
@@ -264,26 +264,231 @@ class ClaudeSDKExecutor(ExecutorBase):
         Returns:
             Execution result dictionary
         """
-        logger.info("SURGICAL FIX: Executing SDK in isolated context to avoid TaskGroup conflicts")
+        logger.info("SURGICAL FIX: Executing SDK in isolated subprocess to avoid TaskGroup conflicts")
         
-        def run_sdk_in_thread():
-            """Run SDK execution in isolated thread with new event loop."""
-            import asyncio
+        import subprocess
+        import json
+        import tempfile
+        import os
+        from pathlib import Path
+        
+        # Serialize data for subprocess
+        request_json = json.dumps(request.model_dump())
+        context_json = json.dumps(agent_context)
+        project_root = str(Path.cwd())
+        
+        # Create a temporary script to run the SDK in isolation
+        script_content = f'''
+import asyncio
+import json
+import sys
+import os
+from pathlib import Path
+
+# Add the current project to Python path
+project_root = Path(r"{project_root}")
+sys.path.insert(0, str(project_root))
+
+from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+from src.agents.claude_code.models import ClaudeCodeRunRequest
+
+async def run_isolated_sdk():
+    """Run SDK in completely isolated process."""
+    try:
+        # Recreate the request from JSON
+        request_data = r"""{request_json}"""
+        request = ClaudeCodeRunRequest.model_validate(json.loads(request_data))
+        
+        # Recreate agent context
+        agent_context_data = r"""{context_json}"""
+        agent_context = json.loads(agent_context_data)
+        
+        # Create fresh executor instance
+        executor = ClaudeSDKExecutor()
+        
+        # Run a simplified SDK execution without TaskGroup isolation logic
+        result = await executor._execute_claude_task_simple(request, agent_context)
+        
+        # Output result as JSON
+        print("ISOLATED_RESULT_START")
+        print(json.dumps(result))
+        print("ISOLATED_RESULT_END")
+        
+    except Exception as e:
+        error_result = {{
+            'success': False,
+            'error': str(e),
+            'session_id': agent_context.get('session_id', 'unknown'),
+            'result': f"Isolated subprocess failed: {{str(e)}}",
+            'exit_code': 1,
+            'execution_time': 0.0,
+            'logs': f"Subprocess error: {{str(e)}}",
+            'workspace_path': agent_context.get('workspace', '.'),
+            'cost_usd': 0.0,
+            'total_turns': 0,
+            'tools_used': []
+        }}
+        print("ISOLATED_RESULT_START")
+        print(json.dumps(error_result))
+        print("ISOLATED_RESULT_END")
+
+if __name__ == "__main__":
+    asyncio.run(run_isolated_sdk())
+'''
+        
+        # Write script to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_script:
+            temp_script.write(script_content)
+            temp_script_path = temp_script.name
+        
+        try:
+            # Execute the script in subprocess
+            result = subprocess.run([
+                sys.executable, temp_script_path
+            ], capture_output=True, text=True, timeout=300, cwd=str(Path.cwd()))
             
-            # Create fresh event loop to isolate from API TaskGroups
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # Parse the result from subprocess output
+            output_lines = result.stdout.split('\n')
+            result_start = -1
+            result_end = -1
             
+            for i, line in enumerate(output_lines):
+                if line.strip() == "ISOLATED_RESULT_START":
+                    result_start = i + 1
+                elif line.strip() == "ISOLATED_RESULT_END":
+                    result_end = i
+                    break
+            
+            if result_start >= 0 and result_end >= 0:
+                result_json = '\n'.join(output_lines[result_start:result_end])
+                isolated_result = json.loads(result_json)
+                logger.info("SURGICAL SUCCESS: Subprocess isolation executed successfully")
+                return isolated_result
+            else:
+                raise Exception(f"Could not parse subprocess result. stdout: {result.stdout}, stderr: {result.stderr}")
+                
+        except subprocess.TimeoutExpired:
+            logger.error("SURGICAL ERROR: Subprocess isolation timed out")
+            raise Exception("Subprocess isolation timed out after 300 seconds")
+        except Exception as e:
+            logger.error(f"SURGICAL ERROR: Subprocess isolation failed: {e}")
+            raise Exception(f"Subprocess isolation failed: {e}")
+        finally:
+            # Cleanup temp file
             try:
-                # Run the original execute method in isolated context
-                return loop.run_until_complete(self._execute_claude_task_isolated(request, agent_context))
-            finally:
-                loop.close()
+                os.unlink(temp_script_path)
+            except (OSError, FileNotFoundError):
+                pass
+    
+    async def _execute_claude_task_simple(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute claude task in subprocess with simplified logic (no isolation overhead).
         
-        # Execute in thread pool to completely isolate from API async context
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(run_sdk_in_thread)
-            return await asyncio.wrap_future(future)
+        This method is designed to run in a subprocess and does NOT include
+        TaskGroup conflict detection or retry logic.
+        """
+        start_time = time.time()
+        session_id = request.session_id or str(uuid4())
+        
+        logger.info(f"SDK Executor (SUBPROCESS): Starting simple execution for session {session_id}")
+        
+        # Ensure Node.js is available
+        ensure_node_in_path()
+        
+        # Extract workspace from agent context
+        workspace_path = Path(agent_context.get('workspace', '.'))
+        
+        # Build options for SDK
+        options = self._build_options(
+            workspace_path,
+            model=request.model,
+            max_turns=request.max_turns,
+            max_thinking_tokens=request.max_thinking_tokens
+        )
+        
+        # Execute the task using SDK query function - SIMPLE (no error handling)
+        messages = []
+        tools_used = []
+        total_cost = 0.0
+        total_turns = 0
+        
+        # Collect messages
+        collected_messages = []
+        final_metrics = None
+        
+        try:
+            async for message in query(prompt=request.message, options=options):
+                messages.append(str(message))
+                collected_messages.append(message)
+                
+                # Capture final metrics
+                if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
+                    final_metrics = {
+                        'total_cost_usd': message.total_cost_usd,
+                        'num_turns': getattr(message, 'num_turns', 0)
+                    }
+                    
+        except Exception as e:
+            logger.error(f"SDK Executor (SUBPROCESS): SDK execution failed: {e}")
+            return {
+                'success': False,
+                'session_id': session_id,
+                'result': f"Subprocess SDK execution failed: {str(e)}",
+                'exit_code': 1,
+                'execution_time': time.time() - start_time,
+                'logs': f"Subprocess error: {str(e)}",
+                'workspace_path': str(workspace_path),
+                'cost_usd': 0.0,
+                'total_turns': 0,
+                'tools_used': []
+            }
+        
+        # Extract tool usage from messages
+        from claude_code_sdk import AssistantMessage, ToolUseBlock
+        
+        for message in collected_messages:
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, ToolUseBlock):
+                        if block.name not in tools_used:
+                            tools_used.append(block.name)
+        
+        # Extract final metrics
+        if final_metrics:
+            total_cost = final_metrics['total_cost_usd']
+            total_turns = final_metrics['num_turns']
+        
+        # Count actual turns
+        actual_turns = self._count_actual_turns(collected_messages)
+        if total_turns == 0 and actual_turns > 0:
+            total_turns = actual_turns
+        
+        execution_time = time.time() - start_time
+        
+        logger.info(f"SDK Executor (SUBPROCESS): Completed successfully - Turns: {total_turns}, Tools: {len(tools_used)}")
+        
+        return {
+            'success': True,
+            'session_id': session_id,
+            'result': '\n'.join(messages) if messages else "Subprocess execution completed",
+            'exit_code': 0,
+            'execution_time': execution_time,
+            'logs': f"Subprocess SDK execution completed in {execution_time:.2f}s",
+            'workspace_path': str(workspace_path),
+            'cost_usd': total_cost,
+            'total_turns': total_turns,
+            'tools_used': tools_used,
+            'token_details': {
+                'total_tokens': 0,
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'cache_created': 0,
+                'cache_read': 0
+            }
+        }
     
     async def _execute_claude_task_isolated(
         self, 
@@ -473,8 +678,12 @@ class ClaudeSDKExecutor(ExecutorBase):
                         logger.info(f"SDK Executor: Captured final metrics during streaming - Cost: ${final_metrics['total_cost_usd']:.4f}, Turns: {final_metrics['num_turns']}")
                     
             except Exception as sdk_error:
+                # Check if we should bypass TaskGroup conflict detection (when running in thread pool)
+                import os
+                bypass_detection = os.environ.get('BYPASS_TASKGROUP_DETECTION', 'false').lower() == 'true'
+                
                 # TaskGroup errors indicate subprocess context conflicts - need isolation
-                if "TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error):
+                if not bypass_detection and ("TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error)):
                     logger.warning(f"TaskGroup conflict detected in SDK execution: {sdk_error}")
                     logger.info("SDK subprocess context conflicts with API background tasks - attempting isolation retry")
                     
@@ -487,6 +696,10 @@ class ClaudeSDKExecutor(ExecutorBase):
                         # Mark as incomplete and continue with partial data
                         execution_incomplete = True
                         logger.error("SURGICAL NOTE: Both normal and isolated execution failed - marking as incomplete")
+                elif bypass_detection and ("TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error)):
+                    # When bypassing detection, log but don't retry - we're already in isolated context
+                    logger.info(f"SDK Executor: TaskGroup error in thread pool context (expected): {sdk_error}")
+                    execution_incomplete = True
                 else:
                     # Re-raise other types of errors
                     raise sdk_error
