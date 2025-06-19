@@ -341,6 +341,8 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 
             return response_data
 
+        logger.info(f"Request payload: {request}")
+
         # Continue with regular agent execution for non-orchestrated agents
         logger.info(f"Using regular execution for agent: {agent_name}")
 
@@ -594,9 +596,29 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             )
 
         # -----------------------------------------------
-        # Prepare context (system prompt + multimodal)
+        # Prepare context (system prompt + multimodal + user data)
         # -----------------------------------------------
         context = request.context.copy() if request.context else {}
+
+        # Add user data to context if provided
+        if request.user:
+            if request.user.phone_number:
+                context["user_phone_number"] = request.user.phone_number
+            if request.user.email:
+                context["user_email"] = request.user.email
+            if request.user.user_data:
+                # Add user_data fields to context with user_data_ prefix to avoid conflicts
+                for key, value in request.user.user_data.items():
+                    context[f"user_data_{key}"] = value
+
+        # Add WhatsApp user data from channel_payload if available  
+        if request.channel_payload and request.channel_payload.get("user"):
+            whatsapp_user = request.channel_payload["user"]
+            if whatsapp_user.get("phone_number"):
+                context["whatsapp_user_number"] = whatsapp_user["phone_number"]
+                # Also set as user_phone_number if not already set
+                if "user_phone_number" not in context:
+                    context["user_phone_number"] = whatsapp_user["phone_number"]
 
         # Attach system prompt override (if any)
         if request.system_prompt:
