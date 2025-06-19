@@ -758,8 +758,8 @@ class ClaudeCodeAgent(AutomagikAgent):
             # 🩺 SURGEON FIX: Auto-commit changes if workflow succeeded
             if result.get("success") and hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
                 try:
-                    # Get workspace path from environment manager
-                    workspace_path = self.executor.environment_manager.workspace
+                    # Get workspace path from environment manager for this specific run
+                    workspace_path = self.executor.environment_manager.active_workspaces.get(run_id)
                     if workspace_path and workspace_path.exists():
                         logger.info(f"Attempting auto-commit for successful workflow {run_id}")
                         
