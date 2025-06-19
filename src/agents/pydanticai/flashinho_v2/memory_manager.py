@@ -11,7 +11,7 @@ from datetime import datetime
 
 from src.db.models import Memory
 from src.db import create_memory
-from .user_identification import FlashinhoProUserMatcher
+from .identification import FlashinhoIdentifier as FlashinhoProUserMatcher
 
 logger = logging.getLogger(__name__)
 
