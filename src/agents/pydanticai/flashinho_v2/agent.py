@@ -18,7 +18,19 @@ from src.tools.flashed.tool import (
 )
 from src.tools.flashed.provider import FlashedProvider
 from .prompts import AGENT_FREE, AGENT_PROMPT
-from .memory_manager import update_flashinho_pro_memories, initialize_flashinho_pro_memories
+from .identification import (
+    UserStatusChecker,
+    build_external_key,
+    attach_user_by_external_key,
+    attach_user_by_flashed_id_lookup,
+)
+from .memories import FlashinhoMemories
+from .session_utils import (
+    update_message_history_user_id,
+    update_session_user_id,
+    make_session_persistent,
+)
+from .api_client import FlashinhoAPI
 
 
 logger = logging.getLogger(__name__)
@@ -175,8 +187,11 @@ class FlashinhoV2(AutomagikAgent):
         
         try:
             safe_user_id = str(user_id) if user_id else None
-            await initialize_flashinho_pro_memories(self.db_id, safe_user_id)
-            success = await update_flashinho_pro_memories(self.db_id, safe_user_id, self.context)
+            await FlashinhoMemories.init_defaults(self.db_id, safe_user_id)
+
+            # Fetch fresh data once per run – avoids duplicate provider calls inside memory layer
+            api_data = await FlashinhoAPI().fetch_all(user_id)
+            success = await FlashinhoMemories.refresh_from_api(self.db_id, safe_user_id or "", api_data)
             
             if success:
                 logger.info(f"Successfully updated Flashinho V2 memories for user {user_id}")
@@ -223,9 +238,9 @@ class FlashinhoV2(AutomagikAgent):
         if self.context.get("user_id"):
             return
         
-        external_key = self._get_external_key()
+        external_key = build_external_key(self.context)
         if external_key:
-            found_by_key = await self._attach_user_by_external_key(external_key)
+            found_by_key = await attach_user_by_external_key(self.context, external_key)
             if found_by_key:
                 logger.info(f"🔑 User identified via external_key: {self.context.get('user_id')}")
                 await self._sync_message_history_if_needed(message_history_obj, history_user_id)
@@ -235,7 +250,7 @@ class FlashinhoV2(AutomagikAgent):
         if self.context.get("user_id"):
             return
         
-        found_by_flashed_id = await self._attach_user_by_flashed_id_lookup()
+        found_by_flashed_id = await attach_user_by_flashed_id_lookup(self.context)
         if found_by_flashed_id:
             logger.info(f"🔍 User identified via flashed_id_lookup: {self.context.get('user_id')}")
             await self._sync_message_history_if_needed(message_history_obj, history_user_id)
@@ -244,8 +259,8 @@ class FlashinhoV2(AutomagikAgent):
         """Sync message history with new user ID if needed."""
         new_user_id = self.context.get("user_id")
         if message_history_obj and new_user_id and new_user_id != str(history_user_id):
-            await self._update_message_history_user_id(message_history_obj, new_user_id)
-            await self._update_session_user_id(message_history_obj, new_user_id)
+            await update_message_history_user_id(message_history_obj, new_user_id)
+            await update_session_user_id(message_history_obj, new_user_id)
     
     async def _handle_conversation_code_flow(self, input_text: str, user_id: Optional[str], message_history_obj: Optional[MessageHistory], history_user_id: Optional[str], **kwargs) -> Optional[AgentResponse]:
         """Handle conversation code extraction and processing flow."""
@@ -259,8 +274,8 @@ class FlashinhoV2(AutomagikAgent):
         logger.info(f"🔍 After conversation code processing - Context user_id: {new_user_id}")
         
         if message_history_obj and new_user_id and new_user_id != str(history_user_id):
-            await self._update_message_history_user_id(message_history_obj, new_user_id)
-            await self._update_session_user_id(message_history_obj, new_user_id)
+            await update_message_history_user_id(message_history_obj, new_user_id)
+            await update_session_user_id(message_history_obj, new_user_id)
         
         # Run agent with introduction
         introduction_prompt = self._create_introduction_prompt()
@@ -328,80 +343,34 @@ class FlashinhoV2(AutomagikAgent):
                 await self._update_model_and_prompt_based_on_status(user_id)
                 await self._ensure_user_memories_ready(user_id)
                 
-                # 🔧 FIX: Make session persistent for identified users
                 if message_history_obj:
-                    await self._make_session_persistent(message_history_obj, user_id)
-                    
-                    # 🔧 CRITICAL FIX: Re-check message history after making session persistent
-                    # This ensures we get the full conversation history from database
-                    logger.info(f"🔍 Re-checking message history after making session persistent")
-                    try:
-                        formatted_messages = message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20)
-                        logger.info(f"🔍 After persistence: {len(formatted_messages)} messages found in history")
-                        for i, msg in enumerate(formatted_messages[-3:]):  # Show last 3 messages
-                            msg_type = type(msg).__name__
-                            content = ""
-                            if hasattr(msg, 'parts') and msg.parts:
-                                for part in msg.parts:
-                                    if hasattr(part, 'content'):
-                                        content = part.content[:50] + "..." if len(part.content) > 50 else part.content
-                                        break
-                            logger.info(f"🔍   After persistence Message {i}: {msg_type} - {content}")
-                    except Exception as e:
-                        logger.error(f"🔍 Error re-checking message history after persistence: {e}")
+                    await make_session_persistent(self, self.current_message_history, user_id)
             
             # Log execution context
             self._log_execution_context(user_id)
             
-            # 🔍 DEBUG: Check message history and add current message before running agent
+            # Add the current user message to history before the agent runs.
             if message_history_obj:
+                safe_context = {k: (str(v) if isinstance(v, uuid.UUID) else v) for k, v in self.context.items()}
                 try:
-                    # Add current user message to history BEFORE running the agent
-                    logger.info(f"🔍 Adding current user message to history before agent run")
-                    # 🔧 Convert any UUID objects inside context to strings for JSON serialization
-                    safe_context = {}
-                    for k, v in self.context.items():
-                        if isinstance(v, uuid.UUID):
-                            safe_context[k] = str(v)
-                        else:
-                            safe_context[k] = v
-
                     message_history_obj.add(
                         content=input_text,
                         agent_id=self.db_id,
                         context=safe_context,
-                        channel_payload=channel_payload
+                        channel_payload=channel_payload,
                     )
-                    
-                    # Now check the updated message history
-                    formatted_messages = message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20)
-                    logger.info(f"🔍 Message history check: {len(formatted_messages)} messages found (including current)")
-                    for i, msg in enumerate(formatted_messages[-3:]):  # Show last 3 messages
-                        msg_type = type(msg).__name__
-                        content = ""
-                        if hasattr(msg, 'parts') and msg.parts:
-                            for part in msg.parts:
-                                if hasattr(part, 'content'):
-                                    content = part.content[:50] + "..." if len(part.content) > 50 else part.content
-                                    break
-                        logger.info(f"🔍   Message {i}: {msg_type} - {content}")
                 except Exception as e:
-                    logger.error(f"🔍 Error checking message history: {e}")
-            else:
-                logger.info("🔍 No message_history_obj provided to FlashinhoV2")
+                    logger.error(f"Error recording user message: {e}")
+            
+            # Prepare message history for the LLM call.
+            pydantic_messages = (
+                message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20)
+                if message_history_obj
+                else []
+            )
             
             # Execute agent using the framework directly (bypass AutomagikAgent.run to avoid message duplication)
-            pydantic_messages = message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20) if message_history_obj else []
-            logger.info(f"🔍 CRITICAL: Sending {len(pydantic_messages)} messages to AI model")
-            for i, msg in enumerate(pydantic_messages):
-                msg_type = type(msg).__name__
-                content_preview = ""
-                if hasattr(msg, 'parts') and msg.parts:
-                    for part in msg.parts:
-                        if hasattr(part, 'content'):
-                            content_preview = part.content[:100] + "..." if len(part.content) > 100 else part.content
-                            break
-                logger.info(f"🔍   AI Model Message {i}: {msg_type} - {content_preview}")
+            logger.info("Sending %s messages to AI model", len(pydantic_messages))
             
             response = await self._run_agent(
                 input_text=input_text,
@@ -412,15 +381,9 @@ class FlashinhoV2(AutomagikAgent):
                 message_limit=message_limit
             )
             
-            # 🔍 DEBUG: Check if response shows conversation awareness
+            # Basic response sanity log.
             if response and response.text:
-                response_preview = response.text[:200] + "..." if len(response.text) > 200 else response.text
-                logger.info(f"🔍 AI Response preview: {response_preview}")
-                
-                # Check if response references previous conversation
-                conversation_indicators = ["lembra", "dissemos", "conversa anterior", "falamos", "mencionou", "disse antes"]
-                has_memory_reference = any(indicator in response.text.lower() for indicator in conversation_indicators)
-                logger.info(f"🔍 Response shows conversation awareness: {has_memory_reference}")
+                logger.info("FlashinhoV2 response length: %s chars", len(response.text))
             
             # Save the agent response to message history
             if message_history_obj and response:
@@ -526,10 +489,10 @@ class FlashinhoV2(AutomagikAgent):
                                             history_user_id = self.current_message_history.user_id
                                             if str(user.id) != str(history_user_id):
                                                 logger.info(f"🔄 Syncing session history from {history_user_id} to {user.id}")
-                                                await self._update_message_history_user_id(self.current_message_history, str(user.id))
-                                                await self._update_session_user_id(self.current_message_history, str(user.id))
+                                                await update_message_history_user_id(self.current_message_history, str(user.id))
+                                                await update_session_user_id(self.current_message_history, str(user.id))
                                             # Make session persistent after user identification
-                                            await self._make_session_persistent(self.current_message_history, str(user.id))
+                                            await make_session_persistent(self, self.current_message_history, str(user.id))
                                         
                                         return False  # No need to ask for conversation code
                                     else:
@@ -542,10 +505,10 @@ class FlashinhoV2(AutomagikAgent):
                                             history_user_id = self.current_message_history.user_id
                                             if str(user.id) != str(history_user_id):
                                                 logger.info(f"🔄 Syncing session history from {history_user_id} to {user.id}")
-                                                await self._update_message_history_user_id(self.current_message_history, str(user.id))
-                                                await self._update_session_user_id(self.current_message_history, str(user.id))
+                                                await update_message_history_user_id(self.current_message_history, str(user.id))
+                                                await update_session_user_id(self.current_message_history, str(user.id))
                                             # Make session persistent after user identification
-                                            await self._make_session_persistent(self.current_message_history, str(user.id))
+                                            await make_session_persistent(self, self.current_message_history, str(user.id))
                                         
                                         return True
                                     
@@ -589,7 +552,6 @@ class FlashinhoV2(AutomagikAgent):
         Returns True if conversation code was found and processed successfully.
         """
         try:
-            from .user_status_checker import UserStatusChecker
             from src.db.repository.user import get_user, update_user_data
             
             # Use the UserStatusChecker to extract conversation code
@@ -650,7 +612,7 @@ class FlashinhoV2(AutomagikAgent):
                         session_key = self.context.get("session_user_key") or current_user_data.get("session_user_key")
                         
                         # Get external_key for consistent user tracking
-                        external_key = self._get_external_key() or current_user_data.get("external_key")
+                        external_key = build_external_key(self.context) or current_user_data.get("external_key")
                         
                         logger.info(f"WhatsApp ID preservation: existing={existing_whatsapp_id}, context={context_whatsapp_id}, final={whatsapp_id}")
                         
@@ -683,8 +645,7 @@ class FlashinhoV2(AutomagikAgent):
                         logger.info(f"🔍 After context update - user_id: {self.context.get('user_id')}")
                         
                         # 🔧 FIX: Make session persistent after successful user identification
-                        if hasattr(self, 'current_message_history') and self.current_message_history:
-                            await self._make_session_persistent(self.current_message_history, user_id)
+                        await make_session_persistent(self, self.current_message_history, user_id)
                         
                         return True
                     else:
@@ -738,7 +699,7 @@ class FlashinhoV2(AutomagikAgent):
                         session_key = self.context.get("session_user_key") or current_user_data.get("session_user_key")
                         
                         # Get external_key for consistent user tracking
-                        external_key = self._get_external_key() or current_user_data.get("external_key")
+                        external_key = build_external_key(self.context) or current_user_data.get("external_key")
                         
                         logger.info(f"WhatsApp ID preservation: existing={existing_whatsapp_id}, context={context_whatsapp_id}, final={whatsapp_id}")
                         
@@ -786,7 +747,7 @@ class FlashinhoV2(AutomagikAgent):
                         logger.info(f"New user WhatsApp ID: context={context_whatsapp_id}, final={whatsapp_id}")
                         
                         # Get external_key for consistent user tracking
-                        external_key = self._get_external_key()
+                        external_key = build_external_key(self.context)
                         
                         user_data = {
                             "flashed_conversation_code": conversation_code,
@@ -825,9 +786,8 @@ class FlashinhoV2(AutomagikAgent):
                     logger.info(f"🔍 Final context state - user_id: {self.context.get('user_id')}")
                     
                     # 🔧 FIX: Make session persistent after successful user identification
-                    if hasattr(self, 'current_message_history') and self.current_message_history:
-                        await self._make_session_persistent(self.current_message_history, flashed_user_id)
-                    
+                    await make_session_persistent(self, self.current_message_history, flashed_user_id)
+                
                 except Exception as e:
                     logger.error(f"Error in database operations: {str(e)}")
                     # Still set the user_id for the session even if DB operations fail
@@ -837,8 +797,7 @@ class FlashinhoV2(AutomagikAgent):
                     logger.info(f"🔍 After error - Context user_id: {self.context.get('user_id')}")
                     
                     # 🔧 FIX: Make session persistent even after errors
-                    if hasattr(self, 'current_message_history') and self.current_message_history:
-                        await self._make_session_persistent(self.current_message_history, flashed_user_id)
+                    await make_session_persistent(self, self.current_message_history, flashed_user_id)
                 
                 return True
                 
@@ -891,335 +850,6 @@ class FlashinhoV2(AutomagikAgent):
         except Exception as e:
             logger.error(f"Error during session_user_key lookup: {e}")
 
-    async def _update_message_history_user_id(self, message_history_obj: MessageHistory, new_user_id: str) -> None:
-        """Update MessageHistory object and existing messages to use the new user_id.
-        
-        Args:
-            message_history_obj: The MessageHistory object to update
-            new_user_id: The new user_id (Flashed UUID) to use
-        """
-        try:
-            from src.db.repository.message import update_message
-            
-            old_user_id = message_history_obj.user_id
-            new_user_uuid = uuid.UUID(new_user_id)
-            
-            logger.info(f"🔄 Updating MessageHistory user_id from {old_user_id} to {new_user_id}")
-            
-            # Update the MessageHistory object itself
-            message_history_obj.user_id = new_user_uuid
-            
-            # Update all existing messages in this session to use the new user_id
-            session_uuid = uuid.UUID(message_history_obj.session_id)
-            
-            # Get all messages in this session that have the old user_id
-            session_messages = message_history_obj.all_messages()
-            
-            updated_count = 0
-            for message in session_messages:
-                if message.user_id == old_user_id:
-                    # Update this message to use the new user_id
-                    try:
-                        message.user_id = new_user_uuid
-                        success = update_message(message)
-                        if success:
-                            updated_count += 1
-                            logger.debug(f"🔄 Updated message {message.id} user_id to {new_user_id}")
-                        else:
-                            logger.warning(f"⚠️ Failed to update message {message.id} user_id")
-                    except Exception as e:
-                        logger.error(f"❌ Error updating message {message.id}: {str(e)}")
-            
-            logger.info(f"✅ Successfully updated {updated_count} messages to use new user_id {new_user_id}")
-            
-            # Also update the session to use the new user_id
-            try:
-                from src.db.repository.session import get_session, update_session
-                session = get_session(session_uuid)
-                if session and session.user_id == old_user_id:
-                    session.user_id = new_user_uuid
-                    update_session(session)
-                    logger.info(f"✅ Updated session {session_uuid} user_id to {new_user_id}")
-            except Exception as e:
-                logger.error(f"❌ Error updating session user_id: {str(e)}")
-                
-        except Exception as e:
-            logger.error(f"❌ Error in _update_message_history_user_id: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-
-    async def _update_session_user_id(self, message_history_obj: Optional[MessageHistory], new_user_id: str) -> None:
-        """Update the session's user_id after conversation code processing.
-        
-        This ensures that all future messages in the session use the correct Flashed user ID.
-        
-        Args:
-            message_history_obj: The MessageHistory object to update
-            new_user_id: The new user ID (Flashed UUID) to use
-        """
-        if not message_history_obj or not new_user_id:
-            return
-            
-        try:
-            from src.db.repository.session import update_session
-            from src.db.models import Session
-            
-            # Get the session from message history
-            session_info = message_history_obj.get_session_info()
-            if not session_info:
-                logger.warning("No session info found in MessageHistory")
-                return
-                
-            # Update the session's user_id
-            session = Session(
-                id=session_info.id,
-                user_id=uuid.UUID(new_user_id)
-            )
-            
-            success = update_session(session)
-            if success:
-                logger.info(f"✅ Updated session {session_info.id} to use Flashed user_id {new_user_id}")
-            else:
-                logger.warning(f"Failed to update session user_id")
-                
-        except Exception as e:
-            logger.error(f"Error updating session user_id: {str(e)}")
-
-    async def _make_session_persistent(self, message_history_obj: Optional[MessageHistory], user_id: str) -> None:
-        """Make a local-only session persistent in the database after user identification.
-        
-        This is called after a user is identified via conversation code to ensure
-        that the session history is properly saved to the database.
-        
-        Args:
-            message_history_obj: The MessageHistory object to make persistent
-            user_id: The user ID to associate with the session
-        """
-        if not message_history_obj or not user_id:
-            return
-            
-        try:
-            from src.db.repository.session import create_session, get_session
-            from src.db.repository.message import create_message
-            from src.db.models import Session, Message
-            from datetime import datetime, timezone
-            from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart, TextPart
-            
-            # Check if session is in local-only mode
-            if not getattr(message_history_obj, '_local_only', False):
-                logger.debug("Session is already persistent, no action needed")
-                return
-                
-            session_uuid = uuid.UUID(message_history_obj.session_id)
-            user_uuid = uuid.UUID(user_id)
-            
-            # 🔧 CRITICAL FIX: Save local messages to database BEFORE clearing them
-            local_messages = getattr(message_history_obj, '_local_messages', [])
-            logger.info(f"📝 Found {len(local_messages)} local messages to save to database")
-            
-            # Check if session already exists in database
-            existing_session = get_session(session_uuid)
-            if not existing_session:
-                # Create the session in the database first
-                session = Session(
-                    id=session_uuid,
-                    user_id=user_uuid,
-                    name=f"Session-{session_uuid}",
-                    platform="automagik"
-                )
-                
-                success = create_session(session)
-                if not success:
-                    logger.warning(f"Failed to create session {session_uuid} in database")
-                    return
-                    
-                logger.info(f"✅ Created session {session_uuid} in database")
-            else:
-                logger.debug(f"Session {session_uuid} already exists in database")
-            
-            # Save local messages to database
-            saved_count = 0
-            for local_msg in local_messages:
-                try:
-                    # Determine message role and content
-                    role = "user"
-                    content = ""
-                    
-                    if isinstance(local_msg, ModelRequest):
-                        role = "user"
-                        # Extract content from UserPromptPart
-                        for part in local_msg.parts:
-                            if isinstance(part, UserPromptPart):
-                                content = part.content
-                                break
-                    elif isinstance(local_msg, ModelResponse):
-                        role = "assistant"
-                        # Extract content from TextPart
-                        for part in local_msg.parts:
-                            if isinstance(part, TextPart):
-                                content = part.content
-                                break
-                    else:
-                        # Handle system messages or other types
-                        if hasattr(local_msg, 'parts'):
-                            for part in local_msg.parts:
-                                if hasattr(part, 'content'):
-                                    content = part.content
-                                    break
-                        else:
-                            continue  # Skip unknown message types
-                    
-                    if content:
-                        # Create message in database
-                        message = Message(
-                            id=uuid.uuid4(),
-                            session_id=session_uuid,
-                            user_id=user_uuid,
-                            agent_id=self.db_id,
-                            role=role,
-                            text_content=content,
-                            message_type="text",
-                            created_at=datetime.now(timezone.utc),
-                            updated_at=datetime.now(timezone.utc)
-                        )
-                        
-                        message_id = create_message(message)
-                        if message_id:
-                            saved_count += 1
-                            logger.debug(f"💾 Saved {role} message to database: {content[:50]}...")
-                        else:
-                            logger.warning(f"Failed to save {role} message to database")
-                            
-                except Exception as msg_error:
-                    logger.error(f"Error saving local message to database: {msg_error}")
-                    continue
-            
-            logger.info(f"💾 Successfully saved {saved_count}/{len(local_messages)} local messages to database")
-            
-            # Update MessageHistory to use persistent mode
-            message_history_obj._local_only = False
-            message_history_obj.user_id = user_uuid
-            
-            # 🔧 CRITICAL FIX: Reload messages from database after saving local messages
-            logger.info(f"🔄 Reloading message history from database after making session persistent")
-            try:
-                # Clear local messages and reload from database
-                message_history_obj._local_messages.clear()
-                db_messages = message_history_obj.all_messages()  # This will now read from database
-                logger.info(f"🔄 Reloaded {len(db_messages)} messages from database for session {session_uuid}")
-            except Exception as reload_error:
-                logger.error(f"🔄 Error reloading messages from database: {reload_error}")
-            
-            logger.info(f"✅ Made session {session_uuid} persistent for user {user_id}")
-                
-        except Exception as e:
-            logger.error(f"Error making session persistent: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-
-    def _get_external_key(self) -> Optional[str]:
-        """Get external key for user identification.
-        
-        Creates a unique key combining session name and phone number for consistent user tracking.
-        
-        Returns:
-            External key in format "session_name|phone_number" or None
-        """
-        session_name = self.context.get("session_name")
-        phone_number = (
-            self.context.get("whatsapp_user_number") or 
-            self.context.get("user_phone_number") or
-            self.context.get("whatsapp_id")
-        )
-        
-        if session_name and phone_number:
-            # Normalize phone number for consistency - ensure it's a string
-            normalized_phone = str(phone_number).replace("+", "").replace("-", "").replace("@s.whatsapp.net", "")
-            return f"{session_name}|{normalized_phone}"
-        return None
-    
-    async def _attach_user_by_external_key(self, external_key: str) -> bool:
-        """Try to attach existing user by external key.
-        
-        Args:
-            external_key: The external key to search for
-            
-        Returns:
-            True if user was found and attached, False otherwise
-        """
-        if not external_key:
-            return False
-            
-        try:
-            from src.db.repository.user import list_users
-            
-            logger.info(f"🔑 Searching for user with external_key: {external_key}")
-            
-            # Search all users for matching external_key
-            users, _ = list_users(page=1, page_size=1000)
-            
-            for user in users:
-                if user.user_data and user.user_data.get("external_key") == external_key:
-                    # Found user with matching external key
-                    logger.info(f"🔑 Found user {user.id} with external_key {external_key}")
-                    
-                    # Update context with user info
-                    self.context["user_id"] = str(user.id)
-                    self.context["flashed_user_id"] = user.user_data.get("flashed_user_id")
-                    self.context["flashed_conversation_code"] = user.user_data.get("flashed_conversation_code")
-                    self.context["flashed_user_name"] = user.user_data.get("flashed_user_name")
-                    self.context["user_identification_method"] = "external_key"
-                    
-                    return True
-                    
-            logger.info(f"🔑 No user found with external_key {external_key}")
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error in external_key lookup: {str(e)}")
-            return False
-            
-    async def _attach_user_by_flashed_id_lookup(self) -> bool:
-        """Try to find user by searching all users for Flashed user IDs.
-        
-        This is a fallback method when external_key and session_key approaches fail.
-        
-        Returns:
-            True if user was found and attached, False otherwise
-        """
-        try:
-            from src.db.repository.user import list_users
-            
-            logger.info(f"🔍 Searching for any user with flashed_user_id (fallback lookup)")
-            
-            # Get all users and check their user_data for flashed_user_id
-            users, _ = list_users(page=1, page_size=1000)
-            
-            for user in users:
-                if user.user_data and user.user_data.get("flashed_user_id"):
-                    # Found user with Flashed user ID
-                    flashed_user_id = user.user_data.get("flashed_user_id")
-                    conversation_code = user.user_data.get("flashed_conversation_code")
-                    
-                    if conversation_code:  # Only use users with conversation codes
-                        logger.info(f"🔍 Found user {user.id} with flashed_user_id {flashed_user_id}")
-                        
-                        # Update context with user info
-                        self.context["user_id"] = str(user.id)
-                        self.context["flashed_user_id"] = flashed_user_id
-                        self.context["flashed_conversation_code"] = conversation_code
-                        self.context["flashed_user_name"] = user.user_data.get("flashed_user_name")
-                        self.context["user_identification_method"] = "flashed_id_lookup"
-                        
-                        return True
-                        
-            logger.info(f"🔍 No user found with flashed_user_id")
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error in flashed_id lookup: {str(e)}")
-            return False
-            
 
 def create_agent(config: Dict[str, str]) -> FlashinhoV2:
     """Factory function to create Flashinho V2 agent instance."""
