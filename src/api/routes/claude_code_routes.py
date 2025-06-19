@@ -196,7 +196,10 @@ async def run_claude_workflow(
     ),
     request: ClaudeWorkflowRequest = Body(...),
     persistent: bool = Query(
-        True, description="Use persistent workspace (default: true, set false for temporary workspace)"
+        True, description="Keep workspace after completion (true=keep, false=delete)"
+    ),
+    auto_merge: bool = Query(
+        False, description="Automatically merge to main branch (true=auto-merge, false=manual)"
     ),
 ) -> ClaudeWorkflowResponse:
     """Execute Claude Code workflow with comprehensive configuration"""
