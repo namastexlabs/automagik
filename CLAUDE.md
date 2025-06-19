@@ -35,7 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Core Architecture
 
 - **Genie Orchestrator**: Decomposes complex development epics into specialized workflow sequences
-- **Specialized Workflows**: architect, implement, test, review, fix, refactor, document, pr
+- **Specialized Workflows**: Dynamic workflow orchestration system
 - **Memory System**: Persistent consciousness using MCP agent-memory integration
 - **Multi-Agent System**: PydanticAI + LangGraph for structured interactions
 - **Production Platform**: FastAPI + PostgreSQL/SQLite + Neo4j/Graphiti knowledge graphs
@@ -209,15 +209,11 @@ tests/
 - Uses intelligent wait strategies for autonomous monitoring
 - Provides human approval checkpoints for critical decisions
 
-**Available Workflows:**
-- `architect`: System design and technical planning
-- `implement`: Feature implementation and code writing
-- `test`: Unit tests and security validation
-- `review`: Code review and performance analysis
-- `fix`: Bug fixing and issue remediation
-- `refactor`: Code improvement and optimization
-- `document`: Documentation and API docs
-- `pr`: Pull request preparation
+**Workflow Capabilities:**
+- Dynamic workflow detection and orchestration
+- Intelligent task decomposition and sequencing
+- Context-aware execution planning
+- Autonomous monitoring with human approval checkpoints
 
 ## Environment Variables
 
