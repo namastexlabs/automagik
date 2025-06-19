@@ -45,7 +45,11 @@ class ClaudeCodeRunRequest(BaseModel):
     )
     persistent: bool = Field(
         default=True,
-        description="Use persistent workspace (reuses existing workspace for workflow)"
+        description="Keep workspace after completion (true=keep, false=delete)"
+    )
+    auto_merge: bool = Field(
+        default=False,
+        description="Automatically merge to main branch (true=auto-merge, false=manual)"
     )
     
     @validator('message')
