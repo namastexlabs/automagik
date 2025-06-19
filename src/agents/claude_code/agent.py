@@ -776,12 +776,24 @@ class ClaudeCodeAgent(AutomagikAgent):
                             run_id=run_id,
                             message=commit_message,
                             create_pr=False,  # Start conservative, can be enhanced later
-                            merge_to_main=False,  # Start conservative 
+                            merge_to_main=True,  # Enable auto-merge to main branch
                             workflow_name=workflow_name
                         )
                         
                         if commit_result.get('success'):
                             logger.info(f"📝 AUTO-COMMIT: ✅ SUCCESS for run {run_id}: {commit_result.get('commit_sha', 'N/A')}")
+                            
+                            # If merged to main, cleanup the worktree to save space
+                            if 'merged_to_main' in commit_result.get('operations', []):
+                                logger.info(f"🧹 CLEANUP: Cleaning up worktree for run {run_id} after successful merge")
+                                cleanup_success = await self.executor.environment_manager.cleanup_workspace(
+                                    workspace_path, force=False
+                                )
+                                if cleanup_success:
+                                    logger.info(f"🧹 CLEANUP: ✅ SUCCESS for run {run_id}")
+                                else:
+                                    logger.warning(f"🧹 CLEANUP: ❌ FAILED for run {run_id}")
+                            
                             # Update session metadata with commit info
                             if session_obj:
                                 metadata = session_obj.metadata or {}
