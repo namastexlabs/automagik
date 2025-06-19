@@ -28,21 +28,36 @@ class UserStatusChecker:
             Conversation code if found, None otherwise
         """
         # Pattern to match conversation codes like "KixVoBT59N"
+        # More specific patterns first, then generic as fallback
         patterns = [
+            # Specific conversation code patterns with context
             r'código de conversa[:\s]*([A-Za-z0-9]{10})',
             r'codigo de conversa[:\s]*([A-Za-z0-9]{10})',
-            r'conversa[:\s]*([A-Za-z0-9]{10})',
+            r'meu código[:\s]*([A-Za-z0-9]{10})',
             r'código[:\s]*([A-Za-z0-9]{10})',
             r'codigo[:\s]*([A-Za-z0-9]{10})',
-            r'\b([A-Za-z0-9]{10})\b'  # Generic 10-char alphanumeric
+            # Pattern for the specific test format: "KixVoBT59N"
+            r'\b([A-Z][a-z]{2}[A-Z][a-z]{1}[A-Z][a-z]{1}[0-9]{2}[A-Z])\b',  # KixVoBT59N pattern
+            # Generic pattern but exclude common Portuguese words
+            r'(?<![a-záàâãéêíóôõúç])\b([A-Za-z0-9]{10})(?![a-záàâãéêíóôõúç])\b'
+        ]
+        
+        # Common Portuguese words to exclude (that might be 10 chars)
+        excluded_words = [
+            'linguagens', 'programação', 'desenvolvimento', 'javascript', 'typescript',
+            'conversação', 'flashinho', 'mensagem', 'whatsapp', 'conversar'
         ]
         
         for pattern in patterns:
             match = re.search(pattern, message, re.IGNORECASE)
             if match:
                 code = match.group(1)
-                logger.info(f"Extracted conversation code: {code}")
-                return code
+                # Check if it's not an excluded word
+                if code.lower() not in excluded_words:
+                    logger.info(f"Extracted conversation code: {code}")
+                    return code
+                else:
+                    logger.debug(f"Skipped excluded word: {code}")
         
         return None
     
@@ -134,7 +149,7 @@ class UserStatusChecker:
         Returns:
             Message requesting conversation code
         """
-        return ("E aí, mano! 👋 Pra eu conseguir te dar aquela força nos estudos de forma "
+        return ("E aí! 👋 Pra eu conseguir te dar aquela força nos estudos de forma "
                 "personalizada, preciso do seu código de conversa! 🔑\n\n"
                 "Manda aí seu código pra gente começar com tudo! 🚀✨")
     

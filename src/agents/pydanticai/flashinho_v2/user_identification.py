@@ -288,8 +288,16 @@ class FlashinhoProUserMatcher:
                 card_plays = last_round.get("cardPlays", [])
                 if card_plays:
                     last_play = card_plays[-1]  # Get most recent play
+                    # Determine correctness handling boolean or string values like "right"/"wrong"
+                    result_val = last_play.get("result")
+                    if isinstance(result_val, bool):
+                        is_correct = result_val
+                    else:
+                        # Normalise string result values; treat "right"/"correct" as correct
+                        is_correct = str(result_val).lower() in {"right", "correct", "certo", "true", "verdadeiro"}
+
                     variables.update({
-                        "last_cardPlay_result": "certo" if last_play.get("result") else "errado",
+                        "last_cardPlay_result": "certo" if is_correct else "errado",
                         "last_cardPlay_category": last_round.get("subcategory", {}).get("name", ""),
                         "last_cardPlay_topic": last_play.get("card", {}).get("topic", ""),
                         "last_cardPlay_date": self._format_date(last_round.get("completedAt")),
