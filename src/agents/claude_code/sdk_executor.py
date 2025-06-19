@@ -82,8 +82,8 @@ class ClaudeSDKExecutor(ExecutorBase):
         """
         options = ClaudeCodeOptions()
         
-        # Set workspace
-        options.workspace = str(workspace)
+        # Set working directory (SDK uses cwd, not workspace)
+        options.cwd = str(workspace)
         
         # Load system prompt from prompt.md (NOT append_system_prompt)
         prompt_file = workspace / "prompt.md"
@@ -216,41 +216,107 @@ class ClaudeSDKExecutor(ExecutorBase):
                 'workspace': workspace_path
             }
             
-            # Execute the task using SDK query function with data extraction
+            # Execute the task using SDK query function with comprehensive data extraction
             messages = []
             final_result_message = None
-            cost_usd = 0.0
+            
+            # Initialize comprehensive metrics tracking
+            total_cost = 0.0
             total_turns = 0
             tools_used = []
+            token_details = {
+                'total_tokens': 0,
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'cache_created': 0,
+                'cache_read': 0
+            }
+            
+            # Collect all messages first to avoid TaskGroup issues
+            collected_messages = []
+            final_metrics = None
             
             try:
                 async for message in query(prompt=request.message, options=options):
                     messages.append(str(message))
+                    collected_messages.append(message)  # Store actual message objects
                     
-                    # Extract data from different message types
-                    from claude_code_sdk import ResultMessage, AssistantMessage, ToolUseBlock
+                    # Capture final metrics immediately during streaming to avoid loss
+                    if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
+                        final_metrics = {
+                            'total_cost_usd': message.total_cost_usd,
+                            'num_turns': getattr(message, 'num_turns', 0),
+                            'duration_ms': getattr(message, 'duration_ms', 0),
+                            'usage': getattr(message, 'usage', {})
+                        }
+                        logger.info(f"SDK Executor: Captured final metrics during streaming - Cost: ${final_metrics['total_cost_usd']:.4f}, Turns: {final_metrics['num_turns']}")
                     
-                    if isinstance(message, ResultMessage):
-                        final_result_message = message
-                        cost_usd = message.total_cost_usd or 0.0
-                        total_turns = message.num_turns
-                        
-                    elif isinstance(message, AssistantMessage):
-                        # Extract tool usage
-                        for block in message.content:
-                            if isinstance(block, ToolUseBlock):
-                                if block.name not in tools_used:
-                                    tools_used.append(block.name)
-                                    
             except Exception as sdk_error:
-                # If SDK fails with TaskGroup errors, log it but continue with fallback
+                # If SDK fails with TaskGroup errors, log it but continue with message processing
                 if "TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error):
                     logger.warning(f"SDK streaming failed with TaskGroup error: {sdk_error}")
-                    logger.info("This is a known SDK limitation with background execution")
-                    # Continue with partial data we might have collected
+                    logger.info("Continuing with message processing - using captured metrics if available")
+                    # Continue to process any messages we collected before the error
                 else:
                     # Re-raise other types of errors
                     raise sdk_error
+            
+            # Process collected messages OUTSIDE the streaming loop to avoid TaskGroup interference
+            from claude_code_sdk import ResultMessage, AssistantMessage, ToolUseBlock
+            
+            logger.info(f"SDK Executor: Processing {len(collected_messages)} collected messages for data extraction")
+            
+            for message in collected_messages:
+                if isinstance(message, ResultMessage):
+                    final_result_message = message
+                    # Extract comprehensive metrics from ResultMessage
+                    total_cost = message.total_cost_usd or 0.0
+                    total_turns = message.num_turns
+                    
+                    # Extract token usage details
+                    if message.usage:
+                        token_details = {
+                            'total_tokens': (
+                                message.usage.get('input_tokens', 0) +
+                                message.usage.get('output_tokens', 0) +
+                                message.usage.get('cache_creation_input_tokens', 0) +
+                                message.usage.get('cache_read_input_tokens', 0)
+                            ),
+                            'input_tokens': message.usage.get('input_tokens', 0),
+                            'output_tokens': message.usage.get('output_tokens', 0),
+                            'cache_created': message.usage.get('cache_creation_input_tokens', 0),
+                            'cache_read': message.usage.get('cache_read_input_tokens', 0)
+                        }
+                    
+                elif isinstance(message, AssistantMessage):
+                    # Extract tool usage from assistant messages
+                    for block in message.content:
+                        if isinstance(block, ToolUseBlock):
+                            if block.name not in tools_used:
+                                tools_used.append(block.name)
+                                logger.info(f"SDK Executor: Captured tool usage - {block.name} (id: {block.id})")
+            
+            # If no final_result_message was found but we captured metrics during streaming, use those
+            if not final_result_message and final_metrics:
+                logger.info(f"SDK Executor: Using captured streaming metrics (no ResultMessage found)")
+                total_cost = final_metrics['total_cost_usd']
+                total_turns = final_metrics['num_turns']
+                
+                # Extract token usage from captured metrics
+                usage = final_metrics.get('usage', {})
+                if usage:
+                    token_details = {
+                        'total_tokens': (
+                            usage.get('input_tokens', 0) +
+                            usage.get('output_tokens', 0) +
+                            usage.get('cache_creation_input_tokens', 0) +
+                            usage.get('cache_read_input_tokens', 0)
+                        ),
+                        'input_tokens': usage.get('input_tokens', 0),
+                        'output_tokens': usage.get('output_tokens', 0),
+                        'cache_created': usage.get('cache_creation_input_tokens', 0),
+                        'cache_read': usage.get('cache_read_input_tokens', 0)
+                    }
             
             # Determine result text and success
             if final_result_message:
@@ -261,6 +327,34 @@ class ClaudeSDKExecutor(ExecutorBase):
                 success = bool(messages)  # Basic success if we got any messages
             
             execution_time = time.time() - start_time
+            
+            # Log comprehensive tool capture results
+            logger.info(f"SDK Executor: Final tool extraction results - {len(tools_used)} tools captured: {tools_used}")
+            
+            # If no tools were captured but we had messages, try fallback extraction
+            if len(tools_used) == 0 and len(collected_messages) > 0:
+                logger.warning(f"SDK Executor: No tools captured from {len(collected_messages)} messages - trying fallback extraction")
+                
+                # Log message types for debugging
+                message_types = [type(msg).__name__ for msg in collected_messages]
+                logger.debug(f"SDK Executor: Message types processed: {message_types}")
+                
+                # Fallback: try to extract tools from string representations
+                import re
+                for msg_str in messages:
+                    # Look for tool use patterns in the string representation
+                    tool_matches = re.findall(r'ToolUse.*?name["\']?\s*:\s*["\']?(\w+)', msg_str)
+                    for tool_name in tool_matches:
+                        if tool_name not in tools_used:
+                            tools_used.append(tool_name)
+                            logger.info(f"SDK Executor: Fallback captured tool - {tool_name}")
+                
+                if len(tools_used) > 0:
+                    logger.info(f"SDK Executor: Fallback extraction successful - captured {len(tools_used)} tools")
+                else:
+                    logger.error(f"SDK Executor: Both primary and fallback tool extraction failed")
+            elif len(tools_used) > 0:
+                logger.info(f"SDK Executor: SUCCESS - Tool extraction working correctly!")
             
             # Extract git commits if any (TODO: parse from tool usage)
             git_commits = []
@@ -274,10 +368,17 @@ class ClaudeSDKExecutor(ExecutorBase):
                 'logs': f"SDK execution completed in {execution_time:.2f}s",
                 'git_commits': git_commits,
                 'workspace_path': str(workspace_path),
-                # Enhanced data for status endpoint
-                'cost_usd': cost_usd,
+                # Enhanced data extracted from SDK messages
+                'cost_usd': total_cost,
                 'total_turns': total_turns,
-                'tools_used': tools_used
+                'tools_used': tools_used,
+                'token_details': token_details,
+                # Store for session metadata
+                'total_cost_usd': total_cost,
+                'total_tokens': token_details['total_tokens'],
+                'input_tokens': token_details['input_tokens'],
+                'output_tokens': token_details['output_tokens'],
+                'tool_names_used': tools_used
             }
             
         except Exception as e:
