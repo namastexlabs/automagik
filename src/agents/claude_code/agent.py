@@ -761,8 +761,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                 try:
                     # Get workspace path from environment manager for this specific run
                     logger.info(f"📝 AUTO-COMMIT: Active workspaces: {list(self.executor.environment_manager.active_workspaces.keys())}")
-                    workspace_path = self.executor.environment_manager.active_workspaces.get(run_id)
-                    logger.info(f"📝 AUTO-COMMIT: Workspace path for {run_id}: {workspace_path}")
+                    claude_session_id = result.get("session_id")
+                    workspace_path = self.executor.environment_manager.active_workspaces.get(claude_session_id)
+                    logger.info(f"📝 AUTO-COMMIT: Workspace path for run_id={run_id}, claude_session_id={claude_session_id}: {workspace_path}")
                     if workspace_path and workspace_path.exists():
                         logger.info(f"📝 AUTO-COMMIT: Attempting auto-commit for successful workflow {run_id}")
                         
