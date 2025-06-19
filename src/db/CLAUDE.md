@@ -1,108 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides database development context for Claude Code working in this directory.
 
-## Database Architecture & Usage
+## Database Development Context
 
-This codebase supports both SQLite (default) and PostgreSQL databases through a unified provider architecture, with sophisticated repository patterns, automated migrations, and type-safe Pydantic models.
+This directory contains the database layer for Automagik Agents. When working here, you're developing database operations, migrations, repository patterns, and data models.
 
-## 🔧 Database Provider System
+## 🗄️ Database Architecture Overview
 
-The framework uses a provider abstraction layer for database independence:
-
-### Supported Database Types
-- **SQLite** (default) - Zero-configuration, single-file database
+### Multi-Provider System
+- **SQLite** (default) - Zero-config development
 - **PostgreSQL** - Production-ready with advanced features
+- **Provider abstraction** - Unified interface across database types
 
-### Provider Architecture
+### Core Components
+- **Models** (`models.py`) - Pydantic models for type safety
+- **Repository** (`repository/`) - Data access layer with CRUD operations
+- **Providers** (`providers/`) - Database-specific implementations
+- **Migrations** (`migrations/`) - Schema evolution and data migrations
+- **Connection** (`connection.py`) - Thread-safe connection pooling
+
+## 🏗️ Database Development Patterns
+
+### Repository Pattern Usage
 ```python
-# Database providers handle connection management and SQL execution
-from src.db.providers import DatabaseProvider, get_database_provider
-
-# Factory automatically selects provider based on DATABASE_TYPE env var
-provider = get_database_provider()
-
-# All database operations go through the provider
-result = provider.execute_query("SELECT * FROM users", fetch=True)
-```
-
-### Configuration
-```bash
-# Use SQLite (default)
-DATABASE_TYPE=sqlite
-SQLITE_DATABASE_PATH=./data/automagik_agents.db
-
-# Use PostgreSQL  
-DATABASE_TYPE=postgresql
-DATABASE_URL=postgresql://user:pass@localhost/automagik
-```
-
-## 🏗️ Database Architecture
-
-### Core Models
-- **User** (`users` table) - User accounts with UUID primary keys
-- **Agent** (`agents` table) - AI agent configurations with serial IDs
-- **Session** (`sessions` table) - Conversation sessions between users and agents
-- **Message** (`messages` table) - Individual messages with channel payload support
-- **Memory** (`memories` table) - Agent persistent memory storage
-- **Prompt** (`prompts` table) - Versioned prompts for agents
-- **Preference** (`preferences` table) - User preferences by category
-- **MCPServerDB** (`mcp_servers` table) - MCP server configurations
-- **AgentMCPServerDB** (`agent_mcp_servers` table) - Agent-to-MCP server links
-
-### Key Features
-- **UUID primary keys** for most entities (agents use serial IDs)
-- **JSONB columns** for flexible data storage (config, metadata, preferences)
-- **Automatic timestamps** (created_at, updated_at) via BaseDBModel
-- **Foreign key constraints** with proper cascading
-- **Type safety** through Pydantic models
-
-## 🔄 Repository Pattern
-
-### Import Structure
-**ALWAYS** import from centralized locations:
-
-```python
-# ✅ CORRECT - Import from central db module
+# ✅ CORRECT - Always import from centralized locations
 from src.db import (
     create_user, get_user, list_users, update_user, delete_user,
     create_agent, get_agent, get_agent_by_name, list_agents,
     create_session, get_session, list_sessions,
-    create_message, get_message, list_messages,
-    create_memory, get_memory, list_memories,
-    create_prompt, get_prompt, list_prompts,
-    create_preference, get_preference, list_preferences,
-    create_mcp_server, get_mcp_server, list_mcp_servers
+    create_message, get_message, list_messages
 )
 
 # ❌ WRONG - Never import individual repository modules
 from src.db.repository.user import create_user  # DON'T DO THIS
 ```
 
-### Standard CRUD Operations
-Each entity follows consistent naming:
-- `get_[entity](id)` - Get by primary key
-- `get_[entity]_by_[field]()` - Get by specific field
-- `list_[entity]s()` - List with pagination and filtering
-- `create_[entity](model)` - Create or update if exists (upsert behavior)
-- `update_[entity](id, model)` - Update existing record
-- `delete_[entity](id)` - Delete by primary key
-
-## 🔧 Connection Management
-
-### Database Connections
-Use thread-safe connection pooling with context managers:
-
+### Standard CRUD Naming Convention
 ```python
-from src.db.connection import get_db_connection, get_db_cursor, execute_query
+# Consistent patterns across all entities:
+get_[entity](id)                    # Get by primary key
+get_[entity]_by_[field](value)      # Get by specific field
+list_[entity]s(filters, pagination) # List with filtering/pagination
+create_[entity](model)              # Create or update (upsert behavior)
+update_[entity](id, model)          # Update existing record
+delete_[entity](id)                 # Delete by primary key
+```
 
+### Connection Management Patterns
+```python
 # Method 1: Context managers (recommended)
+from src.db.connection import get_db_connection
+
 with get_db_connection() as conn:
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         result = cursor.fetchone()
 
 # Method 2: Helper functions for simple queries
+from src.db.connection import execute_query
 result = execute_query("SELECT * FROM agents WHERE name = %s", (agent_name,))
 
 # Method 3: Batch operations
@@ -113,96 +69,20 @@ execute_batch(
 )
 ```
 
-### Connection Pool Configuration
-```bash
-# Environment variables for connection pooling
-POSTGRES_POOL_MIN=10        # Minimum connections (default: 10)
-POSTGRES_POOL_MAX=25        # Maximum connections (default: 25)
-```
+## 📊 Data Model Patterns
 
-## 📁 Migration System
-
-### Migration Structure
-- **Location**: `src/db/migrations/`
-- **Naming Convention**: `YYYYMMDD_HHMMSS_description.sql`
-- **Automatic Application**: Runs during `automagik agents db init`
-- **Tracking**: Applied migrations stored in `migrations` table with checksums
-
-### Migration Features
-- **Idempotency**: All migrations use `IF NOT EXISTS` patterns
-- **Checksum Verification**: SHA256 hashes ensure integrity
-- **Partial Application Detection**: Handles interrupted migrations
-- **Rollback Support**: Uses savepoints for safe execution
-
-### Writing Migrations
-```sql
--- Example: 20250326_045944_add_channel_payload_to_messages.sql
-
--- Always use IF NOT EXISTS for idempotency
-ALTER TABLE messages 
-ADD COLUMN IF NOT EXISTS channel_payload JSONB DEFAULT '{}';
-
--- Create indexes safely
-CREATE INDEX IF NOT EXISTS idx_messages_channel_payload 
-ON messages USING gin(channel_payload);
-
--- Add constraints safely
-ALTER TABLE messages 
-ADD CONSTRAINT IF NOT EXISTS chk_channel_payload_valid 
-CHECK (jsonb_typeof(channel_payload) = 'object');
-```
-
-## 🛠️ Common Database Operations
-
-### Creating Records (Upsert Behavior)
+### Core Entity Relationships
 ```python
-from src.db import create_user, create_agent
-from src.db.models import User, Agent
-
-# Users are upserted by email
-user = User(
-    email="test@example.com",
-    name="Test User", 
-    metadata={"role": "admin", "preferences": {"theme": "dark"}}
-)
-user_id = create_user(user)
-
-# Agents are upserted by name
-agent = Agent(
-    name="helpful_assistant",
-    type="simple",
-    config={"model": "gpt-4", "temperature": 0.7},
-    metadata={"version": "1.0", "capabilities": ["chat", "search"]}
-)
-agent_id = create_agent(agent)
+# User (UUID primary key) -> Sessions -> Messages
+# Agent (serial ID) -> Sessions -> Messages
+# Agent -> Memory (global or user-specific)
+# User -> Preferences (by category)
+# Agent -> MCP Servers (many-to-many)
 ```
 
-### Querying with Pagination
+### JSONB Usage Patterns
 ```python
-from src.db import list_sessions, list_messages
-
-# Paginated session listing
-sessions, total_count = list_sessions(
-    user_id=user_id,
-    agent_id=agent_id,  # Optional filter
-    page=1,
-    page_size=20
-)
-
-# Message listing with offset/limit
-messages, total = list_messages(
-    session_id=session_id,
-    limit=50,
-    offset=100  # For pagination
-)
-```
-
-### Working with JSONB Data
-```python
-from src.db import create_preference, get_preference
-from src.db.connection import execute_query
-
-# Store nested JSON preferences
+# Structured data with nested objects
 preference = Preference(
     user_id=user_id,
     category="ui_settings",
@@ -211,134 +91,25 @@ preference = Preference(
         "language": "en",
         "notifications": {
             "email": True,
-            "push": False,
-            "frequency": "daily"
-        },
-        "layout": {
-            "sidebar": "collapsed",
-            "density": "compact"
+            "push": False
         }
     }
 )
-create_preference(preference)
 
-# Query JSONB fields with operators
+# Querying JSONB fields
 dark_theme_users = execute_query(
     "SELECT * FROM preferences WHERE preferences->>'theme' = %s",
     ("dark",)
 )
 
-# Query nested JSONB paths
+# Nested path queries
 email_enabled = execute_query(
     "SELECT * FROM preferences WHERE preferences->'notifications'->>'email' = %s",
     ("true",)
 )
 ```
 
-### Agent Memory Operations
-```python
-from src.db import create_memory, list_memories
-from src.db.models import Memory
-
-# Store global agent memory (user_id = None)
-global_memory = Memory(
-    agent_id=agent_id,
-    user_id=None,  # Global memory
-    name="system_context",
-    content="I am a helpful assistant specializing in code analysis",
-    metadata={"type": "system", "priority": "high"}
-)
-create_memory(global_memory)
-
-# Store user-specific memory
-user_memory = Memory(
-    agent_id=agent_id,
-    user_id=user_id,
-    name="user_preferences",
-    content="User prefers concise responses with code examples",
-    metadata={"type": "preference", "confidence": 0.9, "last_updated": "2024-01-15"}
-)
-create_memory(user_memory)
-
-# Retrieve memories with pattern matching
-memories, count = list_memories(
-    agent_id=agent_id,
-    user_id=user_id,
-    name_pattern="user_%"  # SQL LIKE pattern with %
-)
-```
-
-## 🚀 Database Management Commands
-
-### Initialization and Migrations
-```bash
-# Initialize database and apply all migrations
-automagik agents db init
-
-# Force reinitialize (WARNING: drops all tables)
-automagik agents db init --force
-
-# Clear all data but keep schema
-automagik agents db clear --yes
-```
-
-### Development and Debugging
-```bash
-# Enable SQL query logging for debugging
-export AM_LOG_SQL=true
-
-# Check database health and migration status
-uv run python -c "
-from src.db.connection import verify_database_health
-verify_database_health()
-"
-
-# Inspect recent migrations
-uv run python -c "
-from src.db.connection import execute_query
-result = execute_query('SELECT * FROM migrations ORDER BY applied_at DESC LIMIT 5')
-for migration in result:
-    print(f'{migration[1]}: {migration[2]} - {migration[4]}')
-"
-```
-
-## ⚙️ Database Configuration
-
-### Environment Variables
-```bash
-# Option 1: Single connection string (preferred)
-DATABASE_URL=postgresql://user:pass@localhost:5432/automagik
-
-# Option 2: Individual components
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=automagik  
-POSTGRES_PASSWORD=password
-POSTGRES_DB=automagik
-
-# Connection pool tuning
-POSTGRES_POOL_MIN=10    # Minimum pool connections
-POSTGRES_POOL_MAX=25    # Maximum pool connections
-
-# Debugging
-AM_LOG_SQL=true         # Log all SQL queries
-```
-
-## 📋 Best Practices
-
-### 1. Repository Usage
-- **Always use centralized imports** from `src.db`
-- **Never import individual repository modules** directly
-- **Leverage upsert behavior** - create_* functions handle existing records
-- **Use appropriate get_* variants** for different lookup patterns
-
-### 2. Connection Handling
-- **Always use context managers** for connections and cursors
-- **Use execute_query() helper** for simple operations
-- **Use execute_batch()** for multiple similar operations
-- **Monitor connection pool** usage in production
-
-### 3. UUID Safety
+### UUID Safety Pattern
 ```python
 from src.db.repository import safe_uuid
 
@@ -346,78 +117,221 @@ from src.db.repository import safe_uuid
 user_uuid = safe_uuid(user_id_string)  # Handles both str and UUID inputs
 ```
 
-### 4. JSONB Best Practices
-- **Structure data consistently** across similar records
-- **Use nested objects** for related settings
-- **Index frequently queried paths** with GIN indexes
-- **Validate JSON structure** in application code
+## 🚀 Migration Development Patterns
 
-### 5. Migration Guidelines
-- **Use IF NOT EXISTS** for all DDL operations
-- **Test locally first** before applying to production
-- **Keep migrations focused** - one logical change per file
-- **Document complex migrations** with comments
+### Migration File Structure
+```bash
+# Location: src/db/migrations/
+# Naming: YYYYMMDD_HHMMSS_description.sql
+# Example: 20250326_045944_add_channel_payload_to_messages.sql
+```
 
-### 6. Error Handling
+### Idempotent Migration Patterns
+```sql
+-- Always use IF NOT EXISTS for safety
+ALTER TABLE messages 
+ADD COLUMN IF NOT EXISTS channel_payload JSONB DEFAULT '{}';
+
+-- Safe index creation
+CREATE INDEX IF NOT EXISTS idx_messages_channel_payload 
+ON messages USING gin(channel_payload);
+
+-- Safe constraint addition
+ALTER TABLE messages 
+ADD CONSTRAINT IF NOT EXISTS chk_channel_payload_valid 
+CHECK (jsonb_typeof(channel_payload) = 'object');
+```
+
+### Migration Development Workflow
+1. Create timestamped SQL file in `migrations/`
+2. Update Pydantic models in `models.py`
+3. Modify repository functions if needed
+4. Update central imports in `__init__.py`
+5. Test with `automagik agents db init --force`
+6. Verify idempotency by running twice
+
+## 🔧 Provider Development Patterns
+
+### Adding New Database Provider
 ```python
-try:
+# 1. Create provider class in providers/
+class NewDatabaseProvider(DatabaseProvider):
+    def connect(self):
+        # Provider-specific connection logic
+        pass
+    
+    def execute_query(self, query: str, params=None, fetch=False):
+        # Provider-specific query execution
+        pass
+
+# 2. Register in providers/factory.py
+def get_database_provider() -> DatabaseProvider:
+    db_type = get_settings().database_type
+    if db_type == "new_database":
+        return NewDatabaseProvider()
+    # ... existing providers
+```
+
+### Database Configuration Patterns
+```python
+# Environment variables for database selection
+DATABASE_TYPE=sqlite|postgresql
+DATABASE_URL=full_connection_string
+
+# Or individual components
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=username
+POSTGRES_PASSWORD=password
+POSTGRES_DB=database_name
+
+# Connection pool tuning
+POSTGRES_POOL_MIN=10
+POSTGRES_POOL_MAX=25
+```
+
+## 📝 Repository Development Patterns
+
+### Creating New Repository Module
+```python
+# repository/new_entity.py
+from typing import List, Optional, Tuple
+from ..models import NewEntity
+from ..connection import execute_query, get_db_connection
+from . import safe_uuid
+
+def create_new_entity(entity: NewEntity) -> str:
+    """Create or update entity (upsert behavior)."""
+    # Implementation with proper error handling
+    pass
+
+def get_new_entity(entity_id: str) -> Optional[NewEntity]:
+    """Get entity by ID."""
+    # Implementation
+    pass
+
+def list_new_entities(
+    filters: Optional[Dict] = None,
+    page: int = 1,
+    page_size: int = 20
+) -> Tuple[List[NewEntity], int]:
+    """List entities with pagination."""
+    # Implementation with total count
+    pass
+```
+
+### Updating Central Imports
+```python
+# Add to src/db/__init__.py
+from .repository.new_entity import (
+    create_new_entity,
+    get_new_entity,
+    list_new_entities
+)
+
+# Add to __all__ list
+__all__ = [
+    # ... existing exports
+    "create_new_entity",
+    "get_new_entity", 
+    "list_new_entities"
+]
+```
+
+## 🧪 Database Testing Patterns
+
+### Repository Testing
+```python
+# Test with actual database (not mocked)
+@pytest.fixture
+def test_db():
+    # Setup test database
+    yield
+    # Cleanup
+
+def test_create_user(test_db):
+    user = User(email="test@example.com", name="Test User")
     user_id = create_user(user)
-except Exception as e:
-    logger.error(f"Failed to create user: {e}")
-    # Handle appropriately
+    assert user_id is not None
+    
+    retrieved = get_user(user_id)
+    assert retrieved.email == "test@example.com"
 ```
 
-### 7. Performance Optimization
-- **Use pagination** for large result sets
-- **Index JSONB queries** that are used frequently
-- **Monitor slow queries** with `AM_LOG_SQL=true`
-- **Use connection pooling** appropriately
-
-## 🔧 Schema Evolution Workflow
-
-When modifying the database schema:
-
-1. **Create migration file** in `src/db/migrations/` with proper timestamp
-2. **Update Pydantic models** in `src/db/models.py`
-3. **Modify repository functions** in `src/db/repository/[entity].py`
-4. **Update central imports** in `src/db/__init__.py` and `src/db/repository.py`
-5. **Test migration locally** with `automagik agents db init --force`
-6. **Verify idempotency** by running migration twice
-7. **Update tests** to reflect schema changes
-
-## 🐛 Common Issues & Solutions
-
-### Connection Pool Exhaustion
-```bash
-# Increase pool size if needed
-export POSTGRES_POOL_MAX=50
-
-# Monitor active connections
-uv run python -c "
-from src.db.connection import get_connection_pool
-pool = get_connection_pool()
-print(f'Active: {pool.getconn().dsn}')
-"
+### Migration Testing
+```python
+def test_migration_idempotency():
+    # Apply migration
+    apply_migration("20250326_045944_add_column.sql")
+    
+    # Apply again - should not fail
+    apply_migration("20250326_045944_add_column.sql")
+    
+    # Verify final state
+    assert column_exists("table_name", "new_column")
 ```
 
-### Migration Failures
+## 🔍 Debugging Database Operations
+
 ```bash
+# Enable SQL query logging
+export AM_LOG_SQL=true
+
 # Check migration status
 uv run python -c "
 from src.db.connection import execute_query
-result = execute_query('SELECT * FROM migrations WHERE status != %s', ('applied',))
-print('Failed migrations:', result)
+result = execute_query('SELECT * FROM migrations ORDER BY applied_at DESC LIMIT 5')
+for migration in result:
+    print(f'{migration[1]}: {migration[2]} - {migration[4]}')
 "
 
-# Fix and reapply
-automagik agents db init --force
+# Verify database health
+uv run python -c "
+from src.db.connection import verify_database_health
+verify_database_health()
+"
+
+# Check connection pool status
+uv run python -c "
+from src.db.connection import get_connection_pool
+pool = get_connection_pool()
+print(f'Pool status: {pool.getconn().dsn}')
+"
 ```
 
-### JSONB Query Performance
-```sql
--- Add GIN indexes for frequently queried JSONB paths
-CREATE INDEX idx_preferences_theme ON preferences USING gin((preferences->>'theme'));
-CREATE INDEX idx_agent_config ON agents USING gin(config);
+## ⚠️ Database Development Guidelines
+
+### Performance Considerations
+- Use pagination for large result sets
+- Index frequently queried JSONB paths with GIN indexes
+- Monitor slow queries with `AM_LOG_SQL=true`
+- Use connection pooling appropriately
+- Implement proper connection cleanup
+
+### Security Patterns
+- Always use parameterized queries
+- Validate input data with Pydantic models
+- Use safe_uuid() for UUID handling
+- Never concatenate user input into SQL strings
+
+### Error Handling
+```python
+from src.db.exceptions import DatabaseError
+
+try:
+    user_id = create_user(user)
+except DatabaseError as e:
+    logger.error(f"Database operation failed: {e}")
+    # Handle appropriately
+except Exception as e:
+    logger.error(f"Unexpected error: {e}")
+    # Handle appropriately
 ```
 
-This database system provides a robust foundation for the automagik-agents framework with type safety, migration management, and flexible data storage through JSONB columns.
+### Data Consistency
+- Use transactions for multi-step operations
+- Implement proper foreign key constraints
+- Use CHECK constraints for data validation
+- Handle concurrent access appropriately
+
+This context focuses specifically on database development patterns and should be used alongside the global development rules in the root CLAUDE.md.

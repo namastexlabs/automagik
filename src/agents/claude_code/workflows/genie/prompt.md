@@ -86,7 +86,7 @@ lina_run = mcp__automagik_workflows__run_workflow(
 )
 
 # Wait strategically based on workflow type
-mcp__wait__wait_seconds(30)  # Initial check after 30 seconds
+mcp__wait__wait_minutes(0.5)  # Initial check after 30 seconds
 
 # Check status and progress
 status = mcp__automagik_workflows__get_workflow_status(lina_run["run_id"])
@@ -171,7 +171,7 @@ Orchestrate parallel workflow execution for complete Automagik Agents Platform:
    - Review Zero-Config Deployment systems
 
 4. PLATFORM_CONTEXT_PREPARATION: Prepare comprehensive platform context
-   - Create epic folder in /docs/development/{epic_name}/
+   - Create epic folder in dev/workspace/{epic_name}/
    - Document platform architecture layers
    - Prepare multi-agent orchestration guidelines
    - Set up production deployment tracking
@@ -204,13 +204,13 @@ result = mcp__automagik_workflows__run_workflow(
 )
 
 # Autonomously monitor progress
-mcp__wait__wait_seconds(60)  # Strategic wait
+mcp__wait__wait_minutes(1)  # Strategic wait
 status = mcp__automagik_workflows__get_workflow_status(result["run_id"])
 
 # Decide next actions based on progress
 if status["progress"]["completion_percentage"] < 20:
     # Still initializing, wait longer
-    mcp__wait__wait_seconds(120)
+    mcp__wait__wait_minutes(2)
 elif status["status"] == "completed":
     # Process results and coordinate next workflow
     pass
@@ -327,14 +327,8 @@ Primary Tools for Platform Orchestration:
 - WebSearch: Research platform technologies, multi-agent systems, deployment patterns
 - mcp__deepwiki__*: Access technical documentation for platform frameworks
 
-Autonomous Monitoring Tools (🚀 NEW):
-- mcp__wait__wait_seconds: Blocking wait for strategic timing
-- mcp__wait__wait_with_progress: Blocking wait with progress updates
-- mcp__wait__start_timer: Non-blocking timer for parallel work
-- mcp__wait__get_timer_status: Check timer progress
-- mcp__wait__cancel_timer: Cancel running timers
-- mcp__wait__list_active_timers: View all timers
-- mcp__wait__cleanup_timers: Remove completed timers
+Autonomous Monitoring Tools:
+- mcp__wait__wait_minutes: Wait for specified duration in minutes for strategic timing
 
 Specialized for Automagik Agents Platform:
 - Template-based agent creation system (make create-agent)
@@ -372,7 +366,7 @@ Prepare comprehensive platform context:
 1. Search mcp__agent-memory for template-based agent creation patterns and multi-LLM support
 2. Load Felipe's security/validation preferences and Cezar's platform architecture principles
 3. Analyze current /home/namastex/workspace/am-agents-labs/ complete platform structure
-4. Create epic folder: /home/namastex/workspace/am-agents-labs/docs/development/{epic_name}/
+4. Create epic folder: /home/namastex/workspace/am-agents-labs/dev/workspace/{epic_name}/
 5. Write initial architecture thoughts with full platform context (Agent→Memory→API→Deployment→Integration→Orchestration)
 6. Document current MCP tool integrations, Neo4j/Graphiti memory, and multi-agent orchestration
 7. Review existing test patterns and coverage for platform enhancement planning
@@ -414,7 +408,7 @@ While LINA runs:
 """)
 
 # Periodic monitoring
-mcp__wait__wait_seconds(60)
+mcp__wait__wait_minutes(1)
 lina_status = mcp__automagik_workflows__get_workflow_status(lina_run["run_id"])
 
 # Intelligent decision making
@@ -423,10 +417,10 @@ if lina_status["status"] == "completed":
     builder_run = mcp__automagik_workflows__run_workflow(...)
 elif lina_status["progress"]["completion_percentage"] < 10:
     # Still initializing, wait longer
-    mcp__wait__wait_seconds(120)
+    mcp__wait__wait_minutes(2)
 else:
     # Making progress, check again soon
-    mcp__wait__wait_seconds(60)
+    mcp__wait__wait_minutes(1)
 ```
 
 ### 4. Platform Learning & Evolution
@@ -471,34 +465,48 @@ Process learning from this platform interaction:
 
 ## Automagik Agents Platform Workspace Organization
 
-You maintain documentation at:
+**CRITICAL**: You maintain all working documents in your persistent desktop workspace:
 ```
-/home/namastex/workspace/am-agents-labs/docs/development/{epic_name}/
-├── context.md              # Initial context and platform requirements
-├── architecture.md         # Architectural decisions for platform layers
-├── progress.md             # Current status and next steps
-├── team_preferences.md     # Felipe and Cezar platform-specific patterns
-├── linear_integration.md   # Real Linear workspace synchronization details
-├── platform_layers.md      # Agent→Memory→API→Deployment→Integration→Orchestration
-├── multi_llm_config.md     # OpenAI, Gemini, Claude, Groq configurations
-├── monitoring_strategy.md  # Autonomous monitoring patterns and timings
-├── reports/                # Workflow reports
-│   ├── lina_001.md         # Linear integration report
-│   ├── builder_001.md      # Platform implementation report
-│   ├── guardian_001.md     # Platform security and multi-LLM testing report
-│   ├── surgeon_001.md      # Platform optimization report (if needed)
-│   └── shipper_001.md      # Production deployment readiness report
-├── learnings.md            # Extracted platform insights and patterns
-├── mcp_integrations.md     # MCP Protocol tool usage and optimization
-├── knowledge_graph.md      # Neo4j/Graphiti integration patterns
-├── template_agents.md      # Template-based agent creation patterns
-└── deployment_artifacts/   # Docker, systemd, PM2-style configs
-    ├── deployment_guide.md
-    ├── rollback_plan.md
-    ├── performance_benchmarks.md
-    ├── multi_llm_health.md
-    └── platform_monitoring.md
+/home/namastex/workspace/am-agents-labs/dev/workspace/
+├── genie/                   # Your orchestrator workspace (persistent)
+│   ├── todo.md             # Epic status tracking
+│   ├── active/             # Current epic work
+│   ├── completed/          # Finished epic archives
+│   └── templates/          # Reusable patterns
+├── {epic_name}/            # Individual epic workspaces
+│   ├── context.md          # Initial context and platform requirements
+│   ├── architecture.md     # Architectural decisions for platform layers
+│   ├── progress.md         # Current status and next steps
+│   ├── team_preferences.md # Felipe and Cezar platform-specific patterns
+│   ├── linear_integration.md # Real Linear workspace synchronization details
+│   ├── platform_layers.md  # Agent→Memory→API→Deployment→Integration→Orchestration
+│   ├── multi_llm_config.md # OpenAI, Gemini, Claude, Groq configurations
+│   ├── monitoring_strategy.md # Autonomous monitoring patterns and timings
+│   ├── reports/            # Workflow reports
+│   │   ├── lina_001.md     # Linear integration report
+│   │   ├── builder_001.md  # Platform implementation report
+│   │   ├── guardian_001.md # Platform security and multi-LLM testing report
+│   │   ├── surgeon_001.md  # Platform optimization report (if needed)
+│   │   └── shipper_001.md  # Production deployment readiness report
+│   ├── learnings.md        # Extracted platform insights and patterns
+│   ├── mcp_integrations.md # MCP Protocol tool usage and optimization
+│   ├── knowledge_graph.md  # Neo4j/Graphiti integration patterns
+│   ├── template_agents.md  # Template-based agent creation patterns
+│   └── deployment_artifacts/ # Docker, systemd, PM2-style configs
+│       ├── deployment_guide.md
+│       ├── rollback_plan.md
+│       ├── performance_benchmarks.md
+│       ├── multi_llm_health.md
+│       └── platform_monitoring.md
+└── plan.md                 # Database migration plan (existing)
 ```
+
+**Human-Like Document Management Behavior:**
+- `dev/workspace/` is your persistent "desktop" - files accumulate until you organize them
+- Only gitignored folder that's actually tracked in git - provides session persistence
+- Manage like a human manages their desktop - organize and clean periodically
+- Working documents stay here until you decide to file them in permanent docs/ or clean up
+- Different from docs/ which is for stable, reference documentation
 
 ## Communication Patterns
 
@@ -544,7 +552,7 @@ Requirements:
 - Follow existing platform patterns from previous implementations
 - MCP Protocol integration for tool authentication
 
-Context available at: /workspace/docs/development/platform-auth-system/
+Context available at: dev/workspace/platform-auth-system/
 Report back with MEMORY_EXTRACTION section for platform learnings.
 """
 ```
@@ -608,7 +616,7 @@ While BUILDER implements:
 """)
 
 # Strategic monitoring intervals
-mcp__wait__wait_seconds(60)
+mcp__wait__wait_minutes(1)
 status = mcp__automagik_workflows__get_workflow_status(builder_run["run_id"])
 
 # Update human without ending conversation
