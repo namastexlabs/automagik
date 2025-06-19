@@ -82,15 +82,15 @@ class FlashedProvider():
             settings.AM_LOG_LEVEL.value == "DEBUG"
         )
         
-        logger.info(f"BP - API Request: {method} {url}")
+        logger.info(f"Flashed - API Request: {method} {url}")
         if is_dev_debug:
-            logger.debug(f"BP - Request Payload (detailed): {data}")
-            logger.debug(f"BP - Request Params (detailed): {params}")
-            logger.debug(f"BP - Request Headers (detailed): {header}")
+            logger.debug(f"Flashed - Request Payload (detailed): {data}")
+            logger.debug(f"Flashed - Request Params (detailed): {params}")
+            logger.debug(f"Flashed - Request Headers (detailed): {header}")
         else:
-            logger.info(f"BP - Request Payload: {data}")
-            logger.info(f"BP - Request Params: {params}")
-            logger.info(f"BP - Request Headers: {header}")
+            logger.info(f"Flashed - Request Payload: {data}")
+            logger.info(f"Flashed - Request Params: {params}")
+            logger.info(f"Flashed - Request Headers: {header}")
         
         try:
             async with self.session.request(method, url, json=data, params=params, headers=header) as response:
@@ -99,33 +99,33 @@ class FlashedProvider():
                 
                 # Enhanced logging for API responses in development/debug mode
                 if is_dev_debug:
-                    logger.debug(f"BP - API Response Status: {response.status}")
-                    logger.debug(f"BP - API Response Headers: {dict(response.headers)}")
-                    logger.debug(f"BP - API Response (detailed): {result}")
+                    logger.debug(f"Flashed - API Response Status: {response.status}")
+                    logger.debug(f"Flashed - API Response Headers: {dict(response.headers)}")
+                    logger.debug(f"Flashed - API Response (detailed): {result}")
                     
                     # Check if there are any error messages in the response
                     if isinstance(result, dict) and result.get('error'):
-                        logger.debug(f"BP - API Error Message: {result.get('error')}")
+                        logger.debug(f"Flashed - API Error Message: {result.get('error')}")
                         if result.get('message'):
-                            logger.debug(f"BP - API Error Details: {result.get('message')}")
+                            logger.debug(f"Flashed - API Error Details: {result.get('message')}")
                 else:
-                    logger.info(f"BP - API Response Status: {response.status}")
+                    logger.info(f"Flashed - API Response Status: {response.status}")
                 
                 return result
         except aiohttp.ClientResponseError as e:
             # Enhanced error logging in development/debug mode
             if is_dev_debug:
-                logger.debug(f"BP - API Error: {str(e)}")
-                logger.debug(f"BP - API Error Status: {e.status}")
-                logger.debug(f"BP - API Error Message: {e.message}")
+                logger.debug(f"Flashed - API Error: {str(e)}")
+                logger.debug(f"Flashed - API Error Status: {e.status}")
+                logger.debug(f"Flashed - API Error Message: {e.message}")
                 
                 # Try to get the response body for more details
                 try:
                     if hasattr(e, 'history') and e.history:
                         response_text = await e.history[0].text()
-                        logger.debug(f"BP - API Error Response: {response_text}")
+                        logger.debug(f"Flashed - API Error Response: {response_text}")
                 except Exception as text_error:
-                    logger.debug(f"BP - Could not read error response: {str(text_error)}")
+                    logger.debug(f"Flashed - Could not read error response: {str(text_error)}")
             
             raise
 
