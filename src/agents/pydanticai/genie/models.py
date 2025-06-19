@@ -7,15 +7,10 @@ from enum import Enum
 
 
 class WorkflowType(str, Enum):
-    """Available workflow types."""
-    ARCHITECT = "architect"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    FIX = "fix"
-    REFACTOR = "refactor"
-    DOCUMENT = "document"
-    PR = "pr"
+    """Available workflow types - dynamically discovered from Claude Code."""
+    # Legacy enum removed - workflows are now discovered dynamically
+    # This enum is kept for backward compatibility but should not be used
+    pass
 
 
 class EpicPhase(str, Enum):
@@ -47,7 +42,7 @@ class ApprovalTriggerType(str, Enum):
 
 class WorkflowResult(BaseModel):
     """Result from a workflow execution."""
-    workflow: WorkflowType
+    workflow: str  # Dynamic workflow name
     container_id: str
     status: Literal["success", "failed", "timeout", "cancelled"]
     start_time: datetime
@@ -63,7 +58,7 @@ class WorkflowResult(BaseModel):
 class ApprovalPoint(BaseModel):
     """Human approval checkpoint."""
     id: str
-    workflow: WorkflowType
+    workflow: str  # Dynamic workflow name
     trigger_type: ApprovalTriggerType
     reason: str
     description: str
@@ -77,7 +72,7 @@ class ApprovalPoint(BaseModel):
 class RollbackPoint(BaseModel):
     """Git rollback checkpoint."""
     id: str
-    workflow: WorkflowType
+    workflow: str  # Dynamic workflow name
     commit_sha: str
     branch_name: str
     created_at: datetime
@@ -100,7 +95,7 @@ class EpicPlan(BaseModel):
     title: str
     description: str
     complexity_score: int = Field(ge=1, le=10)
-    planned_workflows: List[WorkflowType]
+    planned_workflows: List[str]  # Dynamic workflow names
     estimated_cost: float
     estimated_duration_minutes: int
     requires_approvals: List[str] = Field(default_factory=list)
@@ -167,7 +162,7 @@ class EpicState(TypedDict):
 
 class ClaudeCodeRequest(BaseModel):
     """Request to Claude Code API."""
-    workflow: WorkflowType
+    workflow: str  # Dynamic workflow name
     message: str
     session_id: str
     config: Dict[str, Any] = Field(default_factory=dict)
@@ -188,7 +183,7 @@ class EpicSummary(BaseModel):
     epic_id: str
     title: str
     status: EpicPhase
-    workflows_completed: List[WorkflowType]
+    workflows_completed: List[str]  # Dynamic workflow names
     total_cost: float
     duration_minutes: int
     git_commits: List[str]
