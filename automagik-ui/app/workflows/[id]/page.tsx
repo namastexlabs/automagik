@@ -13,8 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ProtectedRoute } from "@/components/protected-route";
 import { TaskStatusBadge } from "@/components/task-status-badge";
+import { DiffViewer } from "@/components/DiffViewer";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { FileChange } from "@/types";
 
 interface WorkflowDetails {
     run_id: string;
@@ -30,15 +32,31 @@ interface WorkflowDetails {
     files_changed?: FileChange[];
     logs?: LogEntry[];
     messages?: ChatMessage[];
+    progress?: {
+        turns: number;
+        max_turns?: number;
+        completion_percentage: number;
+        current_phase: string;
+        phases_completed: string[];
+        is_running: boolean;
+        estimated_completion?: string;
+    };
+    metrics?: {
+        cost_usd: number;
+        tokens: {
+            total: number;
+            input: number;
+            output: number;
+            cache_created: number;
+            cache_read: number;
+            cache_efficiency: number;
+        };
+        tools_used: string[];
+        api_duration_ms: number;
+        performance_score: number;
+    };
 }
 
-interface FileChange {
-    path: string;
-    status: "added" | "modified" | "deleted";
-    additions: number;
-    deletions: number;
-    diff?: string;
-}
 
 interface LogEntry {
     timestamp: string;
@@ -70,9 +88,9 @@ export default function WorkflowDetailPage() {
             if (!silent) setIsLoading(true);
             setIsPolling(true);
 
-            // Fetch workflow status
+            // Fetch workflow status with detailed=true for rich metrics
             const statusResponse = await fetch(
-                `http://localhost:28881/api/v1/workflows/claude-code/run/${workflowId}/status`,
+                `http://localhost:28881/api/v1/workflows/claude-code/run/${workflowId}/status?detailed=true`,
                 {
                     headers: {
                         'x-api-key': 'namastex888'
@@ -108,34 +126,25 @@ export default function WorkflowDetailPage() {
                     }));
             }
 
-            // Try to get enhanced file changes from details endpoint
+            // Get file changes from the enhanced status API (result.files_changed)
             let fileChanges: FileChange[] = [];
-            try {
-                const detailsResponse = await fetch(
-                    `http://localhost:28881/api/v1/workflows/claude-code/run/${workflowId}/details`,
-                    {
-                        headers: {
-                            'x-api-key': 'namastex888'
-                        }
-                    }
-                );
-                
-                if (detailsResponse.ok) {
-                    const detailsData = await detailsResponse.json();
-                    fileChanges = detailsData.data?.files_changed || [];
-                }
-            } catch (detailsError) {
-                console.warn('Could not fetch enhanced file changes, using basic data:', detailsError);
-            }
             
-            // Fallback to basic file changes from status
-            if (fileChanges.length === 0) {
+            // First try to get from the enhanced status response
+            if (statusData.result?.files_changed && statusData.result.files_changed.length > 0) {
+                fileChanges = statusData.result.files_changed;
+                console.log('Using enhanced file changes from status API:', fileChanges.length);
+            } else {
+                // Fallback to basic file changes from status
                 fileChanges = statusData.result?.files_created?.map((file: string) => ({
+                    filename: file,
                     path: file,
                     status: "added" as const,
                     additions: 0,
-                    deletions: 0
+                    deletions: 0,
+                    before: '',
+                    after: 'New file created'
                 })) || [];
+                console.log('Using fallback file changes:', fileChanges.length);
             }
 
             // Get real conversation data from workflow progress (no more mocked data)
@@ -154,7 +163,9 @@ export default function WorkflowDetailPage() {
                 ai_model: statusData.metrics?.model || "Claude 3.5 Sonnet",
                 files_changed: fileChanges,
                 logs: logs,
-                messages: messages
+                messages: messages,
+                progress: statusData.progress,
+                metrics: statusData.metrics
             };
 
             setWorkflow(workflowDetails);
@@ -417,90 +428,150 @@ export default function WorkflowDetailPage() {
                                 </CardContent>
                             </Card>
 
+                            {/* Rich Metrics */}
+                            {workflow.metrics && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Performance Metrics</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                                <div className="text-2xl font-bold text-green-600">
+                                                    ${workflow.metrics.cost_usd?.toFixed(4) || '0.0000'}
+                                                </div>
+                                                <div className="text-xs text-slate-600">Cost (USD)</div>
+                                            </div>
+                                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                                <div className="text-2xl font-bold text-blue-600">
+                                                    {workflow.metrics.tokens?.cache_efficiency?.toFixed(1) || '0'}%
+                                                </div>
+                                                <div className="text-xs text-slate-600">Cache Efficiency</div>
+                                            </div>
+                                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                                <div className="text-2xl font-bold text-purple-600">
+                                                    {workflow.metrics.performance_score || 0}
+                                                </div>
+                                                <div className="text-xs text-slate-600">Performance Score</div>
+                                            </div>
+                                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                                <div className="text-2xl font-bold text-orange-600">
+                                                    {workflow.metrics.tools_used?.length || 0}
+                                                </div>
+                                                <div className="text-xs text-slate-600">Tools Used</div>
+                                            </div>
+                                        </div>
+                                        {workflow.metrics.tokens && (
+                                            <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                                                <h4 className="font-medium text-sm mb-2">Token Usage</h4>
+                                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                                                    <div>
+                                                        <div className="font-medium">{workflow.metrics.tokens.total.toLocaleString()}</div>
+                                                        <div className="text-slate-600">Total</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium">{workflow.metrics.tokens.input.toLocaleString()}</div>
+                                                        <div className="text-slate-600">Input</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium">{workflow.metrics.tokens.output.toLocaleString()}</div>
+                                                        <div className="text-slate-600">Output</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium">{workflow.metrics.tokens.cache_created.toLocaleString()}</div>
+                                                        <div className="text-slate-600">Cache Created</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium">{workflow.metrics.tokens.cache_read.toLocaleString()}</div>
+                                                        <div className="text-slate-600">Cache Read</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {workflow.metrics.tools_used && workflow.metrics.tools_used.length > 0 && (
+                                            <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                                                <h4 className="font-medium text-sm mb-2">Tools Used</h4>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {workflow.metrics.tools_used.map((tool, idx) => (
+                                                        <Badge key={idx} variant="outline" className="text-xs">
+                                                            {tool}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Progress Tracking */}
+                            {workflow.progress && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Progress Tracking</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <div className="flex justify-between text-sm text-slate-600 mb-2">
+                                                    <span>Overall Progress</span>
+                                                    <span>{workflow.progress.completion_percentage}%</span>
+                                                </div>
+                                                <div className="w-full bg-slate-200 rounded-full h-3">
+                                                    <div
+                                                        className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                                                        style={{ width: `${workflow.progress.completion_percentage}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                                <div>
+                                                    <span className="text-slate-600">Current Phase:</span>
+                                                    <div className="font-medium capitalize">{workflow.progress.current_phase}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-600">Turns:</span>
+                                                    <div className="font-medium">
+                                                        {workflow.progress.turns}
+                                                        {workflow.progress.max_turns ? ` / ${workflow.progress.max_turns}` : ''}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {workflow.progress.phases_completed && workflow.progress.phases_completed.length > 0 && (
+                                                <div>
+                                                    <span className="text-slate-600 text-sm">Completed Phases:</span>
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {workflow.progress.phases_completed.map((phase, idx) => (
+                                                            <Badge key={idx} variant="secondary" className="text-xs capitalize">
+                                                                {phase}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
                             {/* Code Changes */}
                             {workflow.files_changed && workflow.files_changed.length > 0 && (
                                 <Card>
                                     <CardHeader>
-                                        <div className="flex items-center justify-between">
-                                            <CardTitle>Code Changes</CardTitle>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={toggleAllFiles}
-                                                className="gap-2"
-                                            >
-                                                {allExpanded ? (
-                                                    <>
-                                                        <Minus className="w-3 h-3" />
-                                                        Collapse All
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Plus className="w-3 h-3" />
-                                                        Expand All
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
+                                        <CardTitle>Code Changes</CardTitle>
                                         <CardDescription>
                                             {workflow.files_changed.length} file{workflow.files_changed.length !== 1 ? 's' : ''} changed
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="space-y-3">
-                                            {workflow.files_changed.map((file) => (
-                                                <div key={file.path} className="border rounded-lg overflow-hidden">
-                                                    <div
-                                                        className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 cursor-pointer"
-                                                        onClick={() => toggleFileExpansion(file.path)}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <FileCode className="w-4 h-4 text-slate-500" />
-                                                            <span className="text-sm font-medium">{file.path}</span>
-                                                            <Badge
-                                                                variant={
-                                                                    file.status === "added" ? "default" :
-                                                                    file.status === "deleted" ? "destructive" :
-                                                                    "secondary"
-                                                                }
-                                                                className="text-xs"
-                                                            >
-                                                                {file.status}
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex items-center gap-2 text-xs">
-                                                                <span className="text-green-600">+{file.additions}</span>
-                                                                <span className="text-red-600">-{file.deletions}</span>
-                                                            </div>
-                                                            {expandedFiles.has(file.path) ? (
-                                                                <ChevronUp className="w-4 h-4" />
-                                                            ) : (
-                                                                <ChevronDown className="w-4 h-4" />
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    {expandedFiles.has(file.path) && file.diff && (
-                                                        <div className="p-3 bg-slate-900 overflow-x-auto">
-                                                            <pre className="text-xs text-slate-100 font-mono">
-                                                                {file.diff.split('\n').map((line, idx) => (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className={
-                                                                            line.startsWith('+') ? 'text-green-400' :
-                                                                            line.startsWith('-') ? 'text-red-400' :
-                                                                            'text-slate-400'
-                                                                        }
-                                                                    >
-                                                                        {line}
-                                                                    </div>
-                                                                ))}
-                                                            </pre>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                                        <DiffViewer 
+                                            fileChanges={workflow.files_changed}
+                                            stats={{
+                                                files: workflow.files_changed.length,
+                                                additions: workflow.files_changed.reduce((sum, f) => sum + f.additions, 0),
+                                                deletions: workflow.files_changed.reduce((sum, f) => sum + f.deletions, 0)
+                                            }}
+                                        />
                                     </CardContent>
                                 </Card>
                             )}

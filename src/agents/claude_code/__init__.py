@@ -62,6 +62,9 @@ try:
     ClaudeCodeAgent = _get_claude_code_agent()
     LogManager, get_log_manager = _get_log_manager()
     
+    # Import SDK executor
+    from .sdk_executor import ClaudeSDKExecutor
+    
     # Load models lazily on first access
     _models_cache = None
     def _load_models():
@@ -72,6 +75,11 @@ try:
     
     # Make models available through module-level attributes
     def __getattr__(name):
+        if name == 'ClaudeCLIExecutor':
+            raise ImportError(
+                "ClaudeCLIExecutor has been removed. "
+                "Use ClaudeSDKExecutor instead."
+            )
         if name in ['ClaudeCodeRunRequest', 'ClaudeCodeRunResponse', 'ClaudeCodeStatusResponse',
                    'WorkflowInfo', 'ExecutionResult', 'ClaudeCodeConfig', 'ExecutionStatus',
                    'WorkflowType', 'GitConfig', 'WorkflowConfig', 'ExecutionMetadata',
@@ -128,6 +136,7 @@ except Exception as e:
 __all__ = [
     'create_agent',
     'ClaudeCodeAgent',
+    'ClaudeSDKExecutor',
     'LogManager',
     'get_log_manager',
     'ClaudeCodeRunRequest',

@@ -108,55 +108,93 @@ class CompletionTracker:
                     # Extract current metrics (partial or complete)
                     metrics = await cls._extract_final_metrics(run_id, log_entries)
                     
-                    # Update session with current progress
-                    await cls._update_session_status(session_id, "running", {
-                        "last_updated": datetime.utcnow().isoformat(),
-                        "current_cost_usd": metrics.total_cost_usd,
-                        "current_tokens": metrics.total_tokens,
-                        "current_turns": metrics.total_turns,
-                        "current_tool_calls": metrics.tool_calls,
-                        "tools_used_so_far": metrics.tool_names_used,
-                        "elapsed_seconds": int(elapsed),
-                        "claude_session_id": metrics.session_id or "pending",
-                        "progress_indicator": f"Turn {metrics.total_turns}, {metrics.tool_calls} tools used"
-                    })
+                    # Check for real-time SDK executor progress
+                    session = session_repo.get_session(uuid.UUID(session_id))
+                    execution_results = session.metadata.get("execution_results") if session and session.metadata else None
+                    
+                    if execution_results:
+                        # Update with real-time SDK data
+                        await cls._update_session_status(session_id, "running", {
+                            "last_updated": datetime.utcnow().isoformat(),
+                            "current_cost_usd": execution_results.get("total_cost_usd", 0.0),
+                            "current_tokens": execution_results.get("token_details", {}).get("total_tokens", 0),
+                            "current_turns": execution_results.get("total_turns", 0),
+                            "tools_used_so_far": execution_results.get("tools_used", []),
+                            "elapsed_seconds": int(elapsed),
+                            "progress_indicator": f"Turn {execution_results.get('total_turns', 0)}, {len(execution_results.get('tools_used', []))} tools used"
+                        })
+                    else:
+                        # Basic progress update without detailed metrics
+                        await cls._update_session_status(session_id, "running", {
+                            "last_updated": datetime.utcnow().isoformat(),
+                            "elapsed_seconds": int(elapsed)
+                        })
                     
                     last_metrics_update = datetime.utcnow()
                     logger.debug(f"Updated real-time progress for run {run_id}: Turn {metrics.total_turns}, Cost ${metrics.total_cost_usd:.4f}")
                 
-                # Check for completion
+                # Check for completion - now includes SDK completion events and session updates
                 completion_found = any(
-                    entry.get("event_type") in ["execution_complete", "process_complete"]
+                    entry.get("event_type") in ["execution_complete", "process_complete", "claude_result"]
                     for entry in log_entries
                 )
+                
+                # Also check if session metadata indicates completion
+                if not completion_found:
+                    try:
+                        from src.db.repository import session as session_repo
+                        sessions = session_repo.list_sessions()
+                        for session in sessions:
+                            if (session.metadata and 
+                                session.metadata.get("run_id") == run_id and
+                                session.metadata.get("run_status") in ["completed", "failed"]):
+                                completion_found = True
+                                logger.info(f"Detected completion via session metadata for run {run_id}")
+                                break
+                    except Exception as e:
+                        logger.debug(f"Could not check session metadata: {e}")
                 
                 if completion_found:
                     logger.info(f"Completion detected for run {run_id}, processing final metrics")
                     
-                    # Extract final metrics
-                    metrics = await cls._extract_final_metrics(run_id, log_entries)
+                    # Check for SDK executor results in session metadata first
+                    session = session_repo.get_session(uuid.UUID(session_id))
+                    execution_results = session.metadata.get("execution_results") if session and session.metadata else None
                     
-                    # Determine final status
-                    final_status = "completed" if metrics.is_success else "failed"
-                    
-                    # Update session with final results
-                    await cls._update_session_status(session_id, final_status, {
-                        "completed_at": datetime.utcnow().isoformat(),
-                        "last_updated": datetime.utcnow().isoformat(),
-                        "total_cost_usd": metrics.total_cost_usd,
-                        "total_tokens": metrics.total_tokens,
-                        "total_turns": metrics.total_turns,
-                        "tool_calls": metrics.tool_calls,
-                        "tool_names_used": metrics.tool_names_used,
-                        "duration_ms": metrics.duration_ms,
-                        "elapsed_seconds": int(elapsed),
-                        "claude_session_id": metrics.session_id,
-                        "final_result": metrics.final_result or "",
-                        "error_message": metrics.error_message,
-                        "model_used": metrics.model,
-                        "mcp_servers": metrics.mcp_servers,
-                        "success": metrics.is_success
-                    })
+                    if execution_results:
+                        # Use SDK executor results directly - this is the accurate source
+                        final_status = "completed" if execution_results.get("success", False) else "failed"
+                        
+                        # Extract comprehensive SDK data
+                        token_details = execution_results.get("token_details", {})
+                        
+                        await cls._update_session_status(session_id, final_status, {
+                            "completed_at": datetime.utcnow().isoformat(),
+                            "last_updated": datetime.utcnow().isoformat(),
+                            "total_cost_usd": execution_results.get("total_cost_usd", 0.0),
+                            "total_tokens": token_details.get("total_tokens", 0),
+                            "input_tokens": token_details.get("input_tokens", 0),
+                            "output_tokens": token_details.get("output_tokens", 0),
+                            "cache_created": token_details.get("cache_created", 0),
+                            "cache_read": token_details.get("cache_read", 0),
+                            "total_turns": execution_results.get("total_turns", 0),
+                            "tools_used": execution_results.get("tools_used", []),
+                            "tool_names_used": execution_results.get("tool_names_used", []),
+                            "duration_ms": execution_results.get("execution_time", 0) * 1000,
+                            "elapsed_seconds": int(elapsed),
+                            "final_result": execution_results.get("result", ""),
+                            "success": execution_results.get("success", False)
+                        })
+                        logger.info(f"Updated session {session_id} with SDK executor results")
+                    else:
+                        # Fallback to basic completion without detailed metrics
+                        logger.warning(f"No SDK executor results found for run {run_id}, using basic completion")
+                        await cls._update_session_status(session_id, "completed", {
+                            "completed_at": datetime.utcnow().isoformat(),
+                            "last_updated": datetime.utcnow().isoformat(),
+                            "elapsed_seconds": int(elapsed),
+                            "success": True
+                        })
                     
                     logger.info(f"Successfully updated session {session_id} with final completion metrics")
                     break
@@ -178,36 +216,21 @@ class CompletionTracker:
             if run_id in cls._active_trackers:
                 del cls._active_trackers[run_id]
     
-    @classmethod
-    async def _extract_final_metrics(cls, run_id: str, log_entries: list) -> Any:
-        """Extract final metrics from log entries using raw stream processor."""
-        processor = RawStreamProcessor()
-        
-        # Process all Claude stream events
-        for entry in log_entries:
-            event_type = entry.get("event_type", "")
-            data = entry.get("data", {})
-            
-            # Process Claude CLI stream events
-            if event_type.startswith("claude_stream_"):
-                if isinstance(data, dict):
-                    # For raw stream events, extract and parse the JSON message
-                    if event_type == "claude_stream_raw":
-                        message = data.get("message", "")
-                        if isinstance(message, str) and message.strip().startswith("{"):
-                            processor.process_line(message.strip())
-                    else:
-                        # Process parsed JSON events
-                        processor.process_event(data)
-            
-            # Also process legacy claude_output events
-            elif event_type == "claude_output":
-                if isinstance(data, dict) and "message" in data:
-                    message = data["message"]
-                    if isinstance(message, str) and message.strip().startswith("{"):
-                        processor.process_line(message.strip())
-        
-        return processor.get_metrics()
+    @classmethod 
+    def _store_sdk_executor_results(cls, session_id: str, execution_results: dict):
+        """Store SDK executor results in session metadata for real-time access."""
+        try:
+            session_uuid = uuid.UUID(session_id) if isinstance(session_id, str) else session_id
+            session = session_repo.get_session(session_uuid)
+            if session:
+                metadata = session.metadata or {}
+                metadata["execution_results"] = execution_results
+                metadata["last_updated"] = datetime.utcnow().isoformat()
+                session.metadata = metadata
+                session_repo.update_session(session)
+                logger.info(f"Stored SDK executor results in session {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to store SDK executor results: {e}")
     
     @classmethod
     async def _process_realtime_updates(cls, session_id: str, new_entries: list):
