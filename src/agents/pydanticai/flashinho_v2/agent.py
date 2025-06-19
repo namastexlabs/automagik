@@ -31,6 +31,7 @@ from .session_utils import (
     update_message_history_user_id,
     update_session_user_id,
     make_session_persistent,
+    ensure_session_row,
 )
 from .api_client import FlashinhoAPI
 
@@ -355,6 +356,14 @@ class FlashinhoV2(AutomagikAgent):
             if message_history_obj:
                 safe_context = {k: (str(v) if isinstance(v, uuid.UUID) else v) for k, v in self.context.items()}
                 try:
+                    # Ensure DB session row exists before inserting messages
+                    from uuid import UUID
+                    hist_user = message_history_obj.user_id or user_id
+                    ensure_session_row(
+                        UUID(message_history_obj.session_id),
+                        UUID(str(hist_user)) if hist_user else None,
+                    )
+
                     message_history_obj.add(
                         content=input_text,
                         agent_id=self.db_id,
@@ -752,7 +761,7 @@ class FlashinhoV2(AutomagikAgent):
         Returns:
             Message requesting conversation code
         """
-        return ("E aí, mano! 👋 Pra eu conseguir te dar aquela força nos estudos de forma "
+        return ("E aí! 👋 Pra eu conseguir te dar aquela força nos estudos de forma "
                 "personalizada, preciso do seu código de conversa! 🔑\n\n"
                 "Manda aí seu código pra gente começar com tudo! 🚀✨")
 
