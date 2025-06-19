@@ -137,9 +137,61 @@ async def list_registered_agents() -> List[AgentInfo]:
         )
 
 
+async def get_or_create_user_for_whatsapp(
+    channel_payload: Optional[Dict[str, Any]] = None,
+    context: Optional[Dict[str, Any]] = None,
+) -> Optional[uuid.UUID]:
+    """
+    Special user handling for WhatsApp/Evolution requests.
+    
+    For WhatsApp requests, we should NOT create random user IDs because:
+    1. The agent needs to identify users via conversation codes or phone numbers
+    2. Creating random IDs prevents proper user tracking across sessions
+    
+    Args:
+        channel_payload: Channel payload from the request
+        context: Context dictionary
+        
+    Returns:
+        None for WhatsApp requests (let the agent handle user identification)
+        or a default user ID for other channels
+    """
+    # Check if this is a WhatsApp/Evolution request
+    is_whatsapp = False
+    
+    if channel_payload:
+        # Check for Evolution/WhatsApp indicators
+        if channel_payload.get("channel") == "evolution":
+            is_whatsapp = True
+        elif channel_payload.get("instance"):
+            is_whatsapp = True
+        elif channel_payload.get("remoteJid", "").endswith("@s.whatsapp.net"):
+            is_whatsapp = True
+            
+    if context:
+        # Check context for WhatsApp indicators
+        if context.get("channel") == "whatsapp":
+            is_whatsapp = True
+        elif context.get("whatsapp_user_number"):
+            is_whatsapp = True
+            
+    if is_whatsapp:
+        logger.info("WhatsApp request detected - deferring user creation to agent")
+        # Return None to let the agent handle user identification
+        # The agent will create/identify users based on conversation codes
+        return None
+    else:
+        # For non-WhatsApp requests, use default behavior
+        # This maintains backward compatibility
+        default_user_id = uuid.UUID("3fa85f64-5717-4562-b3fc-2c963f66afa6")
+        ensure_default_user_exists(default_user_id, "admin@automagik")
+        return default_user_id
+
+
 async def get_or_create_user(
     user_id: Optional[Union[uuid.UUID, str]] = None,
     user_data: Optional[UserCreate] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> Optional[uuid.UUID]:
     """
     Get or create a user based on the provided ID and data.
@@ -147,11 +199,22 @@ async def get_or_create_user(
     Args:
         user_id: Optional user ID
         user_data: Optional user data for creation/update
+        context: Optional context containing additional user info (e.g., flashed_user_id)
 
     Returns:
         UUID of the existing or newly created user
     """
     # Import UserCreate here as well to ensure it's available
+
+    # Check for flashed_user_id in context first (for flashinho agents)
+    if context and not user_id:
+        flashed_user_id = context.get("flashed_user_id")
+        if flashed_user_id:
+            try:
+                user_id = uuid.UUID(flashed_user_id)
+                logger.debug(f"Using flashed_user_id from context: {user_id}")
+            except ValueError:
+                logger.warning(f"Invalid flashed_user_id format: {flashed_user_id}")
 
     # If no user ID or data, use the default user
     if not user_id and not user_data:
@@ -212,7 +275,16 @@ async def get_or_create_user(
 
     # If user doesn't exist but we have user_data, create new user
     elif user_data:
-        # Create new user
+        # Create new user - check context for flashed_user_id before generating random UUID
+        if not user_id and context:
+            flashed_user_id = context.get("flashed_user_id")
+            if flashed_user_id:
+                try:
+                    user_id = uuid.UUID(flashed_user_id)
+                    logger.debug(f"Using flashed_user_id for new user creation: {user_id}")
+                except ValueError:
+                    logger.warning(f"Invalid flashed_user_id format for new user: {flashed_user_id}")
+        
         new_user = User(
             id=user_id if user_id else generate_uuid(),
             email=user_data.email,
@@ -301,8 +373,22 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Use normalized name for all operations
         agent_name = normalized_agent_name
 
-        # Get or create user
-        user_id = await get_or_create_user(request.user_id, request.user)
+        # Get or create user - special handling for WhatsApp
+        # Check if this is a WhatsApp request that should defer user creation
+        if not request.user_id and request.channel_payload:
+            # Try WhatsApp-specific user handling first
+            user_id = await get_or_create_user_for_whatsapp(request.channel_payload, request.context)
+            if user_id is None:
+                # WhatsApp request - let agent handle user identification
+                logger.info("Deferring user identification to agent for WhatsApp request")
+                # Use a temporary placeholder that the agent will replace
+                user_id = None
+            else:
+                # Non-WhatsApp or user_id was determined
+                user_id = await get_or_create_user(request.user_id, request.user, request.context)
+        else:
+            # Normal user creation flow
+            user_id = await get_or_create_user(request.user_id, request.user, request.context)
 
         # Use agent name as-is for database lookup
         db_agent_name = agent_name
@@ -312,9 +398,24 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         agent_id = agent_db.id if agent_db else None
 
         # Get or create session based on request parameters
+        # For WhatsApp conversations, create a consistent session name based on phone number
+        session_name = request.session_name
+        if not session_name and request.channel_payload:
+            # Extract WhatsApp phone number for session naming
+            whatsapp_number = None
+            if request.channel_payload.get("user"):
+                whatsapp_number = request.channel_payload["user"].get("phone_number")
+            elif request.context and request.context.get("whatsapp_user_number"):
+                whatsapp_number = request.context.get("whatsapp_user_number")
+            
+            if whatsapp_number:
+                # Create consistent session name for WhatsApp conversations
+                session_name = f"whatsapp-{agent_name}-{whatsapp_number}"
+                logger.info(f"🔄 Created WhatsApp session name: {session_name}")
+        
         session_id, message_history = await get_or_create_session(
             session_id=request.session_id,
-            session_name=request.session_name,
+            session_name=session_name,
             agent_id=agent_id,
             user_id=user_id,
         )
@@ -630,33 +731,61 @@ async def get_or_create_session(
         if session:
             # Use existing session
             session_id = str(session.id)
-            return session_id, await run_in_threadpool(
-                lambda: MessageHistory(session_id=session_id, user_id=user_id)
-            )
+            
+            # If user_id is None (WhatsApp deferred identification), don't pass user_id to MessageHistory
+            if user_id is None:
+                logger.debug(f"Using existing session {session_id} without user_id for WhatsApp deferred identification")
+                return session_id, await run_in_threadpool(
+                    lambda: MessageHistory(session_id=session_id, user_id=None, no_auto_create=True)
+                )
+            else:
+                return session_id, await run_in_threadpool(
+                    lambda: MessageHistory(session_id=session_id, user_id=user_id)
+                )
         else:
             # Create new named session
             session_id = generate_uuid()
-            session = Session(
-                id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
-                name=session_name,
-                agent_id=agent_id,
-                user_id=user_id,
-            )
+            
+            # For WhatsApp requests with no user_id, don't create session in database
+            # to avoid foreign key constraints
+            if user_id is None:
+                logger.debug(f"Creating in-memory session for WhatsApp deferred identification: {session_name}")
+                return str(session_id), await run_in_threadpool(
+                    lambda: MessageHistory(session_id=str(session_id), user_id=None, no_auto_create=True)
+                )
+            else:
+                session = Session(
+                    id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
+                    name=session_name,
+                    agent_id=agent_id,
+                    user_id=user_id,
+                )
 
-            if not await run_in_threadpool(create_session, session):
-                logger.error(f"Failed to create session with name {session_name}")
-                raise HTTPException(status_code=500, detail="Failed to create session")
+                if not await run_in_threadpool(create_session, session):
+                    logger.error(f"Failed to create session with name {session_name}")
+                    raise HTTPException(status_code=500, detail="Failed to create session")
 
-            return str(session_id), await run_in_threadpool(
-                lambda: MessageHistory(session_id=str(session_id), user_id=user_id)
-            )
+                return str(session_id), await run_in_threadpool(
+                    lambda: MessageHistory(session_id=str(session_id), user_id=user_id)
+                )
 
     else:
         # Create temporary in-memory session (don't persist to database for performance)
         temp_session_id = str(uuid.uuid4())
         logger.debug(f"Creating temporary in-memory session: {temp_session_id}")
-        return str(temp_session_id), await run_in_threadpool(
-            lambda: MessageHistory(
-                session_id=str(temp_session_id), user_id=user_id, no_auto_create=True
+        
+        # For WhatsApp requests with no user_id, create MessageHistory without user_id
+        # to avoid foreign key constraints with non-existent users
+        if user_id is None:
+            logger.debug("Creating MessageHistory without user_id for WhatsApp deferred identification")
+            return str(temp_session_id), await run_in_threadpool(
+                lambda: MessageHistory(
+                    session_id=str(temp_session_id), user_id=None, no_auto_create=True
+                )
             )
-        )
+        else:
+            return str(temp_session_id), await run_in_threadpool(
+                lambda: MessageHistory(
+                    session_id=str(temp_session_id), user_id=user_id, no_auto_create=True
+                )
+            )
