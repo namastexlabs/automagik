@@ -1,303 +1,213 @@
-# Workflow Runs Database Migration Plan
+ 
+🎯 Overview
 
-## Objectives
+Migrate from broken legacy workflow tracking to a comprehensive workflow_runs table that captures all Claude SDK execution data, leveraging existing sessions/messages tables for human
+interventions. 
 
-This document outlines the migration plan for consolidating workflow run data from the legacy `workflow_processes` table to a new, enhanced `workflow_runs` table structure. The migration aims to:
+📋 Complete Table Schema
 
-- **Standardize data structure** - Create a unified schema for all workflow run information
-- **Improve performance** - Optimize queries and indexing for better database performance  
-- **Enable analytics** - Support advanced reporting and analytics capabilities
-- **Ensure data integrity** - Maintain all historical data during the migration process
-- **Zero downtime** - Execute migration without service interruption
-
-## Current State Analysis
-
-### Existing Schema: `workflow_processes`
-
-```sql
-CREATE TABLE workflow_processes (
-    id TEXT PRIMARY KEY,
-    workflow_name TEXT NOT NULL,
-    message TEXT NOT NULL,
-    max_turns INTEGER DEFAULT 30,
-    session_name TEXT,
-    git_branch TEXT,
-    repository_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status TEXT DEFAULT 'pending',
-    result TEXT,
-    error_message TEXT,
-    execution_time INTEGER,
-    total_cost REAL,
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP
-);
-```
-
-### Data Source Mapping
-
-The following table shows how existing data will be mapped to the new schema:
-
-| Current Field | New Field | Transformation | Notes |
-|---------------|-----------|----------------|-------|
-| `id` | `run_id` | Direct copy | Primary key |
-| `workflow_name` | `workflow_type` | Direct copy | Workflow classification |
-| `message` | `description` | Direct copy | Task description |
-| `max_turns` | `max_turns` | Direct copy | Turn limit configuration |
-| `session_name` | `session_id` | Direct copy | Session identifier |
-| `git_branch` | `git_branch` | Direct copy | Git branch reference |
-| `repository_url` | `repository_url` | Direct copy | Repository location |
-| `created_at` | `created_at` | Direct copy | Creation timestamp |
-| `updated_at` | `updated_at` | Direct copy | Last modification timestamp |
-| `status` | `status` | Direct copy | Execution status |
-| `result` | `result_data` | JSON conversion | Structured result data |
-| `error_message` | `error_details` | JSON conversion | Error information |
-| `execution_time` | `execution_time_ms` | Direct copy | Execution duration |
-| `total_cost` | `total_cost` | Direct copy | Associated costs |
-| `started_at` | `started_at` | Direct copy | Execution start time |
-| `completed_at` | `completed_at` | Direct copy | Execution completion time |
-
-### Additional Fields
-
-The new schema includes additional fields for enhanced functionality:
-
-| New Field | Purpose | Default Value |
-|-----------|---------|---------------|
-| `user_id` | User tracking | `NULL` (for system runs) |
-| `priority` | Task prioritization | `'normal'` |
-| `tags` | Categorization | `'[]'` (empty JSON array) |
-| `metadata` | Extended information | `'{}'` (empty JSON object) |
-| `progress_data` | Progress tracking | `'{}'` (empty JSON object) |
-| `resource_usage` | Performance metrics | `'{}'` (empty JSON object) |
-
-## Target Schema: `workflow_runs`
-
-```sql
 CREATE TABLE workflow_runs (
-    run_id TEXT PRIMARY KEY,
-    workflow_type TEXT NOT NULL,
-    description TEXT NOT NULL,
-    user_id TEXT,
-    status TEXT NOT NULL DEFAULT 'pending',
-    priority TEXT DEFAULT 'normal',
-    
-    -- Configuration
-    max_turns INTEGER DEFAULT 30,
-    session_id TEXT,
-    git_branch TEXT,
-    repository_url TEXT,
-    
-    -- Timing
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    
-    -- Results and Performance
-    result_data JSON,
-    error_details JSON,
-    execution_time_ms INTEGER,
-    total_cost DECIMAL(10,4),
-    
-    -- Enhanced Features  
-    tags JSON DEFAULT '[]',
-    metadata JSON DEFAULT '{}',
-    progress_data JSON DEFAULT '{}',
-    resource_usage JSON DEFAULT '{}',
-    
-    -- Indexes
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+-- Core Identifiers
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+run_id VARCHAR(255) UNIQUE NOT NULL,-- Claude SDK run_id
+
+-- Workflow Definition & Type 
+workflow_name VARCHAR(100) NOT NULL,-- architect, implement, test, review, fix, refactor, document, pr
+agent_type VARCHAR(100), -- future extension for agent categorization 
+ai_model VARCHAR(100), -- sonnet or opus for now 
+
+-- Input & Context 
+task_input TEXT NOT NULL,-- original human request message
+session_id UUID REFERENCES sessions(id),-- links to existing sessions table
+session_name VARCHAR(255), -- human/orchestrator chosen session name (reusable) 
+
+-- Git Repository Context 
+git_repo VARCHAR(500), -- repository URL or local path
+git_branch VARCHAR(255), -- working branch for this workflow
+initial_commit_hash VARCHAR(40), -- git commit hash at workflow start 
+final_commit_hash VARCHAR(40), -- git commit hash at workflow completion
+git_diff_added_lines INTEGER DEFAULT 0, -- + lines from git diff --stat
+git_diff_removed_lines INTEGER DEFAULT 0, -- - lines from git diff --stat
+git_diff_files_changed INTEGER DEFAULT 0, -- number of files modified 
+git_diff_stats JSONB DEFAULT '{}',-- detailed diff breakdown per file 
+
+-- Execution Status & Results 
+status VARCHAR(50) NOT NULL DEFAULT 'pending',-- pending, running, completed, failed, killed
+result TEXT,-- final workflow output/summary 
+error_message TEXT, -- detailed error if status=failed 
+
+-- Timing & Performance 
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), 
+completed_at TIMESTAMP WITH TIME ZONE, -- when workflow finished (success or failure)
+duration_seconds INTEGER, -- calculated: completed_at - started_at
+
+-- Workspace Management (Fix Current Bugs)
+workspace_id VARCHAR(255),-- Claude SDK workspace identifier
+workspace_persistent BOOLEAN DEFAULT true, -- should default to true (fix current false default) 
+workspace_cleaned_up BOOLEAN DEFAULT false,-- whether workspace was cleaned after commit 
+workspace_path VARCHAR(500),-- local filesystem workspace directory 
+
+-- Cost & Token Tracking
+cost_estimate DECIMAL(10,4),-- estimated API cost in USD 
+input_tokens INTEGER DEFAULT 0, -- tokens sent to LLM
+output_tokens INTEGER DEFAULT 0,-- tokens generated by LLM 
+total_tokens INTEGER DEFAULT 0, -- input_tokens + output_tokens
+
+-- User & Feedback 
+user_id UUID REFERENCES users(id),-- who initiated the workflow
+
+-- Extensible Data 
+metadata JSONB DEFAULT '{}',-- extensible field for future workflow data
+
+-- Constraints 
+CONSTRAINT valid_status CHECK (status IN ('pending', 'running', 'completed', 'failed', 'killed')), 
+CONSTRAINT valid_duration CHECK (duration_seconds IS NULL OR duration_seconds >= 0), 
+CONSTRAINT valid_tokens CHECK (input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0) 
 );
 
--- Performance Indexes
+-- Performance Indexes 
+CREATE INDEX idx_workflow_runs_run_id ON workflow_runs(run_id);
+CREATE INDEX idx_workflow_runs_session_id ON workflow_runs(session_id); 
 CREATE INDEX idx_workflow_runs_status ON workflow_runs(status);
-CREATE INDEX idx_workflow_runs_workflow_type ON workflow_runs(workflow_type);
+CREATE INDEX idx_workflow_runs_workflow_name ON workflow_runs(workflow_name); 
+CREATE INDEX idx_workflow_runs_created_at ON workflow_runs(created_at DESC);
 CREATE INDEX idx_workflow_runs_user_id ON workflow_runs(user_id);
-CREATE INDEX idx_workflow_runs_created_at ON workflow_runs(created_at);
-CREATE INDEX idx_workflow_runs_completed_at ON workflow_runs(completed_at);
-CREATE INDEX idx_workflow_runs_priority ON workflow_runs(priority);
+CREATE INDEX idx_workflow_runs_git_branch ON workflow_runs(git_branch); 
+CREATE INDEX idx_workflow_runs_workspace_id ON workflow_runs(workspace_id); 
+CREATE UNIQUE INDEX idx_workflow_runs_run_id_unique ON workflow_runs(run_id); 
 
--- Composite Indexes for Analytics
-CREATE INDEX idx_workflow_runs_type_status ON workflow_runs(workflow_type, status);
-CREATE INDEX idx_workflow_runs_user_status ON workflow_runs(user_id, status);
-CREATE INDEX idx_workflow_runs_date_range ON workflow_runs(created_at, completed_at);
-```
+-- JSONB Indexes for Metadata Queries 
+CREATE INDEX idx_workflow_runs_metadata_gin ON workflow_runs USING gin(metadata); 
+CREATE INDEX idx_workflow_runs_git_diff_stats_gin ON workflow_runs USING gin(git_diff_stats);
 
-## Migration Strategy
+🔗 Data Source Mapping 
 
-### Phase 1: Schema Preparation (Week 1)
+Claude SDK Sources 
 
-1. **Create new table structure**
-   - Deploy `workflow_runs` table with all indexes
-   - Verify schema integrity and constraints
-   - Test basic CRUD operations
+| Field | SDK Extraction Point| Method |
+|---------------|---------------------------------------------------|-------------------------------|
+| run_id| mcp__automagik_workflows__run_workflow() response | Direct extraction |
+| status| mcp__automagik_workflows__get_workflow_status() | Poll during execution |
+| result| Final workflow output| Extract on completion |
+| error_message | SDK error response| When status='failed'|
+| ai_model| Run metadata| Extract from workflow details |
+| started_at| SDK run start timestamp| From status response|
+| completed_at| SDK completion timestamp | From status response|
+| workspace_id| SDK workspace metadata | Extract from run info |
+| input_tokens| SDK usage statistics| From run completion data|
+| output_tokens | SDK usage statistics| From run completion data|
 
-2. **Implement dual-write pattern**
-   - Update application code to write to both tables
-   - Ensure data consistency between old and new tables
-   - Add feature flag for gradual rollout
+Git Operation Sources
 
-### Phase 2: Data Migration (Week 2)
+| Field| Git Command | Timing |
+|---------------------|-------------------------------------------------|-----------------------------|
+| git_repo| git remote get-url origin or local path | At workflow start |
+| git_branch| Function parameter or git branch --show-current | At workflow start |
+| initial_commit_hash | git rev-parse HEAD| Before workflow execution |
+| final_commit_hash | git rev-parse HEAD| After workflow completion |
+| git_diff_*_lines| git diff --stat initial..final | Calculate on completion |
+| git_diff_stats| git diff --numstat initial..final| Detailed file-by-file stats |
 
-1. **Historical data migration**
-   - Create migration script with batch processing
-   - Map existing data according to transformation rules
-   - Validate migrated data integrity
+System/Environment Sources
 
-2. **Migration script structure**:
-   ```sql
-   -- Migration in batches to avoid locks
-   INSERT INTO workflow_runs (
-       run_id, workflow_type, description, status,
-       max_turns, session_id, git_branch, repository_url,
-       created_at, updated_at, started_at, completed_at,
-       result_data, error_details, execution_time_ms, total_cost,
-       tags, metadata, progress_data, resource_usage
-   )
-   SELECT 
-       id, workflow_name, message, status,
-       max_turns, session_name, git_branch, repository_url,
-       created_at, updated_at, started_at, completed_at,
-       CASE WHEN result IS NOT NULL THEN json_object('result', result) ELSE '{}' END,
-       CASE WHEN error_message IS NOT NULL THEN json_object('error', error_message) ELSE '{}' END,
-       execution_time, total_cost,
-       '[]', '{}', '{}', '{}'
-   FROM workflow_processes
-   WHERE id BETWEEN ? AND ?
-   AND id NOT IN (SELECT run_id FROM workflow_runs);
-   ```
+| Field| Source| Extraction | 
+|----------------|------------------------|---------------------------| 
+| task_input | Function parameter | Original user message | 
+| session_id | Generated or existing| Link to sessions table| 
+| session_name | Function parameter | Human/orchestrator chosen | 
+| user_id| Current context| From authentication | 
+| workspace_path | SDK workspace location | Local directory path| 
+| cost_estimate| Calculated | tokens × model pricing| 
 
-### Phase 3: Application Migration (Week 3)
+🔄 Human Intervention Flow
 
-1. **Update read operations**
-   - Modify queries to use `workflow_runs` table
-   - Update API endpoints and data models
-   - Implement backward compatibility layer
+Using Existing Sessions + Messages Infrastructure 
 
-2. **Performance validation**
-   - Monitor query performance improvements
-   - Validate analytics capabilities
-   - Conduct load testing
+# Initial workflow creates/uses session
+session = Session( 
+id=session_uuid, 
+agent_name=workflow_name,# 'builder', 'architect'
+name=session_name# 'auth_system_v2' 
+) 
 
-### Phase 4: Cleanup (Week 4)
+# Initial message
+initial_message = Message(
+session_id=session_uuid,
+role='user', 
+text_content=task_input,
+message_type='workflow_start' 
+) 
 
-1. **Remove dual-write pattern**
-   - Update code to write only to `workflow_runs`
-   - Remove feature flags and legacy code paths
-   - Clean up deprecated functions
+# Human intervention = new message in same session
+intervention_message = Message( 
+session_id=session_uuid,# SAME session
+role='user', 
+text_content="Use RS256 instead", 
+message_type='intervention' 
+) 
 
-2. **Archive legacy table**
-   - Rename `workflow_processes` to `workflow_processes_archive`
-   - Document archival process for future reference
-   - Set up automated cleanup procedures
+# Human interventions tracked via sessions/messages tables
+# No need to update workflow_runs - interventions are tracked
+# through the existing message infrastructure with message_type='intervention'
 
-## Risk Assessment & Mitigation
+# Resume workflow with additional context using Claude SDK 
 
-### High Risk Items
+🗂️ Implementation Tasks
 
-| Risk | Impact | Probability | Mitigation Strategy |
-|------|--------|-------------|-------------------|
-| Data loss during migration | Critical | Low | Full backup + rollback plan + batch processing |
-| Performance degradation | High | Medium | Thorough testing + index optimization + monitoring |
-| Application downtime | High | Low | Dual-write pattern + gradual rollout + feature flags |
+Phase 1: Database Schema (BUILDER)
 
-### Medium Risk Items
+- Create migration: 20250619_120000_create_workflow_runs_table.sql 
+- Add WorkflowRun Pydantic model to src/db/models.py
+- Create repository: src/db/repository/workflow_run.py
+- Update central imports in src/db/__init__.py
+- Add validation and helper methods 
 
-| Risk | Impact | Probability | Mitigation Strategy |
-|------|--------|-------------|-------------------|
-| Query compatibility issues | Medium | Medium | Comprehensive testing + backward compatibility layer |
-| Storage space constraints | Medium | Low | Disk space monitoring + cleanup procedures |
-| Team coordination issues | Medium | Medium | Clear communication plan + documentation |
+Phase 2: Claude SDK Data Extraction (BUILDER) 
 
-## Success Criteria
+- Create WorkflowRunTracker service in src/agents/claude_code/ 
+- Hook into mcp__automagik_workflows__run_workflow start 
+- Implement real-time status polling and updates
+- Extract all SDK fields: run_id, status, timing, tokens, workspace
+- Add error handling and retry logic
 
-### Performance Metrics
-- [ ] Query response time improved by 30%
-- [ ] Storage efficiency increased by 20%
-- [ ] Zero data loss during migration
-- [ ] 99.9% uptime maintained throughout migration
+Phase 3: Git Integration (BUILDER)
 
-### Functional Requirements
-- [ ] All existing functionality preserved
-- [ ] New analytics capabilities operational
-- [ ] API backward compatibility maintained
-- [ ] Enhanced reporting features available
+- Create git operations service for commit/diff tracking 
+- Capture initial commit hash at workflow start 
+- Calculate diff stats between initial and final commits 
+- Parse git diff --stat and git diff --numstat output 
+- Handle cases where no commits are made
 
-### Quality Assurance
-- [ ] Comprehensive test coverage (>95%)
-- [ ] Load testing passed for 10x current traffic
-- [ ] Security audit completed
-- [ ] Documentation updated and reviewed
+Phase 4: Session Integration (BUILDER)
 
-## Timeline
+- Modify workflow execution to link with sessions table
+- Leverage existing message infrastructure for human interventions
+- Create resume functionality with message context from sessions/messages
+- Build chat UI query functions using sessions + messages
 
-### Week 1: Foundation
-- **Days 1-2**: Schema deployment and testing
-- **Days 3-4**: Dual-write implementation
-- **Days 5-7**: Integration testing and validation
+Phase 5: Workspace Management Fix (SURGEON) 
 
-### Week 2: Migration
-- **Days 8-9**: Historical data migration (batched)
-- **Days 10-11**: Data validation and integrity checks
-- **Days 12-14**: Performance testing and optimization
+- Set persistent=true as default in all SDK calls 
+- Implement post-commit workspace cleanup logic 
+- Track workspace lifecycle in workflow_runs table
+- Fix workspace ID assignment and reuse
 
-### Week 3: Transition
-- **Days 15-16**: Application code updates
-- **Days 17-18**: API endpoint migration
-- **Days 19-21**: User acceptance testing
+Phase 6: Legacy System Cleanup (SURGEON)
 
-### Week 4: Finalization
-- **Days 22-23**: Legacy cleanup and archival
-- **Days 24-25**: Documentation and training
-- **Days 26-28**: Post-migration monitoring and optimization
+- Remove broken log_manager system entirely 
+- Drop workflow_processes table (create migration)
+- Clean up dead message history code
+- Remove legacy workflow tracking references
+- Update any dependent code 
 
-## Rollback Plan
+📊 Benefits
 
-### Immediate Rollback (if issues detected in first 24 hours)
-1. Switch feature flag to disable new table writes
-2. Revert API endpoints to use legacy table
-3. Monitor system stability for 2 hours
-4. Conduct post-incident review
-
-### Extended Rollback (if issues detected later)
-1. Restore database from pre-migration backup
-2. Apply any critical updates that occurred post-migration
-3. Re-enable legacy code paths
-4. Schedule detailed investigation and remediation
-
-## Monitoring & Validation
-
-### Key Metrics to Monitor
-- Database query performance (response times, throughput)
-- Application error rates and response codes
-- Data consistency between tables during dual-write phase
-- Storage utilization and growth patterns
-- User experience metrics (page load times, feature availability)
-
-### Validation Procedures
-- Automated data integrity checks (row counts, checksums)
-- Sample data comparison between old and new tables
-- End-to-end functionality testing
-- Performance benchmark comparisons
-- User acceptance testing with key stakeholders
-
-## Communication Plan
-
-### Stakeholders
-- **Development Team**: Daily standups during migration weeks
-- **DevOps Team**: Real-time monitoring and alert coordination
-- **Product Team**: Weekly progress updates and user impact assessment
-- **Leadership**: Milestone reports and risk escalation procedures
-
-### Communication Channels
-- **Slack**: Real-time updates and issue coordination
-- **Email**: Formal milestone notifications and reports
-- **Wiki**: Living documentation and reference materials
-- **Meetings**: Weekly status reviews and decision points
-
----
-
-*Document Version: 1.0*  
-*Last Updated: 2025-06-19*  
-*Next Review: Upon completion of Phase 1*
+- Single Source of Truth: Claude SDK only, no legacy systems 
+- Human Intervention: Leverages existing sessions/messages for interruption/resume
+- Chat UI Ready: Direct integration with existing message infrastructure
+- Complete Git Tracking: Commit hashes, diff stats, branch context 
+- Workspace Management: Fixes persistent workspace bugs
+- Performance: Proper indexing and JSONB flexibility
+- Cost Tracking: Token usage and API cost estimation
+- Extensible: Metadata JSONB for future workflow data
+- Simplified Schema: Removed intervention tracking fields, using existing message system
