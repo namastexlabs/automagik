@@ -34,6 +34,7 @@ from .session_utils import (
     ensure_session_row,
 )
 from .api_client import FlashinhoAPI
+from src.db.repository.user_uuid_migration import ensure_user_uuid_matches_flashed_id
 
 
 logger = logging.getLogger(__name__)
@@ -535,221 +536,123 @@ class FlashinhoV2(AutomagikAgent):
             
             logger.info(f"Successfully identified user via conversation code: {flashed_user_id}")
             
-            # Update user data in our database
+            # 🔧 SURGICAL FIX: Ensure UUID synchronization with Flashed system
             if user_id:
                 try:
-                    # 🔧 Ensure user_id is a string before uuid.UUID conversion
-                    if isinstance(user_id, uuid.UUID):
-                        user_uuid = user_id
-                    else:
-                        user_uuid = uuid.UUID(str(user_id))
+                    # Get phone number from API payload (preserve it)
+                    api_phone_number = None
                     
-                    user = get_user(user_uuid)
+                    # Extract from channel payload first (most reliable)
+                    if hasattr(self, "current_channel_payload") and self.current_channel_payload:
+                        api_phone_number = self.current_channel_payload.get("user", {}).get("phone_number")
                     
-                    if user:
-                        # Update user_data with conversation code and flashed info
-                        current_user_data = user.user_data or {}
-                        updated_user_data = current_user_data.copy()
-                        
-                        # Get whatsapp_id from context for spaghetti lookup, but preserve existing if available
-                        context_whatsapp_id = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-                        existing_whatsapp_id = current_user_data.get("whatsapp_id")
-                        
-                        # Preserve existing WhatsApp ID if it exists, otherwise use context
-                        whatsapp_id = existing_whatsapp_id if existing_whatsapp_id else context_whatsapp_id
-                        
-                        # Preserve session_key
-                        session_key = self.context.get("session_user_key") or current_user_data.get("session_user_key")
-                        
-                        # Get external_key for consistent user tracking
-                        external_key = build_external_key(self.context) or current_user_data.get("external_key")
-                        
-                        logger.info(f"WhatsApp ID preservation: existing={existing_whatsapp_id}, context={context_whatsapp_id}, final={whatsapp_id}")
-                        
-                        updated_user_data.update({
-                            "flashed_conversation_code": conversation_code,
-                            "flashed_user_id": flashed_user_id,
-                            "flashed_user_name": name,
-                            "flashed_user_phone": phone,
-                            "flashed_user_email": email,
-                            "whatsapp_id": whatsapp_id,  # Store for spaghetti lookup
-                            "session_user_key": session_key,
-                            "external_key": external_key  # Store for reliable lookup
-                        })
-                        
-                        update_user_data(user_uuid, updated_user_data)
-                        logger.info(f"Updated user {user_id} with conversation code {conversation_code}")
-                        
-                        # 🔍 DEBUG: Log before context update
-                        logger.info(f"🔍 Before context update - user_id: {self.context.get('user_id')}")
-                        
-                        # Update context with flashed user information
-                        self.context.update({
-                            "flashed_user_id": flashed_user_id,
-                            "flashed_conversation_code": conversation_code,
-                            "flashed_user_name": name,
-                            "user_identification_method": "conversation_code"
-                        })
-                        
-                        # 🔍 DEBUG: Log after context update
-                        logger.info(f"🔍 After context update - user_id: {self.context.get('user_id')}")
-                        
-                        # 🔧 FIX: Make session persistent after successful user identification
-                        await make_session_persistent(self, self.current_message_history, user_id)
-                        
-                        return True
-                    else:
-                        logger.error(f"User {user_id} not found in database")
+                    # Fallback to context
+                    if not api_phone_number:
+                        api_phone_number = (
+                            self.context.get("user_phone_number") or 
+                            self.context.get("whatsapp_user_number")
+                        )
+                    
+                    logger.info(f"🔍 Extracted API phone number: {api_phone_number}")
+                    
+                    if not api_phone_number:
+                        logger.error("No phone number available from API payload")
                         return False
+                    
+                    # Prepare Flashed user data
+                    flashed_user_data = {
+                        "name": name,
+                        "phone": phone,
+                        "email": email,
+                        "conversation_code": conversation_code
+                    }
+                    
+                    # 🎯 KEY FIX: Ensure user UUID matches Flashed user_id
+                    final_user_id = await ensure_user_uuid_matches_flashed_id(
+                        phone_number=api_phone_number,  # Always preserve API phone
+                        flashed_user_id=flashed_user_id,
+                        flashed_user_data=flashed_user_data
+                    )
+                    
+                    logger.info(f"UUID synchronization complete. Final user_id: {final_user_id}")
+                    
+                    # Update context with synchronized user information
+                    self.context.update({
+                        "user_id": final_user_id,  # Now guaranteed to match Flashed UUID
+                        "flashed_user_id": flashed_user_id,
+                        "flashed_conversation_code": conversation_code,
+                        "flashed_user_name": name,
+                        "user_identification_method": "conversation_code"
+                    })
+                    
+                    # Make session persistent with final user ID
+                    await make_session_persistent(self, self.current_message_history, final_user_id)
+                    
+                    return True
                         
                 except Exception as e:
-                    logger.error(f"Error updating user data: {str(e)}")
+                    logger.error(f"Error in UUID synchronization: {str(e)}")
                     return False
             else:
                 # No user_id in context yet, but we have flashed user info
-                # Update context with flashed user information for this session
                 logger.info(f"No user_id in context, but successfully identified flashed user: {flashed_user_id}")
-                self.context.update({
-                    "flashed_user_id": flashed_user_id,
-                    "flashed_conversation_code": conversation_code,
-                    "flashed_user_name": name,
-                    "flashed_user_phone": phone,
-                    "flashed_user_email": email,
-                    "user_identification_method": "conversation_code"
-                })
                 
-                # Try to find or create user with Flashed UUID
+                # 🔧 SURGICAL FIX: Handle no-context case with UUID synchronization
                 try:
-                    from src.db.repository.user import get_user, create_user
-                    from src.db.models import User
-                    from datetime import datetime
+                    # Get phone number from API payload (preserve it)
+                    api_phone_number = None
                     
-                    # 🔧 Ensure user_id is a string before uuid.UUID conversion
-                    if isinstance(user_id, uuid.UUID):
-                        user_uuid = user_id
-                    else:
-                        user_uuid = uuid.UUID(str(user_id))
+                    # Extract from channel payload first (most reliable)
+                    if hasattr(self, "current_channel_payload") and self.current_channel_payload:
+                        api_phone_number = self.current_channel_payload.get("user", {}).get("phone_number")
                     
-                    # Check if user already exists with the Flashed UUID
-                    existing_user = get_user(user_uuid)
-                    
-                    if existing_user:
-                        # User exists with correct UUID, just update the conversation code
-                        current_user_data = existing_user.user_data or {}
-                        updated_user_data = current_user_data.copy()
-                        
-                        # Get whatsapp_id from context for spaghetti lookup, but preserve existing if available
-                        context_whatsapp_id = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-                        existing_whatsapp_id = current_user_data.get("whatsapp_id")
-                        
-                        # Preserve existing WhatsApp ID if it exists, otherwise use context
-                        whatsapp_id = existing_whatsapp_id if existing_whatsapp_id else context_whatsapp_id
-                        
-                        # Preserve session_key
-                        session_key = self.context.get("session_user_key") or current_user_data.get("session_user_key")
-                        
-                        # Get external_key for consistent user tracking
-                        external_key = build_external_key(self.context) or current_user_data.get("external_key")
-                        
-                        logger.info(f"WhatsApp ID preservation: existing={existing_whatsapp_id}, context={context_whatsapp_id}, final={whatsapp_id}")
-                        
-                        updated_user_data.update({
-                            "flashed_conversation_code": conversation_code,
-                            "flashed_user_id": flashed_user_id,
-                            "flashed_user_name": name,
-                            "flashed_user_phone": phone,
-                            "flashed_user_email": email,
-                            "whatsapp_id": whatsapp_id,  # Store for spaghetti lookup
-                            "session_user_key": session_key,
-                            "external_key": external_key  # Store for reliable lookup
-                        })
-                        
-                        update_user_data(user_uuid, updated_user_data)
-                        self.context["user_id"] = flashed_user_id
-                        logger.info(f"Updated existing user {flashed_user_id} with conversation code")
-                        
-                        # 🔍 DEBUG: Log context after existing user update
-                        logger.info(f"🔍 After existing user update - Context user_id: {self.context.get('user_id')}")
-                    else:
-                        # Create new user with Flashed UUID
-                        logger.info(f"🔍 Creating new user with Flashed UUID: {flashed_user_id}")
-                        
-                        context_whatsapp_id = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-                        
-                        # For new users, try to find existing WhatsApp ID from other users with same phone
-                        # This handles the case where a WhatsApp user exists but conversation code creates new user
-                        whatsapp_id = context_whatsapp_id
-                        if not whatsapp_id and phone:
-                            # Try to find WhatsApp ID from existing users with same phone
-                            try:
-                                from src.db.repository.user import list_users
-                                users, _ = list_users(page=1, page_size=1000)
-                                for existing_user in users:
-                                    if existing_user.user_data:
-                                        existing_whatsapp = existing_user.user_data.get("whatsapp_id")
-                                        if existing_whatsapp and phone in existing_whatsapp:
-                                            whatsapp_id = existing_whatsapp
-                                            logger.info(f"Found WhatsApp ID from existing user: {whatsapp_id}")
-                                            break
-                            except Exception as e:
-                                logger.warning(f"Error finding existing WhatsApp ID: {e}")
-                        
-                        logger.info(f"New user WhatsApp ID: context={context_whatsapp_id}, final={whatsapp_id}")
-                        
-                        # Get external_key for consistent user tracking
-                        external_key = build_external_key(self.context)
-                        
-                        user_data = {
-                            "flashed_conversation_code": conversation_code,
-                            "flashed_user_id": flashed_user_id,
-                            "flashed_user_name": name,
-                            "flashed_user_phone": phone,
-                            "flashed_user_email": email,
-                            "whatsapp_id": whatsapp_id,  # Store for spaghetti lookup
-                            "session_user_key": self.context.get("session_user_key"),
-                            "external_key": external_key  # Store for reliable lookup
-                        }
-                        
-                        user_model = User(
-                            id=user_uuid,
-                            email=email,
-                            phone_number=phone,
-                            user_data=user_data,
-                            created_at=datetime.now(),
-                            updated_at=datetime.now()
+                    # Fallback to context
+                    if not api_phone_number:
+                        api_phone_number = (
+                            self.context.get("user_phone_number") or 
+                            self.context.get("whatsapp_user_number")
                         )
-                        
-                        created_id = create_user(user_model)
-                        if created_id:
-                            self.context["user_id"] = flashed_user_id
-                            logger.info(f"Created new user with Flashed UUID {flashed_user_id}")
-                            
-                            # 🔍 DEBUG: Log context after new user creation
-                            logger.info(f"🔍 After new user creation - Context user_id: {self.context.get('user_id')}")
-                        else:
-                            logger.warning("Failed to create new user, but conversation code is still valid for session")
-                            
-                    # Always set the user_id in context, even if database operations fail
-                    self.context["user_id"] = flashed_user_id
                     
-                    # 🔍 DEBUG: Log final context state
-                    logger.info(f"🔍 Final context state - user_id: {self.context.get('user_id')}")
+                    logger.info(f"🔍 Extracted API phone number (no context): {api_phone_number}")
                     
-                    # 🔧 FIX: Make session persistent after successful user identification
-                    await make_session_persistent(self, self.current_message_history, flashed_user_id)
+                    if not api_phone_number:
+                        logger.error("No phone number available from API payload")
+                        return False
+                    
+                    # Prepare Flashed user data
+                    flashed_user_data = {
+                        "name": name,
+                        "phone": phone,
+                        "email": email,
+                        "conversation_code": conversation_code
+                    }
+                    
+                    # 🎯 KEY FIX: Ensure user UUID matches Flashed user_id (same as above)
+                    final_user_id = await ensure_user_uuid_matches_flashed_id(
+                        phone_number=api_phone_number,  # Always preserve API phone
+                        flashed_user_id=flashed_user_id,
+                        flashed_user_data=flashed_user_data
+                    )
+                    
+                    logger.info(f"UUID synchronization complete (no context). Final user_id: {final_user_id}")
+                    
+                    # Update context with synchronized user information
+                    self.context.update({
+                        "user_id": final_user_id,  # Now guaranteed to match Flashed UUID
+                        "flashed_user_id": flashed_user_id,
+                        "flashed_conversation_code": conversation_code,
+                        "flashed_user_name": name,
+                        "user_identification_method": "conversation_code"
+                    })
+                    
+                    # Make session persistent with final user ID
+                    await make_session_persistent(self, self.current_message_history, final_user_id)
+                    
+                    return True
                 
                 except Exception as e:
-                    logger.error(f"Error in database operations: {str(e)}")
-                    # Still set the user_id for the session even if DB operations fail
-                    self.context["user_id"] = flashed_user_id
-                    
-                    # 🔍 DEBUG: Log context after error
-                    logger.info(f"🔍 After error - Context user_id: {self.context.get('user_id')}")
-                    
-                    # 🔧 FIX: Make session persistent even after errors
-                    await make_session_persistent(self, self.current_message_history, flashed_user_id)
-                
-                return True
+                    logger.error(f"Error in UUID synchronization (no context): {str(e)}")
+                    return False
                 
         except Exception as e:
             logger.error(f"Error extracting and processing conversation code: {str(e)}")
