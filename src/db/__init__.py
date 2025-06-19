@@ -60,6 +60,7 @@ from src.db.repository import (
     # Message repository
     get_message,
     list_messages,
+    list_messages_for_user,
     count_messages,
     create_message,
     update_message,
