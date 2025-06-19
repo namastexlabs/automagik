@@ -14,25 +14,18 @@ from src.agents.pydanticai.genie.models import (
 
 
 class TestWorkflowType:
-    """Test WorkflowType enum."""
+    """Test WorkflowType enum (legacy compatibility)."""
 
     def test_workflow_type_values(self):
-        """Test that all expected workflow types exist."""
-        expected_types = [
-            "architect", "implement", "test", "review", 
-            "fix", "refactor", "document", "pr"
-        ]
-        
-        actual_types = [wt.value for wt in WorkflowType]
-        
-        for expected in expected_types:
-            assert expected in actual_types
+        """Test that WorkflowType is now empty (legacy support only)."""
+        # WorkflowType is now empty as workflows are discovered dynamically
+        actual_types = list(WorkflowType)
+        assert len(actual_types) == 0, "WorkflowType should be empty for dynamic discovery"
 
     def test_workflow_type_enum_membership(self):
-        """Test workflow type enum membership."""
-        assert WorkflowType.TEST in WorkflowType
-        assert WorkflowType.IMPLEMENT in WorkflowType
-        assert WorkflowType.ARCHITECT in WorkflowType
+        """Test workflow type enum is empty."""
+        # WorkflowType enum is now empty - workflows are discovered dynamically
+        assert len(list(WorkflowType)) == 0
 
 
 class TestEpicPhase:
@@ -114,7 +107,7 @@ class TestEpicPlan:
             title="Authentication Implementation",
             description="Create comprehensive authentication system",
             complexity_score=7,
-            planned_workflows=[WorkflowType.ARCHITECT, WorkflowType.IMPLEMENT, WorkflowType.TEST],
+            planned_workflows=["planning", "implementation", "testing"],
             estimated_cost=45.50,
             estimated_duration_minutes=90,
             requires_approvals=["security-review"]
@@ -125,7 +118,7 @@ class TestEpicPlan:
         assert len(plan.planned_workflows) == 3
         assert plan.estimated_cost == 45.50
         assert plan.estimated_duration_minutes == 90
-        assert WorkflowType.TEST in plan.planned_workflows
+        assert "testing" in plan.planned_workflows
 
     def test_epic_plan_cost_validation(self):
         """Test epic plan cost validation."""
@@ -134,7 +127,7 @@ class TestEpicPlan:
             title="Simple Test",
             description="Simple test task",
             complexity_score=2,
-            planned_workflows=[WorkflowType.TEST],
+            planned_workflows=["testing"],
             estimated_cost=0.0,  # Zero cost should be valid
             estimated_duration_minutes=15
         )
@@ -144,7 +137,7 @@ class TestEpicPlan:
 
     def test_epic_plan_workflow_ordering(self):
         """Test that workflow ordering is preserved."""
-        workflows = [WorkflowType.ARCHITECT, WorkflowType.IMPLEMENT, WorkflowType.TEST]
+        workflows = ["planning", "implementation", "testing"]
         plan = EpicPlan(
             epic_id="epic-order",
             title="Workflow Order Test",
@@ -156,8 +149,8 @@ class TestEpicPlan:
         )
         
         assert plan.planned_workflows == workflows
-        assert plan.planned_workflows[0] == WorkflowType.ARCHITECT
-        assert plan.planned_workflows[2] == WorkflowType.TEST
+        assert plan.planned_workflows[0] == "planning"
+        assert plan.planned_workflows[2] == "testing"
 
 
 class TestEpicState:
@@ -260,7 +253,7 @@ class TestWorkflowResult:
     def test_workflow_result_creation(self):
         """Test creating a WorkflowResult."""
         result = WorkflowResult(
-            workflow=WorkflowType.TEST,
+            workflow="testing",
             container_id="container-123",
             status="success",
             start_time=datetime.now(),
@@ -271,7 +264,7 @@ class TestWorkflowResult:
             files_changed=["tests/test_auth.py", "src/auth.py"]
         )
         
-        assert result.workflow == WorkflowType.TEST
+        assert result.workflow == "testing"
         assert result.status == "success"
         assert result.cost_usd == 12.50
         assert len(result.git_commits) == 1
@@ -280,7 +273,7 @@ class TestWorkflowResult:
     def test_workflow_result_failure(self):
         """Test WorkflowResult for failed workflow."""
         result = WorkflowResult(
-            workflow=WorkflowType.IMPLEMENT,
+            workflow="implementation",
             container_id="container-456",
             status="failed",
             start_time=datetime.now(),
@@ -300,7 +293,7 @@ class TestApprovalPoint:
         """Test creating an ApprovalPoint."""
         approval = ApprovalPoint(
             id="approval-123",
-            workflow=WorkflowType.IMPLEMENT,
+            workflow="implementation",
             trigger_type=ApprovalTriggerType.HIGH_COST,
             reason="Cost exceeds threshold of $50",
             description="High cost workflow requires approval",
@@ -308,7 +301,7 @@ class TestApprovalPoint:
         )
         
         assert approval.id == "approval-123"
-        assert approval.workflow == WorkflowType.IMPLEMENT
+        assert approval.workflow == "implementation"
         assert approval.reason == "Cost exceeds threshold of $50"
         assert approval.decision is None  # Pending approval
 
@@ -316,7 +309,7 @@ class TestApprovalPoint:
         """Test approval point approval process."""
         approval = ApprovalPoint(
             id="approval-123",
-            workflow=WorkflowType.IMPLEMENT,
+            workflow="implementation",
             trigger_type=ApprovalTriggerType.EXTERNAL_DEPENDENCIES,
             reason="Security-related changes detected",
             description="Authentication module changes require review",
@@ -363,7 +356,7 @@ class TestRollbackPoint:
         """Test creating a RollbackPoint."""
         rollback = RollbackPoint(
             id="rollback-123",
-            workflow=WorkflowType.IMPLEMENT,
+            workflow="implementation",
             commit_sha="abc123def456",
             branch_name="epic-feature-branch",
             created_at=datetime.now(),
@@ -371,7 +364,7 @@ class TestRollbackPoint:
         )
         
         assert rollback.id == "rollback-123"
-        assert rollback.workflow == WorkflowType.IMPLEMENT
+        assert rollback.workflow == "implementation"
         assert rollback.commit_sha == "abc123def456"
         assert rollback.branch_name == "epic-feature-branch"
         assert rollback.created_at is not None
@@ -403,10 +396,10 @@ class TestModelIntegration:
             description=request.message,
             complexity_score=8,
             planned_workflows=[
-                WorkflowType.ARCHITECT,
-                WorkflowType.IMPLEMENT,
-                WorkflowType.TEST,
-                WorkflowType.REVIEW
+                "planning",
+                "implementation", 
+                "testing",
+                "review"
             ],
             estimated_cost=85.0,
             estimated_duration_minutes=180,
@@ -414,7 +407,7 @@ class TestModelIntegration:
         )
         
         assert len(plan.planned_workflows) == 4
-        assert WorkflowType.ARCHITECT in plan.planned_workflows
+        assert "planning" in plan.planned_workflows
         assert plan.description == request.message
         assert plan.estimated_cost < request.budget_limit
 
@@ -433,7 +426,7 @@ class TestModelIntegration:
             title="API Documentation",
             description=request.message,
             complexity_score=4,
-            planned_workflows=[WorkflowType.DOCUMENT],
+            planned_workflows=["documentation"],
             estimated_cost=15.0,
             estimated_duration_minutes=45
         )
@@ -448,7 +441,7 @@ class TestModelIntegration:
             "epic_title": plan.title,
             "epic_description": plan.description,
             "complexity_score": plan.complexity_score,
-            "planned_workflows": [w.value for w in plan.planned_workflows],
+            "planned_workflows": plan.planned_workflows,
             "completed_workflows": [],
             "current_workflow": None,
             "workflow_results": {},
@@ -482,7 +475,7 @@ class TestModelIntegration:
         
         # Add workflow result
         result = WorkflowResult(
-            workflow=WorkflowType.DOCUMENT,
+            workflow="documentation",
             container_id="container-123",
             status="success",
             start_time=datetime.now(),
@@ -494,7 +487,7 @@ class TestModelIntegration:
         )
         
         state["workflow_results"]["document"] = {
-            "workflow": result.workflow.value,
+            "workflow": result.workflow,
             "status": result.status,
             "cost_usd": result.cost_usd,
             "summary": result.summary

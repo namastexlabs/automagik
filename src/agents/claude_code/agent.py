@@ -681,24 +681,81 @@ class ClaudeCodeAgent(AutomagikAgent):
                 max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch"),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
-                repository_url=kwargs.get("repository_url")
+                repository_url=kwargs.get("repository_url"),
+                persistent=kwargs.get("persistent", True)
             )
             
             # Update session metadata with run information
             from src.db import update_session
+            from src.db.models import WorkflowRunCreate
+            from src.db.repository.workflow_run import create_workflow_run
+            
+            # Capture initial git state if available
+            initial_git_info = {}
+            if hasattr(self, 'executor') and hasattr(self.executor, 'environment_manager'):
+                try:
+                    from src.services.git_service import extract_git_info_from_workspace
+                    
+                    # Try to get current git information from workspace
+                    env_mgr = self.executor.environment_manager
+                    main_workspace = getattr(env_mgr, 'main_workspace_path', None)
+                    
+                    if main_workspace and hasattr(main_workspace, 'exists') and main_workspace.exists():
+                        # Use git service for comprehensive git information
+                        initial_git_info = extract_git_info_from_workspace(main_workspace)
+                    
+                    # Fallback to environment manager attributes
+                    if not initial_git_info.get("git_repo"):
+                        initial_git_info["git_repo"] = getattr(env_mgr, 'repository_url', None) or kwargs.get("repository_url")
+                    if not initial_git_info.get("git_branch"):
+                        initial_git_info["git_branch"] = getattr(env_mgr, 'default_branch', None) or kwargs.get("git_branch")
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to extract initial git info: {e}")
+                    # Fallback to basic info
+                    initial_git_info = {
+                        "git_repo": kwargs.get("repository_url"),
+                        "git_branch": kwargs.get("git_branch")
+                    }
+            
+            # Create workflow run record for comprehensive tracking
+            workflow_run_data = WorkflowRunCreate(
+                run_id=run_id,
+                workflow_name=workflow_name,
+                task_input=input_text,
+                session_id=session_id if session_id else None,
+                session_name=session_obj.name if session_obj else None,
+                git_repo=initial_git_info.get("git_repo") or kwargs.get("repository_url"),
+                git_branch=initial_git_info.get("git_branch") or kwargs.get("git_branch"),
+                initial_commit_hash=initial_git_info.get("initial_commit_hash"),
+                status="running",
+                user_id=session_obj.user_id if session_obj else None,
+                workspace_persistent=kwargs.get("persistent", True),
+                ai_model="claude-3-5-sonnet-20241022"  # Default model for Claude Code
+            )
+            
+            try:
+                workflow_run_id = create_workflow_run(workflow_run_data)
+                logger.info(f"Created workflow run record {workflow_run_id} for run_id {run_id}")
+            except Exception as e:
+                logger.warning(f"Failed to create workflow run record: {e}")
+                workflow_run_id = None
             
             if session_obj:
                 metadata = session_obj.metadata or {}
+                # Simplified session metadata - comprehensive tracking is in workflow_runs table
                 metadata.update({
                     "run_id": run_id,
                     "run_status": "running",
                     "workflow_name": workflow_name,
                     "started_at": datetime.utcnow().isoformat(),
+                    "workflow_run_id": workflow_run_id  # Primary link to workflow_runs table
                 })
                 session_obj.metadata = metadata
                 update_session(session_obj)
             
-            # Execute the workflow - this will run to completion
+            # Execute the workflow - use standard execution to avoid SDK TaskGroup issues
+            # The SDK executor can extract data from the result without streaming complications
             result = await self.executor.execute_claude_task(
                 request=request,
                 agent_context={
@@ -719,15 +776,172 @@ class ClaudeCodeAgent(AutomagikAgent):
                     # Store the real Claude session ID for future resumption
                     metadata["claude_session_id"] = actual_claude_session_id
                 
+                # Determine proper status based on result
+                final_status = "completed" if result.get("success") else "failed"
+                
+                # Extract comprehensive SDK executor data
+                token_details = result.get("token_details", {})
+                
+                # Simplified session metadata - only store session-level info
+                # Detailed workflow tracking is now handled by workflow_runs table
                 metadata.update({
-                    "run_status": "completed" if result.get("success") else "failed",
+                    "run_status": final_status,
                     "completed_at": datetime.utcnow().isoformat(),
-                    "exit_code": result.get("exit_code", -1),
+                    "success": result.get("success", False),
+                    # Keep essential session info for legacy compatibility
+                    "workflow_run_id": workflow_run_id,  # Link to workflow_runs table
+                    "final_result_summary": result.get("result", "")[:200] + "..." if result.get("result", "") and len(result.get("result", "")) > 200 else result.get("result", "")
                 })
+                
+                logger.info(f"Updated session {session_id} with final status: {final_status} (workflow_run_id: {workflow_run_id})")
                 session_obj.metadata = metadata
                 update_session(session_obj)
+                
+                # Update workflow run record with final execution data
+                if workflow_run_id:
+                    from src.db.models import WorkflowRunUpdate
+                    from src.db.repository.workflow_run import update_workflow_run
+                    
+                    # Extract git information if available
+                    git_info = {}
+                    if hasattr(self, 'executor') and hasattr(self.executor, 'environment_manager'):
+                        env_mgr = self.executor.environment_manager
+                        claude_session_id = result.get("session_id")
+                        workspace_path = env_mgr.active_workspaces.get(claude_session_id) if env_mgr.active_workspaces else None
+                        if workspace_path:
+                            git_info["workspace_path"] = str(workspace_path)
+                            # TODO: Extract git diff stats from workspace
+                    
+                    workflow_update = WorkflowRunUpdate(
+                        status=final_status,
+                        result=result.get("result", ""),
+                        error_message=None if result.get("success") else result.get("error"),
+                        cost_estimate=metadata.get('total_cost_usd', 0.0),
+                        input_tokens=metadata.get('input_tokens', 0),
+                        output_tokens=metadata.get('output_tokens', 0),
+                        total_tokens=metadata.get('total_tokens', 0),
+                        workspace_path=git_info.get("workspace_path"),
+                        metadata={
+                            "execution_results": result,
+                            "tools_used": metadata.get('tools_used', []),
+                            "total_turns": metadata.get('total_turns', 0),
+                            "cache_created": metadata.get('cache_created', 0),
+                            "cache_read": metadata.get('cache_read', 0)
+                        }
+                    )
+                    
+                    try:
+                        update_workflow_run(workflow_run_id, workflow_update)
+                        logger.info(f"Updated workflow run record {workflow_run_id} with final execution data")
+                    except Exception as e:
+                        logger.warning(f"Failed to update workflow run record: {e}")
             
             logger.info(f"Background workflow {workflow_name} completed: {result.get('success')}")
+            
+            # Auto-commit changes if workflow succeeded
+            logger.info(f"📝 AUTO-COMMIT: Checking conditions - Success: {result.get('success')}, Has executor: {hasattr(self, 'executor')}, Has env_mgr: {hasattr(self.executor, 'environment_manager') if hasattr(self, 'executor') else False}")
+            if result.get("success") and hasattr(self, 'executor') and hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
+                try:
+                    # Get workspace path from environment manager for this specific run
+                    logger.info(f"📝 AUTO-COMMIT: Active workspaces: {list(self.executor.environment_manager.active_workspaces.keys())}")
+                    claude_session_id = result.get("session_id")
+                    workspace_path = self.executor.environment_manager.active_workspaces.get(claude_session_id)
+                    logger.info(f"📝 AUTO-COMMIT: Workspace path for run_id={run_id}, claude_session_id={claude_session_id}: {workspace_path}")
+                    if workspace_path and workspace_path.exists():
+                        logger.info(f"📝 AUTO-COMMIT: Attempting auto-commit for successful workflow {run_id}")
+                        
+                        # Create meaningful commit message
+                        commit_message = f"{workflow_name}: {input_text[:80]}..." if input_text else f"Workflow {workflow_name} - Run {run_id[:8]}"
+                        
+                        # Execute auto-commit with options
+                        commit_result = await self.executor.environment_manager.auto_commit_with_options(
+                            workspace=workspace_path,
+                            run_id=run_id,
+                            message=commit_message,
+                            create_pr=False,  # Start conservative, can be enhanced later
+                            merge_to_main=True,  # Enable auto-merge to main branch
+                            workflow_name=workflow_name
+                        )
+                        
+                        if commit_result.get('success'):
+                            logger.info(f"📝 AUTO-COMMIT: ✅ SUCCESS for run {run_id}: {commit_result.get('commit_sha', 'N/A')}")
+                            
+                            # If merged to main, cleanup the worktree to save space
+                            if 'merged_to_main' in commit_result.get('operations', []):
+                                logger.info(f"🧹 CLEANUP: Cleaning up worktree for run {run_id} after successful merge")
+                                cleanup_success = await self.executor.environment_manager.cleanup_workspace(
+                                    workspace_path, force=False
+                                )
+                                if cleanup_success:
+                                    logger.info(f"🧹 CLEANUP: ✅ SUCCESS for run {run_id}")
+                                else:
+                                    logger.warning(f"🧹 CLEANUP: ❌ FAILED for run {run_id}")
+                            
+                            # Update session metadata with commit info
+                            if session_obj:
+                                metadata = session_obj.metadata or {}
+                                metadata.update({
+                                    "auto_commit_sha": commit_result.get('commit_sha'),
+                                    "auto_commit_operations": commit_result.get('operations', []),
+                                    "auto_commit_success": True
+                                })
+                                session_obj.metadata = metadata
+                                
+                                # Update workflow run with git information
+                                if workflow_run_id:
+                                    from src.db.models import WorkflowRunUpdate
+                                    from src.db.repository.workflow_run import update_workflow_run
+                                    from src.services.git_service import extract_commit_diff_stats
+                                    
+                                    # Extract git diff statistics from commit result or workspace
+                                    git_stats = commit_result.get('diff_stats', {})
+                                    
+                                    # If no diff stats in commit result, try to extract from workspace
+                                    if not git_stats and workspace_path:
+                                        try:
+                                            # Get the workflow run to find initial commit
+                                            from src.db.repository.workflow_run import get_workflow_run
+                                            existing_run = get_workflow_run(workflow_run_id)
+                                            if existing_run and existing_run.initial_commit_hash:
+                                                diff_data = extract_commit_diff_stats(
+                                                    workspace_path, 
+                                                    existing_run.initial_commit_hash,
+                                                    commit_result.get('commit_sha')
+                                                )
+                                                git_stats = diff_data
+                                        except Exception as e:
+                                            logger.warning(f"Failed to extract diff stats: {e}")
+                                    
+                                    git_update = WorkflowRunUpdate(
+                                        final_commit_hash=commit_result.get('commit_sha'),
+                                        git_diff_added_lines=git_stats.get('git_diff_added_lines', git_stats.get('added_lines', 0)),
+                                        git_diff_removed_lines=git_stats.get('git_diff_removed_lines', git_stats.get('removed_lines', 0)),
+                                        git_diff_files_changed=git_stats.get('git_diff_files_changed', git_stats.get('files_changed', 0)),
+                                        git_diff_stats=git_stats.get('git_diff_stats', git_stats),
+                                        workspace_cleaned_up=True if 'merged_to_main' in commit_result.get('operations', []) else False,
+                                        metadata={
+                                            **(metadata.get('metadata', {}) if 'metadata' in metadata else {}),
+                                            "git_operations": commit_result.get('operations', []),
+                                            "auto_commit_result": commit_result
+                                        }
+                                    )
+                                    
+                                    try:
+                                        update_workflow_run(workflow_run_id, git_update)
+                                        logger.info(f"Updated workflow run {workflow_run_id} with git information: {commit_result.get('commit_sha')}")
+                                    except Exception as e:
+                                        logger.warning(f"Failed to update workflow run with git information: {e}")
+                                update_session(session_obj)
+                        else:
+                            logger.warning(f"📝 AUTO-COMMIT: ❌ FAILED for run {run_id}: {commit_result.get('error', 'Unknown error')}")
+                    else:
+                        logger.warning(f"📝 AUTO-COMMIT: ⚠️  No workspace path found for run {run_id}")
+                            
+                except Exception as commit_error:
+                    logger.error(f"📝 AUTO-COMMIT: 💥 EXCEPTION for run {run_id}: {commit_error}")
+                    # Don't fail the workflow for commit errors
+            else:
+                logger.info(f"📝 AUTO-COMMIT: ⏭️  SKIPPED - Conditions not met")
             
         except Exception as e:
             logger.error(f"Error in background workflow execution: {str(e)}")

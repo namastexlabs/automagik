@@ -187,3 +187,136 @@ async def checkout_branch(repo_path: Path, branch: str) -> bool:
     except Exception as e:
         logger.error(f"Error checking out branch {branch}: {e}")
         return False
+
+
+async def get_git_file_changes(repo_path: Path, base_commit: str = "HEAD~1") -> List[dict]:
+    """Get file changes with diffs from git.
+    
+    Args:
+        repo_path: Path to the git repository
+        base_commit: Base commit to compare against (default: HEAD~1)
+        
+    Returns:
+        List of file change dictionaries with diff data
+    """
+    try:
+        # First get the list of changed files with stats
+        process = await asyncio.create_subprocess_exec(
+            "git", "diff", "--name-status", "--numstat", base_commit, "HEAD",
+            cwd=str(repo_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            logger.warning(f"Failed to get git file changes: {stderr.decode()}")
+            return []
+        
+        # Parse the output to get file statuses
+        file_changes = []
+        lines = stdout.decode().strip().split('\n')
+        
+        if not lines or lines == ['']:
+            return []
+        
+        # Get file stats (additions/deletions)
+        stats_process = await asyncio.create_subprocess_exec(
+            "git", "diff", "--numstat", base_commit, "HEAD",
+            cwd=str(repo_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stats_stdout, _ = await stats_process.communicate()
+        stats_lines = stats_stdout.decode().strip().split('\n')
+        
+        # Parse stats
+        file_stats = {}
+        for line in stats_lines:
+            if line and '\t' in line:
+                parts = line.split('\t')
+                if len(parts) >= 3:
+                    additions = int(parts[0]) if parts[0] != '-' else 0
+                    deletions = int(parts[1]) if parts[1] != '-' else 0
+                    filename = parts[2]
+                    file_stats[filename] = {'additions': additions, 'deletions': deletions}
+        
+        # Get status changes
+        status_process = await asyncio.create_subprocess_exec(
+            "git", "diff", "--name-status", base_commit, "HEAD",
+            cwd=str(repo_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        status_stdout, _ = await status_process.communicate()
+        status_lines = status_stdout.decode().strip().split('\n')
+        
+        for line in status_lines:
+            if line and '\t' in line:
+                parts = line.split('\t')
+                if len(parts) >= 2:
+                    status_code = parts[0]
+                    filename = parts[1]
+                    
+                    # Map git status codes to our format
+                    if status_code == 'A':
+                        status = 'added'
+                    elif status_code == 'D':
+                        status = 'deleted'
+                    elif status_code == 'M':
+                        status = 'modified'
+                    else:
+                        status = 'modified'  # default for other codes
+                    
+                    stats = file_stats.get(filename, {'additions': 0, 'deletions': 0})
+                    
+                    # Get the actual diff for this file
+                    diff_process = await asyncio.create_subprocess_exec(
+                        "git", "diff", base_commit, "HEAD", "--", filename,
+                        cwd=str(repo_path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    diff_stdout, _ = await diff_process.communicate()
+                    file_diff = diff_stdout.decode()
+                    
+                    # Get before and after content
+                    before_content = ""
+                    after_content = ""
+                    
+                    if status != 'added':
+                        # Get file content from base commit
+                        before_process = await asyncio.create_subprocess_exec(
+                            "git", "show", f"{base_commit}:{filename}",
+                            cwd=str(repo_path),
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        before_stdout, before_stderr = await before_process.communicate()
+                        if before_process.returncode == 0:
+                            before_content = before_stdout.decode()
+                    
+                    if status != 'deleted':
+                        # Get current file content
+                        try:
+                            with open(repo_path / filename, 'r', encoding='utf-8') as f:
+                                after_content = f.read()
+                        except Exception as e:
+                            logger.warning(f"Could not read current file {filename}: {e}")
+                    
+                    file_changes.append({
+                        'filename': filename,
+                        'path': filename,
+                        'status': status,
+                        'additions': stats['additions'],
+                        'deletions': stats['deletions'],
+                        'diff': file_diff,
+                        'before': before_content,
+                        'after': after_content
+                    })
+        
+        return file_changes
+        
+    except Exception as e:
+        logger.error(f"Error getting git file changes: {e}")
+        return []

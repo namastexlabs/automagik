@@ -20,6 +20,14 @@ class ClaudeCodeRunRequest(BaseModel):
         None, 
         description="Git branch to work on (defaults to current branch)"
     )
+    model: Optional[str] = Field(
+        default="sonnet",
+        description="Claude model to use"
+    )
+    max_thinking_tokens: Optional[int] = Field(
+        None,
+        description="Maximum thinking tokens for reasoning"
+    )
     timeout: Optional[int] = Field(
         default=3600, 
         ge=60, 
@@ -33,6 +41,10 @@ class ClaudeCodeRunRequest(BaseModel):
     repository_url: Optional[str] = Field(
         None,
         description="Git repository URL to clone (defaults to current repository if not specified)"
+    )
+    persistent: bool = Field(
+        default=True,
+        description="Use persistent workspace (reuses existing workspace for workflow)"
     )
     
     @validator('message')
@@ -57,6 +69,7 @@ class ClaudeCodeRunRequest(BaseModel):
                 "workflow_name": "bug-fixer",
                 "max_turns": 50,
                 "git_branch": "fix/session-timeout",
+                "model": "sonnet",
                 "timeout": 3600,
                 "environment": {
                     "CUSTOM_VAR": "value"
@@ -134,6 +147,7 @@ class ResultInfo(BaseModel):
     final_output: Optional[str] = Field(None, description="Final output from Claude (truncated)")
     files_created: List[str] = Field(default_factory=list, description="List of files created during workflow")
     git_commits: List[str] = Field(default_factory=list, description="Git commits created")
+    files_changed: List[Dict[str, Any]] = Field(default_factory=list, description="Git file changes with diffs")
 
 
 class EnhancedStatusResponse(BaseModel):
@@ -443,15 +457,7 @@ class ExecutionStatus(str, Enum):
 
 
 class WorkflowType(str, Enum):
-    """Available workflow types."""
-    ARCHITECT = "architect"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    FIX = "fix"
-    REFACTOR = "refactor"
-    DOCUMENT = "document"
-    PR = "pr"
+    """Available workflow types - dynamically discovered from filesystem."""
 
 
 class ContainerConfig(BaseModel):

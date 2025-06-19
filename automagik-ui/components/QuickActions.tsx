@@ -36,17 +36,8 @@ export default function QuickActions({ workflows, onWorkflowStart }: QuickAction
   };
 
   const getWorkflowColor = (workflowName: string) => {
-    const colors: Record<string, string> = {
-      'test': 'bg-green-100 border-green-300 text-green-800',
-      'pr': 'bg-blue-100 border-blue-300 text-blue-800',
-      'fix': 'bg-red-100 border-red-300 text-red-800',
-      'refactor': 'bg-purple-100 border-purple-300 text-purple-800',
-      'implement': 'bg-yellow-100 border-yellow-300 text-yellow-800',
-      'review': 'bg-orange-100 border-orange-300 text-orange-800',
-      'document': 'bg-gray-100 border-gray-300 text-gray-800',
-      'architect': 'bg-indigo-100 border-indigo-300 text-indigo-800',
-    };
-    return colors[workflowName] || 'bg-gray-100 border-gray-300 text-gray-800';
+    // Dynamic workflow system - use default color for all workflows
+    return 'bg-gray-100 border-gray-300 text-gray-800';
   };
 
   return (
