@@ -1,11 +1,12 @@
 """Factory for creating appropriate executor based on configuration.
 
 This module provides the ExecutorFactory class that creates the appropriate
-executor (Local mode only) based on configuration.
+executor. After SDK migration, defaults to SDK executor with emergency legacy override.
 """
 
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 from .executor_base import ExecutorBase
@@ -21,43 +22,33 @@ class ExecutorFactory:
         mode: Optional[str] = None,
         **kwargs
     ) -> ExecutorBase:
-        """Create a local executor.
+        """Create an executor based on mode.
+        
+        Migration complete: Only SDK executor is available.
         
         Args:
-            mode: Execution mode (only 'local' supported). 
-                  If None, defaults to 'local'.
+            mode: Execution mode (deprecated - ignored, always returns SDK executor). 
             **kwargs: Additional arguments for the executor
             
         Returns:
-            LocalExecutor instance
-            
-        Raises:
-            ValueError: If mode is not 'local'
+            ClaudeSDKExecutor instance
         """
-        # Determine execution mode
-        if mode is None:
-            mode = os.environ.get("CLAUDE_CODE_MODE", "local")
+        # Migration complete: SDK executor only
+        logger.info("Creating SDK executor (post-migration)")
         
-        mode = mode.lower()
-        logger.info(f"Creating executor for mode: {mode}")
+        # Import SDK executor
+        from .sdk_executor import ClaudeSDKExecutor
         
-        if mode == "local" or mode is None:
-            # Import here to avoid circular imports
-            from .local_executor import LocalExecutor
+        # Create environment manager if needed
+        environment_manager = None
+        if kwargs.get('use_environment_manager', True):
+            from .cli_environment import CLIEnvironmentManager
             
-            # Extract local mode specific kwargs
             workspace_base = kwargs.get('workspace_base', 
                                       os.environ.get("CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"))
-            cleanup_on_complete = kwargs.get('cleanup_on_complete',
-                                           os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true")
-            git_cache_enabled = kwargs.get('git_cache_enabled',
-                                         os.environ.get("CLAUDE_LOCAL_GIT_CACHE", "false").lower() == "true")
             
-            return LocalExecutor(
-                workspace_base=workspace_base,
-                cleanup_on_complete=cleanup_on_complete,
-                git_cache_enabled=git_cache_enabled
+            environment_manager = CLIEnvironmentManager(
+                base_path=Path(workspace_base)
             )
-            
-        else:
-            raise ValueError(f"Invalid execution mode: {mode}. Only 'local' mode is supported.")
+        
+        return ClaudeSDKExecutor(environment_manager=environment_manager)
