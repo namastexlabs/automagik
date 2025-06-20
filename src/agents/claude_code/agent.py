@@ -18,6 +18,7 @@ from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.dependencies import AutomagikAgentsDependencies
 from src.agents.models.response import AgentResponse
 from src.memory.message_history import MessageHistory
+from src.db import get_session, update_session
 
 # Import execution components
 from .executor_factory import ExecutorFactory
@@ -674,7 +675,6 @@ class ClaudeCodeAgent(AutomagikAgent):
         if use_queue:
             # Use queue manager for proper concurrent execution control
             from .workflow_queue import get_queue_manager, WorkflowPriority
-            from .models import ClaudeCodeRunRequest
             
             logger.info(f"Using queue-based execution for workflow {run_id}")
             
@@ -830,6 +830,17 @@ class ClaudeCodeAgent(AutomagikAgent):
                 session_obj.metadata = metadata
                 update_session(session_obj)
             
+            # Create workspace for this workflow run
+            workspace_path = None
+            if hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
+                workspace_path = await self.executor.environment_manager.create_workspace(
+                    run_id=run_id,
+                    workflow_name=workflow_name,
+                    persistent=request.persistent,  # Use the persistent flag from request
+                    git_branch=request.git_branch
+                )
+                logger.info(f"Created workspace for run {run_id}: {workspace_path}")
+
             # Execute the workflow - use standard execution to avoid SDK TaskGroup issues
             # The SDK executor can extract data from the result without streaming complications
             result = await self.executor.execute_claude_task(
@@ -838,7 +849,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                     "workflow_name": workflow_name,
                     "session_id": session_id,
                     "run_id": run_id,  # Ensure run_id is always present for logging
-                    "db_id": self.db_id
+                    "db_id": self.db_id,
+                    "workspace": str(workspace_path) if workspace_path else "."  # Add workspace path
                 }
             )
             
@@ -1109,6 +1121,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             
             # Update session with error status
             try:
+                from src.db import get_session, update_session
                 session_obj = get_session(uuid.UUID(session_id))
                 if session_obj:
                     metadata = session_obj.metadata or {}

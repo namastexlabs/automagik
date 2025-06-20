@@ -36,6 +36,10 @@ _shutdown_requested = False
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
     global _shutdown_requested
+    if _shutdown_requested:
+        logger.info("📝 Shutdown already in progress, ignoring duplicate signal")
+        return
+        
     _shutdown_requested = True
     
     # Log with signal name for better debugging
@@ -43,34 +47,22 @@ def signal_handler(signum, frame):
     signal_name = signal_names.get(signum, f"Signal {signum}")
     logger.info(f"📝 Received {signal_name}, initiating graceful shutdown...")
     
-    # AGGRESSIVE: Try to cancel all pending tasks immediately
-    try:
-        # Get the current event loop if we're in an async context
-        try:
-            loop = asyncio.get_running_loop()
-            # Cancel all pending tasks
-            pending_tasks = [task for task in asyncio.all_tasks(loop) if not task.done()]
-            if pending_tasks:
-                logger.info(f"📝 Cancelling {len(pending_tasks)} pending tasks...")
-                for task in pending_tasks:
-                    task.cancel()
-        except RuntimeError:
-            # No event loop running, which is fine for sync contexts
-            pass
-    except Exception as e:
-        logger.warning(f"Error during task cancellation: {e}")
+    # Let uvicorn handle the signal naturally for graceful shutdown
+    # Don't force exit - let the lifespan context handle cleanup
+    logger.info("📝 Allowing uvicorn to handle graceful shutdown...")
     
-    # Force exit after a very short timeout to prevent hanging
+    # Set a backup timer only as last resort
     import threading
-    def force_exit():
+    def backup_exit():
         import time
-        time.sleep(2.0)  # Give 2 seconds for graceful shutdown
-        logger.warning("📝 Force exiting due to shutdown timeout...")
-        os._exit(1)
+        time.sleep(10.0)  # Give 10 seconds for normal shutdown
+        if _shutdown_requested:
+            logger.error("📝 Graceful shutdown failed, forcing exit...")
+            os._exit(1)
     
-    # Start force exit timer in background
-    force_exit_thread = threading.Thread(target=force_exit, daemon=True)
-    force_exit_thread.start()
+    # Start backup timer
+    backup_thread = threading.Thread(target=backup_exit, daemon=True)
+    backup_thread.start()
 
 def register_signal_handlers():
     """Register signal handlers for graceful shutdown.
