@@ -1,0 +1,18 @@
+{
+  "restart_session": {
+    "started_at": "2025-06-20T15:57:00",
+    "reason": "Worktree cleanup completed - testing system fixes",
+    "previous_session_summary": {
+      "tests_attempted": 14,
+      "critical_issues_found": 3,
+      "worktree_cleanup": "completed"
+    }
+  },
+  "current_test": {
+    "test_id": "BF-01-RESTART",
+    "workflow": "guardian", 
+    "run_id": "2dd481d7-818e-42a9-b296-e112daca8dcd",
+    "status": "running",
+    "started_at": "2025-06-20T15:59:24.156321"
+  }
+}

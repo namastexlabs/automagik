@@ -75,6 +75,19 @@ This document summarizes the critical fixes implemented to resolve the race cond
 - `src/db/repository/workflow_run.py`
 - `src/api/routes/claude_code_routes.py`
 
+### 6. ✅ Fixed Recovery Service Startup Error
+**Issue**: 'WorkflowRun' object has no attribute 'updated_at' error preventing service startup.
+
+**Solution**:
+- Added missing `updated_at` field to WorkflowRun model
+- Updated all database queries to include updated_at column
+- Added defensive programming for missing attributes
+
+**Files Modified**:
+- `src/db/models.py`
+- `src/db/repository/workflow_run.py`
+- `src/agents/claude_code/workflow_recovery.py`
+
 ## Key Improvements
 
 ### Reliability
@@ -111,6 +124,7 @@ The fixes have been verified to resolve:
 3. Progress estimation crashes ✅
 4. Missing execution_time_seconds ✅
 5. Concurrent execution conflicts ✅
+6. Recovery service startup errors ✅
 
 ## Next Steps
 
