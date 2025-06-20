@@ -654,9 +654,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                                          session_id: str, run_id: str, **kwargs) -> None:
         """Execute a workflow in the background without waiting for response.
         
-        This method starts the workflow execution and returns immediately.
-        The workflow continues running in the background and saves all output
-        to log files that can be parsed later.
+        SURGICAL FIX: This method now supports queue-based execution to prevent
+        TaskGroup conflicts and properly manage concurrent workflows.
         
         Args:
             input_text: User message
@@ -667,6 +666,74 @@ class ClaudeCodeAgent(AutomagikAgent):
         """
         # Track execution timing for message persistence
         start_time = time.time()
+        
+        # SURGICAL FIX: Check if we should use queue-based execution
+        import os
+        use_queue = os.environ.get('USE_WORKFLOW_QUEUE', 'false').lower() == 'true'
+        
+        if use_queue:
+            # Use queue manager for proper concurrent execution control
+            from .workflow_queue import get_queue_manager, WorkflowPriority
+            from .models import ClaudeCodeRunRequest
+            
+            logger.info(f"Using queue-based execution for workflow {run_id}")
+            
+            queue_manager = get_queue_manager()
+            
+            # Create request from parameters
+            request = ClaudeCodeRunRequest(
+                message=input_text,
+                workflow_name=workflow_name,
+                session_id=session_id,
+                run_id=run_id,
+                max_turns=kwargs.get('max_turns'),
+                timeout=kwargs.get('timeout', 7200),
+                repository_url=kwargs.get('repository_url'),
+                git_branch=kwargs.get('git_branch')
+            )
+            
+            # Determine priority based on workflow type
+            priority = WorkflowPriority.NORMAL
+            if workflow_name in ['fix', 'surgeon', 'guardian']:
+                priority = WorkflowPriority.HIGH
+            elif workflow_name in ['document', 'shipper']:
+                priority = WorkflowPriority.LOW
+            elif workflow_name == 'genie':
+                priority = WorkflowPriority.CRITICAL
+            
+            # Submit to queue
+            agent_context = {
+                'session_id': session_id,
+                'run_id': run_id,
+                'workspace': kwargs.get('workspace_path', '.'),
+                'start_time': start_time,
+                'kwargs': kwargs
+            }
+            
+            await queue_manager.submit_workflow(
+                request, 
+                agent_context,
+                priority
+            )
+            
+            logger.info(f"Submitted workflow {run_id} to queue with priority {priority.name}")
+            
+            # Update session to indicate queued status
+            if session_id:
+                try:
+                    from src.db import get_session, update_session
+                    session_obj = get_session(uuid.UUID(session_id))
+                    if session_obj and session_obj.metadata:
+                        session_obj.metadata.update({
+                            "run_status": "queued",
+                            "queue_priority": priority.name,
+                            "queued_at": datetime.utcnow().isoformat()
+                        })
+                        update_session(session_obj)
+                except Exception as e:
+                    logger.warning(f"Failed to update session with queue status: {e}")
+            
+            return  # Exit early for queued execution
         
         try:
             # Look up existing Claude session ID from database if session_id provided
