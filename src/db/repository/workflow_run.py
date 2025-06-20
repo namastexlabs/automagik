@@ -45,11 +45,13 @@ def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
             session_id, session_name, git_repo, git_branch, initial_commit_hash,
             final_commit_hash, git_diff_added_lines, git_diff_removed_lines,
             git_diff_files_changed, git_diff_stats, status, result, error_message,
+            created_at, completed_at, duration_seconds,
             workspace_id, workspace_persistent, workspace_cleaned_up, workspace_path,
-            cost_estimate, input_tokens, output_tokens, total_tokens, user_id, metadata
+            cost_estimate, input_tokens, output_tokens, total_tokens, user_id, metadata,
+            updated_at
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
     """
     
@@ -73,6 +75,9 @@ def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
         workflow_run.status,
         workflow_run.result,
         workflow_run.error_message,
+        datetime.utcnow().isoformat(),  # created_at
+        workflow_run.completed_at.isoformat() if workflow_run.completed_at else None,  # completed_at
+        workflow_run.duration_seconds,  # duration_seconds
         workflow_run.workspace_id,
         workflow_run.workspace_persistent,
         workflow_run.workspace_cleaned_up,
@@ -82,7 +87,8 @@ def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
         workflow_run.output_tokens,
         workflow_run.total_tokens,
         str(user_id) if user_id else None,
-        metadata_json
+        metadata_json,
+        datetime.utcnow().isoformat()  # updated_at
     )
     
     execute_query(query, params)
