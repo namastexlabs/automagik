@@ -105,7 +105,7 @@ class WorkflowRecoveryService:
         current_time = datetime.utcnow()
         for workflow in running_workflows:
             # Check if workflow has been running for too long without updates
-            last_update = workflow.updated_at
+            last_update = getattr(workflow, 'updated_at', None) or workflow.created_at
             if last_update and (current_time - last_update) > timedelta(minutes=30):
                 stuck_workflows.append(workflow)
                 logger.warning(f"Workflow {workflow.run_id} stuck - no updates for 30+ minutes")
