@@ -474,12 +474,14 @@ if __name__ == "__main__":
         # Extract tool usage from messages
         from claude_code_sdk import AssistantMessage, ToolUseBlock
         
+        tools_used = []  # Initialize tools_used list
         for message in collected_messages:
             if isinstance(message, AssistantMessage):
                 for block in message.content:
                     if isinstance(block, ToolUseBlock):
                         if block.name not in tools_used:
                             tools_used.append(block.name)
+                            logger.debug(f"SDK Executor (SUBPROCESS): Captured tool - {block.name}")
         
         # Extract final metrics
         if final_metrics:
@@ -1041,7 +1043,8 @@ if __name__ == "__main__":
                 'total_tokens': token_details['total_tokens'],
                 'input_tokens': token_details['input_tokens'],
                 'output_tokens': token_details['output_tokens'],
-                'tool_names_used': tools_used
+                'tools_used': tools_used,
+                'tool_names_used': tools_used  # Keep for backwards compatibility
             }
             
         except Exception as e:
@@ -1291,7 +1294,8 @@ if __name__ == "__main__":
                 'metrics': metrics,
                 'cost_usd': metrics.total_cost_usd,
                 'total_turns': metrics.total_turns,
-                'tools_used': metrics.tool_names_used
+                'tools_used': metrics.tool_names_used,
+                'tool_names_used': metrics.tool_names_used  # Keep for backwards compatibility
             }
             
         except Exception as e:
@@ -1328,6 +1332,7 @@ if __name__ == "__main__":
                 "cost_estimate": metrics.total_cost_usd,
                 "tool_calls": metrics.tool_calls,
                 "tools_used": metrics.tool_names_used,
+                "tool_names_used": metrics.tool_names_used,  # Keep for backwards compatibility
                 "current_phase": metrics.current_phase,
                 "completion_percentage": metrics.completion_percentage,
                 "last_activity": datetime.utcnow().isoformat(),
