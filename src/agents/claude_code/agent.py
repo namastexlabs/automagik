@@ -71,11 +71,11 @@ class ClaudeCodeAgent(AutomagikAgent):
         self.config.update({
             "agent_type": "claude-code",
             "framework": "claude-cli",
-            "execution_timeout": int(config.get("execution_timeout", "7200")),  # 2 hours default
-            "max_concurrent_sessions": int(config.get("max_concurrent_sessions", "10")),
-            "workspace_base": config.get("workspace_base", "/tmp/claude-workspace"),
-            "default_workflow": config.get("default_workflow", "bug-fixer"),
-            "git_branch": config.get("git_branch")  # None by default, will use current branch
+            "execution_timeout": int(self.config.get("execution_timeout", "7200")),  # 2 hours default
+            "max_concurrent_sessions": int(self.config.get("max_concurrent_sessions", "10")),
+            "workspace_base": self.config.get("workspace_base", "/tmp/claude-workspace"),
+            "default_workflow": self.config.get("default_workflow", "surgeon"),
+            "git_branch": self.config.get("git_branch")  # None by default, will use current branch
         })
         
         # Determine execution mode
@@ -169,7 +169,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 session_id=self.context.get("session_id"),
                 run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
                 workflow_name=workflow_name,
-                max_turns=int(self.config["max_turns"]) if "max_turns" in self.config else None,
+                max_turns=int(self.config.get("max_turns")) if self.config.get("max_turns") else None,
                 git_branch=git_branch,
                 timeout=self.config.get("container_timeout"),
                 repository_url=self.context.get("repository_url")  # Pass repository URL from context
@@ -672,6 +672,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Look up existing Claude session ID from database if session_id provided
             claude_session_id_for_resumption = None
             session_obj = None
+            session_id = self.context.get("session_id")
             
             if session_id:
                 from src.db import get_session
@@ -781,14 +782,26 @@ class ClaudeCodeAgent(AutomagikAgent):
                 # Extract the ACTUAL Claude session ID from the execution result
                 actual_claude_session_id = result.get("session_id") 
                 if actual_claude_session_id:
-                    # Store the real Claude session ID for future resumption
-                    metadata["claude_session_id"] = actual_claude_session_id
+                    # SURGICAL FIX: Only set Claude session ID if not already set (preserve first workflow's session)
+                    if not metadata.get("claude_session_id"):
+                        metadata["claude_session_id"] = actual_claude_session_id
+                        logger.info(f"Setting initial Claude session ID: {actual_claude_session_id}")
+                    else:
+                        logger.info(f"Preserving existing Claude session ID: {metadata.get('claude_session_id')} (new: {actual_claude_session_id})")
                 
                 # Determine proper status based on result
                 final_status = "completed" if result.get("success") else "failed"
                 
                 # Extract comprehensive SDK executor data
                 token_details = result.get("token_details", {})
+                
+                # SURGICAL FIX: Create usage_tracker from SDK executor result data
+                usage_tracker = {
+                    "total_tokens": token_details.get("total_tokens", 0),
+                    "input_tokens": token_details.get("input_tokens", 0),
+                    "output_tokens": token_details.get("output_tokens", 0),
+                    "cost_usd": result.get("cost_usd", 0.0)
+                }
                 
                 # Simplified session metadata - only store session-level info
                 # Detailed workflow tracking is now handled by workflow_runs table
@@ -798,7 +811,12 @@ class ClaudeCodeAgent(AutomagikAgent):
                     "success": result.get("success", False),
                     # Keep essential session info for legacy compatibility
                     "workflow_run_id": workflow_run_id,  # Link to workflow_runs table
-                    "final_result_summary": result.get("result", "")[:200] + "..." if result.get("result", "") and len(result.get("result", "")) > 200 else result.get("result", "")
+                    "final_result_summary": result.get("result", "")[:200] + "..." if result.get("result", "") and len(result.get("result", "")) > 200 else result.get("result", ""),
+                    # SURGICAL FIX: Add usage_tracker data to metadata for database update
+                    "total_cost_usd": usage_tracker.get("cost_usd", 0.0),
+                    "total_tokens": usage_tracker.get("total_tokens", 0),
+                    "input_tokens": usage_tracker.get("input_tokens", 0),
+                    "output_tokens": usage_tracker.get("output_tokens", 0)
                 })
                 
                 logger.info(f"Updated session {session_id} with final status: {final_status} (workflow_run_id: {workflow_run_id})")
@@ -835,7 +853,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                                 "workflow_context": {
                                     "workflow_name": workflow_name,
                                     "run_id": run_id,
-                                    "session_name": session_name,
+                                    "session_name": session_obj.name if session_obj else None,
                                     "completion_status": final_status,
                                     "files_created": result.get("files_created", []),
                                     "git_commits": result.get("git_commits", []),
@@ -870,6 +888,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                             git_info["workspace_path"] = str(workspace_path)
                             # TODO: Extract git diff stats from workspace
                     
+                    # Calculate execution duration (start_time is Unix timestamp)
+                    execution_duration = int(time.time() - start_time)
+                    
                     workflow_update = WorkflowRunUpdate(
                         status=final_status,
                         result=result.get("result", ""),
@@ -878,13 +899,28 @@ class ClaudeCodeAgent(AutomagikAgent):
                         input_tokens=metadata.get('input_tokens', 0),
                         output_tokens=metadata.get('output_tokens', 0),
                         total_tokens=metadata.get('total_tokens', 0),
+                        duration_seconds=execution_duration,
                         workspace_path=git_info.get("workspace_path"),
                         metadata={
                             "execution_results": result,
-                            "tools_used": metadata.get('tools_used', []),
-                            "total_turns": metadata.get('total_turns', 0),
-                            "cache_created": metadata.get('cache_created', 0),
-                            "cache_read": metadata.get('cache_read', 0)
+                            "tools_used": result.get('tools_used', []),
+                            "total_turns": result.get('total_turns', 0),
+                            "cache_created": token_details.get('cache_created', 0),
+                            "cache_read": token_details.get('cache_read', 0),
+                            "cache_efficiency": token_details.get('cache_efficiency', 0.0),
+                            "performance_score": 85.0,  # Default score, could be calculated
+                            "files_created": result.get('files_created', []),
+                            "files_changed": result.get('files_changed', []),
+                            "git_commits": result.get('git_commits', []),
+                            "completion_type": "completed_successfully" if result.get("success") else "failed",
+                            # SURGICAL FIX: Include comprehensive ResultMessage metadata
+                            "result_metadata": result.get('result_metadata', {}),
+                            "subtype": result.get('result_metadata', {}).get('subtype', ''),
+                            "duration_ms": result.get('result_metadata', {}).get('duration_ms', 0),
+                            "api_duration_ms": result.get('result_metadata', {}).get('duration_api_ms', 0),
+                            "is_error": result.get('result_metadata', {}).get('is_error', False),
+                            "claude_session_id": result.get('result_metadata', {}).get('session_id', result.get('session_id', '')),
+                            "claude_result_text": result.get('result_metadata', {}).get('result', '')
                         }
                     )
                     
