@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Path, Body, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.log_manager import get_log_manager
@@ -149,6 +149,27 @@ class ClaudeCodeRunSummary(BaseModel):
     turns: Optional[int] = Field(None, description="Number of conversation turns")
     tool_calls: Optional[int] = Field(None, description="Number of tool calls made")
     result: Optional[str] = Field(None, description="Brief result summary")
+    
+    # Enhanced fields from workflow_runs
+    input_tokens: Optional[int] = Field(None, description="Input tokens used")
+    output_tokens: Optional[int] = Field(None, description="Output tokens used")
+    ai_model: Optional[str] = Field(None, description="AI model used")
+    session_name: Optional[str] = Field(None, description="Session name")
+    git_repo: Optional[str] = Field(None, description="Git repository")
+    git_branch: Optional[str] = Field(None, description="Git branch")
+    git_diff_summary: Optional[str] = Field(None, description="Git diff summary")
+    tools_used: Optional[List[str]] = Field(None, description="Tools used in the workflow")
+    workspace_path: Optional[str] = Field(None, description="Workspace path")
+    workspace_persistent: Optional[bool] = Field(None, description="Whether workspace is persistent")
+    workspace_cleaned_up: Optional[bool] = Field(None, description="Whether workspace was cleaned up")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    final_commit_hash: Optional[str] = Field(None, description="Final git commit hash")
+    
+    @computed_field
+    @property
+    def execution_time_seconds(self) -> Optional[float]:
+        """Alias for execution_time to maintain compatibility with QA tests."""
+        return self.execution_time
 
 
 class ClaudeCodeRunsListResponse(BaseModel):
