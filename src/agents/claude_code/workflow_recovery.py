@@ -60,7 +60,11 @@ class WorkflowRecoveryService:
         """Stop the recovery service."""
         self._running = False
         if self._task:
-            await self._task
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass  # Task was cancelled, which is expected
         logger.info("Workflow recovery service stopped")
         
     async def _recovery_loop(self):

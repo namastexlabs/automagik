@@ -22,6 +22,7 @@ from .executor_base import ExecutorBase
 from .models import ClaudeCodeRunRequest
 from .sdk_stream_processor import SDKStreamProcessor
 from .log_manager import get_log_manager
+from .execution_isolator import ExecutionIsolator, get_isolator
 
 # Database imports for metrics persistence
 from ...db.repository.workflow_run import update_workflow_run_by_run_id
@@ -257,138 +258,8 @@ class ClaudeSDKExecutor(ExecutorBase):
             
         return turn_count
     
-    async def _execute_in_isolated_context(
-        self, 
-        request: ClaudeCodeRunRequest, 
-        agent_context: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Execute SDK in completely isolated subprocess to avoid TaskGroup conflicts.
-        
-        This method creates a separate Python process to completely isolate
-        the SDK execution from the API's TaskGroup management.
-        
-        Args:
-            request: Execution request with task details
-            agent_context: Agent context including session info
-            
-        Returns:
-            Execution result dictionary
-        """
-        logger.info("SURGICAL FIX: Executing SDK in isolated subprocess to avoid TaskGroup conflicts")
-        
-        import subprocess
-        import json
-        import tempfile
-        import os
-        from pathlib import Path
-        
-        # Serialize data for subprocess
-        request_json = json.dumps(request.model_dump())
-        context_json = json.dumps(agent_context)
-        project_root = str(Path.cwd())
-        
-        # Create a temporary script to run the SDK in isolation
-        script_content = f'''
-import asyncio
-import json
-import sys
-import os
-from pathlib import Path
-
-# Add the current project to Python path
-project_root = Path(r"{project_root}")
-sys.path.insert(0, str(project_root))
-
-from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
-from src.agents.claude_code.models import ClaudeCodeRunRequest
-
-async def run_isolated_sdk():
-    """Run SDK in completely isolated process."""
-    try:
-        # Recreate the request from JSON
-        request_data = r"""{request_json}"""
-        request = ClaudeCodeRunRequest.model_validate(json.loads(request_data))
-        
-        # Recreate agent context
-        agent_context_data = r"""{context_json}"""
-        agent_context = json.loads(agent_context_data)
-        
-        # Create fresh executor instance
-        executor = ClaudeSDKExecutor()
-        
-        # Run a simplified SDK execution without TaskGroup isolation logic
-        result = await executor._execute_claude_task_simple(request, agent_context)
-        
-        # Output result as JSON
-        print("ISOLATED_RESULT_START")
-        print(json.dumps(result))
-        print("ISOLATED_RESULT_END")
-        
-    except Exception as e:
-        error_result = {{
-            'success': False,
-            'error': str(e),
-            'session_id': agent_context.get('session_id', 'unknown'),
-            'result': f"Isolated subprocess failed: {{str(e)}}",
-            'exit_code': 1,
-            'execution_time': 0.0,
-            'logs': f"Subprocess error: {{str(e)}}",
-            'workspace_path': agent_context.get('workspace', '.'),
-            'cost_usd': 0.0,
-            'total_turns': 0,
-            'tools_used': []
-        }}
-        print("ISOLATED_RESULT_START")
-        print(json.dumps(error_result))
-        print("ISOLATED_RESULT_END")
-
-if __name__ == "__main__":
-    asyncio.run(run_isolated_sdk())
-'''
-        
-        # Write script to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_script:
-            temp_script.write(script_content)
-            temp_script_path = temp_script.name
-        
-        try:
-            # Execute the script in subprocess
-            result = subprocess.run([
-                sys.executable, temp_script_path
-            ], capture_output=True, text=True, timeout=300, cwd=str(Path.cwd()))
-            
-            # Parse the result from subprocess output
-            output_lines = result.stdout.split('\n')
-            result_start = -1
-            result_end = -1
-            
-            for i, line in enumerate(output_lines):
-                if line.strip() == "ISOLATED_RESULT_START":
-                    result_start = i + 1
-                elif line.strip() == "ISOLATED_RESULT_END":
-                    result_end = i
-                    break
-            
-            if result_start >= 0 and result_end >= 0:
-                result_json = '\n'.join(output_lines[result_start:result_end])
-                isolated_result = json.loads(result_json)
-                logger.info("SURGICAL SUCCESS: Subprocess isolation executed successfully")
-                return isolated_result
-            else:
-                raise Exception(f"Could not parse subprocess result. stdout: {result.stdout}, stderr: {result.stderr}")
-                
-        except subprocess.TimeoutExpired:
-            logger.error("SURGICAL ERROR: Subprocess isolation timed out")
-            raise Exception("Subprocess isolation timed out after 300 seconds")
-        except Exception as e:
-            logger.error(f"SURGICAL ERROR: Subprocess isolation failed: {e}")
-            raise Exception(f"Subprocess isolation failed: {e}")
-        finally:
-            # Cleanup temp file
-            try:
-                os.unlink(temp_script_path)
-            except (OSError, FileNotFoundError):
-                pass
+    # DEPRECATED: This method is replaced by ExecutionIsolator.execute_in_subprocess()
+    # The old _execute_in_isolated_context method has been removed.
     
     async def _execute_claude_task_simple(
         self, 
@@ -509,6 +380,36 @@ if __name__ == "__main__":
                 'cache_read': usage.get('cache_read_input_tokens', 0)
             })
             logger.info(f"SDK Executor (SUBPROCESS): Extracted token details - Total: {token_details['total_tokens']}")
+
+        # SURGICAL FIX: Update database with subprocess results if run_id available
+        if hasattr(request, 'run_id') and request.run_id:
+            try:
+                from ...db.repository.workflow_run import update_workflow_run_by_run_id
+                from ...db.models import WorkflowRunUpdate
+                from datetime import datetime
+                
+                # Create comprehensive update with subprocess execution results
+                update_data = WorkflowRunUpdate(
+                    status="completed",
+                    cost_estimate=total_cost,
+                    input_tokens=token_details.get('input_tokens', 0),
+                    output_tokens=token_details.get('output_tokens', 0),
+                    total_tokens=token_details.get('total_tokens', 0),
+                    result=('\n'.join(messages) if messages else "Subprocess execution completed")[:1000],
+                    completed_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                    duration_seconds=int(execution_time)
+                )
+                
+                # Update database with subprocess results
+                update_success = update_workflow_run_by_run_id(request.run_id, update_data)
+                if update_success:
+                    logger.info(f"SURGICAL SUCCESS: Updated database from subprocess for {request.run_id}")
+                else:
+                    logger.warning(f"SURGICAL WARNING: Database update failed for {request.run_id}")
+                    
+            except Exception as db_error:
+                logger.error(f"SURGICAL ERROR: Subprocess database update failed: {db_error}")
 
         return {
             'success': True,
@@ -720,20 +621,10 @@ if __name__ == "__main__":
         Returns:
             Dictionary with execution results
         """
-        import os
-        
-        # SURGICAL FIX: Detect execution context and use appropriate isolation
-        is_background_task = os.environ.get('BYPASS_TASKGROUP_DETECTION') == 'true'
-        is_isolated = os.environ.get('CLAUDE_SDK_ISOLATED') == 'true'
-        is_subprocess = os.environ.get('CLAUDE_SDK_SUBPROCESS') == 'true'
-        
-        if is_background_task and not (is_isolated or is_subprocess):
-            # We're in a FastAPI background task - use isolation
-            logger.info("SURGICAL FIX: Detected FastAPI background task - using execution isolation")
-            from .execution_isolator import get_isolator
+        # Check if we need isolation (running in API context)
+        if asyncio.current_task() and hasattr(asyncio.current_task(), 'get_context'):
+            # Use ExecutionIsolator for thread pool execution
             isolator = get_isolator()
-            
-            # Use thread pool isolation for better performance
             return await isolator.execute_in_thread_pool(request, agent_context)
         
         # Otherwise, proceed with normal execution
@@ -755,7 +646,8 @@ if __name__ == "__main__":
                     repository_url=request.repository_url,
                     git_branch=request.git_branch,
                     session_id=session_id,
-                    workflow_name=request.workflow_name  # SURGICAL FIX: Enable persistent workspaces
+                    workflow_name=request.workflow_name,  # SURGICAL FIX: Enable persistent workspaces
+                    persistent=request.persistent  # Pass through persistent parameter
                 )
                 workspace_path = Path(workspace_info['workspace_path'])
             else:
@@ -817,24 +709,12 @@ if __name__ == "__main__":
                 import os
                 bypass_detection = os.environ.get('BYPASS_TASKGROUP_DETECTION', 'false').lower() == 'true'
                 
-                # TaskGroup errors indicate subprocess context conflicts - need isolation
-                if not bypass_detection and ("TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error)):
+                # TaskGroup errors indicate subprocess context conflicts
+                if "TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error):
                     logger.warning(f"TaskGroup conflict detected in SDK execution: {sdk_error}")
-                    logger.info("SDK subprocess context conflicts with API background tasks - attempting isolation retry")
-                    
-                    # SURGICAL FIX: Attempt isolation retry
-                    try:
-                        logger.info("Attempting execution with isolated context...")
-                        return await self._execute_in_isolated_context(request, agent_context)
-                    except Exception as isolation_error:
-                        logger.error(f"Isolation retry also failed: {isolation_error}")
-                        # Mark as incomplete and continue with partial data
-                        execution_incomplete = True
-                        logger.error("SURGICAL NOTE: Both normal and isolated execution failed - marking as incomplete")
-                elif bypass_detection and ("TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error)):
-                    # When bypassing detection, log but don't retry - we're already in isolated context
-                    logger.info(f"SDK Executor: TaskGroup error in thread pool context (expected): {sdk_error}")
+                    # Mark as incomplete and continue with partial data
                     execution_incomplete = True
+                    logger.info("SDK Executor: TaskGroup error detected - marking as incomplete")
                 else:
                     # Re-raise other types of errors
                     raise sdk_error
@@ -1103,7 +983,8 @@ if __name__ == "__main__":
                     repository_url=request.repository_url,
                     git_branch=request.git_branch,
                     session_id=session_id,
-                    workflow_name=request.workflow_name  # SURGICAL FIX: Enable persistent workspaces
+                    workflow_name=request.workflow_name,  # SURGICAL FIX: Enable persistent workspaces
+                    persistent=request.persistent  # Pass through persistent parameter
                 )
                 workspace_path = Path(workspace_info['workspace_path'])
             else:
@@ -1189,7 +1070,8 @@ if __name__ == "__main__":
                     repository_url=request.repository_url,
                     git_branch=request.git_branch,
                     session_id=session_id,
-                    workflow_name=request.workflow_name  # SURGICAL FIX: Enable persistent workspaces
+                    workflow_name=request.workflow_name,  # SURGICAL FIX: Enable persistent workspaces
+                    persistent=request.persistent  # Pass through persistent parameter
                 )
                 workspace_path = Path(workspace_info['workspace_path'])
             else:
@@ -1403,20 +1285,69 @@ if __name__ == "__main__":
         """Cancel a running execution.
         
         Args:
-            execution_id: Session ID
+            execution_id: Session ID or run_id
             
         Returns:
             True if cancelled successfully, False otherwise
         """
+        # First check if we're using ExecutionIsolator
+        isolator = get_isolator()
+        execution_info = isolator.get_execution_status(execution_id)
+        
+        if execution_info:
+            # Try to cancel through isolator first
+            success = isolator.cancel_execution(execution_id)
+            
+            # Also attempt to terminate the actual process if PID is available
+            if execution_info.get("pid"):
+                try:
+                    import psutil
+                    import os
+                    
+                    # SAFETY CHECK: Never kill the main server process
+                    current_pid = os.getpid()
+                    target_pid = execution_info["pid"]
+                    
+                    if target_pid == current_pid:
+                        logger.error(f"SAFETY: Refusing to kill main server process (PID: {current_pid})")
+                        return False
+                    
+                    process = psutil.Process(target_pid)
+                    
+                    # Additional safety: Check if this is a child process
+                    parent_pid = process.ppid()
+                    if parent_pid != current_pid:
+                        logger.warning(f"SAFETY: Process {target_pid} is not a direct child of server (parent: {parent_pid})")
+                    
+                    # Try graceful termination first
+                    process.terminate()
+                    
+                    # Wait up to 5 seconds for graceful shutdown
+                    try:
+                        process.wait(timeout=5)
+                        logger.info(f"Process {target_pid} terminated gracefully")
+                    except psutil.TimeoutExpired:
+                        # Force kill if graceful termination failed
+                        process.kill()
+                        logger.warning(f"Process {target_pid} was force killed")
+                    
+                    return True
+                    
+                except psutil.NoSuchProcess:
+                    logger.warning(f"Process {execution_info.get('pid')} not found")
+                except Exception as e:
+                    logger.error(f"Failed to terminate process: {e}")
+                    
+        # Check active sessions as fallback
         if execution_id in self.active_sessions:
             try:
-                # For SDK mode, we can only remove the session tracking
-                # The SDK query function doesn't provide cancellation
+                # Remove session tracking
                 del self.active_sessions[execution_id]
                 return True
             except Exception as e:
                 logger.error(f"Failed to cancel execution: {e}")
                 return False
+                
         return False
     
     async def cleanup(self) -> None:
