@@ -818,6 +818,7 @@ class WorkflowRunUpdate(BaseModel):
     git_diff_stats: Optional[Dict[str, Any]] = Field(None, description="Updated diff stats")
     
     # Workspace management
+    workspace_path: Optional[str] = Field(None, description="Updated workspace path")
     workspace_cleaned_up: Optional[bool] = Field(None, description="Updated cleanup status")
     
     # Token and cost tracking
