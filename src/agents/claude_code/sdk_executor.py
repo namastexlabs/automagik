@@ -10,6 +10,7 @@ import json
 import logging
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 from uuid import uuid4
@@ -171,6 +172,11 @@ class ClaudeSDKExecutor(ExecutorBase):
         if 'max_thinking_tokens' in kwargs and kwargs['max_thinking_tokens'] is not None:
             options.max_thinking_tokens = kwargs['max_thinking_tokens']
             logger.info(f"Set max_thinking_tokens to {kwargs['max_thinking_tokens']}")
+        
+        # SURGICAL FIX: Handle session resumption - only use resume with correct Claude session ID
+        if 'session_id' in kwargs and kwargs['session_id']:
+            options.resume = kwargs['session_id']
+            logger.info(f"Setting session resumption with Claude session ID: {kwargs['session_id']}")
         
         return options
     
@@ -410,7 +416,8 @@ if __name__ == "__main__":
             workspace_path,
             model=request.model,
             max_turns=request.max_turns,
-            max_thinking_tokens=request.max_thinking_tokens
+            max_thinking_tokens=request.max_thinking_tokens,
+            session_id=request.session_id  # SURGICAL FIX: Pass session_id for resumption
         )
         
         # Execute the task using SDK query function - SIMPLE (no error handling)
@@ -422,17 +429,31 @@ if __name__ == "__main__":
         # Collect messages
         collected_messages = []
         final_metrics = None
+        actual_claude_session_id = None  # Capture from first SystemMessage
         
         try:
             async for message in query(prompt=request.message, options=options):
                 messages.append(str(message))
                 collected_messages.append(message)
                 
-                # Capture final metrics
+                # SURGICAL FIX: Capture session ID from first SystemMessage
+                if (hasattr(message, 'subtype') and message.subtype == 'init' and 
+                    hasattr(message, 'data') and 'session_id' in message.data):
+                    actual_claude_session_id = message.data['session_id']
+                    logger.info(f"SDK Executor (SUBPROCESS): Captured REAL Claude session ID: {actual_claude_session_id}")
+                
+                # SURGICAL FIX: Capture ALL final metrics from ResultMessage
                 if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
                     final_metrics = {
                         'total_cost_usd': message.total_cost_usd,
-                        'num_turns': getattr(message, 'num_turns', 0)
+                        'num_turns': getattr(message, 'num_turns', 0),
+                        'subtype': getattr(message, 'subtype', ''),
+                        'duration_ms': getattr(message, 'duration_ms', 0),
+                        'duration_api_ms': getattr(message, 'duration_api_ms', 0),
+                        'is_error': getattr(message, 'is_error', False),
+                        'session_id': getattr(message, 'session_id', session_id),
+                        'result': getattr(message, 'result', ''),
+                        'usage': getattr(message, 'usage', {})
                     }
                     
         except Exception as e:
@@ -474,9 +495,22 @@ if __name__ == "__main__":
         
         logger.info(f"SDK Executor (SUBPROCESS): Completed successfully - Turns: {total_turns}, Tools: {len(tools_used)}")
         
+        # Extract token details from final metrics
+        token_details = {'total_tokens': 0, 'input_tokens': 0, 'output_tokens': 0, 'cache_created': 0, 'cache_read': 0}
+        if final_metrics and final_metrics.get('usage'):
+            usage = final_metrics['usage']
+            token_details.update({
+                'total_tokens': usage.get('input_tokens', 0) + usage.get('output_tokens', 0) + usage.get('cache_creation_input_tokens', 0) + usage.get('cache_read_input_tokens', 0),
+                'input_tokens': usage.get('input_tokens', 0),
+                'output_tokens': usage.get('output_tokens', 0),
+                'cache_created': usage.get('cache_creation_input_tokens', 0),
+                'cache_read': usage.get('cache_read_input_tokens', 0)
+            })
+            logger.info(f"SDK Executor (SUBPROCESS): Extracted token details - Total: {token_details['total_tokens']}")
+
         return {
             'success': True,
-            'session_id': session_id,
+            'session_id': actual_claude_session_id or session_id,  # SURGICAL FIX: Return real Claude session ID
             'result': '\n'.join(messages) if messages else "Subprocess execution completed",
             'exit_code': 0,
             'execution_time': execution_time,
@@ -485,13 +519,8 @@ if __name__ == "__main__":
             'cost_usd': total_cost,
             'total_turns': total_turns,
             'tools_used': tools_used,
-            'token_details': {
-                'total_tokens': 0,
-                'input_tokens': 0,
-                'output_tokens': 0,
-                'cache_created': 0,
-                'cache_read': 0
-            }
+            'token_details': token_details,
+            'result_metadata': final_metrics or {}  # SURGICAL FIX: Include ResultMessage metadata
         }
     
     async def _execute_claude_task_isolated(
@@ -520,7 +549,8 @@ if __name__ == "__main__":
             workspace_path,
             model=request.model,
             max_turns=request.max_turns,
-            max_thinking_tokens=request.max_thinking_tokens
+            max_thinking_tokens=request.max_thinking_tokens,
+            session_id=request.session_id  # SURGICAL FIX: Pass session_id for resumption
         )
         
         # Add session metadata to options
@@ -546,6 +576,7 @@ if __name__ == "__main__":
         # Collect all messages first to avoid TaskGroup issues
         collected_messages = []
         final_metrics = None
+        actual_claude_session_id = None  # Capture from first SystemMessage
         
         logger.info(f"SDK Executor (ISOLATED): Starting SDK query for request: {request.message[:100]}...")
         
@@ -554,6 +585,12 @@ if __name__ == "__main__":
             async for message in query(prompt=request.message, options=options):
                 messages.append(str(message))
                 collected_messages.append(message)
+                
+                # SURGICAL FIX: Capture session ID from first SystemMessage
+                if (hasattr(message, 'subtype') and message.subtype == 'init' and 
+                    hasattr(message, 'data') and 'session_id' in message.data):
+                    actual_claude_session_id = message.data['session_id']
+                    logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
                 
                 # Capture final metrics during streaming
                 if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
@@ -570,27 +607,98 @@ if __name__ == "__main__":
             # In isolated context, we don't retry - just mark as incomplete
             execution_incomplete = True
         
-        # Continue with message processing (same logic as original)
+        # SURGICAL FIX: Process collected messages for comprehensive data extraction
+        from claude_code_sdk import ResultMessage, AssistantMessage, ToolUseBlock
+        
+        total_cost = 0.0
+        total_turns = 0
+        tools_used = []
+        token_details = {'total_tokens': 0, 'input_tokens': 0, 'output_tokens': 0, 'cache_created': 0, 'cache_read': 0}
+        result_data = {}  # Store ResultMessage metadata
         
         logger.info(f"SDK Executor (ISOLATED): Processing {len(collected_messages)} collected messages")
         
-        # [Rest of the processing logic will be the same as original method]
-        # For now, return a basic result to avoid complexity
+        # Extract data from collected messages (same as main execution path)
+        for message in collected_messages:
+            if isinstance(message, ResultMessage):
+                total_cost = message.total_cost_usd or 0.0
+                total_turns = message.num_turns
+                
+                # SURGICAL FIX: Extract ALL available ResultMessage fields
+                result_data = {
+                    'subtype': message.subtype,
+                    'duration_ms': message.duration_ms,
+                    'duration_api_ms': message.duration_api_ms, 
+                    'is_error': message.is_error,
+                    'session_id': message.session_id,
+                    'result': message.result
+                }
+                logger.info(f"SDK Executor: ResultMessage data - {result_data}")
+                
+                # Extract token usage details
+                if message.usage:
+                    token_details = {
+                        'total_tokens': (
+                            message.usage.get('input_tokens', 0) +
+                            message.usage.get('output_tokens', 0) +
+                            message.usage.get('cache_creation_input_tokens', 0) +
+                            message.usage.get('cache_read_input_tokens', 0)
+                        ),
+                        'input_tokens': message.usage.get('input_tokens', 0),
+                        'output_tokens': message.usage.get('output_tokens', 0),
+                        'cache_created': message.usage.get('cache_creation_input_tokens', 0),
+                        'cache_read': message.usage.get('cache_read_input_tokens', 0)
+                    }
+                    
+            elif isinstance(message, AssistantMessage):
+                # Extract tool usage from assistant messages
+                for block in message.content:
+                    if isinstance(block, ToolUseBlock):
+                        if block.name not in tools_used:
+                            tools_used.append(block.name)
+                            logger.info(f"SDK Executor (ISOLATED): Captured tool usage - {block.name}")
+        
+        # Fallback to streaming metrics if no ResultMessage found
+        if not total_cost and final_metrics:
+            total_cost = final_metrics.get('total_cost_usd', 0.0)
+            total_turns = final_metrics.get('num_turns', 0)
+            if final_metrics.get('usage'):
+                usage = final_metrics['usage']
+                token_details = {
+                    'total_tokens': (
+                        usage.get('input_tokens', 0) +
+                        usage.get('output_tokens', 0) +
+                        usage.get('cache_creation_input_tokens', 0) +
+                        usage.get('cache_read_input_tokens', 0)
+                    ),
+                    'input_tokens': usage.get('input_tokens', 0),
+                    'output_tokens': usage.get('output_tokens', 0),
+                    'cache_created': usage.get('cache_creation_input_tokens', 0),
+                    'cache_read': usage.get('cache_read_input_tokens', 0)
+                }
+        
+        # Count actual turns if not available
+        if total_turns == 0:
+            total_turns = self._count_actual_turns(collected_messages)
+        
         execution_time = time.time() - start_time
+        
+        logger.info(f"SDK Executor (ISOLATED): Extracted comprehensive metrics - Cost: ${total_cost:.4f}, Tokens: {token_details['total_tokens']}")
         
         return {
             'success': not execution_incomplete and len(collected_messages) > 0,
-            'session_id': session_id,
+            'session_id': actual_claude_session_id or session_id,  # SURGICAL FIX: Return real Claude session ID
             'result': '\n'.join(messages) if messages else "Isolated execution completed",
             'exit_code': 0 if not execution_incomplete else 1,
             'execution_time': execution_time,
             'logs': f"Isolated SDK execution completed in {execution_time:.2f}s",
             'git_commits': [],
             'workspace_path': str(workspace_path),
-            'cost_usd': final_metrics.get('total_cost_usd', 0.0) if final_metrics else 0.0,
-            'total_turns': self._count_actual_turns(collected_messages),
+            'cost_usd': total_cost,
+            'total_turns': total_turns,
             'tools_used': tools_used,
             'token_details': token_details,
+            'result_metadata': result_data,  # SURGICAL FIX: Include ResultMessage metadata
         }
     
     async def execute_claude_task(
@@ -600,6 +708,9 @@ if __name__ == "__main__":
     ) -> Dict[str, Any]:
         """Execute a Claude Code task using the SDK.
         
+        SURGICAL FIX: This method now detects the execution context and uses
+        appropriate isolation mechanisms to prevent TaskGroup conflicts.
+        
         Args:
             request: Execution request with task details
             agent_context: Agent context including session info
@@ -607,6 +718,23 @@ if __name__ == "__main__":
         Returns:
             Dictionary with execution results
         """
+        import os
+        
+        # SURGICAL FIX: Detect execution context and use appropriate isolation
+        is_background_task = os.environ.get('BYPASS_TASKGROUP_DETECTION') == 'true'
+        is_isolated = os.environ.get('CLAUDE_SDK_ISOLATED') == 'true'
+        is_subprocess = os.environ.get('CLAUDE_SDK_SUBPROCESS') == 'true'
+        
+        if is_background_task and not (is_isolated or is_subprocess):
+            # We're in a FastAPI background task - use isolation
+            logger.info("SURGICAL FIX: Detected FastAPI background task - using execution isolation")
+            from .execution_isolator import get_isolator
+            isolator = get_isolator()
+            
+            # Use thread pool isolation for better performance
+            return await isolator.execute_in_thread_pool(request, agent_context)
+        
+        # Otherwise, proceed with normal execution
         start_time = time.time()
         session_id = request.session_id or str(uuid4())
         
@@ -845,6 +973,18 @@ if __name__ == "__main__":
             # This resolves the critical bug where metrics were captured but not saved
             if hasattr(request, 'run_id') and request.run_id:
                 try:
+                    # Build comprehensive metadata with all captured data
+                    metadata = {
+                        "total_turns": total_turns,
+                        "tools_used": tools_used,
+                        "tool_calls": len(tools_used),
+                        "success": success,
+                        "execution_time": execution_time,
+                        "git_commits": git_commits,
+                        "run_status": "completed" if success else "failed",
+                        "completed_at": datetime.utcnow().isoformat()
+                    }
+                    
                     # Create update data with captured metrics
                     update_data = WorkflowRunUpdate(
                         status="completed" if success else "failed",
@@ -853,6 +993,10 @@ if __name__ == "__main__":
                         output_tokens=token_details['output_tokens'],
                         total_tokens=token_details['total_tokens'],
                         result=result_text[:1000] if result_text else None,  # Truncate for database
+                        metadata=metadata,  # Pass as dict, let the model handle JSON encoding
+                        completed_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow(),
+                        duration_seconds=int(execution_time)
                     )
                     
                     # Update the workflow_runs table with actual execution metrics
@@ -1082,21 +1226,9 @@ if __name__ == "__main__":
             final_result = None
             
             try:
-                # Collect all messages first to avoid task scope issues
-                messages_collected = []
-                
+                # Process messages in real-time for live progress updates
                 async for message in query(prompt=request.message, options=options):
-                    messages_collected.append(message)
-                    
-                    # Store final result if this is a result message
-                    from claude_code_sdk import ResultMessage
-                    if isinstance(message, ResultMessage):
-                        final_result = message
-                        break
-                
-                # Process collected messages after streaming is complete
-                for message in messages_collected:
-                    # Process message through stream processor
+                    # Process message immediately through stream processor
                     event_data = processor.process_message(message)
                     
                     # Log the processed event (with error handling)
@@ -1105,8 +1237,21 @@ if __name__ == "__main__":
                     except Exception as log_error:
                         logger.warning(f"Failed to log event {event_data['event_type']}: {log_error}")
                     
+                    # Update database with real-time progress
+                    try:
+                        current_metrics = processor.get_current_metrics()
+                        await self._update_real_time_progress(run_id, current_metrics)
+                    except Exception as update_error:
+                        logger.warning(f"Failed to update real-time progress: {update_error}")
+                    
                     # Collect result messages
                     result_messages.append(str(message))
+                    
+                    # Store final result if this is a result message
+                    from claude_code_sdk import ResultMessage
+                    if isinstance(message, ResultMessage):
+                        final_result = message
+                        break
                 
                 # Log final completion if we have a result
                 if final_result:
@@ -1172,6 +1317,43 @@ if __name__ == "__main__":
             # Cleanup session
             if session_id in self.active_sessions:
                 del self.active_sessions[session_id]
+    
+    async def _update_real_time_progress(self, run_id: str, metrics) -> None:
+        """Update workflow_run database with real-time progress during execution."""
+        try:
+            # Build metadata update with current progress
+            metadata_update = {
+                "current_turns": metrics.total_turns,
+                "total_tokens": metrics.total_tokens,
+                "cost_estimate": metrics.total_cost_usd,
+                "tool_calls": metrics.tool_calls,
+                "tools_used": metrics.tool_names_used,
+                "current_phase": metrics.current_phase,
+                "completion_percentage": metrics.completion_percentage,
+                "last_activity": datetime.utcnow().isoformat(),
+                "run_status": "running"
+            }
+            
+            # Update workflow run with current progress
+            update_data = WorkflowRunUpdate(
+                status="running",
+                input_tokens=getattr(metrics, 'input_tokens', 0),
+                output_tokens=getattr(metrics, 'output_tokens', 0),
+                total_tokens=metrics.total_tokens,
+                cost_estimate=metrics.total_cost_usd,
+                metadata=json.dumps(metadata_update),
+                updated_at=datetime.utcnow()
+            )
+            
+            # Update database
+            update_workflow_run_by_run_id(run_id, update_data)
+            
+            logger.debug(f"SDK Executor: Updated real-time progress for {run_id} - "
+                        f"Turns: {metrics.total_turns}, Tools: {metrics.tool_calls}, "
+                        f"Phase: {metrics.current_phase}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to update real-time progress for {run_id}: {e}")
     
     def get_execution_status(self, run_id: str) -> Optional[Dict[str, Any]]:
         """Get real-time execution status from stream processor.
