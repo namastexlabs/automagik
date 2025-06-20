@@ -351,6 +351,7 @@ class SDKStreamProcessor:
                     "cache_efficiency": 0.0
                 },
                 "tools_used": self.metrics.tool_names_used,
+                "tool_names_used": self.metrics.tool_names_used,  # Keep for backwards compatibility
                 "api_duration_ms": self.metrics.duration_api_ms,
                 "performance_score": self._calculate_performance_score()
             },
