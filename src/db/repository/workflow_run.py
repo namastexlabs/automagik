@@ -49,7 +49,7 @@ def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
             cost_estimate, input_tokens, output_tokens, total_tokens, user_id, metadata
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
     """
     
@@ -110,7 +110,7 @@ def get_workflow_run(workflow_id: str) -> Optional[WorkflowRun]:
                created_at, completed_at, duration_seconds, workspace_id,
                workspace_persistent, workspace_cleaned_up, workspace_path,
                cost_estimate, input_tokens, output_tokens, total_tokens,
-               user_id, metadata
+               user_id, metadata, updated_at
         FROM workflow_runs 
         WHERE id = ?
     """
@@ -140,7 +140,7 @@ def get_workflow_run_by_run_id(run_id: str) -> Optional[WorkflowRun]:
                created_at, completed_at, duration_seconds, workspace_id,
                workspace_persistent, workspace_cleaned_up, workspace_path,
                cost_estimate, input_tokens, output_tokens, total_tokens,
-               user_id, metadata
+               user_id, metadata, updated_at
         FROM workflow_runs 
         WHERE run_id = ?
     """
@@ -354,7 +354,7 @@ def list_workflow_runs(
                created_at, completed_at, duration_seconds, workspace_id,
                workspace_persistent, workspace_cleaned_up, workspace_path,
                cost_estimate, input_tokens, output_tokens, total_tokens,
-               user_id, metadata
+               user_id, metadata, updated_at
         FROM workflow_runs 
         {where_clause}
         ORDER BY {order_by} {order_direction}
@@ -414,7 +414,7 @@ def get_workflow_runs_by_session(session_id: str) -> List[WorkflowRun]:
                created_at, completed_at, duration_seconds, workspace_id,
                workspace_persistent, workspace_cleaned_up, workspace_path,
                cost_estimate, input_tokens, output_tokens, total_tokens,
-               user_id, metadata
+               user_id, metadata, updated_at
         FROM workflow_runs 
         WHERE session_id = ?
         ORDER BY created_at DESC
@@ -449,7 +449,7 @@ def get_recent_workflow_runs(limit: int = 10) -> List[WorkflowRun]:
                created_at, completed_at, duration_seconds, workspace_id,
                workspace_persistent, workspace_cleaned_up, workspace_path,
                cost_estimate, input_tokens, output_tokens, total_tokens,
-               user_id, metadata
+               user_id, metadata, updated_at
         FROM workflow_runs 
         ORDER BY created_at DESC
         LIMIT ?
