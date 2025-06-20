@@ -10,7 +10,8 @@ import asyncio
 import json
 import os
 import aiofiles
-from typing import Dict, Optional, Any
+import time
+from typing import Dict, Optional, Any, List
 from datetime import datetime
 
 from src.agents.models.automagik_agent import AutomagikAgent
@@ -664,6 +665,9 @@ class ClaudeCodeAgent(AutomagikAgent):
             run_id: Unique run ID
             **kwargs: Additional parameters (git_branch, max_turns, timeout, etc.)
         """
+        # Track execution timing for message persistence
+        start_time = time.time()
+        
         try:
             # Look up existing Claude session ID from database if session_id provided
             claude_session_id_for_resumption = None
@@ -800,6 +804,56 @@ class ClaudeCodeAgent(AutomagikAgent):
                 logger.info(f"Updated session {session_id} with final status: {final_status} (workflow_run_id: {workflow_run_id})")
                 session_obj.metadata = metadata
                 update_session(session_obj)
+                
+                # ADD: Message persistence after workflow completion
+                if session_obj and hasattr(self, 'db_id'):
+                    try:
+                        from src.memory.message_history import MessageHistory
+                        message_history = MessageHistory(
+                            session_id=session_id, 
+                            user_id=session_obj.user_id
+                        )
+                        
+                        # Build comprehensive workflow response for message storage
+                        response_content = self._build_workflow_response_content(result, start_time)
+                        
+                        # Store assistant workflow completion message
+                        assistant_message_id = message_history.add_response(
+                            content=response_content,
+                            agent_id=self.db_id,
+                            tool_calls=self._extract_tool_calls_from_result(result),
+                            tool_outputs=self._extract_tool_outputs_from_result(result),
+                            usage={
+                                "total_tokens": usage_tracker.get("total_tokens", 0),
+                                "input_tokens": usage_tracker.get("input_tokens", 0), 
+                                "output_tokens": usage_tracker.get("output_tokens", 0),
+                                "cost_usd": usage_tracker.get("cost_usd", 0.0),
+                                "duration_seconds": time.time() - start_time,
+                                "turns": result.get("total_turns", 0),
+                                "workflow_run_id": workflow_run_id,
+                                # Store workflow context in usage field
+                                "workflow_context": {
+                                    "workflow_name": workflow_name,
+                                    "run_id": run_id,
+                                    "session_name": session_name,
+                                    "completion_status": final_status,
+                                    "files_created": result.get("files_created", []),
+                                    "git_commits": result.get("git_commits", []),
+                                    "workspace_path": result.get("workspace_path"),
+                                    "auto_commit_success": result.get("auto_commit_success", False),
+                                    "session_continuation": session_obj.metadata.get("run_status") != "pending"  # Not first run
+                                },
+                                "execution_result": result,
+                                "workflow_metadata": metadata,
+                                "usage_tracking": usage_tracker
+                            }
+                        )
+                        
+                        logger.info(f"Stored workflow completion as message {assistant_message_id}")
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to persist workflow conversation turn: {e}")
+                        # Don't fail the workflow if message storage fails
                 
                 # Update workflow run record with final execution data
                 if workflow_run_id:
@@ -986,6 +1040,82 @@ class ClaudeCodeAgent(AutomagikAgent):
             "run_id": run_id,
             **self.context[run_key]
         }
+    
+    def _build_workflow_response_content(self, result: Dict, start_time: float) -> str:
+        """Build comprehensive workflow response content for message history."""
+        
+        duration = time.time() - start_time
+        content_parts = []
+        
+        # Workflow completion status
+        if result.get("success"):
+            content_parts.append("✅ **Workflow completed successfully**")
+        else:
+            content_parts.append("❌ **Workflow failed**")
+            if error := result.get("error"):
+                content_parts.append(f"**Error:** {error}")
+        
+        # File operations summary
+        if files_created := result.get("files_created", []):
+            content_parts.append(f"📁 **Files created:** {len(files_created)} files")
+            for file_path in files_created[:5]:  # Show first 5
+                content_parts.append(f"  - {file_path}")
+            if len(files_created) > 5:
+                content_parts.append(f"  - ... and {len(files_created) - 5} more")
+        
+        # Git operations summary  
+        if git_commits := result.get("git_commits", []):
+            content_parts.append(f"🔄 **Git commits:** {len(git_commits)} commits")
+            for commit in git_commits[:3]:  # Show first 3
+                content_parts.append(f"  - {commit.get('message', 'No message')[:60]}...")
+        
+        # Tool usage summary
+        if tools_used := result.get("tools_used", []):
+            content_parts.append(f"🛠️ **Tools used:** {', '.join(set(tools_used))}")
+        
+        # Execution metrics
+        content_parts.append("⚡ **Execution metrics:**")
+        content_parts.append(f"  - Duration: {duration:.1f}s")
+        content_parts.append(f"  - Turns: {result.get('total_turns', 0)}")
+        if tokens := result.get("total_tokens", 0):
+            content_parts.append(f"  - Tokens: {tokens:,}")
+        if cost := result.get("cost_usd", 0):
+            content_parts.append(f"  - Cost: ${cost:.4f}")
+        
+        # Final output (truncated for message storage)
+        if final_output := result.get("result"):
+            content_parts.append("📝 **Final output:**")
+            content_parts.append(f"```\n{final_output[:1000]}{'...' if len(final_output) > 1000 else ''}\n```")
+        
+        return "\n\n".join(content_parts)
+
+    def _extract_tool_calls_from_result(self, result: Dict) -> List[Dict]:
+        """Extract tool calls from workflow result for message storage."""
+        tool_calls = []
+        
+        if raw_tool_calls := result.get("tool_calls", []):
+            for tool_call in raw_tool_calls:
+                tool_calls.append({
+                    "name": tool_call.get("name", "unknown"),
+                    "arguments": tool_call.get("arguments", {}),
+                    "id": tool_call.get("id", str(uuid.uuid4()))
+                })
+        
+        return tool_calls
+
+    def _extract_tool_outputs_from_result(self, result: Dict) -> List[Dict]:
+        """Extract tool outputs from workflow result for message storage."""
+        tool_outputs = []
+        
+        if raw_tool_outputs := result.get("tool_outputs", []):
+            for tool_output in raw_tool_outputs:
+                tool_outputs.append({
+                    "call_id": tool_output.get("call_id", "unknown"),
+                    "output": str(tool_output.get("output", ""))[:2000],  # Truncate large outputs
+                    "success": tool_output.get("success", True)
+                })
+        
+        return tool_outputs
     
     async def cleanup(self) -> None:
         """Clean up resources used by the agent."""
