@@ -328,6 +328,16 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error starting Graphiti queue: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
+        # SURGICAL FIX: Start Claude Code workflow services
+        try:
+            logger.info("🚀 Starting Claude Code workflow services...")
+            from src.agents.claude_code.startup import start_workflow_services
+            await start_workflow_services()
+            logger.info("✅ Claude Code workflow services started successfully")
+        except Exception as e:
+            logger.error(f"❌ Error starting Claude Code workflow services: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
         yield
         
         # Cleanup shared resources
@@ -339,6 +349,16 @@ def create_app() -> FastAPI:
             logger.info("✅ MCP client manager shutdown successfully")
         except Exception as e:
             logger.error(f"❌ Error shutting down MCP client manager: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
+        # SURGICAL FIX: Stop Claude Code workflow services
+        try:
+            logger.info("🛑 Stopping Claude Code workflow services...")
+            from src.agents.claude_code.startup import stop_workflow_services
+            await stop_workflow_services()
+            logger.info("✅ Claude Code workflow services stopped successfully")
+        except Exception as e:
+            logger.error(f"❌ Error stopping Claude Code workflow services: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
         try:
@@ -558,6 +578,19 @@ def setup_routes(app: FastAPI):
                 "status": "error",
                 "error": str(e),
                 "enabled": settings.GRAPHITI_QUEUE_ENABLED
+            }
+    
+    @app.get("/health/workflow-services", tags=["System"], summary="Workflow Services Health", description="Returns Claude Code workflow services status")
+    async def workflow_services_health():
+        """Get Claude Code workflow services status"""
+        try:
+            from src.agents.claude_code.startup import get_workflow_services_status
+            return get_workflow_services_status()
+        except Exception as e:
+            logger.error(f"❌ Error getting workflow services status: {e}")
+            return {
+                "status": "error",
+                "error": str(e)
             }
 
     # Include API router (with versioned prefix)
