@@ -176,7 +176,8 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         params.append(update_data.status)
         
         # If status is being set to completed/failed/killed, set completed_at
-        if update_data.status in {'completed', 'failed', 'killed'}:
+        # Only set automatically if not explicitly provided in update_data
+        if update_data.status in {'completed', 'failed', 'killed'} and update_data.completed_at is None:
             update_fields.append("completed_at = ?")
             params.append(datetime.utcnow())
     
@@ -227,6 +228,14 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
     if update_data.total_tokens is not None:
         update_fields.append("total_tokens = ?")
         params.append(update_data.total_tokens)
+    
+    if update_data.duration_seconds is not None:
+        update_fields.append("duration_seconds = ?")
+        params.append(update_data.duration_seconds)
+    
+    if update_data.completed_at is not None:
+        update_fields.append("completed_at = ?")
+        params.append(update_data.completed_at)
     
     if update_data.metadata is not None:
         update_fields.append("metadata = ?")
