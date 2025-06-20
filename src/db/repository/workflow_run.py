@@ -4,10 +4,9 @@ import uuid
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
-from decimal import Decimal
 
 from ..models import WorkflowRun, WorkflowRunCreate, WorkflowRunUpdate
-from ..connection import execute_query, get_db_connection, safe_uuid
+from ..connection import execute_query, safe_uuid
 
 
 def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
@@ -215,6 +214,10 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         update_fields.append("git_diff_stats = ?")
         params.append(json.dumps(update_data.git_diff_stats))
     
+    if update_data.workspace_path is not None:
+        update_fields.append("workspace_path = ?")
+        params.append(update_data.workspace_path)
+    
     if update_data.workspace_cleaned_up is not None:
         update_fields.append("workspace_cleaned_up = ?")
         params.append(update_data.workspace_cleaned_up)
@@ -263,7 +266,7 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         WHERE id = ?
     """
     
-    result = execute_query(query, params)
+    execute_query(query, params)
     return True  # Assume success if no exception
 
 

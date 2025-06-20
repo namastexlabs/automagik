@@ -257,9 +257,14 @@ class ExecutionIsolator:
             temp_script_path = temp_script.name
         
         try:
+            # Use virtual environment Python explicitly
+            venv_python = Path(__file__).parent.parent.parent.parent / ".venv" / "bin" / "python"
+            if not venv_python.exists():
+                venv_python = sys.executable
+            
             # Execute subprocess
             process = await asyncio.create_subprocess_exec(
-                sys.executable,
+                str(venv_python),
                 temp_script_path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

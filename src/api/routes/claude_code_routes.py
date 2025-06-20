@@ -745,6 +745,23 @@ async def get_claude_code_run_status(
         # Merge with session metadata (session metadata as fallback)
         session_metadata = target_session.metadata or {} if target_session else {}
         metadata = {**session_metadata, **workflow_metadata}  # workflow_metadata takes precedence
+        
+        # CRITICAL FIX: Map workflow_run database fields to expected metadata format for result extractor
+        # The result extractor expects specific metadata fields that need to be populated from database
+        if workflow_run.status == "completed" and workflow_run.completed_at:
+            metadata["success"] = True
+            metadata["run_status"] = "completed"
+            metadata["completed_at"] = workflow_run.completed_at
+        elif workflow_run.status == "failed" or workflow_run.error_message:
+            metadata["success"] = False
+            metadata["run_status"] = "failed"
+        elif workflow_run.status == "running":
+            metadata["success"] = None  # Undefined for running workflows
+            metadata["run_status"] = "running"
+        
+        # Add final result if available
+        if workflow_run.result:
+            metadata["final_result"] = workflow_run.result
 
         # Try to get real-time data from SDK executor first
         sdk_status_data = None
@@ -772,10 +789,19 @@ async def get_claude_code_run_status(
         progress_tracker = ProgressTracker()
         debug_builder = DebugBuilder()
 
-        # Extract meaningful final result
-        result_info = result_extractor.extract_final_result(
-            log_entries, assistant_messages, metadata
-        )
+        # Extract meaningful final result with error handling
+        try:
+            result_info = result_extractor.extract_final_result(
+                log_entries, assistant_messages, metadata
+            )
+        except Exception as e:
+            logger.error(f"Error extracting final result for {run_id}: {e}")
+            result_info = {
+                "success": False,
+                "completion_type": "error",
+                "message": "❌ Error extracting workflow results",
+                "final_output": None
+            }
 
         # Calculate enhanced progress
         progress_info = progress_tracker.calculate_progress(
@@ -954,12 +980,22 @@ async def get_claude_code_run_status(
             except Exception as e:
                 logger.warning(f"Could not retrieve git file changes for {run_id}: {e}")
 
-        # Build result info
+        # Build result info with defensive access
+        # Handle case where result_info might be None or missing keys
+        if not result_info or not isinstance(result_info, dict):
+            logger.warning(f"Invalid result_info for {run_id}: {result_info}")
+            result_info = {
+                "success": False,
+                "completion_type": "error",
+                "message": "❌ Error extracting workflow results",
+                "final_output": None
+            }
+        
         result_info_obj = ResultInfo(
-            success=result_info["success"],
-            completion_type=result_info["completion_type"],
-            message=result_info["message"],
-            final_output=result_info["final_output"],
+            success=result_info.get("success", False),
+            completion_type=result_info.get("completion_type", "unknown"),
+            message=result_info.get("message", "Status unavailable"),
+            final_output=result_info.get("final_output"),
             files_created=files_created,
             git_commits=metadata.get("git_commits", []),
             files_changed=git_file_changes
