@@ -840,6 +840,20 @@ class ClaudeCodeAgent(AutomagikAgent):
                     git_branch=request.git_branch
                 )
                 logger.info(f"Created workspace for run {run_id}: {workspace_path}")
+                
+                # Update workflow run with workspace path
+                if workspace_path and run_id:
+                    try:
+                        from src.db.models import WorkflowRunUpdate
+                        from src.db.repository.workflow_run import update_workflow_run_by_run_id
+                        
+                        update_data = WorkflowRunUpdate(
+                            workspace_path=str(workspace_path)
+                        )
+                        update_workflow_run_by_run_id(run_id, update_data)
+                        logger.info(f"Updated workflow run {run_id} with workspace path: {workspace_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to update workspace path: {e}")
 
             # Execute the workflow - use standard execution to avoid SDK TaskGroup issues
             # The SDK executor can extract data from the result without streaming complications
@@ -962,7 +976,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                     if hasattr(self, 'executor') and hasattr(self.executor, 'environment_manager'):
                         env_mgr = self.executor.environment_manager
                         claude_session_id = result.get("session_id")
-                        workspace_path = env_mgr.active_workspaces.get(claude_session_id) if env_mgr.active_workspaces else None
+                        workspace_path = env_mgr.active_workspaces.get(run_id) if env_mgr.active_workspaces else None
                         if workspace_path:
                             git_info["workspace_path"] = str(workspace_path)
                             # TODO: Extract git diff stats from workspace
@@ -1018,7 +1032,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                     # Get workspace path from environment manager for this specific run
                     logger.info(f"📝 AUTO-COMMIT: Active workspaces: {list(self.executor.environment_manager.active_workspaces.keys())}")
                     claude_session_id = result.get("session_id")
-                    workspace_path = self.executor.environment_manager.active_workspaces.get(claude_session_id)
+                    workspace_path = self.executor.environment_manager.active_workspaces.get(run_id)
                     logger.info(f"📝 AUTO-COMMIT: Workspace path for run_id={run_id}, claude_session_id={claude_session_id}: {workspace_path}")
                     if workspace_path and workspace_path.exists():
                         logger.info(f"📝 AUTO-COMMIT: Attempting auto-commit for successful workflow {run_id}")
