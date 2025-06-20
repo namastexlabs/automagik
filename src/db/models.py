@@ -793,7 +793,8 @@ class WorkflowRunBase(BaseDBModel):
 
 class WorkflowRunCreate(WorkflowRunBase):
     """Data needed to create a new Workflow Run."""
-    pass
+    completed_at: Optional[datetime] = Field(None, description="When workflow finished")
+    duration_seconds: Optional[int] = Field(None, description="Execution duration in seconds")
 
 
 class WorkflowRunUpdate(BaseModel):
