@@ -46,8 +46,52 @@ class ExecutionIsolator:
         
     def shutdown(self):
         """Shutdown the thread pool and cleanup resources."""
+        logger.info("Shutting down execution isolator...")
         self._shutdown = True
-        self.thread_pool.shutdown(wait=True)
+        
+        # Cancel all pending futures
+        for run_id, execution in self.active_executions.items():
+            if execution.get("future") and not execution["future"].done():
+                logger.info(f"Cancelling pending execution: {run_id}")
+                execution["future"].cancel()
+        
+        # Shutdown thread pool with timeout handling
+        try:
+            # Use a timeout thread to prevent hanging
+            import threading
+            shutdown_complete = threading.Event()
+            
+            def shutdown_thread():
+                try:
+                    self.thread_pool.shutdown(wait=True)
+                    shutdown_complete.set()
+                except Exception as e:
+                    logger.error(f"Thread pool shutdown error: {e}")
+                    shutdown_complete.set()
+            
+            # Start shutdown in background thread
+            shutdown_thread_obj = threading.Thread(target=shutdown_thread, daemon=True)
+            shutdown_thread_obj.start()
+            
+            # Wait for shutdown with timeout
+            if shutdown_complete.wait(timeout=2.0):
+                logger.info("Thread pool shutdown completed")
+            else:
+                logger.warning("Thread pool shutdown timed out, forcing shutdown")
+                self.thread_pool.shutdown(wait=False)
+                
+        except Exception as e:
+            logger.error(f"Thread pool shutdown failed: {e}")
+            # Force shutdown as last resort
+            try:
+                self.thread_pool.shutdown(wait=False)
+                logger.info("Thread pool force shutdown completed")
+            except Exception as force_e:
+                logger.error(f"Force shutdown failed: {force_e}")
+        
+        # Clear active executions
+        self.active_executions.clear()
+        logger.info("Execution isolator shutdown completed")
         
     async def execute_in_thread_pool(
         self, 
@@ -74,7 +118,8 @@ class ExecutionIsolator:
             "status": "starting",
             "started_at": datetime.utcnow(),
             "request": request,
-            "context": agent_context
+            "context": agent_context,
+            "pid": None  # Will be set to thread/subprocess PID, not main process
         }
         
         try:
@@ -104,7 +149,7 @@ class ExecutionIsolator:
             logger.error(f"Isolator: Execution timeout for {run_id} after {timeout}s")
             self.active_executions[run_id]["status"] = "timeout"
             
-            # Update database with timeout status
+            # SURGICAL FIX: Update database immediately with timeout status
             self._update_workflow_timeout(run_id)
             
             return {
@@ -121,6 +166,9 @@ class ExecutionIsolator:
             logger.error(f"Isolator: Thread pool execution failed for {run_id}: {e}")
             self.active_executions[run_id]["status"] = "failed"
             self.active_executions[run_id]["error"] = str(e)
+            
+            # SURGICAL FIX: Update database immediately with failure status
+            self._update_workflow_failure(run_id, str(e))
             
             return {
                 "success": False,
@@ -153,8 +201,9 @@ class ExecutionIsolator:
         asyncio.set_event_loop(loop)
         
         try:
-            # Set isolation flag
+            # SURGICAL FIX: Set isolation flags to prevent recursive isolation attempts
             os.environ['CLAUDE_SDK_ISOLATED'] = 'true'
+            os.environ['BYPASS_TASKGROUP_DETECTION'] = 'true'  # Legacy compatibility
             
             # Import SDK executor here to ensure it's loaded in the thread context
             from .sdk_executor import ClaudeSDKExecutor
@@ -162,7 +211,7 @@ class ExecutionIsolator:
             # Create executor instance in thread context
             executor = ClaudeSDKExecutor()
             
-            # Run the async execution in the new loop
+            # SURGICAL FIX: Use simple execution to avoid isolation recursion
             result = loop.run_until_complete(
                 executor._execute_claude_task_simple(request, agent_context)
             )
@@ -170,8 +219,9 @@ class ExecutionIsolator:
             return result
             
         finally:
-            # Cleanup
+            # Cleanup environment flags
             os.environ.pop('CLAUDE_SDK_ISOLATED', None)
+            os.environ.pop('BYPASS_TASKGROUP_DETECTION', None)
             loop.close()
     
     async def execute_in_subprocess(
@@ -365,8 +415,23 @@ if __name__ == "__main__":
                 updated_at=datetime.utcnow()
             )
             update_workflow_run_by_run_id(run_id, update_data)
+            logger.info(f"SURGICAL SUCCESS: Updated database with timeout status for {run_id}")
         except Exception as e:
             logger.error(f"Failed to update workflow timeout status: {e}")
+    
+    def _update_workflow_failure(self, run_id: str, error_message: str):
+        """SURGICAL FIX: Update workflow run with immediate failure status."""
+        try:
+            update_data = WorkflowRunUpdate(
+                status="failed",
+                error_message=error_message[:500],  # Truncate long error messages
+                completed_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            update_workflow_run_by_run_id(run_id, update_data)
+            logger.info(f"SURGICAL SUCCESS: Updated database with failure status for {run_id}")
+        except Exception as e:
+            logger.error(f"SURGICAL ERROR: Failed to update workflow failure status: {e}")
     
     async def _cleanup_execution_record(self, run_id: str, delay: int = 300):
         """Cleanup execution record after delay."""

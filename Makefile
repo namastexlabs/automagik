@@ -326,9 +326,8 @@ prod: ## 🏭 Start production Docker stack
 
 stop: ## 🛑 Stop development automagik-agents container only
 	$(call print_status,Stopping development automagik-agents container...)
-	@sudo systemctl stop automagik-agents 2>/dev/null || true
+	@sudo systemctl stop automagik-agents 2>/dev/null || echo "Systemd service stop failed or not running"
 	@docker stop automagik-agents-dev 2>/dev/null || true
-	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,Development automagik-agents stopped!)
 
 stop-prod: ## 🛑 Stop production automagik-agents container only
@@ -345,7 +344,9 @@ stop-all: ## 🛑 Stop all services (preserves containers)
 	else \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) --env-file .env stop 2>/dev/null || true; \
 	fi
-	@pkill -f "python.*src" 2>/dev/null || true
+	@pkill -TERM -f "python.*-m src" 2>/dev/null || true
+	@sleep 2
+	@pkill -KILL -f "python.*-m src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
 run: ## 🚀 Run development server with hot reload
