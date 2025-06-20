@@ -285,6 +285,37 @@ async def run_claude_workflow(
             )
             session_id = session_repo.create_session(session)
 
+        # RESTORE MISSING MESSAGE PERSISTENCE
+        from src.memory.message_history import MessageHistory
+
+        # Create MessageHistory instance for this session
+        message_history = MessageHistory(
+            session_id=str(session_id), 
+            user_id=str(user_id) if user_id else None
+        )
+
+        # Store the user's workflow request message
+        user_message_id = message_history.add(
+            content=request.message,
+            agent_id=None,  # Will be set when workflow completes
+            context={
+                "workflow_name": workflow_name,
+                "run_id": run_id,
+                "request_type": "workflow_execution",
+                "max_turns": request.max_turns,
+                "repository_url": request.repository_url,
+                "git_branch": request.git_branch,
+                "persistent": persistent,
+                "timeout": request.timeout,
+                "session_continuation": session is not None,  # True if reusing existing session
+                "tool_calls": [],  # Initial request has no tool calls
+                "tool_outputs": [],
+                "raw_payload": request.dict()  # Store full request in context
+            }
+        )
+
+        logger.info(f"Stored user workflow request as message {user_message_id} (continuation: {session is not None})")
+
         # Start execution asynchronously without waiting for first response
         # This avoids stream contamination from trying to capture early output
         try:
