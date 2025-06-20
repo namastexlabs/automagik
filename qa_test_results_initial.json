@@ -1,0 +1,65 @@
+{
+  "test_execution_start": "2025-06-20T06:20:11Z",
+  "inaugural_run": true,
+  "initial_batch_results": [
+    {
+      "test_id": "BF-01",
+      "workflow": "guardian",
+      "run_id": "29c3aff8-8ca7-4e90-a73f-aef7dbd12d35",
+      "status": "PROBLEM",
+      "issue": "Status shows running but current_phase is 'failed'",
+      "cost_usd": 0.0,
+      "tokens": 0,
+      "turns": 0,
+      "execution_time_seconds": null,
+      "tools_used": [],
+      "session_id": "82cb1fcb-7c39-427a-b5b4-784ffcf719f2"
+    },
+    {
+      "test_id": "BF-02", 
+      "workflow": "surgeon",
+      "run_id": "31c2b43c-63ed-4dd6-8b3c-2f9994928329",
+      "status": "SUCCESS",
+      "cost_usd": 0.14147455,
+      "tokens": 125533,
+      "turns": 5,
+      "execution_time_seconds": 39.20,
+      "tools_used": ["TodoWrite", "mcp__agent-memory__search_memory_nodes", "mcp__agent-memory__search_memory_facts"],
+      "session_id": "a1134124-8716-4d79-a517-756bea8ba799"
+    },
+    {
+      "test_id": "BF-03",
+      "workflow": "brain", 
+      "run_id": "87ffbe57-3a4d-4153-b969-1bd2e4758411",
+      "status": "SUCCESS",
+      "cost_usd": 0.0,
+      "tokens": 0,
+      "turns": 3,
+      "execution_time_seconds": 17.09,
+      "tools_used": ["TodoWrite", "LS"],
+      "session_id": "4aeb7c29-e010-437d-9c7e-ad56ff0e60dc"
+    }
+  ],
+  "critical_issues_found": [
+    {
+      "issue": "Guardian workflow state inconsistency",
+      "description": "Status shows 'running' but current_phase is 'failed' - unclear if actually failed or stuck",
+      "log_evidence": "SDK subprocess context conflicts with API background tasks"
+    },
+    {
+      "issue": "MCP token count discrepancies",
+      "description": "Debug logs show 'Turn count mismatch - SDK reported 5, counted 8'",
+      "impact": "Metrics reporting may be inaccurate"
+    },
+    {
+      "issue": "Progress estimation crashes",
+      "description": "TypeError: unsupported operand type(s) for -: 'NoneType' and 'int'",
+      "impact": "ETA calculations fail"
+    },
+    {
+      "issue": "Execution time null despite completion",
+      "description": "Some successful workflows show execution_time_seconds as null",
+      "impact": "Performance metrics incomplete"
+    }
+  ]
+}
