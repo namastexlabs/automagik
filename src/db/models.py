@@ -825,6 +825,11 @@ class WorkflowRunUpdate(BaseModel):
     output_tokens: Optional[int] = Field(None, description="Updated output tokens")
     total_tokens: Optional[int] = Field(None, description="Updated total tokens")
     
+    # Timing tracking
+    duration_seconds: Optional[int] = Field(None, description="Execution duration in seconds")
+    completed_at: Optional[datetime] = Field(None, description="When workflow finished")
+    updated_at: Optional[datetime] = Field(None, description="When record was updated")
+    
     # Extensible data
     metadata: Optional[Dict[str, Any]] = Field(None, description="Updated metadata")
 
