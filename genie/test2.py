@@ -1,1 +1,0 @@
-print("Test 2: Persistent with auto-merge")
