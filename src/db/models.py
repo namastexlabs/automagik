@@ -841,6 +841,7 @@ class WorkflowRun(WorkflowRunBase):
     created_at: datetime = Field(..., description="When workflow was created")
     completed_at: Optional[datetime] = Field(None, description="When workflow finished")
     duration_seconds: Optional[int] = Field(None, description="Execution duration")
+    updated_at: Optional[datetime] = Field(None, description="When workflow was last updated")
     
     DB_TABLE: ClassVar[str] = "workflow_runs"
     
