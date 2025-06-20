@@ -1,0 +1,5 @@
+{
+  "message": "Create a simple Python test file at /home/namastex/workspace/am-agents-labs/genie/workflow_test.py with content that prints: Workflow system is working! Then add debug logging to track execution path.",
+  "max_turns": 5,
+  "session_name": "bug_investigation_test"
+}
