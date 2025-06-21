@@ -255,10 +255,10 @@ class MemoryHandler:
             # Import memory functions
             from src.tools.memory.tool import read_memory
             
-            # Create context
+            # Create context - convert UUID to string if needed
             context = {
                 "agent_id": agent_id,
-                "user_id": user_id
+                "user_id": str(user_id) if user_id else None
             }
             
             # Fetch each memory variable

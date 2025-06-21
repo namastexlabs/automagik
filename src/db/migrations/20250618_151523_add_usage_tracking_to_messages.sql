@@ -1,7 +1,6 @@
 -- Migration: Add usage tracking to messages table
 -- Compatible with both SQLite and PostgreSQL
 
--- Add usage column to messages table for token tracking
 -- SQLite doesn't support IF NOT EXISTS with ADD COLUMN, so we handle this in migration manager
 ALTER TABLE messages ADD COLUMN usage TEXT;
 
@@ -19,6 +18,5 @@ ON messages (usage) WHERE usage IS NOT NULL;
 
 -- CREATE INDEX IF NOT EXISTS idx_messages_usage_framework
 -- ON messages ((usage->>'framework')) WHERE usage IS NOT NULL;
-
 -- CREATE INDEX IF NOT EXISTS idx_messages_usage_gin 
 -- ON messages USING GIN (usage) WHERE usage IS NOT NULL;

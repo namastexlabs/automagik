@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
     status TEXT NOT NULL DEFAULT 'pending',
     result TEXT,
     error_message TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     completed_at TEXT,
     duration_seconds INTEGER,
     workspace_id TEXT,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
     total_tokens INTEGER DEFAULT 0,
     user_id TEXT,
     metadata TEXT DEFAULT '{}',
-    updated_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     CHECK (status IN ('pending', 'running', 'completed', 'failed', 'killed')),
     CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
     CHECK (input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0)

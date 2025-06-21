@@ -137,22 +137,63 @@ def list_users(page: int = 1, page_size: int = 100) -> Tuple[List[User], int]:
 
 
 def create_user(user: User) -> Optional[uuid.UUID]:
-    """Create a new user.
+    """Create a new user or update existing one.
     
     Args:
         user: The user to create
         
     Returns:
-        The created user ID (UUID) if successful, None otherwise
+        The created/updated user ID (UUID) if successful, None otherwise
     """
     try:
+        # Check if user already exists by ID first
+        if user.id:
+            existing = get_user(user.id)
+            if existing:
+                logger.info(f"User {user.id} already exists, updating instead")
+                return update_user(user)
+        
         # Check if user with this email already exists
         if user.email:
             existing = get_user_by_email(user.email)
             if existing:
-                # Update existing user
+                # Merge data and update existing user
+                logger.info(f"User with email {user.email} already exists (ID: {existing.id}), updating instead")
                 user.id = existing.id
+                
+                # Merge user_data if both have data
+                if existing.user_data and user.user_data:
+                    merged_data = existing.user_data.copy()
+                    merged_data.update(user.user_data)
+                    user.user_data = merged_data
+                elif not user.user_data:
+                    user.user_data = existing.user_data
+                
                 return update_user(user)
+        
+        # Check if user with this phone already exists
+        if user.phone_number:
+            try:
+                result = execute_query(
+                    "SELECT * FROM users WHERE phone_number = %s",
+                    (user.phone_number,)
+                )
+                if result:
+                    existing = User.from_db_row(result[0])
+                    logger.info(f"User with phone {user.phone_number} already exists (ID: {existing.id}), updating instead")
+                    user.id = existing.id
+                    
+                    # Merge user_data if both have data
+                    if existing.user_data and user.user_data:
+                        merged_data = existing.user_data.copy()
+                        merged_data.update(user.user_data)
+                        user.user_data = merged_data
+                    elif not user.user_data:
+                        user.user_data = existing.user_data
+                    
+                    return update_user(user)
+            except Exception as e:
+                logger.debug(f"Phone check failed (normal if phone is None): {e}")
         
         # Prepare user data
         user_data_json = json.dumps(user.user_data) if user.user_data else None
@@ -179,7 +220,7 @@ def create_user(user: User) -> Optional[uuid.UUID]:
         )
         
         user_id = result[0]["id"] if result else None
-        logger.info(f"Created user with ID {user_id}")
+        logger.info(f"Created new user with ID {user_id}")
         return user_id
     except Exception as e:
         logger.error(f"Error creating user: {str(e)}")
