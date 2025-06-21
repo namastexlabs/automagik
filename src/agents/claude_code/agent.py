@@ -11,6 +11,7 @@ import json
 import os
 import aiofiles
 import time
+from pathlib import Path
 from typing import Dict, Optional, Any, List
 from datetime import datetime
 
@@ -836,13 +837,27 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Create workspace for this workflow run
             workspace_path = None
             if hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
-                workspace_path = await self.executor.environment_manager.create_workspace(
-                    run_id=run_id,
-                    workflow_name=workflow_name,
-                    persistent=request.persistent,  # Use the persistent flag from request
-                    git_branch=request.git_branch
-                )
-                logger.info(f"Created workspace for run {run_id}: {workspace_path}")
+                # Use prepare_workspace for external repositories, create_workspace for local worktrees
+                if request.repository_url:
+                    # External repository flow
+                    workspace_info = await self.executor.environment_manager.prepare_workspace(
+                        repository_url=request.repository_url,
+                        git_branch=request.git_branch,
+                        session_id=run_id,
+                        workflow_name=workflow_name,
+                        persistent=request.persistent
+                    )
+                    workspace_path = Path(workspace_info['workspace_path'])
+                    logger.info(f"Prepared external repository workspace for run {run_id}: {workspace_path}")
+                else:
+                    # Local worktree flow
+                    workspace_path = await self.executor.environment_manager.create_workspace(
+                        run_id=run_id,
+                        workflow_name=workflow_name,
+                        persistent=request.persistent,  # Use the persistent flag from request
+                        git_branch=request.git_branch
+                    )
+                    logger.info(f"Created workspace for run {run_id}: {workspace_path}")
                 
                 # Update workflow run with workspace path
                 if workspace_path and run_id:
