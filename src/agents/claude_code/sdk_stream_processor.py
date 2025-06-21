@@ -8,10 +8,17 @@ feeds the status endpoint with rich details.
 
 import json
 import logging
+import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
+
+# Add local SDK to path if available
+local_sdk_path = Path(__file__).parent.parent.parent / "vendors" / "claude-code-sdk" / "src"
+if local_sdk_path.exists():
+    sys.path.insert(0, str(local_sdk_path))
 
 from claude_code_sdk import (
     AssistantMessage, 
