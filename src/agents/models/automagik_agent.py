@@ -346,9 +346,19 @@ class AutomagikAgent(ABC, Generic[T]):
             
             # 4. Get filled system prompt (unless overridden)
             if not system_prompt:
-                system_prompt = await self.get_filled_system_prompt(
-                    user_id=getattr(self.dependencies, 'user_id', None)
-                )
+                # Try to get user_id from dependencies first, then from context as fallback
+                user_id = getattr(self.dependencies, 'user_id', None)
+                if not user_id and self.context:
+                    # Fallback: check context for user_id (for FlashinhoV2 etc.)
+                    context_user_id = self.context.get('user_id')
+                    if context_user_id:
+                        try:
+                            import uuid
+                            user_id = uuid.UUID(context_user_id) if isinstance(context_user_id, str) else context_user_id
+                        except Exception:
+                            pass
+                
+                system_prompt = await self.get_filled_system_prompt(user_id=user_id)
             
             # 5. Add system message to history
             if system_prompt and message_history:

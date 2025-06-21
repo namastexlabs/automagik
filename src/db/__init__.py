@@ -63,6 +63,7 @@ from src.db.repository import (
     # Message repository
     get_message,
     list_messages,
+    list_messages_for_user,
     count_messages,
     create_message,
     update_message,
@@ -133,6 +134,14 @@ from src.db.repository.user import (
     update_user,
     delete_user,
     ensure_default_user_exists,
+)
+
+# Import FlashinhoV2 UUID migration utilities
+from src.db.repository.user_uuid_migration import (
+    ensure_user_uuid_matches_flashed_id,
+    migrate_user_uuid_to_flashed_id,
+    find_user_by_flashed_id,
+    find_user_by_phone_number,
 )
 
 # Import tool repository functions
