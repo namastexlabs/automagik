@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 async def migrate_user_uuid_to_flashed_id(
     current_user_id: str, 
     flashed_user_id: str,
-    preserve_phone_number: Optional[str] = None
+    preserve_phone_number: Optional[str] = None,
+    flashed_user_data: Optional[Dict[str, Any]] = None
 ) -> bool:
     """Migrate user's UUID to match Flashed user_id while preserving all data.
     
@@ -33,6 +34,7 @@ async def migrate_user_uuid_to_flashed_id(
         current_user_id: Current user UUID in our database
         flashed_user_id: Target Flashed user_id to migrate to
         preserve_phone_number: Phone number from API to preserve (optional)
+        flashed_user_data: Additional user data from Flashed API (optional)
         
     Returns:
         True if migration successful, False otherwise
@@ -60,15 +62,29 @@ async def migrate_user_uuid_to_flashed_id(
             logger.warning(f"Target UUID {flashed_user_id} already exists")
             # If target user exists, merge data instead of migrating
             return await merge_user_data_to_existing(
-                current_user, existing_flashed_user, preserve_phone_number
+                current_user, existing_flashed_user, preserve_phone_number, flashed_user_data
             )
         
         # Step 4: Create new user with Flashed UUID
+        # 🔧 SURGICAL FIX: Merge existing user_data with flashed_user_data
+        merged_user_data = (current_user.user_data or {}).copy()
+        if flashed_user_data:
+            if flashed_user_data.get("conversation_code"):
+                merged_user_data["flashed_conversation_code"] = flashed_user_data.get("conversation_code")
+            if flashed_user_data.get("name"):
+                merged_user_data["flashed_user_name"] = flashed_user_data.get("name")
+            if flashed_user_data.get("email"):
+                merged_user_data["flashed_user_email"] = flashed_user_data.get("email")
+            if flashed_user_data.get("phone"):
+                merged_user_data["flashed_user_phone"] = flashed_user_data.get("phone")
+            # Ensure we have the flashed_user_id
+            merged_user_data["flashed_user_id"] = flashed_user_id
+        
         new_user = User(
             id=flashed_uuid,
             email=current_user.email,
             phone_number=preserve_phone_number or current_user.phone_number,
-            user_data=current_user.user_data or {},
+            user_data=merged_user_data,
             created_at=current_user.created_at,
             updated_at=datetime.now()
         )
@@ -119,7 +135,8 @@ async def migrate_user_uuid_to_flashed_id(
 async def merge_user_data_to_existing(
     source_user: User, 
     target_user: User, 
-    preserve_phone_number: Optional[str] = None
+    preserve_phone_number: Optional[str] = None,
+    flashed_user_data: Optional[Dict[str, Any]] = None
 ) -> bool:
     """Merge source user data into existing target user.
     
@@ -127,6 +144,7 @@ async def merge_user_data_to_existing(
         source_user: User to merge data from
         target_user: Existing user to merge data into
         preserve_phone_number: Phone number from API to preserve
+        flashed_user_data: Additional user data from Flashed API (optional)
         
     Returns:
         True if merge successful, False otherwise
@@ -143,6 +161,17 @@ async def merge_user_data_to_existing(
                     merged_user_data = (target_user.user_data or {}).copy()
                     if source_user.user_data:
                         merged_user_data.update(source_user.user_data)
+                    
+                    # 🔧 SURGICAL FIX: Merge flashed_user_data
+                    if flashed_user_data:
+                        if flashed_user_data.get("conversation_code"):
+                            merged_user_data["flashed_conversation_code"] = flashed_user_data.get("conversation_code")
+                        if flashed_user_data.get("name"):
+                            merged_user_data["flashed_user_name"] = flashed_user_data.get("name")
+                        if flashed_user_data.get("email"):
+                            merged_user_data["flashed_user_email"] = flashed_user_data.get("email")
+                        if flashed_user_data.get("phone"):
+                            merged_user_data["flashed_user_phone"] = flashed_user_data.get("phone")
                     
                     # Update target user with merged data
                     cursor.execute("""
@@ -329,7 +358,8 @@ async def ensure_user_uuid_matches_flashed_id(
             success = await migrate_user_uuid_to_flashed_id(
                 str(existing_user.id),
                 flashed_user_id,
-                phone_number  # Preserve API phone number
+                phone_number,  # Preserve API phone number
+                flashed_user_data  # Pass flashed user data
             )
             
             if success:
@@ -340,8 +370,40 @@ async def ensure_user_uuid_matches_flashed_id(
                 return str(existing_user.id)
                 
         else:
-            # User exists and UUID already matches
+            # User exists and UUID already matches - but ensure user_data is updated
             logger.info(f"User UUID already matches Flashed ID: {flashed_user_id}")
+            
+            # 🔧 SURGICAL FIX: Ensure flashed_conversation_code is persisted
+            current_user_data = existing_user.user_data or {}
+            needs_update = False
+            
+            # Check if we need to update any flashed data
+            if flashed_user_data.get("conversation_code") and \
+               current_user_data.get("flashed_conversation_code") != flashed_user_data.get("conversation_code"):
+                current_user_data["flashed_conversation_code"] = flashed_user_data.get("conversation_code")
+                needs_update = True
+            
+            if flashed_user_data.get("name") and \
+               current_user_data.get("flashed_user_name") != flashed_user_data.get("name"):
+                current_user_data["flashed_user_name"] = flashed_user_data.get("name")
+                needs_update = True
+            
+            if flashed_user_data.get("email") and \
+               current_user_data.get("flashed_user_email") != flashed_user_data.get("email"):
+                current_user_data["flashed_user_email"] = flashed_user_data.get("email")
+                needs_update = True
+            
+            if flashed_user_data.get("phone") and \
+               current_user_data.get("flashed_user_phone") != flashed_user_data.get("phone"):
+                current_user_data["flashed_user_phone"] = flashed_user_data.get("phone")
+                needs_update = True
+            
+            # Update user_data if needed
+            if needs_update:
+                from src.db.repository.user import update_user_data
+                update_user_data(existing_user.id, current_user_data)
+                logger.info(f"Updated user_data for existing user {existing_user.id} with conversation code")
+            
             return str(existing_user.id)
             
     except Exception as e:
