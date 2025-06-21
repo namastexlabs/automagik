@@ -3,9 +3,15 @@
 import pytest
 import asyncio
 import json
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+
+# Add local SDK to path if available
+local_sdk_path = Path(__file__).parent.parent / "src" / "vendors" / "claude-code-sdk" / "src"
+if local_sdk_path.exists():
+    sys.path.insert(0, str(local_sdk_path))
 
 from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
 from src.agents.claude_code.cli_environment import CLIEnvironmentManager

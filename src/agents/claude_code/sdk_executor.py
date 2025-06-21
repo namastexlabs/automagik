@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from uuid import uuid4
 
+# Add local SDK to path if available
+local_sdk_path = Path(__file__).parent.parent.parent / "vendors" / "claude-code-sdk" / "src"
+if local_sdk_path.exists():
+    sys.path.insert(0, str(local_sdk_path))
+
 from claude_code_sdk import query, ClaudeCodeOptions
 from ...utils.nodejs_detection import ensure_node_in_path
 
@@ -303,29 +308,76 @@ class ClaudeSDKExecutor(ExecutorBase):
         actual_claude_session_id = None  # Capture from first SystemMessage
         
         try:
-            async for message in query(prompt=request.message, options=options):
-                messages.append(str(message))
-                collected_messages.append(message)
-                
-                # SURGICAL FIX: Capture session ID from first SystemMessage
-                if (hasattr(message, 'subtype') and message.subtype == 'init' and 
-                    hasattr(message, 'data') and 'session_id' in message.data):
-                    actual_claude_session_id = message.data['session_id']
-                    logger.info(f"SDK Executor (SUBPROCESS): Captured REAL Claude session ID: {actual_claude_session_id}")
-                
-                # SURGICAL FIX: Capture ALL final metrics from ResultMessage
-                if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
-                    final_metrics = {
-                        'total_cost_usd': message.total_cost_usd,
-                        'num_turns': getattr(message, 'num_turns', 0),
-                        'subtype': getattr(message, 'subtype', ''),
-                        'duration_ms': getattr(message, 'duration_ms', 0),
-                        'duration_api_ms': getattr(message, 'duration_api_ms', 0),
-                        'is_error': getattr(message, 'is_error', False),
-                        'session_id': getattr(message, 'session_id', session_id),
-                        'result': getattr(message, 'result', ''),
-                        'usage': getattr(message, 'usage', {})
-                    }
+            # SURGICAL FIX: Wrap SDK query in TaskGroup-safe execution
+            try:
+                async for message in query(prompt=request.message, options=options):
+                    messages.append(str(message))
+                    collected_messages.append(message)
+                    
+                    # SURGICAL FIX: Capture session ID from first SystemMessage
+                    if (hasattr(message, 'subtype') and message.subtype == 'init' and 
+                        hasattr(message, 'data') and 'session_id' in message.data):
+                        actual_claude_session_id = message.data['session_id']
+                        logger.info(f"SDK Executor (SUBPROCESS): Captured REAL Claude session ID: {actual_claude_session_id}")
+                    
+                    # SURGICAL FIX: Capture ALL final metrics from ResultMessage
+                    if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
+                        final_metrics = {
+                            'total_cost_usd': message.total_cost_usd,
+                            'num_turns': getattr(message, 'num_turns', 0),
+                            'subtype': getattr(message, 'subtype', ''),
+                            'duration_ms': getattr(message, 'duration_ms', 0),
+                            'duration_api_ms': getattr(message, 'duration_api_ms', 0),
+                            'is_error': getattr(message, 'is_error', False),
+                            'session_id': getattr(message, 'session_id', session_id),
+                            'result': getattr(message, 'result', ''),
+                            'usage': getattr(message, 'usage', {})
+                        }
+                        
+            except Exception as sdk_error:
+                # If TaskGroup error, retry with sync fallback approach
+                if "TaskGroup" in str(sdk_error):
+                    logger.warning(f"SDK TaskGroup error, attempting sync fallback: {sdk_error}")
+                    # Try to import sync version
+                    try:
+                        from claude_code_sdk.sync import query as sync_query
+                        import asyncio
+                        
+                        # Run sync version in thread to avoid TaskGroup conflicts
+                        loop = asyncio.get_event_loop()
+                        sync_result = await loop.run_in_executor(
+                            None, 
+                            lambda: list(sync_query(prompt=request.message, options=options))
+                        )
+                        
+                        for message in sync_result:
+                            messages.append(str(message))
+                            collected_messages.append(message)
+                            
+                            # Process metrics from sync results too
+                            if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
+                                final_metrics = {
+                                    'total_cost_usd': message.total_cost_usd,
+                                    'num_turns': getattr(message, 'num_turns', 0),
+                                    'subtype': getattr(message, 'subtype', ''),
+                                    'duration_ms': getattr(message, 'duration_ms', 0),
+                                    'duration_api_ms': getattr(message, 'duration_api_ms', 0),
+                                    'is_error': getattr(message, 'is_error', False),
+                                    'session_id': getattr(message, 'session_id', session_id),
+                                    'result': getattr(message, 'result', ''),
+                                    'usage': getattr(message, 'usage', {})
+                                }
+                        
+                        logger.info(f"SDK Executor (SUBPROCESS): Sync fallback successful")
+                        
+                    except ImportError:
+                        logger.error("Sync claude_code_sdk not available for fallback")
+                        raise sdk_error
+                    except Exception as fallback_error:
+                        logger.error(f"Sync fallback failed: {fallback_error}")
+                        raise sdk_error
+                else:
+                    raise sdk_error
                     
         except Exception as e:
             logger.error(f"SDK Executor (SUBPROCESS): SDK execution failed: {e}")
@@ -621,10 +673,34 @@ class ClaudeSDKExecutor(ExecutorBase):
         Returns:
             Dictionary with execution results
         """
-        # Check if we need isolation (running in API context)
-        if asyncio.current_task() and hasattr(asyncio.current_task(), 'get_context'):
-            # Use ExecutionIsolator for thread pool execution
+        # ---------------------------------------------------------------------------------
+        # Decide whether this execution should be isolated from the main event-loop.
+        # ---------------------------------------------------------------------------------
+        # The former implementation attempted to detect a FastAPI/anyio environment by
+        # checking for a non-existent `get_context` attribute on `asyncio.current_task()`.
+        # That condition was therefore **never true** which meant that the Claude SDK was
+        # executed directly in the main event-loop.  When the SDK internally spawned an
+        # `anyio.TaskGroup`, the two distinct task-group lifecycles clashed, eventually
+        # raising the dreaded "TaskGroup has pending tasks" exception and preventing the
+        # workflow from moving beyond the *failed* phase.
+        #
+        # To fix this we now default to *always* running inside `ExecutionIsolator`'s
+        # dedicated thread-pool, unless we are **already** in such an isolated context.
+        # The isolator sets the `CLAUDE_SDK_ISOLATED` environment variable to guard
+        # against infinite recursion.  This makes the isolation behaviour explicit,
+        # reliable, and completely removes the brittle runtime introspection.
+        # ---------------------------------------------------------------------------------
+
+        import os
+
+        # SURGICAL FIX: ALWAYS use thread pool isolation unless explicitly bypassed
+        # This prevents ANY TaskGroup conflicts by ensuring SDK runs in dedicated thread
+        force_isolation = os.environ.get("FORCE_CLAUDE_ISOLATION", "true").lower() == "true"
+        already_isolated = os.environ.get("CLAUDE_SDK_ISOLATED", "false").lower() == "true"
+        
+        if force_isolation and not already_isolated:
             isolator = get_isolator()
+            logger.info(f"SDK Executor: Forcing thread pool isolation for TaskGroup safety")
             return await isolator.execute_in_thread_pool(request, agent_context)
         
         # Otherwise, proceed with normal execution
