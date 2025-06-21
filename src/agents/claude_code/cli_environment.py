@@ -100,16 +100,26 @@ class CLIEnvironmentManager:
         if git_branch:
             branch_name = git_branch
         else:
-            # Default branch naming - use current branch for persistent workspaces
+            # Default branch naming logic
             if workflow_name and persistent:
-                # For persistent workspaces, stay on current branch
+                # For persistent workspaces, use current branch as base
                 current_branch = await self._get_current_branch(repo_root)
-                branch_name = current_branch
+                # If we're on main, use workflow-specific branch
+                if current_branch == "main":
+                    branch_name = f"{workflow_name}/persistent"
+                else:
+                    # If we're on a feature branch, use it as the upper level
+                    branch_name = f"{current_branch}/{workflow_name}"
             else:
-                # For temporary workspaces, create a unique branch
+                # For temporary workspaces, create a unique branch with upper-level prefix
                 import datetime
                 timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-                branch_name = f"workflow/{workflow_name or 'temp'}-{timestamp}-{run_id[:8]}"
+                current_branch = await self._get_current_branch(repo_root)
+                # Use current branch as prefix for temporary workflows
+                if current_branch == "main":
+                    branch_name = f"workflow/{workflow_name or 'temp'}-{timestamp}-{run_id[:8]}"
+                else:
+                    branch_name = f"{current_branch}/workflow-{workflow_name or 'temp'}-{timestamp}-{run_id[:8]}"
         
         # If workflow_name is provided, create persistent or temp worktree based on parameter
         if workflow_name:
