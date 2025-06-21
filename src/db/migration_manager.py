@@ -113,7 +113,9 @@ class MigrationManager:
                 elif table_count > 0:
                     return "partially_applied"
         
-        elif migration_name == "20250618_151523_add_usage_tracking_to_messages.sql":
+        elif migration_name in ["20250618_151523_add_usage_tracking_to_messages.sql", 
+                                 "20250618_200000_add_usage_to_messages.sql",
+                                 "20250621_163340_ensure_usage_column_exists.sql"]:
             with self.connection.cursor() as cursor:
                 # For SQLite, check if usage column exists
                 try:
@@ -187,17 +189,12 @@ class MigrationManager:
             )
         
         # For usage tracking migration - handle SQLite compatibility
-        elif migration_name == "20250618_151523_add_usage_tracking_to_messages.sql":
+        elif migration_name in ["20250618_151523_add_usage_tracking_to_messages.sql",
+                                 "20250618_200000_add_usage_to_messages.sql",
+                                 "20250621_163340_ensure_usage_column_exists.sql"]:
             # For SQLite, we need to check if column exists first
-            # This is a simplified approach - in practice you'd use connection inspection
-            if "ALTER TABLE messages ADD COLUMN usage TEXT;" in content:
-                content = content.replace(
-                    "ALTER TABLE messages ADD COLUMN usage TEXT;",
-                    """-- Check if usage column exists before adding
-PRAGMA table_info(messages);
--- If usage column doesn't exist (checked in Python code), add it:
-ALTER TABLE messages ADD COLUMN usage TEXT;"""
-                )
+            # The migration manager will handle this check
+            pass  # No transformation needed - handled by _check_partial_migration
         
         return content
     
