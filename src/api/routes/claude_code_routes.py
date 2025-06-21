@@ -423,8 +423,16 @@ async def run_claude_workflow(
                     # Cleanup
                     os.environ.pop('BYPASS_TASKGROUP_DETECTION', None)
             
-            # Create background task properly
-            asyncio.create_task(execute_workflow_with_isolation())
+            # Create background task and store it for cancellation
+            task = asyncio.create_task(execute_workflow_with_isolation())
+            
+            # Store task in agent for cancellation capabilities
+            agent = AgentFactory.get_agent("claude_code")
+            if agent and hasattr(agent, 'executor'):
+                if not hasattr(agent.executor, 'active_tasks'):
+                    agent.executor.active_tasks = {}
+                agent.executor.active_tasks[run_id] = task
+                logger.info(f"Stored task for run_id {run_id} for cancellation support")
             
             # Return immediately with pending status
             result = {
