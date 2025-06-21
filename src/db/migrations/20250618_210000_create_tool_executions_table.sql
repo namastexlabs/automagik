@@ -1,6 +1,3 @@
--- Create tool execution log table for metrics
--- Simple SQLite Compatible Version
-
 CREATE TABLE IF NOT EXISTS tool_executions (
     id TEXT PRIMARY KEY,
     tool_id TEXT,
@@ -12,10 +9,11 @@ CREATE TABLE IF NOT EXISTS tool_executions (
     result TEXT,
     error_message TEXT,
     execution_time_ms INTEGER,
-    executed_at TEXT DEFAULT (datetime('now'))
+    executed_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create basic indexes
 CREATE INDEX IF NOT EXISTS idx_tool_executions_tool_id ON tool_executions(tool_id);
+
 CREATE INDEX IF NOT EXISTS idx_tool_executions_agent_name ON tool_executions(agent_name);
-CREATE INDEX IF NOT EXISTS idx_tool_executions_session_id ON tool_executions(session_id); 
+
+CREATE INDEX IF NOT EXISTS idx_tool_executions_session_id ON tool_executions(session_id);
