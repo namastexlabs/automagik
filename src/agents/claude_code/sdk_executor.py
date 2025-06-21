@@ -1468,9 +1468,8 @@ class ClaudeSDKExecutor(ExecutorBase):
                 
         # Update workflow process status in database
         try:
-            from src.db.repository.workflow_process import WorkflowProcessRepository
-            repo = WorkflowProcessRepository()
-            await repo.mark_process_terminated(execution_id, status="killed")
+            from src.db.repository.workflow_process import mark_process_terminated
+            await mark_process_terminated(execution_id, status="killed")
             logger.info(f"Updated database status for {execution_id} to killed")
         except Exception as e:
             logger.error(f"Failed to update database status for {execution_id}: {e}")
