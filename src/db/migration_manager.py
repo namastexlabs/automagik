@@ -113,6 +113,26 @@ class MigrationManager:
                 elif table_count > 0:
                     return "partially_applied"
         
+        elif migration_name == "20250618_151523_add_usage_tracking_to_messages.sql":
+            with self.connection.cursor() as cursor:
+                # For SQLite, check if usage column exists
+                try:
+                    cursor.execute("PRAGMA table_info(messages)")
+                    columns = [row[1] for row in cursor.fetchall()]  # Column names are at index 1
+                    if 'usage' in columns:
+                        return "fully_applied"
+                except:
+                    # If we can't check (maybe PostgreSQL), try the PostgreSQL way
+                    try:
+                        cursor.execute("""
+                            SELECT COUNT(*) FROM information_schema.columns 
+                            WHERE table_name = 'messages' AND column_name = 'usage'
+                        """)
+                        if cursor.fetchone()[0] > 0:
+                            return "fully_applied"
+                    except:
+                        pass
+        
         return None
     
     def _make_migration_idempotent(self, migration_name: str, content: str) -> str:
@@ -165,6 +185,19 @@ class MigrationManager:
                     "CREATE TRIGGER preferences_updated_at_trigger",
                     "DROP TRIGGER IF EXISTS preferences_updated_at_trigger ON preferences;\nCREATE TRIGGER preferences_updated_at_trigger"
             )
+        
+        # For usage tracking migration - handle SQLite compatibility
+        elif migration_name == "20250618_151523_add_usage_tracking_to_messages.sql":
+            # For SQLite, we need to check if column exists first
+            # This is a simplified approach - in practice you'd use connection inspection
+            if "ALTER TABLE messages ADD COLUMN usage TEXT;" in content:
+                content = content.replace(
+                    "ALTER TABLE messages ADD COLUMN usage TEXT;",
+                    """-- Check if usage column exists before adding
+PRAGMA table_info(messages);
+-- If usage column doesn't exist (checked in Python code), add it:
+ALTER TABLE messages ADD COLUMN usage TEXT;"""
+                )
         
         return content
     

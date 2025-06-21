@@ -108,6 +108,7 @@ class ResultExtractor:
                 "final_output": final_message
             }
             
+            logger.debug(f"Result extraction - metadata keys: {list(metadata.keys())}, completion_type: {completion_type}, success: {success}")
             logger.debug(f"Extracted result: {result}")
             return result
             
@@ -140,6 +141,15 @@ class ResultExtractor:
             return "completed_successfully"
         elif success is False:
             return "failed"
+        
+        # Check run status in metadata FIRST (more reliable than other indicators)
+        run_status = metadata.get("run_status", "").lower()
+        if "completed" in run_status:
+            return "completed_successfully"
+        elif "failed" in run_status or "error" in run_status:
+            return "failed"
+        elif "running" in run_status:
+            return "running"
         
         # Check for explicit completion indicators in metadata
         completed_at = metadata.get("completed_at")
