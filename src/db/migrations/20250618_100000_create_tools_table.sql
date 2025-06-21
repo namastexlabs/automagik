@@ -54,34 +54,6 @@ BEGIN
     UPDATE tools SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
 
--- Create tool execution log table for metrics (SQLite compatible)
-CREATE TABLE IF NOT EXISTS tool_executions (
-    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
-    tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
-    agent_name TEXT,
-    session_id TEXT,
-    
-    -- Execution details (JSON stored as TEXT)
-    parameters TEXT,
-    context TEXT,
-    
-    -- Results
-    status TEXT CHECK (status IN ('success', 'error', 'timeout')),
-    result TEXT,
-    error_message TEXT,
-    execution_time_ms INTEGER,
-    
-    -- Audit
-    executed_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Create indexes for tool executions
-CREATE INDEX IF NOT EXISTS idx_tool_executions_tool_id ON tool_executions(tool_id);
-CREATE INDEX IF NOT EXISTS idx_tool_executions_agent_name ON tool_executions(agent_name);
-CREATE INDEX IF NOT EXISTS idx_tool_executions_session_id ON tool_executions(session_id);
-CREATE INDEX IF NOT EXISTS idx_tool_executions_status ON tool_executions(status);
-CREATE INDEX IF NOT EXISTS idx_tool_executions_executed_at ON tool_executions(executed_at);
-
 -- Tools will be automatically discovered and inserted at startup
 -- See src/services/tool_discovery.py for automatic discovery logic
 

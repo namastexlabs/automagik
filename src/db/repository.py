@@ -1209,6 +1209,25 @@ def list_messages(session_id: uuid.UUID, limit: int = 100, offset: int = 0, sort
         return []
 
 
+def list_messages_for_user(session_id: uuid.UUID, user_id: Optional[uuid.UUID] = None, 
+                          offset: int = 0, limit: Optional[int] = None, 
+                          sort_desc: bool = False) -> List[Message]:
+    """List messages for a session, optionally filtered by user_id.
+    
+    Args:
+        session_id: The UUID of the session
+        user_id: Optional user UUID to filter messages (None returns all users)
+        offset: Number of messages to skip
+        limit: Maximum number of messages to return (None for all)
+        sort_desc: Sort by descending created_at if True
+        
+    Returns:
+        List of Message objects
+    """
+    from src.db.repository.message import list_messages_for_user as _list_messages_for_user
+    return _list_messages_for_user(session_id, user_id, offset, limit, sort_desc)
+
+
 def update_message(message: Message) -> Optional[uuid.UUID]:
     """Update a message.
     
