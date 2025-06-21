@@ -100,8 +100,16 @@ class CLIEnvironmentManager:
         if git_branch:
             branch_name = git_branch
         else:
-            # Default branch naming
-            branch_name = f"{workflow_name or 'builder'}/{workflow_name or f'run_{run_id}'}"
+            # Default branch naming - use current branch for persistent workspaces
+            if workflow_name and persistent:
+                # For persistent workspaces, stay on current branch
+                current_branch = await self._get_current_branch(repo_root)
+                branch_name = current_branch
+            else:
+                # For temporary workspaces, create a unique branch
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                branch_name = f"workflow/{workflow_name or 'temp'}-{timestamp}-{run_id[:8]}"
         
         # If workflow_name is provided, create persistent or temp worktree based on parameter
         if workflow_name:
@@ -114,38 +122,53 @@ class CLIEnvironmentManager:
             worktree_path = repo_root / "worktrees" / f"builder_run_{run_id}"
         
         # Check if persistent worktree already exists
-        if worktree_path.exists() and workflow_name:
+        if worktree_path.exists() and workflow_name and persistent:
             logger.info(f"Reusing existing persistent worktree: {worktree_path}")
+            # Switch to the requested branch if different
+            if git_branch:
+                await self._checkout_branch_in_worktree(worktree_path, git_branch)
             # Track active workspace
             self.active_workspaces[run_id] = worktree_path
             return worktree_path
         
         try:
-            # Create worktree with new branch
-            
-            # Create worktree
-            process = await asyncio.create_subprocess_exec(
-                "git", "worktree", "add", str(worktree_path), "-b", branch_name,
-                cwd=str(repo_root),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode != 0:
-                # If branch already exists (for persistent worktrees), use it without -b flag
-                if "already exists" in stderr.decode() and workflow_name:
-                    process = await asyncio.create_subprocess_exec(
-                        "git", "worktree", "add", str(worktree_path), branch_name,
-                        cwd=str(repo_root),
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await process.communicate()
-                    
-                    if process.returncode != 0:
+            # For temporary workspaces or when a specific branch is requested, create new worktree
+            if not persistent or git_branch:
+                # Create worktree with new branch
+                process = await asyncio.create_subprocess_exec(
+                    "git", "worktree", "add", str(worktree_path), "-b", branch_name,
+                    cwd=str(repo_root),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    # If branch already exists, use it without -b flag
+                    if "already exists" in stderr.decode():
+                        process = await asyncio.create_subprocess_exec(
+                            "git", "worktree", "add", str(worktree_path), branch_name,
+                            cwd=str(repo_root),
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout, stderr = await process.communicate()
+                        
+                        if process.returncode != 0:
+                            raise OSError(f"Failed to create worktree: {stderr.decode()}")
+                    else:
                         raise OSError(f"Failed to create worktree: {stderr.decode()}")
-                else:
+            else:
+                # For persistent workspaces without custom branch, create worktree on current branch
+                process = await asyncio.create_subprocess_exec(
+                    "git", "worktree", "add", str(worktree_path), branch_name,
+                    cwd=str(repo_root),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
                     raise OSError(f"Failed to create worktree: {stderr.decode()}")
             
             # Set proper permissions
@@ -160,6 +183,83 @@ class CLIEnvironmentManager:
         except Exception as e:
             logger.error(f"Failed to create worktree workspace for run {run_id}: {e}")
             raise OSError(f"Failed to create worktree workspace: {e}")
+    
+    async def _get_current_branch(self, repo_root: Path) -> str:
+        """Get the current git branch name.
+        
+        Args:
+            repo_root: Path to the repository root
+            
+        Returns:
+            Current branch name, defaults to 'main' if unable to determine
+        """
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "--abbrev-ref", "HEAD",
+                cwd=str(repo_root),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                branch = stdout.decode().strip()
+                return branch if branch else "main"
+            else:
+                logger.warning(f"Failed to get current branch: {stderr.decode()}")
+                return "main"
+        except Exception as e:
+            logger.warning(f"Error getting current branch: {e}")
+            return "main"
+    
+    async def _checkout_branch_in_worktree(self, worktree_path: Path, branch: str) -> None:
+        """Checkout a specific branch in the worktree.
+        
+        Args:
+            worktree_path: Path to the worktree
+            branch: Branch name to checkout
+        """
+        try:
+            # First, try to checkout the branch
+            process = await asyncio.create_subprocess_exec(
+                "git", "checkout", branch,
+                cwd=str(worktree_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                # If branch doesn't exist locally, try to create it from origin
+                if "did not match any" in stderr.decode() or "pathspec" in stderr.decode():
+                    # Try to checkout from origin
+                    process = await asyncio.create_subprocess_exec(
+                        "git", "checkout", "-b", branch, f"origin/{branch}",
+                        cwd=str(worktree_path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    
+                    if process.returncode != 0:
+                        # If that fails, create a new branch
+                        process = await asyncio.create_subprocess_exec(
+                            "git", "checkout", "-b", branch,
+                            cwd=str(worktree_path),
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        stdout, stderr = await process.communicate()
+                        
+                        if process.returncode != 0:
+                            logger.warning(f"Failed to checkout branch {branch}: {stderr.decode()}")
+                else:
+                    logger.warning(f"Failed to checkout branch {branch}: {stderr.decode()}")
+            else:
+                logger.info(f"Checked out branch {branch} in worktree")
+                
+        except Exception as e:
+            logger.warning(f"Error checking out branch {branch}: {e}")
     
     async def setup_repository(
         self, 
