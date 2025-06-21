@@ -576,8 +576,8 @@ if __name__ == "__main__":
         """Update workflow status in database."""
         try:
             from src.db.repository.workflow_process import mark_process_terminated
-            # Use asyncio.create_task for async database operations
-            asyncio.create_task(mark_process_terminated(run_id, status=status))
+            # Call sync function directly (not a coroutine)
+            mark_process_terminated(run_id, status=status)
         except Exception as e:
             logger.error(f"Failed to update workflow status in database: {e}")
     

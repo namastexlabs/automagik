@@ -689,7 +689,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                 max_turns=kwargs.get('max_turns'),
                 timeout=kwargs.get('timeout', 7200),
                 repository_url=kwargs.get('repository_url'),
-                git_branch=kwargs.get('git_branch')
+                git_branch=kwargs.get('git_branch'),
+                persistent=kwargs.get('persistent', True),
+                auto_merge=kwargs.get('auto_merge', False)  # SURGICAL FIX: Pass auto_merge flag
             )
             
             # Determine priority based on workflow type
@@ -758,7 +760,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 git_branch=kwargs.get("git_branch"),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
                 repository_url=kwargs.get("repository_url"),
-                persistent=kwargs.get("persistent", True)
+                persistent=kwargs.get("persistent", True),
+                auto_merge=kwargs.get("auto_merge", False)  # SURGICAL FIX: Pass auto_merge flag
             )
             
             # Update session metadata with run information
