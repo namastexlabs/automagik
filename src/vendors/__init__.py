@@ -1,0 +1,1 @@
+# Vendors directory for local package copies
