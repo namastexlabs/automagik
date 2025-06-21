@@ -159,17 +159,34 @@ class CLIEnvironmentManager:
                     else:
                         raise OSError(f"Failed to create worktree: {stderr.decode()}")
             else:
-                # For persistent workspaces without custom branch, create worktree on current branch
-                process = await asyncio.create_subprocess_exec(
-                    "git", "worktree", "add", str(worktree_path), branch_name,
-                    cwd=str(repo_root),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode != 0:
-                    raise OSError(f"Failed to create worktree: {stderr.decode()}")
+                # For persistent workspaces without custom branch
+                if branch_name == "main":
+                    # Special handling for main branch - create a detached worktree
+                    process = await asyncio.create_subprocess_exec(
+                        "git", "worktree", "add", "--detach", str(worktree_path),
+                        cwd=str(repo_root),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    
+                    if process.returncode != 0:
+                        raise OSError(f"Failed to create detached worktree: {stderr.decode()}")
+                    
+                    # Checkout main branch in the worktree
+                    await self._checkout_branch_in_worktree(worktree_path, "main")
+                else:
+                    # For other branches, create worktree normally
+                    process = await asyncio.create_subprocess_exec(
+                        "git", "worktree", "add", str(worktree_path), branch_name,
+                        cwd=str(repo_root),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    
+                    if process.returncode != 0:
+                        raise OSError(f"Failed to create worktree: {stderr.decode()}")
             
             # Set proper permissions
             os.chmod(worktree_path, 0o755)
