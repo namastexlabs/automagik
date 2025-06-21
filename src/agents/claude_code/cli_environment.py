@@ -161,9 +161,9 @@ class CLIEnvironmentManager:
             else:
                 # For persistent workspaces without custom branch
                 if branch_name == "main":
-                    # Special handling for main branch - create a detached worktree
+                    # Special handling for main branch - create a detached worktree at HEAD
                     process = await asyncio.create_subprocess_exec(
-                        "git", "worktree", "add", "--detach", str(worktree_path),
+                        "git", "worktree", "add", "--detach", str(worktree_path), "HEAD",
                         cwd=str(repo_root),
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE
@@ -172,9 +172,6 @@ class CLIEnvironmentManager:
                     
                     if process.returncode != 0:
                         raise OSError(f"Failed to create detached worktree: {stderr.decode()}")
-                    
-                    # Checkout main branch in the worktree
-                    await self._checkout_branch_in_worktree(worktree_path, "main")
                 else:
                     # For other branches, create worktree normally
                     process = await asyncio.create_subprocess_exec(
