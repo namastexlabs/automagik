@@ -567,10 +567,15 @@ class FlashinhoV2(AutomagikAgent):
                             self.context.get("whatsapp_user_number")
                         )
                     
-                    logger.info(f"🔍 Extracted API phone number: {api_phone_number}")
+                    # Fallback to phone from Flashed API response if no API payload phone
+                    if not api_phone_number and phone:
+                        api_phone_number = phone
+                        logger.info(f"🔍 Using phone number from Flashed API response: {api_phone_number}")
+                    else:
+                        logger.info(f"🔍 Extracted API phone number: {api_phone_number}")
                     
                     if not api_phone_number:
-                        logger.error("No phone number available from API payload")
+                        logger.error("No phone number available from API payload or Flashed response")
                         return False
                     
                     # Prepare Flashed user data
@@ -627,10 +632,15 @@ class FlashinhoV2(AutomagikAgent):
                             self.context.get("whatsapp_user_number")
                         )
                     
-                    logger.info(f"🔍 Extracted API phone number (no context): {api_phone_number}")
+                    # Fallback to phone from Flashed API response if no API payload phone
+                    if not api_phone_number and phone:
+                        api_phone_number = phone
+                        logger.info(f"🔍 Using phone number from Flashed API response (no context): {api_phone_number}")
+                    else:
+                        logger.info(f"🔍 Extracted API phone number (no context): {api_phone_number}")
                     
                     if not api_phone_number:
-                        logger.error("No phone number available from API payload")
+                        logger.error("No phone number available from API payload or Flashed response")
                         return False
                     
                     # Prepare Flashed user data
