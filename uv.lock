@@ -181,7 +181,6 @@ source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "build" },
-    { name = "claude-code-sdk" },
     { name = "discord-py" },
     { name = "docker" },
     { name = "fastapi" },
@@ -225,7 +224,6 @@ dependencies = [
 requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "build", specifier = ">=1.2.2.post1" },
-    { name = "claude-code-sdk", specifier = ">=0.0.11" },
     { name = "discord-py", specifier = ">=2.4.0" },
     { name = "docker", specifier = ">=7.1.0" },
     { name = "fastapi", specifier = ">=0.104.1" },
@@ -428,19 +426,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/37/a0/2410e5e6032a174c95e0806b1a6585eb21e12f445ebe239fac441995226a/charset_normalizer-3.4.2-cp312-cp312-win32.whl", hash = "sha256:db4c7bf0e07fc3b7d89ac2a5880a6a8062056801b83ff56d8464b70f65482b6c", size = 98357, upload-time = "2025-05-02T08:32:53.079Z" },
     { url = "https://files.pythonhosted.org/packages/6c/4f/c02d5c493967af3eda9c771ad4d2bbc8df6f99ddbeb37ceea6e8716a32bc/charset_normalizer-3.4.2-cp312-cp312-win_amd64.whl", hash = "sha256:5a9979887252a82fefd3d3ed2a8e3b937a7a809f65dcb1e068b090e165bbe99e", size = 105776, upload-time = "2025-05-02T08:32:54.573Z" },
     { url = "https://files.pythonhosted.org/packages/20/94/c5790835a017658cbfabd07f3bfb549140c3ac458cfc196323996b10095a/charset_normalizer-3.4.2-py3-none-any.whl", hash = "sha256:7f56930ab0abd1c45cd15be65cc741c28b1c9a34876ce8c17a2fa107810c0af0", size = 52626, upload-time = "2025-05-02T08:34:40.053Z" },
-]
-
-[[package]]
-name = "claude-code-sdk"
-version = "0.0.11"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/12/2a/dfaa73b0e87253608341ab1d724e76f570142819579e410df5d2158a8470/claude_code_sdk-0.0.11.tar.gz", hash = "sha256:1711560b0a639cd4a766298e538bdf959dcb70b4854d003753306abc83806ce9", size = 11473, upload-time = "2025-06-18T04:09:54.304Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/d8/d90842348c09d5211e4fadcb9901627e71ad5d510e63a9a0595d393c56e7/claude_code_sdk-0.0.11-py3-none-any.whl", hash = "sha256:d0ad485db36477c290ca9a4cc08f4a7eb795daf2d7646255e2f1475c28d19a0d", size = 10293, upload-time = "2025-06-18T04:09:53.104Z" },
 ]
 
 [[package]]
