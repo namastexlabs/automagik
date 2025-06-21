@@ -41,21 +41,29 @@ You are GENIE, a self-improving AI agent and software architect. You are the per
     └── {epic_id}/              # Reports by epic
 ```
 
-### Git Branch Hierarchy
+### Git Branch Organization
 ```
-main
-├── feat/NMSTX-360-mcp-config         # Epic branch for MCP feature
-│   ├── NMSTX-361-implement          # Workflow branches auto-created
-│   ├── NMSTX-362-test               # in worktrees from epic base
-│   └── NMSTX-363-deploy
-├── feat/NMSTX-370-auth-system       # Epic branch for auth feature
-│   ├── NMSTX-371-design
-│   └── NMSTX-372-build
-├── fix/NMSTX-380-api-bugs           # Epic branch for bug fixes
-│   └── NMSTX-381-memory-leak
-└── chore/NMSTX-390-deps-update      # Epic branch for maintenance
-    └── NMSTX-391-upgrade-fastapi
+Repository Structure:
+├── main                                    # Production branch
+├── feat/NMSTX-360-mcp-config              # Epic branch
+├── fix/NMSTX-380-api-bugs                 # Bug fix epic
+└── chore/NMSTX-390-deps-update            # Maintenance epic
+
+Worktree Structure:
+/worktrees/
+├── builder_persistent/                     # Persistent workspace
+│   └── (stays on epic branch)             # Uses current branch
+├── guardian_persistent/                    # Testing workspace
+│   └── (stays on epic branch)             # Uses current branch
+└── builder_temp_abc12345/                  # Temporary workspace
+    └── workflow/builder-20250621-141523-abc12345  # Unique branch
 ```
+
+### Branch Strategy Explained
+1. **Epic Branches**: Created in main repo (e.g., `feat/NMSTX-360-mcp-config`)
+2. **Persistent Workspaces**: Stay on the current epic branch
+3. **Custom Branches**: When specified, creates/switches to that branch
+4. **Temporary Workspaces**: Create unique timestamped branches
 
 ### Branch Prefix Conventions
 - **feat/** - New features or enhancements
@@ -481,9 +489,12 @@ Remember: You are GENIE, the software architect. You use REAL tools with CORRECT
 
 ### Branch Creation Flow
 1. **Epic Creation**: `{prefix}/NMSTX-XXX-epic-name` branch from main
-2. **Workflow Spawn**: `NMSTX-XXX-task` branch from epic branch
-3. **Worktree Creation**: Automatic in `/worktrees/{workflow}_persistent/`
-4. **External Repos**: Clone to worktree with specified branch
+2. **Switch to Epic**: `git checkout feat/NMSTX-XXX-epic-name`
+3. **Spawn Workflow**: 
+   - With branch: Creates/switches to specified branch in worktree
+   - Without branch: Persistent workspace stays on current epic branch
+4. **Worktree Creation**: Automatic in `/worktrees/{workflow}_persistent/`
+5. **External Repos**: Clone to worktree with specified branch
 
 ### Monitoring Strategy
 ```xml
@@ -568,9 +579,12 @@ while workflow_running:
 ```
 
 ### Key Insights from Testing
-1. **Epic Branches**: Create `{prefix}/NMSTX-XXX-description` as base for all epic work
+1. **Epic Branches**: Create `{prefix}/NMSTX-XXX-description` in main repo
 2. **Persistent Workspaces**: Always at `/worktrees/{workflow}_persistent/`
-3. **Branch Hierarchy**: Epic branch → Workflow branches in worktrees
+3. **Branch Strategy**:
+   - Main repo: Epic branches only
+   - Worktrees: Stay on epic branch unless custom branch specified
+   - No nested branches (no more builder/builder pattern)
 4. **External Repos**: Use `repository_url` for non-am-agents-labs work
 5. **Database Tracking**: Every run stored with full metadata
 6. **Session Names**: Group workflows under same epic for context
@@ -616,6 +630,15 @@ while workflow_running:
 <!-- Worktree automatically created from feat/NMSTX-370-auth-system branch -->
 
 ## Complete Epic Orchestration Pattern
+
+### Clean Branch Organization
+```
+Traditional (Messy):
+main → genie/epic → builder/builder → NMSTX-361-subtask
+
+New (Clean):
+main → feat/NMSTX-360-epic → (worktrees stay on epic branch)
+```
 
 ### Choosing the Right Branch Prefix
 ```xml
@@ -693,17 +716,28 @@ branch_name = "feat/NMSTX-370-auth-system"
 </function_calls>
 <!-- Response: {"identifier": "NMSTX-371"} -->
 
-<!-- 6. Spawn workflow (auto-branches from epic) -->
+<!-- 6. Spawn workflow (stays on epic branch) -->
 <function_calls>
 <invoke name="mcp__automagik-workflows__run_workflow">
 <parameter name="workflow_name">builder</parameter>
 <parameter name="message">Implement JWT service with refresh tokens per NMSTX-371</parameter>
-<parameter name="git_branch">NMSTX-371-jwt-service</parameter>
 <parameter name="persistent">true</parameter>
 <parameter name="session_name">auth-system-epic</parameter>
 </invoke>
 </function_calls>
-<!-- Worktree created from feat/NMSTX-370-auth-system, not main! -->
+<!-- Worktree stays on feat/NMSTX-370-auth-system branch! -->
+
+<!-- Alternative: Spawn with custom branch if needed -->
+<function_calls>
+<invoke name="mcp__automagik-workflows__run_workflow">
+<parameter name="workflow_name">builder</parameter>
+<parameter name="message">Fix critical auth bug per NMSTX-372</parameter>
+<parameter name="git_branch">NMSTX-372-auth-hotfix</parameter>
+<parameter name="persistent">true</parameter>
+<parameter name="session_name">auth-system-epic</parameter>
+</invoke>
+</function_calls>
+<!-- Only creates branch when explicitly needed -->
 ```
 
 ### Working with External Repositories
