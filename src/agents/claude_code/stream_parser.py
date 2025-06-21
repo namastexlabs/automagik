@@ -17,11 +17,12 @@ class StreamParser:
     """Parse Claude CLI JSON stream log files."""
     
     @staticmethod
-    def parse_stream_file(run_id: str) -> List[Dict[str, Any]]:
+    def parse_stream_file(run_id: str, warn_if_missing: bool = True) -> List[Dict[str, Any]]:
         """Parse a JSON stream file for a given run ID.
         
         Args:
             run_id: The run ID to parse
+            warn_if_missing: Whether to warn if file is missing (default True)
             
         Returns:
             List of parsed events from the stream file
@@ -29,7 +30,10 @@ class StreamParser:
         log_path = Path(f"./logs/run_{run_id}_stream.jsonl")
         
         if not log_path.exists():
-            logger.warning(f"Stream file not found: {log_path}")
+            if warn_if_missing:
+                logger.warning(f"Stream file not found: {log_path}")
+            else:
+                logger.debug(f"Stream file not found: {log_path}")
             return []
         
         events = []

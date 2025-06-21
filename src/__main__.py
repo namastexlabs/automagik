@@ -9,6 +9,8 @@ import logging
 import argparse
 import uvicorn
 import traceback
+import signal
+import os
 
 # Import necessary modules for logging configuration
 try:
@@ -60,8 +62,13 @@ def get_server_config(args=None):
     
     # Determine if auto-reload should be enabled
     # If --reload flag is explicitly provided, use that value
-    # Otherwise, auto-enable in development mode
-    should_reload = reload_flag if reload_flag is not None else settings.AM_ENV == Environment.DEVELOPMENT
+    # Otherwise, auto-enable in development mode BUT disable for systemd
+    if reload_flag is not None:
+        should_reload = reload_flag
+    elif os.environ.get('INVOCATION_ID'):  # Running under systemd
+        should_reload = False  # Disable reload for systemd to fix signal handling
+    else:
+        should_reload = settings.AM_ENV == Environment.DEVELOPMENT
     
     return host, port, should_reload
 
@@ -73,9 +80,33 @@ def log_server_config(host, port, should_reload):
     logger.info(f"├── Port: {port}")
     logger.info(f"└── Auto-reload: {reload_status}")
 
+def setup_signal_forwarding():
+    """Setup signal forwarding to ensure proper shutdown."""
+    def signal_handler(signum, frame):
+        logger.info(f"📝 __main__ received signal {signum}, triggering application shutdown...")
+        
+        # Trigger immediate shutdown of critical services
+        try:
+            from src.agents.claude_code.execution_isolator import shutdown_isolator
+            shutdown_isolator()
+            logger.info("📝 Execution isolator shutdown from __main__")
+        except Exception as e:
+            logger.warning(f"Error shutting down isolator from __main__: {e}")
+        
+        # Exit immediately - uvicorn will handle the rest
+        logger.info("📝 Exiting from __main__ signal handler")
+        os._exit(0)
+    
+    # Install our signal handlers
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
 def main():
     """Run the Automagik Agents API."""
     try:
+        # Setup signal handling early
+        setup_signal_forwarding()
+        
         # Log startup message
         logger.info("Starting Automagik Agents API")
         
@@ -92,12 +123,16 @@ def main():
         # Log configuration
         log_server_config(host, port, should_reload)
         
-        # Run the server
+        # Run the server with proper signal handling
         uvicorn.run(
             "src.main:app",
             host=host,
             port=port,
-            reload=should_reload
+            reload=should_reload,
+            # Add signal handlers for graceful shutdown
+            access_log=False,  # Reduce log noise
+            # Force uvicorn to handle signals properly
+            use_colors=False
         )
     except Exception as e:
         logger.error(f"Error running application: {str(e)}")
