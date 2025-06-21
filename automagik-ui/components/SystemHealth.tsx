@@ -1,7 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSystemHealth, SystemStatus } from '@/lib/api';
+import { getSystemHealth } from '@/lib/api';
+
+interface SystemStatus {
+  status: 'healthy' | 'warning' | 'error';
+  timestamp: string;
+  version: string;
+  environment: string;
+  workflows?: {
+    [key: string]: boolean;
+  };
+  agent_available?: boolean;
+  container_manager?: boolean;
+  feature_enabled?: boolean;
+  claude_cli_path?: string;
+}
 
 export default function SystemHealth() {
   const [health, setHealth] = useState<SystemStatus | null>(null);
@@ -28,7 +42,7 @@ export default function SystemHealth() {
 
   useEffect(() => {
     fetchHealth();
-    const interval = setInterval(fetchHealth, 30000); // Update every 30 seconds
+    const interval = setInterval(fetchHealth, 60000); // Update every 60 seconds (reduced from 30)
     return () => clearInterval(interval);
   }, []);
 
@@ -136,6 +150,46 @@ export default function SystemHealth() {
             {health.status}
           </span>
         </div>
+        
+        {health.agent_available !== undefined && (
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center">
+              {getStatusIcon(health.agent_available ? 'healthy' : 'error')}
+              <span className="ml-3 font-medium text-gray-700">Agent System</span>
+            </div>
+            <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(health.agent_available ? 'healthy' : 'error')}`}>
+              {health.agent_available ? 'available' : 'unavailable'}
+            </span>
+          </div>
+        )}
+        
+        {health.container_manager !== undefined && (
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center">
+              {getStatusIcon(health.container_manager ? 'healthy' : 'warning')}
+              <span className="ml-3 font-medium text-gray-700">Container Manager</span>
+            </div>
+            <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(health.container_manager ? 'healthy' : 'warning')}`}>
+              {health.container_manager ? 'enabled' : 'disabled'}
+            </span>
+          </div>
+        )}
+        
+        {health.workflows && (
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="font-medium text-gray-700 mb-2">Available Workflows</div>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(health.workflows).map(([workflow, available]) => (
+                <div key={workflow} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 capitalize">{workflow}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(available ? 'healthy' : 'error')}`}>
+                    {available ? '✓' : '✗'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
