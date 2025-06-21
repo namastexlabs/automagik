@@ -204,6 +204,7 @@ class ExecutionIsolator:
             # SURGICAL FIX: Set isolation flags to prevent recursive isolation attempts
             os.environ['CLAUDE_SDK_ISOLATED'] = 'true'
             os.environ['BYPASS_TASKGROUP_DETECTION'] = 'true'  # Legacy compatibility
+            os.environ['CLAUDE_SDK_NO_TASKGROUP'] = 'true'  # Force simple task in SDK
             
             # Import SDK executor here to ensure it's loaded in the thread context
             from .sdk_executor import ClaudeSDKExecutor
@@ -211,10 +212,32 @@ class ExecutionIsolator:
             # Create executor instance in thread context
             executor = ClaudeSDKExecutor()
             
-            # SURGICAL FIX: Use simple execution to avoid isolation recursion
-            result = loop.run_until_complete(
-                executor._execute_claude_task_simple(request, agent_context)
-            )
+            # SURGICAL FIX: Use a completely isolated approach to avoid any TaskGroup conflicts
+            # Since even the simple execution has TaskGroup issues, try minimal execution
+            logger.info("SURGICAL FIX: Using minimal isolated execution to avoid TaskGroup conflicts")
+            
+            try:
+                result = loop.run_until_complete(
+                    executor._execute_claude_task_simple(request, agent_context)
+                )
+            except Exception as e:
+                if "TaskGroup" in str(e):
+                    logger.error(f"SURGICAL ESCALATION: Even isolated execution failed with TaskGroup: {e}")
+                    # Return a failure result with clear indication
+                    result = {
+                        'success': False,
+                        'session_id': agent_context.get('session_id', 'unknown'),
+                        'result': f"SURGICAL FAILURE: TaskGroup conflict in isolation: {str(e)}",
+                        'exit_code': 1,
+                        'execution_time': 0,
+                        'error': f"TASKGROUP_ISOLATION_FAILURE: {str(e)}",
+                        'run_id': request.run_id or 'unknown',
+                        'cost_usd': 0.0,
+                        'total_turns': 0,
+                        'tools_used': []
+                    }
+                else:
+                    raise e
             
             return result
             
@@ -222,6 +245,7 @@ class ExecutionIsolator:
             # Cleanup environment flags
             os.environ.pop('CLAUDE_SDK_ISOLATED', None)
             os.environ.pop('BYPASS_TASKGROUP_DETECTION', None)
+            os.environ.pop('CLAUDE_SDK_NO_TASKGROUP', None)
             loop.close()
     
     async def execute_in_subprocess(
