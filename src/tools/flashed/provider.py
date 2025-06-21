@@ -82,15 +82,15 @@ class FlashedProvider():
             settings.AM_LOG_LEVEL.value == "DEBUG"
         )
         
-        logger.info(f"BP - API Request: {method} {url}")
+        logger.info(f"Flashed - API Request: {method} {url}")
         if is_dev_debug:
-            logger.debug(f"BP - Request Payload (detailed): {data}")
-            logger.debug(f"BP - Request Params (detailed): {params}")
-            logger.debug(f"BP - Request Headers (detailed): {header}")
+            logger.debug(f"Flashed - Request Payload (detailed): {data}")
+            logger.debug(f"Flashed - Request Params (detailed): {params}")
+            logger.debug(f"Flashed - Request Headers (detailed): {header}")
         else:
-            logger.info(f"BP - Request Payload: {data}")
-            logger.info(f"BP - Request Params: {params}")
-            logger.info(f"BP - Request Headers: {header}")
+            logger.info(f"Flashed - Request Payload: {data}")
+            logger.info(f"Flashed - Request Params: {params}")
+            logger.info(f"Flashed - Request Headers: {header}")
         
         try:
             async with self.session.request(method, url, json=data, params=params, headers=header) as response:
@@ -99,33 +99,33 @@ class FlashedProvider():
                 
                 # Enhanced logging for API responses in development/debug mode
                 if is_dev_debug:
-                    logger.debug(f"BP - API Response Status: {response.status}")
-                    logger.debug(f"BP - API Response Headers: {dict(response.headers)}")
-                    logger.debug(f"BP - API Response (detailed): {result}")
+                    logger.debug(f"Flashed - API Response Status: {response.status}")
+                    logger.debug(f"Flashed - API Response Headers: {dict(response.headers)}")
+                    logger.debug(f"Flashed - API Response (detailed): {result}")
                     
                     # Check if there are any error messages in the response
                     if isinstance(result, dict) and result.get('error'):
-                        logger.debug(f"BP - API Error Message: {result.get('error')}")
+                        logger.debug(f"Flashed - API Error Message: {result.get('error')}")
                         if result.get('message'):
-                            logger.debug(f"BP - API Error Details: {result.get('message')}")
+                            logger.debug(f"Flashed - API Error Details: {result.get('message')}")
                 else:
-                    logger.info(f"BP - API Response Status: {response.status}")
+                    logger.info(f"Flashed - API Response Status: {response.status}")
                 
                 return result
         except aiohttp.ClientResponseError as e:
             # Enhanced error logging in development/debug mode
             if is_dev_debug:
-                logger.debug(f"BP - API Error: {str(e)}")
-                logger.debug(f"BP - API Error Status: {e.status}")
-                logger.debug(f"BP - API Error Message: {e.message}")
+                logger.debug(f"Flashed - API Error: {str(e)}")
+                logger.debug(f"Flashed - API Error Status: {e.status}")
+                logger.debug(f"Flashed - API Error Message: {e.message}")
                 
                 # Try to get the response body for more details
                 try:
                     if hasattr(e, 'history') and e.history:
                         response_text = await e.history[0].text()
-                        logger.debug(f"BP - API Error Response: {response_text}")
+                        logger.debug(f"Flashed - API Error Response: {response_text}")
                 except Exception as text_error:
-                    logger.debug(f"BP - Could not read error response: {str(text_error)}")
+                    logger.debug(f"Flashed - Could not read error response: {str(text_error)}")
             
             raise
 
@@ -269,7 +269,7 @@ class FlashedProvider():
         Returns:
             User energy data
         """
-        return await self._request("GET", f"/user-energy/{user_uuid}", header={"Authorization": self.auth_token})
+        return await self._request("GET", f"/check-energy/{user_uuid}", header={"Authorization": self.auth_token})
     
     async def check_user_pro_status(self, user_id: Optional[str] = None) -> bool:
         """Check if user has Pro status.
@@ -370,7 +370,7 @@ class FlashedProvider():
               - birthDate: Date of birth
               - metadata: Additional user metadata
         """
-        return await self._request("GET", f"/admin/user/{pretty_id}", header={"Authorization": self.auth_token})
+        return await self._request("GET", f"/user/{pretty_id}", header={"Authorization": self.auth_token})
 
     async def get_user_preferences(self, user_id: str) -> Dict[str, Any]:
         """Get user preferences.
@@ -404,3 +404,18 @@ class FlashedProvider():
             {"timestamp": "2023-01-01T12:05:00Z", "action": "search", "query": "math help"},
             {"timestamp": "2023-01-01T12:10:00Z", "action": "view_lesson", "lesson_id": "algebra-101"}
         ]
+
+    async def check_user_pro_status_by_phone(self, phone: str) -> Dict[str, Any]:
+        """Check if user has Pro status available via phone number.
+        
+        Args:
+            phone: User phone number
+            
+        Returns:
+            Dict containing:
+            - userId: User UUID
+            - isWhatsappProAvailable: Boolean indicating Pro availability
+            - llmModel: Recommended model ("light" or "pro")
+            - userFeedbackMessage: Message for user (optional)
+        """
+        return await self._request("GET", f"/is-whatsapp-pro-available/{phone}", header={"Authorization": self.auth_token})
