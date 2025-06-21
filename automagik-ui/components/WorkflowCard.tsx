@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getWorkflowStatus, WorkflowStatus } from '@/lib/api';
+import { getWorkflowStatus, killWorkflow, WorkflowStatus } from '@/lib/api';
 import { WorkflowStatusBadge } from '@/components/WorkflowStatusBadge';
 import { toast } from 'sonner';
 
@@ -13,6 +13,7 @@ interface WorkflowCardProps {
 export default function WorkflowCard({ initialWorkflow, onStatusChange }: WorkflowCardProps) {
   const [workflow, setWorkflow] = useState<WorkflowStatus>(initialWorkflow);
   const [isPolling, setIsPolling] = useState(false);
+  const [isKilling, setIsKilling] = useState(false);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -43,12 +44,19 @@ export default function WorkflowCard({ initialWorkflow, onStatusChange }: Workfl
           }
         } catch (error) {
           console.error('Failed to poll workflow status:', error);
-          // Don't stop polling on transient errors
+          // Stop polling after 3 consecutive errors to prevent spam
+          if (!window.workflowPollErrors) window.workflowPollErrors = {};
+          window.workflowPollErrors[workflow.run_id] = (window.workflowPollErrors[workflow.run_id] || 0) + 1;
+          if (window.workflowPollErrors[workflow.run_id] >= 3) {
+            console.warn(`Stopping polling for workflow ${workflow.run_id} after 3 consecutive errors`);
+            setIsPolling(false);
+            clearInterval(intervalId);
+          }
         }
       };
 
-      // Poll every 2 seconds (matching async-code-web)
-      intervalId = setInterval(pollStatus, 2000);
+      // Poll every 5 seconds (reduced from 2 seconds to reduce API spam)
+      intervalId = setInterval(pollStatus, 5000);
       
       // Initial poll immediately
       pollStatus();
@@ -233,13 +241,26 @@ export default function WorkflowCard({ initialWorkflow, onStatusChange }: Workfl
       {workflow.status === 'running' && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <button
-            className="text-sm text-red-600 hover:text-red-700 font-medium"
-            onClick={() => {
-              // TODO: Implement workflow cancellation
-              console.log('Cancel workflow:', workflow.run_id);
+            className="text-sm text-red-600 hover:text-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isKilling}
+            onClick={async () => {
+              setIsKilling(true);
+              try {
+                await killWorkflow(workflow.run_id, false); // Graceful kill first
+                toast.success('Workflow cancellation requested');
+                
+                // Update local state immediately
+                setWorkflow(prev => ({ ...prev, status: 'failed' }));
+                onStatusChange?.({ ...workflow, status: 'failed' });
+              } catch (error) {
+                console.error('Failed to cancel workflow:', error);
+                toast.error('Failed to cancel workflow');
+              } finally {
+                setIsKilling(false);
+              }
             }}
           >
-            Cancel Workflow
+            {isKilling ? 'Cancelling...' : 'Cancel Workflow'}
           </button>
         </div>
       )}

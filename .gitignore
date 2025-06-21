@@ -272,3 +272,4 @@ uv.lock
 
 # Backup files
 *.bak
+external_repos/
