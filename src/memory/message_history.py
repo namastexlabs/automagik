@@ -567,9 +567,15 @@ class MessageHistory:
                 return self._local_messages
             
             # Get all messages from the database
-            logger.debug(f"Retrieving all messages for session {self.session_id}")
+            logger.debug(f"Retrieving all messages for session {self.session_id}, user {self.user_id}")
             # IMPORTANT: Use sort_desc=False to get messages in chronological order (oldest first)
-            db_messages = list_messages(uuid.UUID(self.session_id), sort_desc=False)
+            # Use user-filtered retrieval when user_id is available to prevent history contamination
+            from src.db import list_messages_for_user
+            db_messages = list_messages_for_user(
+                uuid.UUID(self.session_id), 
+                user_id=self.user_id, 
+                sort_desc=False
+            )
             
             # Convert to PydanticAI format - only log detailed info in debug mode
             messages = self._convert_db_messages_to_model_messages(db_messages)
@@ -581,6 +587,40 @@ class MessageHistory:
         except Exception as e:
             import traceback
             logger.error(f"Error retrieving messages: {str(e)}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
+            # If DB fails, fall back to local storage
+            return self._local_messages
+    
+    def all_messages_unfiltered(self) -> List[ModelMessage]:
+        """Return all messages in the session regardless of user_id.
+        
+        This method is used internally for operations like user_id updates
+        where we need to access all messages in the session.
+        
+        Returns:
+            List of all messages in the session without user filtering
+        """
+        try:
+            # If in local-only mode, return local messages
+            if self._local_only:
+                return self._local_messages
+            
+            # Get all messages from the database without user filtering
+            logger.debug(f"Retrieving ALL messages for session {self.session_id} (unfiltered)")
+            # Use the original list_messages function to get all messages regardless of user
+            from src.db import list_messages
+            db_messages = list_messages(uuid.UUID(self.session_id), sort_desc=False)
+            
+            # Convert to PydanticAI format
+            messages = self._convert_db_messages_to_model_messages(db_messages)
+            if messages:
+                logger.debug(f"Retrieved and converted {len(messages)} unfiltered messages for session {self.session_id}")
+                return messages
+            # Fallback to in-memory messages
+            return self._local_messages
+        except Exception as e:
+            import traceback
+            logger.error(f"Error retrieving unfiltered messages: {str(e)}")
             logger.debug(f"Traceback: {traceback.format_exc()}")
             # If DB fails, fall back to local storage
             return self._local_messages
@@ -638,9 +678,12 @@ class MessageHistory:
         """
         try:
             # Get the last N messages from the database (most recent first)
-            logger.debug(f"Retrieving latest {limit} messages for session {self.session_id}")
-            db_messages = list_messages(
+            logger.debug(f"Retrieving latest {limit} messages for session {self.session_id}, user {self.user_id}")
+            # Use user-filtered retrieval when user_id is available to prevent history contamination
+            from src.db import list_messages_for_user
+            db_messages = list_messages_for_user(
                 uuid.UUID(self.session_id), 
+                user_id=self.user_id,
                 sort_desc=True, 
                 limit=limit
             )

@@ -46,6 +46,7 @@ from src.db.repository.session import (
 from src.db.repository.message import (
     get_message,
     list_messages,
+    list_messages_for_user,
     count_messages,
     create_message,
     update_message,
@@ -160,6 +161,7 @@ __all__ = [
     # Message functions
     "get_message",
     "list_messages",
+    "list_messages_for_user",
     "count_messages",
     "create_message",
     "update_message",

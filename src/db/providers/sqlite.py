@@ -307,27 +307,7 @@ class SQLiteProvider(DatabaseProvider):
                         CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(enabled);
                         CREATE INDEX IF NOT EXISTS idx_tools_mcp_server ON tools(mcp_server_name) WHERE mcp_server_name IS NOT NULL;
                         """,
-                        # tool_executions depends on tools table FK, so ensure tools first
-                        "tool_executions": """
-                        CREATE TABLE IF NOT EXISTS tool_executions (
-                            id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
-                            tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
-                            agent_name TEXT,
-                            session_id TEXT,
-                            parameters TEXT,
-                            context TEXT,
-                            status TEXT CHECK (status IN ('success', 'error', 'timeout')),
-                            result TEXT,
-                            error_message TEXT,
-                            execution_time_ms INTEGER,
-                            executed_at TEXT NOT NULL DEFAULT (datetime('now'))
-                        );
-                        CREATE INDEX IF NOT EXISTS idx_tool_executions_tool_id ON tool_executions(tool_id);
-                        CREATE INDEX IF NOT EXISTS idx_tool_executions_agent_name ON tool_executions(agent_name);
-                        CREATE INDEX IF NOT EXISTS idx_tool_executions_session_id ON tool_executions(session_id);
-                        CREATE INDEX IF NOT EXISTS idx_tool_executions_status ON tool_executions(status);
-                        CREATE INDEX IF NOT EXISTS idx_tool_executions_executed_at ON tool_executions(executed_at);
-                        """,
+                        # tool_executions table is handled by migrations, not schema initialization
                         "workflow_processes": """
                         CREATE TABLE IF NOT EXISTS workflow_processes (
                             run_id TEXT PRIMARY KEY,
@@ -427,6 +407,7 @@ class SQLiteProvider(DatabaseProvider):
             flagged TEXT,
             context TEXT DEFAULT '{}',
             channel_payload TEXT DEFAULT '{}',
+            usage TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
