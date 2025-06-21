@@ -111,6 +111,19 @@ from src.db.repository.workflow_process import (
     cleanup_old_processes
 )
 
+# Workflow Run repository functions
+from src.db.repository.workflow_run import (
+    create_workflow_run,
+    get_workflow_run,
+    get_workflow_run_by_run_id,
+    update_workflow_run,
+    update_workflow_run_by_run_id,
+    list_workflow_runs,
+    delete_workflow_run,
+    get_workflow_runs_by_session,
+    get_recent_workflow_runs
+)
+
 # Export all imported functions
 __all__ = [
     # Agent functions
@@ -203,4 +216,15 @@ __all__ = [
     "get_running_processes",
     "get_stale_processes",
     "cleanup_old_processes",
+    
+    # Workflow Run functions
+    "create_workflow_run",
+    "get_workflow_run",
+    "get_workflow_run_by_run_id",
+    "update_workflow_run",
+    "update_workflow_run_by_run_id",
+    "list_workflow_runs",
+    "delete_workflow_run",
+    "get_workflow_runs_by_session",
+    "get_recent_workflow_runs",
 ]

@@ -7,19 +7,19 @@ supporting workflow-based execution and async container management.
 import logging
 import uuid
 import asyncio
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Path, Body
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Path, Body, Query
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.log_manager import get_log_manager
-from src.agents.claude_code.raw_stream_processor import RawStreamProcessor
 from src.agents.claude_code.completion_tracker import CompletionTracker
 from src.agents.claude_code.result_extractor import ResultExtractor
 from src.agents.claude_code.progress_tracker import ProgressTracker
 from src.agents.claude_code.debug_builder import DebugBuilder
-from src.agents.claude_code.stream_parser import StreamParser
+from src.agents.claude_code.git_utils import get_git_file_changes, find_repo_root
 from src.agents.claude_code.models import (
     EnhancedStatusResponse,
     DebugStatusResponse,
@@ -149,6 +149,27 @@ class ClaudeCodeRunSummary(BaseModel):
     turns: Optional[int] = Field(None, description="Number of conversation turns")
     tool_calls: Optional[int] = Field(None, description="Number of tool calls made")
     result: Optional[str] = Field(None, description="Brief result summary")
+    
+    # Enhanced fields from workflow_runs
+    input_tokens: Optional[int] = Field(None, description="Input tokens used")
+    output_tokens: Optional[int] = Field(None, description="Output tokens used")
+    ai_model: Optional[str] = Field(None, description="AI model used")
+    session_name: Optional[str] = Field(None, description="Session name")
+    git_repo: Optional[str] = Field(None, description="Git repository")
+    git_branch: Optional[str] = Field(None, description="Git branch")
+    git_diff_summary: Optional[str] = Field(None, description="Git diff summary")
+    tools_used: Optional[List[str]] = Field(None, description="Tools used in the workflow")
+    workspace_path: Optional[str] = Field(None, description="Workspace path")
+    workspace_persistent: Optional[bool] = Field(None, description="Whether workspace is persistent")
+    workspace_cleaned_up: Optional[bool] = Field(None, description="Whether workspace was cleaned up")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    final_commit_hash: Optional[str] = Field(None, description="Final git commit hash")
+    
+    @computed_field
+    @property
+    def execution_time_seconds(self) -> Optional[float]:
+        """Alias for execution_time to maintain compatibility with QA tests."""
+        return self.execution_time
 
 
 class ClaudeCodeRunsListResponse(BaseModel):
@@ -193,6 +214,12 @@ async def run_claude_workflow(
         ..., description="The workflow to execute", example="architect"
     ),
     request: ClaudeWorkflowRequest = Body(...),
+    persistent: bool = Query(
+        True, description="Keep workspace after completion (true=keep, false=delete)"
+    ),
+    auto_merge: bool = Query(
+        False, description="Automatically merge to main branch (true=auto-merge, false=manual)"
+    ),
 ) -> ClaudeWorkflowResponse:
     """Execute Claude Code workflow with comprehensive configuration"""
     try:
@@ -277,6 +304,37 @@ async def run_claude_workflow(
             )
             session_id = session_repo.create_session(session)
 
+        # RESTORE MISSING MESSAGE PERSISTENCE
+        from src.memory.message_history import MessageHistory
+
+        # Create MessageHistory instance for this session
+        message_history = MessageHistory(
+            session_id=str(session_id), 
+            user_id=str(user_id) if user_id else None
+        )
+
+        # Store the user's workflow request message
+        user_message_id = message_history.add(
+            content=request.message,
+            agent_id=None,  # Will be set when workflow completes
+            context={
+                "workflow_name": workflow_name,
+                "run_id": run_id,
+                "request_type": "workflow_execution",
+                "max_turns": request.max_turns,
+                "repository_url": request.repository_url,
+                "git_branch": request.git_branch,
+                "persistent": persistent,
+                "timeout": request.timeout,
+                "session_continuation": session is not None,  # True if reusing existing session
+                "tool_calls": [],  # Initial request has no tool calls
+                "tool_outputs": [],
+                "raw_payload": request.dict()  # Store full request in context
+            }
+        )
+
+        logger.info(f"Stored user workflow request as message {user_message_id} (continuation: {session is not None})")
+
         # Start execution asynchronously without waiting for first response
         # This avoids stream contamination from trying to capture early output
         try:
@@ -290,12 +348,83 @@ async def run_claude_workflow(
                 "timeout": request.timeout,
                 "repository_url": request.repository_url,
                 "run_id": run_id,
+                "persistent": persistent,
             }
             
-            # Start workflow execution in background
-            asyncio.create_task(
-                agent.execute_workflow_background(**execution_params)
+            # SURGICAL FIX: Create workflow run record in database BEFORE execution starts
+            # This ensures the status endpoint can track the workflow immediately
+            from src.db.models import WorkflowRunCreate
+            from src.db.repository.workflow_run import create_workflow_run
+            
+            workflow_run_data = WorkflowRunCreate(
+                run_id=run_id,
+                workflow_name=workflow_name,
+                agent_type="claude_code",
+                ai_model=request.model if hasattr(request, 'model') else "claude-3-5-sonnet-20241022",
+                task_input=request.message,
+                session_id=str(session_id),
+                session_name=request.session_name or f"claude-code-{workflow_name}-{run_id}",
+                git_repo=request.repository_url,
+                git_branch=request.git_branch,
+                status="pending",
+                workspace_persistent=persistent,
+                user_id=user_id,
+                metadata={
+                    "max_turns": request.max_turns,
+                    "timeout": request.timeout,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "request": request.dict()
+                }
             )
+            
+            try:
+                workflow_run_id = create_workflow_run(workflow_run_data)
+                logger.info(f"Created workflow run record {workflow_run_id} for run_id {run_id}")
+            except Exception as db_error:
+                logger.warning(f"Failed to create workflow run record: {db_error}")
+                # Continue anyway - not critical for execution
+            
+            # SURGICAL FIX: Use proper background task with asyncio instead of raw threading
+            # This ensures proper lifecycle management and error handling
+            async def execute_workflow_with_isolation():
+                """Execute workflow with proper isolation and error handling."""
+                try:
+                    # Set isolation flag
+                    import os
+                    os.environ['BYPASS_TASKGROUP_DETECTION'] = 'true'
+                    
+                    # Update status to running
+                    from src.db.models import WorkflowRunUpdate
+                    from src.db.repository.workflow_run import update_workflow_run_by_run_id
+                    
+                    update_data = WorkflowRunUpdate(
+                        status="running",
+                        updated_at=datetime.utcnow()
+                    )
+                    update_workflow_run_by_run_id(run_id, update_data)
+                    
+                    # Execute workflow
+                    await agent.execute_workflow_background(**execution_params)
+                    
+                except Exception as e:
+                    logger.error(f"Workflow execution failed for {run_id}: {e}")
+                    # Update database with failure
+                    try:
+                        update_data = WorkflowRunUpdate(
+                            status="failed",
+                            error_message=str(e),
+                            completed_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+                        update_workflow_run_by_run_id(run_id, update_data)
+                    except:
+                        pass
+                finally:
+                    # Cleanup
+                    os.environ.pop('BYPASS_TASKGROUP_DETECTION', None)
+            
+            # Create background task properly
+            asyncio.create_task(execute_workflow_with_isolation())
             
             # Return immediately with pending status
             result = {
@@ -401,6 +530,9 @@ async def list_claude_code_runs(
     ```
     """
     try:
+        # Import workflow_runs repository for enhanced data
+        from src.db.repository.workflow_run import list_workflow_runs
+        
         # Validate parameters
         if page < 1:
             raise HTTPException(status_code=400, detail="Page must be >= 1")
@@ -422,183 +554,101 @@ async def list_claude_code_runs(
         if status and status not in ["pending", "running", "completed", "failed", "timeout"]:
             raise HTTPException(status_code=400, detail="Invalid status filter")
 
-        # Get all sessions that are Claude Code runs
-        sessions = session_repo.list_sessions()
-        claude_code_sessions = []
+        # Use workflow_runs table as primary data source for enhanced performance and accuracy
+        workflow_filters = {}
+        if status:
+            # Map timeout status to failed for workflow_runs table
+            workflow_filters['status'] = 'failed' if status == 'timeout' else status
+        if workflow_name:
+            workflow_filters['workflow_name'] = workflow_name
+        if user_id:
+            workflow_filters['user_id'] = user_id
+        
+        # Map sort fields for workflow_runs table
+        workflow_sort_map = {
+            'started_at': 'created_at',
+            'completed_at': 'completed_at', 
+            'execution_time': 'duration_seconds',
+            'total_cost': 'cost_estimate'
+        }
+        workflow_sort_by = workflow_sort_map.get(sort_by, 'created_at')
+        
+        # Get workflow runs with comprehensive data
+        workflow_runs, total_count = list_workflow_runs(
+            filters=workflow_filters,
+            page=page,
+            page_size=page_size,
+            order_by=workflow_sort_by,
+            order_direction=sort_order.upper()
+        )
 
-        for session in sessions:
-            metadata = session.metadata or {}
-            run_id = metadata.get("run_id")
-            session_workflow = metadata.get("workflow_name")
-            session_status = metadata.get("run_status")
-
-            # Filter for Claude Code sessions only
-            if not run_id or metadata.get("agent_type") != "claude-code":
-                continue
-
-            # Apply filters
-            if status and session_status != status:
-                continue
-            if workflow_name and session_workflow != workflow_name:
-                continue
-            if user_id and str(session.user_id) != user_id:
-                continue
-
-            claude_code_sessions.append((session, metadata))
-
-        # Process runs and extract metrics
+        # Process workflow runs with comprehensive database data
         runs_data = []
-        log_manager = get_log_manager()
-
-        for session, metadata in claude_code_sessions:
-            run_id = metadata.get("run_id")
-
-            # Get execution metrics from logs using raw stream processor
-            log_entries = await log_manager.get_logs(run_id, follow=False)
+        
+        for workflow_run in workflow_runs:
+            # Calculate execution time if not stored
+            execution_time = workflow_run.duration_seconds
+            if not execution_time and workflow_run.completed_at and workflow_run.created_at:
+                delta = workflow_run.completed_at - workflow_run.created_at
+                execution_time = int(delta.total_seconds())
             
-            # Use raw stream processor to extract comprehensive metrics
-            processor = RawStreamProcessor()
+            # Extract metadata for additional context
+            metadata = workflow_run.metadata or {}
+            tools_used = metadata.get('tools_used', [])
             
-            # Process all claude stream events to extract accurate metrics
-            for entry in log_entries:
-                event_type = entry.get("event_type", "")
-                data = entry.get("data", {})
-                
-                # Process Claude CLI stream events (use parsed events only to avoid duplication)
-                if event_type.startswith("claude_stream_") and event_type not in ["claude_stream_raw"]:
-                    if isinstance(data, dict):
-                        # Process parsed JSON events only (not raw strings)
-                        processor.process_event(data)
-                
-                # Also try to process claude_output events (legacy format)
-                elif event_type == "claude_output":
-                    if isinstance(data, dict) and "message" in data:
-                        message = data["message"]
-                        if isinstance(message, str) and message.strip().startswith("{"):
-                            processor.process_line(message.strip())
-            
-            # Get comprehensive metrics from processor
-            metrics = processor.get_metrics()
-            
-            # Build execution stats from processed metrics
-            execution_stats = {
-                "total_turns": metrics.total_turns,
-                "tool_calls": metrics.tool_calls,
-                "cost_usd": metrics.total_cost_usd,  # Using correct field name
-                "total_tokens": metrics.total_tokens,  # Comprehensive token sum
-                "duration_ms": metrics.duration_ms,
-            }
-
-            # Calculate execution time
-            execution_time = None
-            started_at_str = metadata.get("started_at")
-            completed_at_str = metadata.get("completed_at")
-            completed_at = None
-
-            if started_at_str and completed_at_str:
+            # Get result summary from workflow_run or metadata
+            result_summary = workflow_run.result
+            if not result_summary and workflow_run.session_id:
+                # Fallback: get latest message for session if no result stored
                 try:
-                    start_time = datetime.fromisoformat(
-                        started_at_str.replace("Z", "+00:00")
-                    )
-                    end_time = datetime.fromisoformat(
-                        completed_at_str.replace("Z", "+00:00")
-                    )
-                    execution_time = (end_time - start_time).total_seconds()
-                    completed_at = end_time
+                    from src.db.repository import message as message_repo
+                    messages = message_repo.list_messages(workflow_run.session_id)
+                    assistant_messages = [msg for msg in messages if msg.role == "assistant"]
+                    if assistant_messages:
+                        latest = assistant_messages[-1]
+                        result_text = latest.text_content or ""
+                        result_summary = (
+                            result_text.split(".")[0][:200] + "..."
+                            if len(result_text) > 200
+                            else result_text
+                        )
                 except Exception:
-                    pass
-            elif execution_stats["duration_ms"] > 0:
-                execution_time = execution_stats["duration_ms"] / 1000.0
+                    result_summary = None
+            
+            # Build comprehensive run data from workflow_runs table
+            run_data = {
+                "run_id": workflow_run.run_id,
+                "status": workflow_run.status,
+                "workflow_name": workflow_run.workflow_name,
+                "started_at": workflow_run.created_at,
+                "completed_at": workflow_run.completed_at,
+                "execution_time": execution_time,
+                "total_tokens": workflow_run.total_tokens,
+                "total_cost": float(workflow_run.cost_estimate) if workflow_run.cost_estimate else None,
+                "turns": metadata.get("total_turns"),
+                "tool_calls": len(tools_used) if tools_used else None,
+                "result": result_summary,
+                # Enhanced fields from workflow_runs
+                "input_tokens": workflow_run.input_tokens,
+                "output_tokens": workflow_run.output_tokens,
+                "ai_model": workflow_run.ai_model,
+                "session_name": workflow_run.session_name,
+                "git_repo": workflow_run.git_repo,
+                "git_branch": workflow_run.git_branch,
+                "git_diff_summary": workflow_run.get_git_diff_summary(),
+                "tools_used": tools_used,
+                "workspace_path": workflow_run.workspace_path,
+                "workspace_persistent": workflow_run.workspace_persistent,
+                "workspace_cleaned_up": workflow_run.workspace_cleaned_up,
+                "error_message": workflow_run.error_message,
+                "final_commit_hash": workflow_run.final_commit_hash
+            }
+            
+            runs_data.append(run_data)
 
-            # Get latest assistant message for result summary
-            from src.db.repository import message as message_repo
-
-            messages = message_repo.list_messages(session.id)
-            assistant_messages = [msg for msg in messages if msg.role == "assistant"]
-            result_summary = None
-            if assistant_messages:
-                latest = assistant_messages[-1]
-                result_text = latest.text_content or ""
-                # Extract first sentence or first 200 chars as summary
-                result_summary = (
-                    result_text.split(".")[0][:200] + "..."
-                    if len(result_text) > 200
-                    else result_text
-                )
-
-            # For running workflows, use current progress data if available
-            status = metadata.get("run_status", "unknown")
-            if status == "running":
-                # Use real-time progress data
-                runs_data.append(
-                    {
-                        "run_id": run_id,
-                        "status": status,
-                        "workflow_name": metadata.get("workflow_name", "unknown"),
-                        "started_at": session.created_at,
-                        "completed_at": completed_at,
-                        "execution_time": execution_time,
-                        "total_tokens": metadata.get("current_tokens") or execution_stats.get("total_tokens") or None,
-                        "total_cost": metadata.get("current_cost_usd") or execution_stats.get("cost_usd") or None,
-                        "turns": metadata.get("current_turns") or execution_stats.get("total_turns") or None,
-                        "tool_calls": metadata.get("current_tool_calls") or execution_stats.get("tool_calls") or None,
-                        "result": metadata.get("progress_indicator") or result_summary,
-                        # Additional real-time fields
-                        "last_updated": metadata.get("last_updated"),
-                        "elapsed_seconds": metadata.get("elapsed_seconds"),
-                        "recent_activity": metadata.get("recent_steps", {}),
-                        "claude_session_id": metadata.get("claude_session_id"),
-                        "tools_used_so_far": metadata.get("tools_used_so_far", [])
-                    }
-                )
-            else:
-                # Use final completion data
-                runs_data.append(
-                    {
-                        "run_id": run_id,
-                        "status": status,
-                        "workflow_name": metadata.get("workflow_name", "unknown"),
-                        "started_at": session.created_at,
-                        "completed_at": completed_at,
-                        "execution_time": execution_time,
-                        "total_tokens": metadata.get("total_tokens") or execution_stats.get("total_tokens") or None,
-                        "total_cost": metadata.get("total_cost_usd") or execution_stats.get("cost_usd") or None,
-                        "turns": metadata.get("total_turns") or execution_stats.get("total_turns") or None,
-                        "tool_calls": metadata.get("tool_calls") or execution_stats.get("tool_calls") or None,
-                        "result": result_summary,
-                        # Completion-specific fields
-                        "claude_session_id": metadata.get("claude_session_id"),
-                        "tool_names_used": metadata.get("tool_names_used", []),
-                        "success": metadata.get("success"),
-                        "error_message": metadata.get("error_message"),
-                        "model_used": metadata.get("model_used")
-                    }
-                )
-
-        # Sort runs
-        reverse_sort = sort_order == "desc"
-        if sort_by == "started_at":
-            runs_data.sort(
-                key=lambda x: x["started_at"] or datetime.min, reverse=reverse_sort
-            )
-        elif sort_by == "completed_at":
-            runs_data.sort(
-                key=lambda x: x["completed_at"] or datetime.min, reverse=reverse_sort
-            )
-        elif sort_by == "execution_time":
-            runs_data.sort(key=lambda x: x["execution_time"] or 0, reverse=reverse_sort)
-        elif sort_by == "total_cost":
-            runs_data.sort(key=lambda x: x["total_cost"] or 0, reverse=reverse_sort)
-
-        # Paginate
-        total_count = len(runs_data)
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_runs = runs_data[start_idx:end_idx]
-
-        # Convert to response models
+        # Convert to response models (workflow_runs already handled sorting and pagination)
         run_summaries = [
-            ClaudeCodeRunSummary(**run_data) for run_data in paginated_runs
+            ClaudeCodeRunSummary(**run_data) for run_data in runs_data
         ]
 
         return ClaudeCodeRunsListResponse(
@@ -606,7 +656,7 @@ async def list_claude_code_runs(
             total_count=total_count,
             page=page,
             page_size=page_size,
-            has_next=end_idx < total_count,
+            has_next=(page * page_size) < total_count,
         )
 
     except HTTPException:
@@ -619,7 +669,8 @@ async def list_claude_code_runs(
 @claude_code_router.get("/run/{run_id}/status")
 async def get_claude_code_run_status(
     run_id: str, 
-    debug: bool = False
+    debug: bool = False,
+    detailed: bool = False
 ):
     """
     Get enhanced status of a Claude-Code run with simplified structure.
@@ -639,6 +690,7 @@ async def get_claude_code_run_status(
 
     **Parameters:**
     - `debug` (optional): If true, includes detailed debug information in 12 structured sections
+    - `detailed` (optional): If true, includes enhanced rich information (unified with debug)
 
     **Examples:**
     ```bash
@@ -653,251 +705,351 @@ async def get_claude_code_run_status(
     Enhanced status with progress, metrics, results, and optional debug information.
     """
     try:
-        # Find session by run_id
-        sessions = session_repo.list_sessions()
-
-        target_session = None
-        for session in sessions:
-            if session.metadata and session.metadata.get("run_id") == run_id:
-                target_session = session
-                break
-
-        if not target_session:
-            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-
-        metadata = target_session.metadata or {}
-
-        # Parse JSON stream file as primary source of truth
-        stream_events = StreamParser.parse_stream_file(run_id)
+        # Get workflow run data first (primary data source)
+        from src.db.repository.workflow_run import get_workflow_run_by_run_id
         
-        # Use stream parser to extract data
-        stream_status = StreamParser.get_current_status(stream_events)
-        stream_result = StreamParser.extract_result(stream_events)
-        stream_metrics = StreamParser.extract_metrics(stream_events)
-        stream_progress = StreamParser.get_progress_info(stream_events, metadata.get("max_turns"))
-        stream_session = StreamParser.extract_session_info(stream_events)
+        workflow_run = get_workflow_run_by_run_id(run_id)
+        if not workflow_run:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        
+        # Find session for additional context (if available)
+        target_session = None
+        if workflow_run.session_id:
+            try:
+                from src.db import get_session
+                target_session = get_session(workflow_run.session_id)
+            except Exception:
+                pass
+        
+        # Fallback: find session by run_id in metadata
+        if not target_session:
+            sessions = session_repo.list_sessions()
+            for session in sessions:
+                if session.metadata and session.metadata.get("run_id") == run_id:
+                    target_session = session
+                    break
+        
+        # Use workflow_run metadata as primary source, fallback to session metadata
+        workflow_metadata = {}
+        if workflow_run.metadata:
+            try:
+                # Parse workflow metadata (stored as JSON string)
+                if isinstance(workflow_run.metadata, str):
+                    workflow_metadata = json.loads(workflow_run.metadata)
+                else:
+                    workflow_metadata = workflow_run.metadata
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"Failed to parse workflow metadata for {run_id}: {e}")
+                workflow_metadata = {}
+        
+        # Merge with session metadata (session metadata as fallback)
+        session_metadata = target_session.metadata or {} if target_session else {}
+        metadata = {**session_metadata, **workflow_metadata}  # workflow_metadata takes precedence
+        
+        # CRITICAL FIX: Map workflow_run database fields to expected metadata format for result extractor
+        # The result extractor expects specific metadata fields that need to be populated from database
+        if workflow_run.status == "completed" and workflow_run.completed_at:
+            metadata["success"] = True
+            metadata["run_status"] = "completed"
+            metadata["completed_at"] = workflow_run.completed_at
+        elif workflow_run.status == "failed" or workflow_run.error_message:
+            metadata["success"] = False
+            metadata["run_status"] = "failed"
+        elif workflow_run.status == "running":
+            metadata["success"] = None  # Undefined for running workflows
+            metadata["run_status"] = "running"
+        
+        # Add final result if available
+        if workflow_run.result:
+            metadata["final_result"] = workflow_run.result
+
+        # Try to get real-time data from SDK executor first
+        sdk_status_data = None
+        try:
+            from src.agents.models.agent_factory import AgentFactory
+            agent = AgentFactory.create_agent("claude-code", {})
+            if hasattr(agent, 'executor') and hasattr(agent.executor, 'get_execution_status'):
+                sdk_status_data = agent.executor.get_execution_status(run_id)
+                logger.debug(f"SDK status data retrieved for {run_id}: {bool(sdk_status_data)}")
+        except Exception as e:
+            logger.debug(f"Could not get SDK status data: {e}")
+        
+        # All data comes from SDK and database - no legacy stream files
         
         # Get messages for additional context
         from src.db.repository import message as message_repo
         messages = message_repo.list_messages(target_session.id)
         assistant_messages = [msg for msg in messages if msg.role == "assistant"]
 
-        # Get live logs from log manager (for fallback/supplementary info)
-        log_manager = get_log_manager()
-        log_entries = await log_manager.get_logs(run_id, follow=False)
+        # SURGICAL AMPUTATION: Removed dead log file code - we use database only now
+        log_entries = []  # Empty list for legacy compatibility
 
         # Initialize enhanced components
         result_extractor = ResultExtractor()
         progress_tracker = ProgressTracker()
         debug_builder = DebugBuilder()
 
-        # Extract meaningful final result
-        result_info = result_extractor.extract_final_result(
-            log_entries, assistant_messages, metadata
-        )
+        # Extract meaningful final result with error handling
+        try:
+            result_info = result_extractor.extract_final_result(
+                log_entries, assistant_messages, metadata
+            )
+        except Exception as e:
+            logger.error(f"Error extracting final result for {run_id}: {e}")
+            result_info = {
+                "success": False,
+                "completion_type": "error",
+                "message": "❌ Error extracting workflow results",
+                "final_output": None
+            }
 
         # Calculate enhanced progress
         progress_info = progress_tracker.calculate_progress(
             metadata, log_entries, assistant_messages
         )
 
-        # Extract metrics from session metadata (primary source) and log entries (detailed breakdown)
-        stream_metrics = {}
+        # SURGICAL FIX: Prioritize workflow_runs database data over session metadata
+        # The database now contains the accurate, final data from SDK execution persistence
+        execution_results = metadata.get("execution_results", {})
+        token_details = execution_results.get("token_details", {})
         
-        # Primary metrics from session metadata (already summarized)
-        stream_metrics.update({
-            "cost_usd": metadata.get("total_cost_usd", 0.0),
-            "total_tokens": metadata.get("total_tokens", 0),
-            "duration_ms": metadata.get("duration_ms", 0),
-            "num_turns": metadata.get("total_turns", metadata.get("current_turns", 0))
-        })
+        # Primary metrics from workflow_runs table (most reliable after surgical fix)
+        real_cost = workflow_run.cost_estimate if workflow_run and workflow_run.cost_estimate is not None else metadata.get("total_cost_usd", 0.0)
+        real_total_tokens = workflow_run.total_tokens if workflow_run and workflow_run.total_tokens is not None else metadata.get("total_tokens", 0)
+        real_input_tokens = workflow_run.input_tokens if workflow_run and workflow_run.input_tokens is not None else metadata.get("input_tokens", token_details.get("input_tokens", 0))
+        real_output_tokens = workflow_run.output_tokens if workflow_run and workflow_run.output_tokens is not None else metadata.get("output_tokens", token_details.get("output_tokens", 0))
         
-        # Detailed token breakdown from log entries
-        input_tokens = 0
-        output_tokens = 0
-        cache_creation_tokens = 0
-        cache_read_tokens = 0
+        # Turns and cache data still from metadata (not stored in workflow_runs yet)
+        real_turns = metadata.get("total_turns", 0)
+        real_cache_created = metadata.get("cache_created", token_details.get("cache_created", 0))
+        real_cache_read = metadata.get("cache_read", token_details.get("cache_read", 0))
         
-        if log_entries:
-            try:
-                for entry in log_entries:
-                    if isinstance(entry, dict):
-                        event_type = entry.get("event_type", "")
-                        data = entry.get("data", {})
-                        
-                        # Parse Claude stream assistant messages for token usage
-                        if event_type == "claude_stream_assistant" and isinstance(data, dict):
-                            message = data.get("message", {})
-                            usage = message.get("usage", {})
-                            if usage:
-                                input_tokens += usage.get("input_tokens", 0)
-                                output_tokens += usage.get("output_tokens", 0)
-                                cache_creation_tokens += usage.get("cache_creation_input_tokens", 0)
-                                cache_read_tokens += usage.get("cache_read_input_tokens", 0)
-                        
-                        # Also check for completion events with final metrics
-                        elif event_type == "execution_complete" and isinstance(data, dict):
-                            if "cost_usd" in data:
-                                stream_metrics["cost_usd"] = data["cost_usd"]
-                            if "total_tokens" in data:
-                                stream_metrics["total_tokens"] = data["total_tokens"]
-                
-                # Update stream metrics with detailed breakdown
-                if input_tokens > 0 or output_tokens > 0:
-                    stream_metrics.update({
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens,
-                        "cache_created": cache_creation_tokens,
-                        "cache_read": cache_read_tokens
-                    })
-                        
-            except Exception as e:
-                logger.debug(f"Error extracting detailed token metrics: {e}")
-                
-        # Fallback to metadata if log parsing failed
-        if not stream_metrics.get("input_tokens") and not stream_metrics.get("output_tokens"):
-            stream_metrics.update({
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "cache_created": 0,
-                "cache_read": 0
-            })
+        # Calculate execution time from metadata if available
+        execution_time_from_metadata = 0
+        if execution_results.get("execution_time"):
+            execution_time_from_metadata = int(execution_results.get("execution_time", 0) * 1000)  # Convert to ms
+        elif metadata.get("duration_ms"):
+            execution_time_from_metadata = metadata.get("duration_ms", 0)
+        
+        # Build comprehensive metrics using session metadata as primary source
+        workflow_metrics = {
+            "cost_usd": real_cost,
+            "total_tokens": real_total_tokens,
+            "input_tokens": real_input_tokens,
+            "output_tokens": real_output_tokens,
+            "cache_created": real_cache_created,
+            "cache_read": real_cache_read,
+            "duration_ms": execution_time_from_metadata,
+            "num_turns": real_turns
+        }
+        
+        logger.info(f"Status endpoint for {run_id}: Using session metadata - "
+                   f"Cost: ${real_cost:.4f}, Tokens: {real_total_tokens}, Turns: {real_turns}, "
+                   f"Tools: {len(metadata.get('tools_used', []))}")
 
         # Calculate cache efficiency
-        cache_created = stream_metrics.get("cache_created", 0)
-        cache_read = stream_metrics.get("cache_read", 0)
+        cache_created = workflow_metrics.get("cache_created", 0)
+        cache_read = workflow_metrics.get("cache_read", 0)
         cache_efficiency = 0.0
         if cache_created + cache_read > 0:
             cache_efficiency = (cache_read / (cache_created + cache_read)) * 100
 
         # Build token info
         token_info = TokenInfo(
-            total=stream_metrics.get("total_tokens", metadata.get("current_tokens", 0)),
-            input=stream_metrics.get("input_tokens", 0),
-            output=stream_metrics.get("output_tokens", 0),
+            total=workflow_metrics.get("total_tokens", metadata.get("current_tokens", 0)),
+            input=workflow_metrics.get("input_tokens", 0),
+            output=workflow_metrics.get("output_tokens", 0),
             cache_created=cache_created,
             cache_read=cache_read,
             cache_efficiency=round(cache_efficiency, 1)
         )
 
-        # Extract tools used - prioritize metadata, supplement with log analysis
-        tools_used = metadata.get("tools_used_so_far", [])
+        # Extract tools used from session metadata (primary source)
+        tools_used = metadata.get("tools_used", metadata.get("tool_names_used", []))
         
-        # If no tools in metadata, extract from log entries
-        if not tools_used:
-            tools_used = []
-            for entry in log_entries:
-                if isinstance(entry, dict):
-                    event_type = entry.get("event_type", "")
-                    data = entry.get("data", {})
-                    
-                    # Check for tool usage in Claude stream assistant messages
-                    if event_type == "claude_stream_assistant" and isinstance(data, dict):
-                        message = data.get("message", {})
-                        content = message.get("content", [])
-                        for item in content:
-                            if isinstance(item, dict) and item.get("type") == "tool_use":
-                                tool_name = item.get("name")
-                                if tool_name and tool_name not in tools_used:
-                                    tools_used.append(tool_name)
-                    
-                    # Also check for direct tool_name in data
-                    elif isinstance(data, dict):
-                        tool_name = data.get('tool_name')
-                        if tool_name and tool_name not in tools_used:
-                            tools_used.append(tool_name)
+        # Get tool usage count from metadata or calculated from tools list
+        tool_calls_count = metadata.get("tool_calls", len(tools_used) if tools_used else 0)
+        
+        logger.debug(f"Tools used for {run_id}: {tools_used} (count: {tool_calls_count})")
 
-        # Build metrics info using stream data as primary source
+        # Build metrics info using session metadata as primary source
         metrics_info = MetricsInfo(
-            cost_usd=stream_metrics.get("cost_usd", metadata.get("current_cost_usd", 0.0)),
+            cost_usd=workflow_metrics.get("cost_usd", 0.0),
             tokens=token_info,
             tools_used=tools_used[:10],  # Limit to first 10 tools
-            api_duration_ms=stream_metrics.get("duration_ms"),
-            performance_score=85.0 if result_info["success"] else 60.0  # Simple scoring
+            api_duration_ms=workflow_metrics.get("duration_ms", 0),
+            performance_score=85.0 if metadata.get("success", False) else 60.0  # Simple scoring
         )
 
-        # Build progress info - prioritize StreamParser, but detect workflow completion
-        stream_completion = stream_progress.get("completion_percentage", 0)
+        # Determine workflow status early for use in progress calculations
+        # Use proper status priority: workflow_run database > session metadata > SDK
+        workflow_status = workflow_run.status or "unknown"
+        if workflow_status == "unknown":
+            workflow_status = metadata.get("run_status", "unknown")
+        if workflow_status == "unknown" and sdk_status_data and sdk_status_data.get("status"):
+            workflow_status = sdk_status_data.get("status")
+
+        # Build progress info - use database status and progress tracker
         tracker_completion = progress_info["completion_percentage"]
         
         # If workflow is complete (success/failure), force 100% completion
-        if result_info.get("success") is not None:  # Workflow has finished (success or failure)
+        if workflow_status in ["completed", "failed"]:  # Workflow has finished
             final_completion = 100
-        elif stream_completion > 0:  # StreamParser has valid progress
-            final_completion = stream_completion
-        else:  # Fall back to ProgressTracker only if workflow is still running
-            final_completion = tracker_completion
-        
-        # Determine if workflow is still running
-        if result_info.get("success") is not None:  # Workflow has finished
             final_is_running = False
-        else:
-            final_is_running = stream_progress.get("is_running", progress_info["is_running"])
+        else:  # Use progress tracker for running workflows
+            final_completion = tracker_completion
+            final_is_running = progress_info["is_running"]
         
+        # Get real turn count from metadata (primary source)
+        real_turns = metadata.get("total_turns", metadata.get("current_turns", 0))
+        max_turns = metadata.get("max_turns")
+        
+        # If no turns in metadata and we have execution_results, try to get from there
+        if real_turns == 0 and execution_results:
+            real_turns = execution_results.get("total_turns", 0)
+        
+        logger.debug(f"Turns for {run_id}: {real_turns}/{max_turns or 'unlimited'}")
+        
+        # Determine current phase based on progress and status
+        if result_info.get("success") is not None:
+            current_phase = "completed" if result_info.get("success") else "failed"
+        elif final_completion > 80:
+            current_phase = "finalizing"
+        elif final_completion > 50:
+            current_phase = "implementation"
+        elif final_completion > 20:
+            current_phase = "analysis"
+        else:
+            current_phase = "initializing"
+            
         progress_info_obj = ProgressInfo(
-            turns=stream_progress.get("turns", progress_info["turns"]),
-            max_turns=stream_progress.get("max_turns", progress_info["max_turns"]),
+            turns=real_turns,
+            max_turns=max_turns,
             completion_percentage=final_completion,
-            current_phase=stream_progress.get("current_phase", progress_info["current_phase"]),
-            phases_completed=progress_info["phases_completed"],  # Keep from original
+            current_phase=current_phase,
+            phases_completed=["initializing"] if final_completion > 20 else [],
             is_running=final_is_running,
-            estimated_completion=progress_info["estimated_completion"]  # Keep from original
+            estimated_completion=progress_info["estimated_completion"]
         )
 
-        # Extract files created
-        files_created = result_extractor.extract_files_created(log_entries)
-
-        # Build result info
-        result_info_obj = ResultInfo(
-            success=result_info["success"],
-            completion_type=result_info["completion_type"],
-            message=result_info["message"],
-            final_output=result_info["final_output"],
-            files_created=files_created,
-            git_commits=metadata.get("git_commits", [])
-        )
-
-        # Calculate times and determine correct status
+        # Calculate times
         started_at = target_session.created_at
         completed_at = None
         execution_time_seconds = None
         
-        # Use stream status as primary source, fallback to metadata
-        workflow_status = stream_status or metadata.get("run_status", "unknown")
-        completed_at_str = metadata.get("completed_at")
+        # Get completion time from database (primary source), then metadata
+        if workflow_run.completed_at:
+            completed_at = workflow_run.completed_at
+            execution_time_seconds = workflow_run.duration_seconds
+        else:
+            # Fallback to metadata
+            completed_at_str = metadata.get("completed_at")
+            if completed_at_str:
+                try:
+                    completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+                    execution_time_seconds = (completed_at - started_at).total_seconds()
+                except Exception as e:
+                    logger.debug(f"Could not parse completed_at from metadata: {e}")
+            
+            # Try execution_results if no direct execution time
+            if execution_time_seconds is None and execution_results.get("execution_time"):
+                execution_time_seconds = execution_results.get("execution_time")
         
-        if completed_at_str:
-            try:
-                completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
-                execution_time_seconds = (completed_at - started_at).total_seconds()
-                # If we have completion time, status should be completed
-                if workflow_status in ["running", "unknown"]:
-                    workflow_status = "completed"
-            except Exception:
-                pass
-        
-        # Check if workflow actually completed based on success flag and final result
-        if metadata.get("success") is not None and metadata.get("final_result"):
-            if workflow_status in ["running", "unknown"]:
+        # Ensure status consistency with completion data
+        if metadata.get("success") is not None:
+            if metadata.get("success"):
                 workflow_status = "completed"
+            else:
+                workflow_status = "failed"
+        
+        logger.debug(f"Status for {run_id}: {workflow_status}, execution_time: {execution_time_seconds}s")
 
-        # Build enhanced response
-        enhanced_response = EnhancedStatusResponse(
-            run_id=run_id,
-            status=workflow_status,
-            workflow_name=metadata.get("workflow_name", "unknown"),
-            started_at=started_at,
-            completed_at=completed_at,
-            execution_time_seconds=execution_time_seconds,
-            progress=progress_info_obj,
-            metrics=metrics_info,
-            result=result_info_obj
+        # Extract files created
+        files_created = result_extractor.extract_files_created(log_entries)
+        
+        # Get git file changes if workflow is completed and we have git commits
+        git_file_changes = []
+        if workflow_status in ["completed", "failed"] and metadata.get("git_commits"):
+            try:
+                # Find the repository root (could be worktree or main repo)
+                repo_path = await find_repo_root()
+                if repo_path:
+                    # Get file changes from the latest commit
+                    git_file_changes = await get_git_file_changes(repo_path, "HEAD~1")
+                    logger.debug(f"Retrieved {len(git_file_changes)} git file changes for {run_id}")
+            except Exception as e:
+                logger.warning(f"Could not retrieve git file changes for {run_id}: {e}")
+
+        # Build result info with defensive access
+        # Handle case where result_info might be None or missing keys
+        if not result_info or not isinstance(result_info, dict):
+            logger.warning(f"Invalid result_info for {run_id}: {result_info}")
+            result_info = {
+                "success": False,
+                "completion_type": "error",
+                "message": "❌ Error extracting workflow results",
+                "final_output": None
+            }
+        
+        result_info_obj = ResultInfo(
+            success=result_info.get("success", False),
+            completion_type=result_info.get("completion_type", "unknown"),
+            message=result_info.get("message", "Status unavailable"),
+            final_output=result_info.get("final_output"),
+            files_created=files_created,
+            git_commits=metadata.get("git_commits", []),
+            files_changed=git_file_changes
         )
 
-        # Add debug information if requested
-        if debug:
+        # Build enhanced response - prioritize session metadata for completed workflows
+        # For completed workflows, session metadata is the most accurate source
+        if workflow_status in ["completed", "failed"] or metadata.get("success") is not None:
+            # Use session metadata as primary source for completed workflows
+            logger.info(f"Using session metadata for completed workflow {run_id}")
+            enhanced_response = EnhancedStatusResponse(
+                run_id=run_id,
+                status=workflow_status,
+                workflow_name=metadata.get("workflow_name", "unknown"),
+                started_at=started_at,
+                completed_at=completed_at,
+                execution_time_seconds=execution_time_seconds,
+                progress=progress_info_obj,
+                metrics=metrics_info,
+                result=result_info_obj
+            )
+        elif sdk_status_data:
+            # Use SDK stream processor data for running workflows
+            logger.info(f"Using real-time SDK status data for running workflow {run_id}")
+            enhanced_response = EnhancedStatusResponse(
+                run_id=run_id,
+                status=sdk_status_data.get("status", workflow_status),
+                workflow_name=sdk_status_data.get("workflow_name", metadata.get("workflow_name", "unknown")),
+                started_at=datetime.fromisoformat(sdk_status_data["started_at"]) if sdk_status_data.get("started_at") else started_at,
+                completed_at=datetime.fromisoformat(sdk_status_data["completed_at"]) if sdk_status_data.get("completed_at") else completed_at,
+                execution_time_seconds=sdk_status_data.get("execution_time_seconds", execution_time_seconds),
+                progress=ProgressInfo(**sdk_status_data["progress"]),
+                metrics=MetricsInfo(**sdk_status_data["metrics"]),
+                result=ResultInfo(**sdk_status_data["result"])
+            )
+        else:
+            # Fallback to session metadata for all other cases
+            logger.debug(f"Using session metadata fallback for run {run_id}")
+            enhanced_response = EnhancedStatusResponse(
+                run_id=run_id,
+                status=workflow_status,
+                workflow_name=metadata.get("workflow_name", "unknown"),
+                started_at=started_at,
+                completed_at=completed_at,
+                execution_time_seconds=execution_time_seconds,
+                progress=progress_info_obj,
+                metrics=metrics_info,
+                result=result_info_obj
+            )
+
+        # Add debug information if requested (unified debug/detailed behavior)
+        if debug or detailed:
             debug_info = debug_builder.build_debug_response(
-                metadata, log_entries, assistant_messages, stream_metrics
+                metadata, log_entries, assistant_messages, workflow_metrics
             )
             
             return DebugStatusResponse(
@@ -1022,9 +1174,13 @@ async def kill_claude_code_run(
         
         if not kill_result:
             # Try alternative kill methods if executor didn't find the process
-            from src.agents.claude_code.cli_executor import ClaudeCLIExecutor
-            cli_executor = ClaudeCLIExecutor()
-            kill_result = await cli_executor.cancel_execution(run_id)
+            # Use SDK executor for consistent process management
+            from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+            from src.agents.claude_code.cli_environment import CLIEnvironmentManager
+            
+            env_manager = CLIEnvironmentManager()
+            sdk_executor = ClaudeSDKExecutor(environment_manager=env_manager)
+            kill_result = await sdk_executor.cancel_execution(run_id)
         
         # Update session metadata with kill information
         kill_time = datetime.utcnow()
@@ -1100,14 +1256,19 @@ async def claude_code_health() -> Dict[str, Any]:
             "feature_enabled": False,
         }
 
-        # Check if claude CLI is available
-        from src.agents.claude_code.cli_executor import (
-            is_claude_available,
-            get_claude_path,
-        )
-
-        claude_available = is_claude_available()
-        claude_path = get_claude_path()
+        # Check if SDK executor is available
+        try:
+            from src.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+            from src.agents.claude_code.cli_environment import CLIEnvironmentManager
+            
+            # Test SDK executor availability
+            env_manager = CLIEnvironmentManager()
+            ClaudeSDKExecutor(environment_manager=env_manager)  # Test instantiation
+            claude_available = True
+            claude_path = "SDK Executor (Post-Migration)"
+        except Exception as e:
+            claude_available = False
+            claude_path = f"SDK Executor unavailable: {str(e)}"
 
         health_status["feature_enabled"] = claude_available
         health_status["claude_cli_path"] = claude_path
@@ -1158,237 +1319,3 @@ async def claude_code_health() -> Dict[str, Any]:
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
-
-
-# GUARDIAN Monitoring Endpoints
-
-
-@claude_code_router.get("/monitoring/status")
-async def get_workflow_monitoring_status():
-    """Get GUARDIAN workflow monitoring status."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        status = monitor.get_monitoring_status()
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "monitoring": status
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting monitoring status: {e}")
-        raise HTTPException(status_code=500, detail=f"Monitoring status error: {str(e)}")
-
-
-@claude_code_router.get("/monitoring/health")
-async def get_workflow_health_status():
-    """Get health status for all running workflows."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        health_statuses = await monitor.get_workflow_health_status()
-        
-        # Convert to serializable format
-        health_data = []
-        for health in health_statuses:
-            health_data.append({
-                "run_id": health.run_id,
-                "workflow_name": health.workflow_name,
-                "status": health.status,
-                "elapsed_minutes": health.elapsed_minutes,
-                "timeout_limit_minutes": health.timeout_limit_minutes,
-                "warning_threshold_minutes": health.warning_threshold_minutes,
-                "is_warning": health.is_warning,
-                "is_timeout": health.is_timeout,
-                "is_stale": health.is_stale,
-                "last_heartbeat": health.last_heartbeat.isoformat() if health.last_heartbeat else None
-            })
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "workflow_health": health_data,
-            "total_workflows": len(health_data),
-            "warning_count": len([h for h in health_data if h["is_warning"]]),
-            "timeout_count": len([h for h in health_data if h["is_timeout"]]),
-            "stale_count": len([h for h in health_data if h["is_stale"]])
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting workflow health: {e}")
-        raise HTTPException(status_code=500, detail=f"Workflow health error: {str(e)}")
-
-
-@claude_code_router.post("/monitoring/start")
-async def start_workflow_monitoring():
-    """Start GUARDIAN workflow monitoring."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        await monitor.start_monitoring()
-        
-        return {
-            "status": "success",
-            "message": "🛡️ GUARDIAN workflow monitoring started",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error starting monitoring: {e}")
-        raise HTTPException(status_code=500, detail=f"Start monitoring error: {str(e)}")
-
-
-@claude_code_router.post("/monitoring/stop")
-async def stop_workflow_monitoring():
-    """Stop GUARDIAN workflow monitoring."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        await monitor.stop_monitoring()
-        
-        return {
-            "status": "success",
-            "message": "🛡️ GUARDIAN workflow monitoring stopped",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error stopping monitoring: {e}")
-        raise HTTPException(status_code=500, detail=f"Stop monitoring error: {str(e)}")
-
-
-@claude_code_router.get("/monitoring/safety-triggers")
-async def get_safety_trigger_status():
-    """Get safety trigger system status."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        trigger_summary = monitor.safety_triggers.get_trigger_summary()
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "safety_triggers": trigger_summary
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting safety triggers: {e}")
-        raise HTTPException(status_code=500, detail=f"Safety triggers error: {str(e)}")
-
-
-class WorkflowRegistrationRequest(BaseModel):
-    """Request to register workflow for monitoring."""
-    run_id: str = Field(..., description="Workflow run ID")
-    workflow_name: str = Field(..., description="Workflow name")
-
-
-@claude_code_router.post("/monitoring/register")
-async def register_workflow_for_monitoring(request: WorkflowRegistrationRequest):
-    """Register a workflow for GUARDIAN monitoring."""
-    try:
-        from src.mcp.workflow_monitor import register_workflow_for_monitoring
-        
-        await register_workflow_for_monitoring(request.run_id, request.workflow_name)
-        
-        return {
-            "status": "success",
-            "message": f"🛡️ GUARDIAN registered {request.workflow_name} for monitoring",
-            "run_id": request.run_id,
-            "workflow_name": request.workflow_name,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error registering workflow: {e}")
-        raise HTTPException(status_code=500, detail=f"Workflow registration error: {str(e)}")
-
-
-class HeartbeatRequest(BaseModel):
-    """Request to update workflow heartbeat."""
-    run_id: str = Field(..., description="Workflow run ID")
-
-
-@claude_code_router.post("/monitoring/heartbeat")
-async def update_workflow_heartbeat(request: HeartbeatRequest):
-    """Update heartbeat for a workflow."""
-    try:
-        from src.mcp.workflow_monitor import update_workflow_heartbeat
-        
-        await update_workflow_heartbeat(request.run_id)
-        
-        return {
-            "status": "success",
-            "message": "💓 Heartbeat updated",
-            "run_id": request.run_id,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error updating heartbeat: {e}")
-        raise HTTPException(status_code=500, detail=f"Heartbeat update error: {str(e)}")
-
-
-class EmergencyKillRequest(BaseModel):
-    """Request for emergency workflow kill."""
-    reason: str = Field(..., description="Reason for emergency kill")
-    context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context")
-
-
-@claude_code_router.post("/monitoring/emergency-rollback")
-async def execute_emergency_rollback(request: EmergencyKillRequest):
-    """Execute emergency rollback via GUARDIAN safety triggers."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        success = await monitor.safety_triggers.execute_emergency_rollback(
-            request.reason, 
-            request.context
-        )
-        
-        return {
-            "status": "success" if success else "error",
-            "message": f"🚨 Emergency rollback {'completed' if success else 'failed'}",
-            "reason": request.reason,
-            "rollback_success": success,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error executing emergency rollback: {e}")
-        raise HTTPException(status_code=500, detail=f"Emergency rollback error: {str(e)}")
-
-
-@claude_code_router.get("/monitoring/timeout-configs")
-async def get_timeout_configurations():
-    """Get workflow timeout configurations."""
-    try:
-        from src.mcp.workflow_monitor import get_workflow_monitor
-        
-        monitor = get_workflow_monitor()
-        status = monitor.get_monitoring_status()
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "timeout_configs": status.get("timeout_configs", {}),
-            "monitor_interval_seconds": status.get("monitor_interval_seconds", 60)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting timeout configs: {e}")
-        raise HTTPException(status_code=500, detail=f"Timeout config error: {str(e)}")
-
-
-# Legacy endpoint compatibility
-@claude_code_router.get("/guardian/status")
-async def get_guardian_status():
-    """Legacy endpoint for GUARDIAN status (redirects to monitoring/status)."""
-    return await get_workflow_monitoring_status()

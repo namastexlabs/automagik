@@ -18,6 +18,8 @@ from typing import List, Dict, Any
 from urllib.parse import urlparse
 import logging
 
+from ..utils.nodejs_detection import get_security_paths
+
 logger = logging.getLogger(__name__)
 
 class SecurityError(Exception):
@@ -29,44 +31,76 @@ class ValidationError(Exception):
     pass
 
 # =============================================================================
+# DYNAMIC NODE.JS PATH DETECTION
+# =============================================================================
+
+def _get_nodejs_paths():
+    """Get Node.js paths dynamically for security allowlist"""
+    nodejs_paths = get_security_paths()
+    if not nodejs_paths:
+        logger.warning("Node.js not found - MCP servers using Node.js will not work")
+        return {
+            "npx_path": None,
+            "node_path": None
+        }
+    
+    return {
+        "npx_path": nodejs_paths['npx_path'],
+        "node_path": nodejs_paths['node_path']
+    }
+
+# =============================================================================
 # COMMAND ALLOWLISTING CONFIGURATION
 # =============================================================================
 
-ALLOWED_COMMANDS = {
-    # Node.js MCP servers
-    "npx": {
-        "path": "/usr/bin/npx",
-        "allowed_args": [
-            "-y", "--yes",  # Auto-confirm package installation
-            "@modelcontextprotocol/server-*", "mcp-server-*", 
-            "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"
-        ],
-        "description": "NPM package runner for MCP servers"
-    },
-    # Python package runner (uvx for MCP servers)
-    "uvx": {
-        "path": "/usr/local/bin/uvx",
-        "fallback_paths": ["/usr/bin/uvx", "/home/*/.local/bin/uvx", "/root/.local/bin/uvx", "/root/workspace/am-agents-labs/.venv/bin/uvx"],
-        "allowed_args": [
-            "mcp-server-*", "@modelcontextprotocol/server-*",
-            "--python", "--with", "--from",  # UV arguments
-            "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"
-        ],
-        "description": "UV package runner for Python MCP servers"
-    },
-    # Python MCP servers  
-    "python3": {
-        "path": "/usr/bin/python3",
-        "allowed_args": ["-m", "mcp_server_*", "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"],
-        "description": "Python MCP servers"
-    },
-    # Additional allowed binaries (minimal set)
-    "node": {
-        "path": "/usr/bin/node",
-        "allowed_args": ["server.js", "**/server*.js", "weather-server.js", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"],
-        "description": "Node.js runtime"
+def _build_allowed_commands():
+    """Build allowed commands with dynamic Node.js paths"""
+    nodejs_paths = _get_nodejs_paths()
+    
+    commands = {
+        # Python package runner (uvx for MCP servers)
+        "uvx": {
+            "path": "/usr/local/bin/uvx",
+            "fallback_paths": ["/usr/bin/uvx", "/home/*/.local/bin/uvx", "/root/.local/bin/uvx", "/root/workspace/am-agents-labs/.venv/bin/uvx"],
+            "allowed_args": [
+                "mcp-server-*", "@modelcontextprotocol/server-*",
+                "--python", "--with", "--from",  # UV arguments
+                "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"
+            ],
+            "description": "UV package runner for Python MCP servers"
+        },
+        # Python MCP servers  
+        "python3": {
+            "path": "/usr/bin/python3",
+            "allowed_args": ["-m", "mcp_server_*", "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"],
+            "description": "Python MCP servers"
+        }
     }
-}
+    
+    # Add Node.js commands if available
+    if nodejs_paths["npx_path"]:
+        commands["npx"] = {
+            "path": nodejs_paths["npx_path"],
+            "allowed_args": [
+                "-y", "--yes",  # Auto-confirm package installation
+                "@modelcontextprotocol/server-*", "mcp-server-*", 
+                "/tmp", "/var/tmp", "/opt/mcp", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"
+            ],
+            "description": "NPM package runner for MCP servers"
+        }
+    
+    if nodejs_paths["node_path"]:
+        commands["node"] = {
+            "path": nodejs_paths["node_path"],
+            "allowed_args": ["server.js", "**/server*.js", "weather-server.js", "/tmp/*", "/var/tmp/*", "/opt/mcp/*"],
+            "description": "Node.js runtime"
+        }
+    
+    return commands
+
+# Build allowed commands dynamically
+ALLOWED_COMMANDS = _build_allowed_commands()
+
 
 # =============================================================================
 # ENVIRONMENT VARIABLE FILTERING
