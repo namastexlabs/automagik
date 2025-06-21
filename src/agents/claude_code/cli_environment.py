@@ -8,6 +8,8 @@ import asyncio
 import os
 import shutil
 import logging
+import json
+import time
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 from datetime import datetime
@@ -27,7 +29,17 @@ class CLIEnvironmentManager:
         self,
         base_path: str = "/tmp",
         config_source: Optional[Path] = None,
-        repository_cache: Optional[Path] = None
+        repository_cache: Optional[Path] = None,
+        session_id: Optional[str] = None,
+        workflow_name: Optional[str] = None,
+        workflow_run_id: Optional[str] = None,
+        api_base_url: Optional[str] = None,
+        auth_tokens: Optional[Dict[str, str]] = None,
+        mcp_endpoints: Optional[Dict[str, str]] = None,
+        enable_citations: bool = True,
+        enable_artifacts: bool = True,
+        workspace_root: Optional[Path] = None,
+        git_info: Optional[Any] = None
     ):
         """Initialize the environment manager.
         
@@ -35,21 +47,45 @@ class CLIEnvironmentManager:
             base_path: Base directory for creating workspaces
             config_source: Source directory for configuration files
             repository_cache: Path to cached repository for faster cloning
+            session_id: Claude session ID
+            workflow_name: Name of the workflow being executed
+            workflow_run_id: Unique ID for this workflow run
+            api_base_url: Base URL for API endpoints
+            auth_tokens: Authentication tokens for various services
+            mcp_endpoints: MCP server endpoints
+            enable_citations: Whether to enable citations feature
+            enable_artifacts: Whether to enable artifacts feature
+            workspace_root: Root workspace directory
+            git_info: Git repository information
         """
         self.base_path = Path(base_path)
         self.config_source = config_source or Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
         self.repository_cache = repository_cache
         self.active_workspaces: Dict[str, Path] = {}
         
+        # Environment context
+        self.session_id = session_id
+        self.workflow_name = workflow_name
+        self.workflow_run_id = workflow_run_id
+        self.api_base_url = api_base_url
+        self.auth_tokens = auth_tokens or {}
+        self.mcp_endpoints = mcp_endpoints or {}
+        self.enable_citations = enable_citations
+        self.enable_artifacts = enable_artifacts
+        self.workspace_root = workspace_root or self.config_source
+        self.git_info = git_info
+        
         # Ensure base path exists
         self.base_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"CLIEnvironmentManager initialized with base path: {self.base_path}")
     
-    async def create_workspace(self, run_id: str) -> Path:
+    async def create_workspace(self, run_id: str, workflow_name: Optional[str] = None, persistent: bool = True, git_branch: Optional[str] = None) -> Path:
         """Create git worktree workspace instead of isolated copy.
         
         Args:
             run_id: Unique identifier for this run
+            workflow_name: Optional workflow name for persistent workspaces
+            persistent: Whether to create a persistent workspace (default: True)
             
         Returns:
             Path to the created worktree workspace
@@ -59,11 +95,33 @@ class CLIEnvironmentManager:
         """
         # Use main repository's worktrees directory
         repo_root = Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
-        worktree_path = repo_root / "worktrees" / f"builder_run_{run_id}"
+        
+        # Use custom branch if provided
+        if git_branch:
+            branch_name = git_branch
+        else:
+            # Default branch naming
+            branch_name = f"{workflow_name or 'builder'}/{workflow_name or f'run_{run_id}'}"
+        
+        # If workflow_name is provided, create persistent or temp worktree based on parameter
+        if workflow_name:
+            if persistent:
+                worktree_path = repo_root / "worktrees" / f"{workflow_name}_persistent"
+            else:
+                worktree_path = repo_root / "worktrees" / f"{workflow_name}_temp_{run_id[:8]}"
+        else:
+            # Fallback to original behavior if no workflow name
+            worktree_path = repo_root / "worktrees" / f"builder_run_{run_id}"
+        
+        # Check if persistent worktree already exists
+        if worktree_path.exists() and workflow_name:
+            logger.info(f"Reusing existing persistent worktree: {worktree_path}")
+            # Track active workspace
+            self.active_workspaces[run_id] = worktree_path
+            return worktree_path
         
         try:
             # Create worktree with new branch
-            branch_name = f"builder/run_{run_id}"
             
             # Create worktree
             process = await asyncio.create_subprocess_exec(
@@ -75,7 +133,20 @@ class CLIEnvironmentManager:
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
-                raise OSError(f"Failed to create worktree: {stderr.decode()}")
+                # If branch already exists (for persistent worktrees), use it without -b flag
+                if "already exists" in stderr.decode() and workflow_name:
+                    process = await asyncio.create_subprocess_exec(
+                        "git", "worktree", "add", str(worktree_path), branch_name,
+                        cwd=str(repo_root),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    
+                    if process.returncode != 0:
+                        raise OSError(f"Failed to create worktree: {stderr.decode()}")
+                else:
+                    raise OSError(f"Failed to create worktree: {stderr.decode()}")
             
             # Set proper permissions
             os.chmod(worktree_path, 0o755)
@@ -163,6 +234,13 @@ class CLIEnvironmentManager:
                 try:
                     shutil.copytree(workflow_src, workflow_dst, dirs_exist_ok=True)
                     logger.debug(f"Copied workflow {workflow_name} to workspace")
+                    
+                    # SURGICAL FIX: Copy prompt.md to workspace root where SDK expects it
+                    workflow_prompt = workflow_dst / "prompt.md"
+                    root_prompt = workspace / "prompt.md" 
+                    if workflow_prompt.exists():
+                        shutil.copy2(workflow_prompt, root_prompt)
+                        logger.info(f"Copied prompt.md to workspace root for SDK")
                     
                     # Also copy workflow-specific configs to workspace root
                     for config_file in config_files:
@@ -509,6 +587,9 @@ This PR contains changes generated by the Claude Code workflow system.
             True if cleanup successful, False otherwise
         """
         try:
+            # Check if this is a persistent worktree (ends with _persistent)
+            is_persistent = str(workspace).endswith("_persistent")
+            
             # Find run_id from workspace path
             run_id = None
             for rid, ws_path in self.active_workspaces.items():
@@ -520,6 +601,19 @@ This PR contains changes generated by the Claude Code workflow system.
             if not workspace.exists():
                 logger.warning(f"Worktree workspace {workspace} does not exist")
                 return True
+            
+            # Cleanup logic:
+            # - persistent=true: keep workspace
+            # - persistent=false: delete workspace
+            if is_persistent:
+                logger.info(f"Keeping persistent worktree: {workspace}")
+                # Remove from active workspaces tracking but keep the workspace
+                if run_id:
+                    del self.active_workspaces[run_id]
+                return True
+            else:
+                logger.info(f"Deleting non-persistent worktree: {workspace}")
+                # Continue to removal code below
             
             # Remove worktree using git command
             try:
@@ -587,6 +681,67 @@ This PR contains changes generated by the Claude Code workflow system.
         
         return results
     
+    async def prepare_workspace(
+        self,
+        repository_url: Optional[str] = None,
+        git_branch: Optional[str] = None,
+        session_id: Optional[str] = None,
+        workflow_name: Optional[str] = None,
+        persistent: bool = True
+    ) -> Dict[str, Any]:
+        """Prepare a workspace for execution.
+        
+        This method creates a complete workspace environment including:
+        1. Creating the workspace (worktree)
+        2. Setting up the repository
+        3. Copying configuration files
+        
+        Args:
+            repository_url: Git repository URL (optional for worktrees)
+            git_branch: Git branch to use
+            session_id: Session identifier for workspace naming
+            workflow_name: Optional workflow name for persistent workspaces
+            
+        Returns:
+            Dictionary containing workspace information
+        """
+        try:
+            # Use session_id as run_id for workspace creation
+            run_id = session_id or f"session_{int(time.time())}"
+            
+            # Create workspace (worktree)
+            workspace_path = await self.create_workspace(
+                run_id=run_id, 
+                workflow_name=workflow_name,
+                persistent=persistent,
+                git_branch=git_branch
+            )
+            
+            # Setup repository (for worktrees, this mainly validates)
+            repo_path = await self.setup_repository(
+                workspace=workspace_path,
+                branch=git_branch,
+                repository_url=repository_url
+            )
+            
+            # Copy configuration files
+            await self.copy_configs(workspace_path, workflow_name)
+            
+            logger.info(f"Prepared workspace at {workspace_path} for session {session_id}")
+            
+            return {
+                'workspace_path': str(workspace_path),
+                'repository_path': str(repo_path),
+                'run_id': run_id,
+                'session_id': session_id,
+                'git_branch': git_branch,
+                'workflow_name': workflow_name
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to prepare workspace for session {session_id}: {e}")
+            raise RuntimeError(f"Workspace preparation failed: {e}")
+
     async def cleanup_by_run_id(self, run_id: str, force: bool = False) -> bool:
         """Clean up workspace by run_id.
         
@@ -670,6 +825,61 @@ This PR contains changes generated by the Claude Code workflow system.
         
         return info
     
+    def as_dict(self, workspace: Path) -> Dict[str, str]:
+        """Return environment variables to inject into subprocess.
+        
+        This replaces the old CLI flag generation with pure data
+        that can be used by the SDK executor.
+        
+        Args:
+            workspace: Path to the workspace directory
+            
+        Returns:
+            Dictionary of environment variables to inject
+        """
+        env = {}
+        
+        # Core Claude environment
+        env['CLAUDE_WORKSPACE'] = str(workspace)
+        env['CLAUDE_SESSION_ID'] = self.session_id or ''
+        
+        # Git information
+        if self.git_info:
+            if hasattr(self.git_info, 'repo_path'):
+                env['CLAUDE_GIT_REPO'] = str(self.git_info.repo_path)
+            if hasattr(self.git_info, 'current_branch'):
+                env['CLAUDE_GIT_BRANCH'] = self.git_info.current_branch
+            if hasattr(self.git_info, 'current_commit'):
+                env['CLAUDE_GIT_COMMIT'] = self.git_info.current_commit
+        
+        # Workflow context
+        if self.workflow_name:
+            env['CLAUDE_WORKFLOW'] = self.workflow_name
+            env['CLAUDE_WORKFLOW_RUN_ID'] = self.workflow_run_id or ''
+        
+        # API endpoints (if configured)
+        if self.api_base_url:
+            env['CLAUDE_API_BASE'] = self.api_base_url
+        
+        # Authentication tokens
+        if self.auth_tokens:
+            for key, value in self.auth_tokens.items():
+                env[f'CLAUDE_AUTH_{key.upper()}'] = value
+        
+        # MCP server endpoints
+        if self.mcp_endpoints:
+            env['CLAUDE_MCP_SERVERS'] = json.dumps(self.mcp_endpoints)
+        
+        # Feature flags
+        env['CLAUDE_ENABLE_CITATIONS'] = str(self.enable_citations).lower()
+        env['CLAUDE_ENABLE_ARTIFACTS'] = str(self.enable_artifacts).lower()
+        
+        # Workspace metadata
+        env['CLAUDE_WORKSPACE_ROOT'] = str(self.workspace_root)
+        env['CLAUDE_TEMP_DIR'] = str(workspace / '.claude-temp')
+        
+        return env
+    
     def list_active_workspaces(self) -> List[str]:
         """List all active workspace run IDs.
         
@@ -677,3 +887,25 @@ This PR contains changes generated by the Claude Code workflow system.
             List of active run IDs
         """
         return list(self.active_workspaces.keys())
+    
+    async def cleanup_workspace(self, workspace_path: Any, force: bool = False) -> bool:
+        """Clean up a workspace by path (wrapper for cleanup method).
+        
+        This method provides backward compatibility for code that expects
+        a cleanup_workspace method instead of the cleanup method.
+        
+        Args:
+            workspace_path: Path to workspace (can be str or Path object)
+            force: Force cleanup even if processes might be running
+            
+        Returns:
+            True if cleanup successful, False otherwise
+        """
+        # Convert workspace_path to Path object if it's a string
+        if isinstance(workspace_path, str):
+            workspace_path = Path(workspace_path)
+        elif not isinstance(workspace_path, Path):
+            # Handle other types by converting to string first, then Path
+            workspace_path = Path(str(workspace_path))
+        
+        return await self.cleanup(workspace_path, force)

@@ -14,11 +14,20 @@ class ClaudeCodeRunRequest(BaseModel):
     
     message: str = Field(..., description="The task message for Claude to execute")
     session_id: Optional[str] = Field(None, description="Optional session ID for continuity")
-    workflow_name: str = Field("bug-fixer", description="Name of the workflow to execute")
+    run_id: Optional[str] = Field(None, description="Unique run identifier for database tracking and persistence")
+    workflow_name: str = Field("surgeon", description="Name of the workflow to execute")
     max_turns: Optional[int] = Field(None, ge=1, le=200, description="Maximum number of Claude turns (optional, unlimited if not specified)")
     git_branch: Optional[str] = Field(
         None, 
         description="Git branch to work on (defaults to current branch)"
+    )
+    model: Optional[str] = Field(
+        default="sonnet",
+        description="Claude model to use"
+    )
+    max_thinking_tokens: Optional[int] = Field(
+        None,
+        description="Maximum thinking tokens for reasoning"
     )
     timeout: Optional[int] = Field(
         default=3600, 
@@ -33,6 +42,14 @@ class ClaudeCodeRunRequest(BaseModel):
     repository_url: Optional[str] = Field(
         None,
         description="Git repository URL to clone (defaults to current repository if not specified)"
+    )
+    persistent: bool = Field(
+        default=True,
+        description="Keep workspace after completion (true=keep, false=delete)"
+    )
+    auto_merge: bool = Field(
+        default=False,
+        description="Automatically merge to main branch (true=auto-merge, false=manual)"
     )
     
     @validator('message')
@@ -54,9 +71,10 @@ class ClaudeCodeRunRequest(BaseModel):
             "example": {
                 "message": "Fix the session timeout issue in agent controller",
                 "session_id": "session_abc123",
-                "workflow_name": "bug-fixer",
+                "workflow_name": "surgeon",
                 "max_turns": 50,
                 "git_branch": "fix/session-timeout",
+                "model": "sonnet",
                 "timeout": 3600,
                 "environment": {
                     "CUSTOM_VAR": "value"
@@ -134,6 +152,7 @@ class ResultInfo(BaseModel):
     final_output: Optional[str] = Field(None, description="Final output from Claude (truncated)")
     files_created: List[str] = Field(default_factory=list, description="List of files created during workflow")
     git_commits: List[str] = Field(default_factory=list, description="Git commits created")
+    files_changed: List[Dict[str, Any]] = Field(default_factory=list, description="Git file changes with diffs")
 
 
 class EnhancedStatusResponse(BaseModel):
@@ -301,7 +320,7 @@ class ClaudeCodeStatusResponse(BaseModel):
                 "git_sha_end": "def456ghi789",
                 "error": None,
                 "logs": "Container execution logs...",
-                "workflow_name": "bug-fixer",
+                "workflow_name": "surgeon",
                 "cost": 0.7159,
                 "tokens": 1099100,
                 "turns": 30,
@@ -321,9 +340,9 @@ class WorkflowInfo(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "name": "bug-fixer",
+                "name": "surgeon",
                 "description": "Bug fixing specialist workflow",
-                "path": "/path/to/workflows/bug-fixer",
+                "path": "/path/to/workflows/surgeon",
                 "valid": True
             }
         }
@@ -345,7 +364,7 @@ class ContainerInfo(BaseModel):
                 "container_id": "claude-code-session_xyz789-abc123",
                 "status": "running",
                 "session_id": "session_xyz789",
-                "workflow_name": "bug-fixer",
+                "workflow_name": "surgeon",
                 "created_at": "2025-06-03T10:00:00Z",
                 "started_at": "2025-06-03T10:00:30Z"
             }
@@ -395,7 +414,7 @@ class ClaudeCodeConfig(BaseModel):
         default="claude-code-workspace", 
         description="Prefix for workspace volumes"
     )
-    default_workflow: str = Field(default="bug-fixer", description="Default workflow to use")
+    default_workflow: str = Field(default="surgeon", description="Default workflow to use")
     git_branch: Optional[str] = Field(
         None,
         description="Default git branch (defaults to current branch)"
@@ -411,7 +430,7 @@ class ClaudeCodeConfig(BaseModel):
                 "container_timeout": 7200,
                 "max_concurrent_sessions": 10,
                 "workspace_volume_prefix": "claude-code-workspace",
-                "default_workflow": "bug-fixer",
+                "default_workflow": "surgeon",
                 "git_branch": "main",
                 "enabled": True
             }
@@ -443,15 +462,7 @@ class ExecutionStatus(str, Enum):
 
 
 class WorkflowType(str, Enum):
-    """Available workflow types."""
-    ARCHITECT = "architect"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    FIX = "fix"
-    REFACTOR = "refactor"
-    DOCUMENT = "document"
-    PR = "pr"
+    """Available workflow types - dynamically discovered from filesystem."""
 
 
 class ContainerConfig(BaseModel):
