@@ -11,6 +11,7 @@ import json
 import os
 import aiofiles
 import time
+from pathlib import Path
 from typing import Dict, Optional, Any, List
 from datetime import datetime
 
@@ -689,7 +690,9 @@ class ClaudeCodeAgent(AutomagikAgent):
                 max_turns=kwargs.get('max_turns'),
                 timeout=kwargs.get('timeout', 7200),
                 repository_url=kwargs.get('repository_url'),
-                git_branch=kwargs.get('git_branch')
+                git_branch=kwargs.get('git_branch'),
+                persistent=kwargs.get('persistent', True),
+                auto_merge=kwargs.get('auto_merge', False)  # SURGICAL FIX: Pass auto_merge flag
             )
             
             # Determine priority based on workflow type
@@ -758,7 +761,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 git_branch=kwargs.get("git_branch"),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
                 repository_url=kwargs.get("repository_url"),
-                persistent=kwargs.get("persistent", True)
+                persistent=kwargs.get("persistent", True),
+                auto_merge=kwargs.get("auto_merge", False)  # SURGICAL FIX: Pass auto_merge flag
             )
             
             # Update session metadata with run information
@@ -833,13 +837,27 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Create workspace for this workflow run
             workspace_path = None
             if hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
-                workspace_path = await self.executor.environment_manager.create_workspace(
-                    run_id=run_id,
-                    workflow_name=workflow_name,
-                    persistent=request.persistent,  # Use the persistent flag from request
-                    git_branch=request.git_branch
-                )
-                logger.info(f"Created workspace for run {run_id}: {workspace_path}")
+                # Use prepare_workspace for external repositories, create_workspace for local worktrees
+                if request.repository_url:
+                    # External repository flow
+                    workspace_info = await self.executor.environment_manager.prepare_workspace(
+                        repository_url=request.repository_url,
+                        git_branch=request.git_branch,
+                        session_id=run_id,
+                        workflow_name=workflow_name,
+                        persistent=request.persistent
+                    )
+                    workspace_path = Path(workspace_info['workspace_path'])
+                    logger.info(f"Prepared external repository workspace for run {run_id}: {workspace_path}")
+                else:
+                    # Local worktree flow
+                    workspace_path = await self.executor.environment_manager.create_workspace(
+                        run_id=run_id,
+                        workflow_name=workflow_name,
+                        persistent=request.persistent,  # Use the persistent flag from request
+                        git_branch=request.git_branch
+                    )
+                    logger.info(f"Created workspace for run {run_id}: {workspace_path}")
                 
                 # Update workflow run with workspace path
                 if workspace_path and run_id:
@@ -1040,13 +1058,17 @@ class ClaudeCodeAgent(AutomagikAgent):
                         # Create meaningful commit message
                         commit_message = f"{workflow_name}: {input_text[:80]}..." if input_text else f"Workflow {workflow_name} - Run {run_id[:8]}"
                         
+                        # Get auto_merge flag from kwargs (defaults to False if not specified)
+                        auto_merge = kwargs.get('auto_merge', False)
+                        logger.info(f"📝 AUTO-COMMIT: Auto-merge flag: {auto_merge}")
+                        
                         # Execute auto-commit with options
                         commit_result = await self.executor.environment_manager.auto_commit_with_options(
                             workspace=workspace_path,
                             run_id=run_id,
                             message=commit_message,
                             create_pr=False,  # Start conservative, can be enhanced later
-                            merge_to_main=True,  # Enable auto-merge to main branch
+                            merge_to_main=auto_merge,  # Use the auto_merge flag from request
                             workflow_name=workflow_name
                         )
                         

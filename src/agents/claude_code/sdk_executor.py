@@ -1366,15 +1366,21 @@ class ClaudeSDKExecutor(ExecutorBase):
         Returns:
             True if cancelled successfully, False otherwise
         """
+        logger.info(f"Attempting to cancel execution: {execution_id}")
+        success = False
+        
         # First check if we're using ExecutionIsolator
         isolator = get_isolator()
         execution_info = isolator.get_execution_status(execution_id)
         
         if execution_info:
-            # Try to cancel through isolator first
-            success = isolator.cancel_execution(execution_id)
+            # Try to cancel through isolator (this now actually terminates)
+            isolator_success = isolator.cancel_execution(execution_id)
+            if isolator_success:
+                logger.info(f"Execution {execution_id} cancelled via isolator")
+                success = True
             
-            # Also attempt to terminate the actual process if PID is available
+            # Double-check process termination if PID is available
             if execution_info.get("pid"):
                 try:
                     import psutil
@@ -1386,45 +1392,94 @@ class ClaudeSDKExecutor(ExecutorBase):
                     
                     if target_pid == current_pid:
                         logger.error(f"SAFETY: Refusing to kill main server process (PID: {current_pid})")
-                        return False
+                        return success
                     
-                    process = psutil.Process(target_pid)
-                    
-                    # Additional safety: Check if this is a child process
-                    parent_pid = process.ppid()
-                    if parent_pid != current_pid:
-                        logger.warning(f"SAFETY: Process {target_pid} is not a direct child of server (parent: {parent_pid})")
-                    
-                    # Try graceful termination first
-                    process.terminate()
-                    
-                    # Wait up to 5 seconds for graceful shutdown
+                    # Check if process still exists
                     try:
-                        process.wait(timeout=5)
-                        logger.info(f"Process {target_pid} terminated gracefully")
-                    except psutil.TimeoutExpired:
-                        # Force kill if graceful termination failed
-                        process.kill()
-                        logger.warning(f"Process {target_pid} was force killed")
+                        process = psutil.Process(target_pid)
+                        if process.is_running():
+                            logger.warning(f"Process {target_pid} still running after isolator cancellation, force terminating")
+                            
+                            # Try graceful termination first
+                            process.terminate()
+                            
+                            # Wait up to 3 seconds for graceful shutdown
+                            try:
+                                process.wait(timeout=3)
+                                logger.info(f"Process {target_pid} terminated gracefully")
+                            except psutil.TimeoutExpired:
+                                # Force kill if graceful termination failed
+                                process.kill()
+                                logger.warning(f"Process {target_pid} was force killed")
+                            
+                            success = True
+                        else:
+                            logger.info(f"Process {target_pid} already terminated")
+                            success = True
+                            
+                    except psutil.NoSuchProcess:
+                        logger.info(f"Process {target_pid} not found (already terminated)")
+                        success = True
                     
-                    return True
-                    
-                except psutil.NoSuchProcess:
-                    logger.warning(f"Process {execution_info.get('pid')} not found")
                 except Exception as e:
-                    logger.error(f"Failed to terminate process: {e}")
+                    logger.error(f"Failed to verify process termination: {e}")
                     
+        # Check active tasks (asyncio tasks) for cancellation
+        if hasattr(self, 'active_tasks') and execution_id in self.active_tasks:
+            try:
+                task = self.active_tasks[execution_id]
+                if not task.done():
+                    cancelled = task.cancel()
+                    if cancelled:
+                        logger.info(f"Successfully cancelled asyncio task for {execution_id}")
+                        success = True
+                    else:
+                        logger.warning(f"Could not cancel asyncio task for {execution_id} (already running)")
+                else:
+                    logger.info(f"Task for {execution_id} already completed")
+                    success = True
+                
+                # Remove from tracking
+                del self.active_tasks[execution_id]
+                
+            except Exception as e:
+                logger.error(f"Failed to cancel asyncio task for {execution_id}: {e}")
+        
         # Check active sessions as fallback
         if execution_id in self.active_sessions:
             try:
+                session_info = self.active_sessions[execution_id]
+                
+                # If there's a task associated, try to cancel it
+                if "task" in session_info and session_info["task"] is not None:
+                    task = session_info["task"]
+                    if not task.done():
+                        task.cancel()
+                        logger.info(f"Cancelled asyncio task for session {execution_id}")
+                        success = True
+                
                 # Remove session tracking
                 del self.active_sessions[execution_id]
-                return True
-            except Exception as e:
-                logger.error(f"Failed to cancel execution: {e}")
-                return False
+                logger.info(f"Removed session tracking for {execution_id}")
+                success = True
                 
-        return False
+            except Exception as e:
+                logger.error(f"Failed to cancel session {execution_id}: {e}")
+                
+        # Update workflow process status in database
+        try:
+            from src.db.repository.workflow_process import mark_process_terminated
+            await mark_process_terminated(execution_id, status="killed")
+            logger.info(f"Updated database status for {execution_id} to killed")
+        except Exception as e:
+            logger.error(f"Failed to update database status for {execution_id}: {e}")
+                
+        if success:
+            logger.info(f"Successfully cancelled execution: {execution_id}")
+        else:
+            logger.warning(f"Could not fully cancel execution: {execution_id}")
+            
+        return success
     
     async def cleanup(self) -> None:
         """Clean up all resources."""
