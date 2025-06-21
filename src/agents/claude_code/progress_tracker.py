@@ -346,7 +346,15 @@ class ProgressTracker:
             # Estimate based on current progress
             if current_turns > 0:
                 avg_time_per_turn = elapsed.total_seconds() / current_turns
-                remaining_turns = max(0, max_turns - current_turns)
+                
+                # SURGICAL FIX: Handle None max_turns (unlimited turns)
+                if max_turns is None:
+                    # For unlimited turns, estimate based on typical workflow duration
+                    # Most workflows complete in 5-20 turns
+                    estimated_total_turns = min(current_turns * 2, 20)  # Conservative estimate
+                    remaining_turns = max(0, estimated_total_turns - current_turns)
+                else:
+                    remaining_turns = max(0, max_turns - current_turns)
                 
                 if remaining_turns > 0:
                     estimated_remaining = timedelta(seconds=avg_time_per_turn * remaining_turns)
