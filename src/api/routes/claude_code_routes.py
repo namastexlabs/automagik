@@ -349,6 +349,7 @@ async def run_claude_workflow(
                 "repository_url": request.repository_url,
                 "run_id": run_id,
                 "persistent": persistent,
+                "auto_merge": auto_merge,
             }
             
             # SURGICAL FIX: Create workflow run record in database BEFORE execution starts

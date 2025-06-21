@@ -1040,13 +1040,17 @@ class ClaudeCodeAgent(AutomagikAgent):
                         # Create meaningful commit message
                         commit_message = f"{workflow_name}: {input_text[:80]}..." if input_text else f"Workflow {workflow_name} - Run {run_id[:8]}"
                         
+                        # Get auto_merge flag from kwargs (defaults to False if not specified)
+                        auto_merge = kwargs.get('auto_merge', False)
+                        logger.info(f"📝 AUTO-COMMIT: Auto-merge flag: {auto_merge}")
+                        
                         # Execute auto-commit with options
                         commit_result = await self.executor.environment_manager.auto_commit_with_options(
                             workspace=workspace_path,
                             run_id=run_id,
                             message=commit_message,
                             create_pr=False,  # Start conservative, can be enhanced later
-                            merge_to_main=True,  # Enable auto-merge to main branch
+                            merge_to_main=auto_merge,  # Use the auto_merge flag from request
                             workflow_name=workflow_name
                         )
                         
