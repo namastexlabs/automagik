@@ -132,16 +132,30 @@ class ExecutionIsolator:
                 agent_context
             )
             
-            # Update status
+            # Update status and store future for cancellation
             self.active_executions[run_id]["status"] = "running"
+            self.active_executions[run_id]["future"] = future
             
             # Wait for completion with timeout
             timeout = request.timeout or 7200  # Default 2 hours
             result = await asyncio.wait_for(future, timeout=timeout)
             
+            # Store subprocess PID if available
+            if isinstance(result, dict) and "subprocess_pid" in result:
+                self.active_executions[run_id]["pid"] = result["subprocess_pid"]
+                logger.info(f"Stored subprocess PID {result['subprocess_pid']} for execution {run_id}")
+                # Remove from result to avoid confusing downstream consumers
+                del result["subprocess_pid"]
+            
             # Update status
             self.active_executions[run_id]["status"] = "completed"
             self.active_executions[run_id]["completed_at"] = datetime.utcnow()
+            
+            # Update workflow process status in database
+            try:
+                self._update_workflow_status(run_id, "completed")
+            except Exception as e:
+                logger.warning(f"Could not update database status for {run_id}: {e}")
             
             return result
             
@@ -166,6 +180,7 @@ class ExecutionIsolator:
             logger.error(f"Isolator: Thread pool execution failed for {run_id}: {e}")
             self.active_executions[run_id]["status"] = "failed"
             self.active_executions[run_id]["error"] = str(e)
+            self.active_executions[run_id]["completed_at"] = datetime.utcnow()
             
             # SURGICAL FIX: Update database immediately with failure status
             self._update_workflow_failure(run_id, str(e))
@@ -201,6 +216,9 @@ class ExecutionIsolator:
         asyncio.set_event_loop(loop)
         
         try:
+            # Register current subprocess PID for cancellation
+            current_pid = os.getpid()
+            
             # SURGICAL FIX: Set isolation flags to prevent recursive isolation attempts
             os.environ['CLAUDE_SDK_ISOLATED'] = 'true'
             os.environ['BYPASS_TASKGROUP_DETECTION'] = 'true'  # Legacy compatibility
@@ -220,6 +238,9 @@ class ExecutionIsolator:
                 result = loop.run_until_complete(
                     executor._execute_claude_task_simple(request, agent_context)
                 )
+                
+                # Add PID to result so main thread can store it
+                result["subprocess_pid"] = current_pid
             except Exception as e:
                 if "TaskGroup" in str(e):
                     logger.error(f"SURGICAL ESCALATION: Even isolated execution failed with TaskGroup: {e}")
@@ -234,7 +255,8 @@ class ExecutionIsolator:
                         'run_id': request.run_id or 'unknown',
                         'cost_usd': 0.0,
                         'total_turns': 0,
-                        'tools_used': []
+                        'tools_used': [],
+                        'subprocess_pid': current_pid
                     }
                 else:
                     raise e
@@ -481,11 +503,91 @@ if __name__ == "__main__":
         execution["status"] = "cancelled"
         execution["cancelled_at"] = datetime.utcnow()
         
-        # Note: Actual thread/process cancellation is complex
-        # This just marks it as cancelled in our tracking
-        logger.info(f"Marked execution {run_id} as cancelled")
+        # Actually attempt to terminate the execution
+        success = False
         
-        return True
+        # If we have a future, try to cancel it
+        if "future" in execution and execution["future"] is not None:
+            future = execution["future"]
+            if not future.done():
+                cancelled = future.cancel()
+                if cancelled:
+                    logger.info(f"Successfully cancelled future for execution {run_id}")
+                    success = True
+                else:
+                    logger.warning(f"Could not cancel future for execution {run_id} (already running)")
+        
+        # If we have a process ID, try to terminate the process
+        if "pid" in execution and execution["pid"] is not None:
+            try:
+                import psutil
+                import os
+                import signal
+                
+                target_pid = execution["pid"]
+                current_pid = os.getpid()
+                
+                # Safety check: don't kill the main server process
+                if target_pid == current_pid:
+                    logger.error(f"SAFETY: Refusing to kill main server process (PID: {current_pid})")
+                    return success
+                
+                # Try to terminate the process
+                try:
+                    process = psutil.Process(target_pid)
+                    
+                    # Send SIGTERM first (graceful)
+                    process.terminate()
+                    logger.info(f"Sent SIGTERM to process {target_pid}")
+                    
+                    # Wait up to 3 seconds for graceful shutdown
+                    try:
+                        process.wait(timeout=3)
+                        logger.info(f"Process {target_pid} terminated gracefully")
+                        success = True
+                    except psutil.TimeoutExpired:
+                        # Force kill if graceful termination failed
+                        process.kill()
+                        logger.warning(f"Force killed process {target_pid}")
+                        success = True
+                        
+                except psutil.NoSuchProcess:
+                    logger.info(f"Process {target_pid} not found (already terminated)")
+                    success = True
+                except psutil.AccessDenied:
+                    logger.error(f"Access denied when trying to terminate process {target_pid}")
+                except Exception as e:
+                    logger.error(f"Error terminating process {target_pid}: {e}")
+                    
+            except ImportError:
+                logger.warning("psutil not available for process termination")
+        
+        logger.info(f"Marked execution {run_id} as cancelled (termination success: {success})")
+        
+        # Update database status
+        try:
+            self._update_workflow_status(run_id, "killed")
+        except Exception as e:
+            logger.warning(f"Could not update database status for {run_id}: {e}")
+        
+        return success
+    
+    def _update_workflow_status(self, run_id: str, status: str) -> None:
+        """Update workflow status in database."""
+        try:
+            from src.db.repository.workflow_process import mark_process_terminated
+            # Call sync function directly (not a coroutine)
+            mark_process_terminated(run_id, status=status)
+        except Exception as e:
+            logger.error(f"Failed to update workflow status in database: {e}")
+    
+    def _update_workflow_timeout(self, run_id: str) -> None:
+        """Update workflow with timeout status in database."""
+        self._update_workflow_status(run_id, "timeout")
+    
+    def _update_workflow_failure(self, run_id: str, error: str) -> None:
+        """Update workflow with failure status in database."""
+        self._update_workflow_status(run_id, "failed")
 
 
 # Global isolator instance
