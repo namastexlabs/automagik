@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
+import pytz
 
 from ..models import WorkflowRun, WorkflowRunCreate, WorkflowRunUpdate
 from ..connection import execute_query, safe_uuid
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
-    """Create a new workflow run record.
+    """Create a new workflow run record with race condition protection.
     
     Args:
         workflow_run: WorkflowRunCreate model with workflow data
@@ -28,14 +29,32 @@ def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
     # Check if run_id already exists
     existing = get_workflow_run_by_run_id(workflow_run.run_id)
     if existing:
-        raise ValueError(f"Workflow run with run_id '{workflow_run.run_id}' already exists")
+        # For race conditions, if the workflow is still pending, we can return the existing ID
+        # This handles the case where multiple requests try to create the same workflow
+        if existing.status == "pending":
+            logger.warning(f"Workflow run with run_id '{workflow_run.run_id}' already exists in pending state, returning existing ID")
+            return str(existing.id)
+        raise ValueError(f"Workflow run with run_id '{workflow_run.run_id}' already exists with status {existing.status}")
     
     # Generate UUID for primary key
     workflow_id = uuid.uuid4()
     
-    # Convert models to database format
-    session_id = safe_uuid(workflow_run.session_id) if workflow_run.session_id else None
-    user_id = safe_uuid(workflow_run.user_id) if workflow_run.user_id else None
+    # Convert models to database format with proper None handling
+    session_id = None
+    if workflow_run.session_id:
+        try:
+            session_id = safe_uuid(workflow_run.session_id)
+        except Exception as e:
+            logger.warning(f"Invalid session_id format: {workflow_run.session_id}, error: {e}")
+            session_id = None
+    
+    user_id = None
+    if workflow_run.user_id:
+        try:
+            user_id = safe_uuid(workflow_run.user_id)
+        except Exception as e:
+            logger.warning(f"Invalid user_id format: {workflow_run.user_id}, error: {e}")
+            user_id = None
     
     # Serialize JSONB fields
     git_diff_stats_json = json.dumps(workflow_run.git_diff_stats) if workflow_run.git_diff_stats else '{}'
@@ -93,8 +112,19 @@ def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
         datetime.utcnow().isoformat()  # updated_at
     )
     
-    execute_query(query, params)
-    return str(workflow_id)
+    try:
+        execute_query(query, params)
+        return str(workflow_id)
+    except Exception as e:
+        # Handle unique constraint violations for race conditions
+        error_msg = str(e).lower()
+        if "unique constraint" in error_msg or "already exists" in error_msg:
+            # Try to get the existing workflow run
+            existing = get_workflow_run_by_run_id(workflow_run.run_id)
+            if existing and existing.status == "pending":
+                logger.warning(f"Race condition detected for run_id '{workflow_run.run_id}', returning existing ID")
+                return str(existing.id)
+        raise
 
 
 def get_workflow_run(workflow_id: str) -> Optional[WorkflowRun]:
@@ -187,7 +217,7 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         # Only set automatically if not explicitly provided in update_data
         if update_data.status in {'completed', 'failed', 'killed'} and update_data.completed_at is None:
             update_fields.append("completed_at = ?")
-            params.append(datetime.utcnow())
+            params.append(datetime.utcnow().isoformat())
     
     if update_data.result is not None:
         update_fields.append("result = ?")
@@ -198,8 +228,16 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         params.append(update_data.error_message)
     
     if update_data.session_id is not None:
-        update_fields.append("session_id = ?")
-        params.append(str(safe_uuid(update_data.session_id)))
+        # Validate session_id before converting
+        try:
+            session_uuid = safe_uuid(update_data.session_id)
+            if session_uuid:
+                update_fields.append("session_id = ?")
+                params.append(str(session_uuid))
+            else:
+                logger.warning(f"Invalid session_id in update: {update_data.session_id}")
+        except Exception as e:
+            logger.warning(f"Failed to process session_id in update: {e}")
     
     if update_data.final_commit_hash is not None:
         update_fields.append("final_commit_hash = ?")
@@ -251,7 +289,14 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
     
     if update_data.completed_at is not None:
         update_fields.append("completed_at = ?")
-        params.append(update_data.completed_at)
+        # Ensure completed_at is timezone-naive UTC for database consistency
+        completed_at = update_data.completed_at
+        if isinstance(completed_at, datetime):
+            if completed_at.tzinfo is not None:
+                completed_at = completed_at.astimezone(pytz.UTC).replace(tzinfo=None)
+            params.append(completed_at.isoformat())
+        else:
+            params.append(completed_at)
     
     if update_data.metadata is not None:
         update_fields.append("metadata = ?")
@@ -262,7 +307,7 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
     
     # Add updated timestamp
     update_fields.append("updated_at = ?")
-    params.append(datetime.utcnow())
+    params.append(datetime.utcnow().isoformat())
     
     # Add WHERE clause
     params.append(str(workflow_uuid))
@@ -331,11 +376,29 @@ def list_workflow_runs(
         
         if 'created_after' in filters:
             where_conditions.append("created_at >= ?")
-            params.append(filters['created_after'])
+            # Handle timezone conversion for created_after
+            created_after = filters['created_after']
+            if isinstance(created_after, datetime):
+                # If it's a datetime object with timezone info, convert to naive UTC
+                if created_after.tzinfo is not None:
+                    created_after = created_after.astimezone(pytz.UTC).replace(tzinfo=None)
+                params.append(created_after.isoformat())
+            else:
+                # If it's already a string, use as-is
+                params.append(created_after)
         
         if 'created_before' in filters:
             where_conditions.append("created_at <= ?")
-            params.append(filters['created_before'])
+            # Handle timezone conversion for created_before
+            created_before = filters['created_before']
+            if isinstance(created_before, datetime):
+                # If it's a datetime object with timezone info, convert to naive UTC
+                if created_before.tzinfo is not None:
+                    created_before = created_before.astimezone(pytz.UTC).replace(tzinfo=None)
+                params.append(created_before.isoformat())
+            else:
+                # If it's already a string, use as-is
+                params.append(created_before)
     
     where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
     
