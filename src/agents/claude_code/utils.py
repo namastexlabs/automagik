@@ -4,7 +4,7 @@ This module consolidates common utility functions to avoid duplication
 across the codebase.
 """
 
-# Re-export git utilities for backward compatibility
+# Re-export git utilities
 from .git_utils import (
     get_current_git_branch,
     get_current_git_branch_sync,
@@ -14,7 +14,7 @@ from .git_utils import (
     checkout_branch
 )
 
-# Re-export stream utilities for backward compatibility  
+# Re-export stream utilities  
 from .stream_utils import (
     parse_json_safely,
     extract_claude_message_content,

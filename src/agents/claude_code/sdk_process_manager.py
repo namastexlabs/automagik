@@ -17,7 +17,7 @@ try:
     )
     from ...db.models import WorkflowProcessCreate
 except ImportError:
-    # Fallback for testing environments
+    # Testing environment stubs
     def create_workflow_process(data):
         return True
     def update_heartbeat(run_id):
@@ -109,7 +109,7 @@ class ProcessManager:
             mark_process_terminated(run_id, status=status)
             logger.info(f"Marked process {run_id} as {status}")
             
-            # SURGICAL FIX: Clean up worktree if workflow was killed and not persistent
+            # Clean up worktree if workflow was killed and not persistent
             if status == "killed":
                 try:
                     from ...db.repository.workflow_run import get_workflow_run_by_run_id

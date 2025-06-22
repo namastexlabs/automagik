@@ -55,7 +55,7 @@ class LogManager:
 
         Returns:
             Path to the log file in format: ./logs/workflowname_sessionid.log if both provided,
-            otherwise fallback to ./logs/run_{run_id}.log
+            otherwise ./logs/run_{run_id}.log
         """
         if workflow_name and session_id:
             return self.logs_dir / f"{workflow_name}_{session_id}.log"
