@@ -87,7 +87,8 @@ def get_workflow_process(run_id: str) -> Optional[WorkflowProcess]:
     """
     try:
         query = "SELECT * FROM workflow_processes WHERE run_id = %s"
-        result = execute_query(query, (run_id,), fetch_one=True)
+        results = execute_query(query, (run_id,), fetch=True)
+        result = results[0] if results else None
         
         if result:
             return WorkflowProcess.from_db_row(dict(result))
