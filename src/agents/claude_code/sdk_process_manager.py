@@ -88,6 +88,16 @@ class ProcessManager:
         async def heartbeat_loop():
             while True:
                 await asyncio.sleep(30)  # Update every 30 seconds
+                
+                # Check if process was killed before updating heartbeat
+                try:
+                    process_info = self.get_process_info(run_id)
+                    if process_info and process_info.status == "killed":
+                        logger.info(f"🛑 Heartbeat detected kill signal for {run_id}, stopping heartbeat")
+                        break
+                except Exception as kill_check_error:
+                    logger.error(f"Heartbeat kill signal check failed: {kill_check_error}")
+                
                 await self.update_process_heartbeat(run_id)
         
         return asyncio.create_task(heartbeat_loop())
@@ -98,6 +108,22 @@ class ProcessManager:
             # Update workflow_processes table
             mark_process_terminated(run_id, status=status)
             logger.info(f"Marked process {run_id} as {status}")
+            
+            # SURGICAL FIX: Clean up worktree if workflow was killed and not persistent
+            if status == "killed":
+                try:
+                    from ...db.repository.workflow_run import get_workflow_run_by_run_id
+                    workflow_run = get_workflow_run_by_run_id(run_id)
+                    
+                    if workflow_run and not workflow_run.workspace_persistent:
+                        from .utils.worktree_cleanup import cleanup_workflow_worktree
+                        cleanup_success = await cleanup_workflow_worktree(run_id)
+                        if cleanup_success:
+                            logger.info(f"Successfully cleaned up worktree for killed workflow {run_id}")
+                        else:
+                            logger.warning(f"Failed to clean up worktree for killed workflow {run_id}")
+                except Exception as cleanup_error:
+                    logger.error(f"Error during kill cleanup: {cleanup_error}")
             
             # CRITICAL FIX: Also update workflow_runs table for status API consistency
             try:
