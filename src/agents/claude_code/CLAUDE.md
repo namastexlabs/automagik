@@ -115,7 +115,6 @@ class ProgressTracker:
         self.workflow_name = workflow_name
         self.session_name = session_name
         self.progress_data = {
-            "completion_percentage": 0,
             "current_phase": "initializing",
             "steps_completed": 0,
             "total_steps": None,
@@ -142,13 +141,7 @@ class ProgressTracker:
                 self.progress_data["current_phase"] = phase
                 break
         
-        # Calculate completion percentage
-        if self.progress_data["total_steps"]:
-            completion = (
-                self.progress_data["steps_completed"] / 
-                self.progress_data["total_steps"]
-            ) * 100
-            self.progress_data["completion_percentage"] = min(completion, 100)
+        # Track progress steps (percentage calculation removed per user request)
         
         # Store progress update
         await self.store_progress_update()
@@ -344,7 +337,6 @@ class WorkflowMonitor:
             
             yield ProgressUpdate(
                 run_id=run_id,
-                completion_percentage=status.progress.completion_percentage,
                 current_phase=status.progress.current_phase,
                 estimated_remaining=status.progress.estimated_remaining,
                 status=status.status

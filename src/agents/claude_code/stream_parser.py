@@ -279,7 +279,6 @@ class StreamParser:
         return {
             "turns": turns,
             "max_turns": max_turns,
-            "completion_percentage": percentage,
             "current_phase": current_phase,
             "is_running": status == "running"
         }
