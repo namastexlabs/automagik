@@ -86,12 +86,7 @@ def setup_signal_forwarding():
         logger.info(f"📝 __main__ received signal {signum}, triggering application shutdown...")
         
         # Trigger immediate shutdown of critical services
-        try:
-            from src.agents.claude_code.execution_isolator import shutdown_isolator
-            shutdown_isolator()
-            logger.info("📝 Execution isolator shutdown from __main__")
-        except Exception as e:
-            logger.warning(f"Error shutting down isolator from __main__: {e}")
+        # Note: execution_isolator has been deprecated and removed
         
         # Exit immediately - uvicorn will handle the rest
         logger.info("📝 Exiting from __main__ signal handler")

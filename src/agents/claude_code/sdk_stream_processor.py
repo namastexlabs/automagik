@@ -156,6 +156,10 @@ class SDKStreamProcessor:
                 }
                 self.metrics.tool_usage_history.append(tool_event)
                 
+                # Extract phases from TodoWrite tool usage
+                if block.name == "TodoWrite":
+                    self._extract_phases_from_todowrite(block.input)
+                
                 # Update phase for tool usage
                 self.metrics.current_phase = f"using_{block.name.lower()}_tool"
                 
@@ -311,6 +315,44 @@ class SDKStreamProcessor:
         
         # Track phase progress (percentage calculation removed per user request)
     
+    def _extract_phases_from_todowrite(self, tool_input: Dict[str, Any]):
+        """Extract phase information from TodoWrite tool usage."""
+        if not isinstance(tool_input, dict):
+            return
+            
+        todos = tool_input.get("todos", [])
+        if not isinstance(todos, list):
+            return
+        
+        completed_phases = []
+        current_phase = None
+        
+        for todo in todos:
+            if not isinstance(todo, dict):
+                continue
+                
+            content = todo.get("content", "")
+            status = todo.get("status", "")
+            
+            if status == "completed" and content:
+                # Clean and format phase name
+                phase_name = content.strip()
+                if phase_name and phase_name not in completed_phases:
+                    completed_phases.append(phase_name)
+            elif status == "in_progress" and content:
+                # Set current active phase
+                current_phase = content.strip()
+        
+        # Update metrics with extracted phase information
+        if completed_phases:
+            # Merge with existing phases, preserving order and avoiding duplicates
+            for phase in completed_phases:
+                if phase not in self.metrics.phases_completed:
+                    self.metrics.phases_completed.append(phase)
+        
+        if current_phase:
+            self.metrics.current_phase = current_phase
+    
     def get_current_metrics(self) -> SDKExecutionMetrics:
         """Get current execution metrics."""
         return self.metrics
@@ -332,8 +374,7 @@ class SDKStreamProcessor:
                 "max_turns": None,  # Should be set externally
                 "current_phase": self.metrics.current_phase,
                 "phases_completed": self.metrics.phases_completed,
-                "is_running": self.metrics.is_running,
-                "estimated_completion": None
+                "is_running": self.metrics.is_running
             },
             
             "metrics": {
