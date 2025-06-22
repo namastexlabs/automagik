@@ -15,10 +15,8 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.log_manager import get_log_manager
-from src.agents.claude_code.completion_tracker import CompletionTracker
 from src.agents.claude_code.result_extractor import ResultExtractor
 from src.agents.claude_code.progress_tracker import ProgressTracker
-from src.agents.claude_code.debug_builder import DebugBuilder
 from src.agents.claude_code.git_utils import get_git_file_changes, find_repo_root
 from src.agents.claude_code.models import (
     EnhancedStatusResponse,
@@ -470,14 +468,6 @@ async def run_claude_workflow(
             session.metadata = metadata
             session_repo.update_session(session)
             
-            # Start completion tracking for background execution
-            if result.get("status") == "running":
-                await CompletionTracker.track_completion(
-                    run_id=result.get("run_id", run_id),
-                    session_id=str(session_id),
-                    workflow_name=workflow_name,
-                    max_wait_time=request.timeout or 7200
-                )
 
         # Return response with actual Claude message
         return ClaudeWorkflowResponse(
@@ -796,7 +786,6 @@ async def get_claude_code_run_status(
         # Initialize enhanced components
         result_extractor = ResultExtractor()
         progress_tracker = ProgressTracker()
-        debug_builder = DebugBuilder()
 
         # Extract meaningful final result with error handling
         try:
@@ -1057,9 +1046,13 @@ async def get_claude_code_run_status(
 
         # Add debug information if requested (unified debug/detailed behavior)
         if debug or detailed:
-            debug_info = debug_builder.build_debug_response(
-                metadata, log_entries, assistant_messages, workflow_metrics
-            )
+            # Debug info now comes from workflow process tracking
+            debug_info = {
+                "workflow_metrics": workflow_metrics,
+                "metadata": metadata,
+                "log_entries_count": len(log_entries),
+                "assistant_messages_count": len(assistant_messages)
+            }
             
             return DebugStatusResponse(
                 **enhanced_response.model_dump(),
