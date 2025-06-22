@@ -320,15 +320,7 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error starting Graphiti queue: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
-        # SURGICAL FIX: Start Claude Code workflow services
-        try:
-            logger.info("🚀 Starting Claude Code workflow services...")
-            from src.agents.claude_code.startup import start_workflow_services
-            await start_workflow_services()
-            logger.info("✅ Claude Code workflow services started successfully")
-        except Exception as e:
-            logger.error(f"❌ Error starting Claude Code workflow services: {str(e)}")
-            logger.error(f"Detailed error: {traceback.format_exc()}")
+        # Claude Code workflow services removed - process tracking handled in sdk_executor
         
         yield
         
@@ -343,15 +335,7 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error shutting down MCP client manager: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
-        # SURGICAL FIX: Stop Claude Code workflow services
-        try:
-            logger.info("🛑 Stopping Claude Code workflow services...")
-            from src.agents.claude_code.startup import stop_workflow_services
-            await stop_workflow_services()
-            logger.info("✅ Claude Code workflow services stopped successfully")
-        except Exception as e:
-            logger.error(f"❌ Error stopping Claude Code workflow services: {str(e)}")
-            logger.error(f"Detailed error: {traceback.format_exc()}")
+        # Claude Code workflow services removed - process tracking handled in sdk_executor
         
         try:
             # Stop Graphiti queue
