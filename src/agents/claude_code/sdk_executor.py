@@ -8,6 +8,7 @@ with proper priority handling and real-time streaming data extraction.
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -27,11 +28,11 @@ from .executor_base import ExecutorBase
 from .models import ClaudeCodeRunRequest
 from .sdk_stream_processor import SDKStreamProcessor
 from .log_manager import get_log_manager
-from .execution_isolator import ExecutionIsolator, get_isolator
 
-# Database imports for metrics persistence
+# Database imports for metrics and process tracking
 from ...db.repository.workflow_run import update_workflow_run_by_run_id
-from ...db.models import WorkflowRunUpdate
+from ...db.repository.workflow_process import create_workflow_process, update_heartbeat, mark_process_terminated
+from ...db.models import WorkflowRunUpdate, WorkflowProcessCreate
 
 logger = logging.getLogger(__name__)
 
@@ -263,26 +264,78 @@ class ClaudeSDKExecutor(ExecutorBase):
             
         return turn_count
     
-    # DEPRECATED: This method is replaced by ExecutionIsolator.execute_in_subprocess()
-    # The old _execute_in_isolated_context method has been removed.
+    async def _register_workflow_process(self, run_id: str, request: ClaudeCodeRunRequest, agent_context: Dict[str, Any]) -> bool:
+        """Register a new workflow process in the database.
+        
+        Args:
+            run_id: Unique run identifier
+            request: Execution request
+            agent_context: Agent context
+            
+        Returns:
+            True if registered successfully
+        """
+        try:
+            process_data = WorkflowProcessCreate(
+                run_id=run_id,
+                pid=os.getpid(),
+                status="running",
+                workflow_name=request.workflow_name,
+                session_id=agent_context.get('session_id'),
+                user_id=agent_context.get('user_id'),
+                workspace_path=agent_context.get('workspace', '.')
+            )
+            
+            success = create_workflow_process(process_data)
+            if success:
+                logger.info(f"Registered workflow process for run_id: {run_id}, PID: {os.getpid()}")
+            else:
+                logger.warning(f"Failed to register workflow process for run_id: {run_id}")
+                
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error registering workflow process: {e}")
+            return False
+    
+    async def _update_process_heartbeat(self, run_id: str) -> None:
+        """Update workflow process heartbeat."""
+        try:
+            update_heartbeat(run_id)
+        except Exception as e:
+            logger.debug(f"Failed to update heartbeat for {run_id}: {e}")
     
     async def _execute_claude_task_simple(
         self, 
         request: ClaudeCodeRunRequest, 
         agent_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute claude task in subprocess with simplified logic (no isolation overhead).
+        """Execute claude task with simplified logic and process tracking.
         
-        This method is designed to run in a subprocess and does NOT include
-        TaskGroup conflict detection or retry logic.
+        This is now the primary execution method with proper process tracking.
         """
         start_time = time.time()
         session_id = request.session_id or str(uuid4())
+        run_id = request.run_id or str(uuid4())
         
-        logger.info(f"SDK Executor (SUBPROCESS): Starting simple execution for session {session_id}")
+        logger.info(f"SDK Executor: Starting execution for run_id: {run_id}, session: {session_id}")
+        
+        # Register workflow process
+        if hasattr(request, 'run_id') and request.run_id:
+            await self._register_workflow_process(request.run_id, request, agent_context)
         
         # Ensure Node.js is available
         ensure_node_in_path()
+        
+        # Start heartbeat updates
+        heartbeat_task = None
+        if hasattr(request, 'run_id') and request.run_id:
+            async def heartbeat_loop():
+                while True:
+                    await asyncio.sleep(30)  # Update every 30 seconds
+                    await self._update_process_heartbeat(request.run_id)
+            
+            heartbeat_task = asyncio.create_task(heartbeat_loop())
         
         # Extract workspace from agent context
         workspace_path = Path(agent_context.get('workspace', '.'))
@@ -308,91 +361,56 @@ class ClaudeSDKExecutor(ExecutorBase):
         actual_claude_session_id = None  # Capture from first SystemMessage
         
         try:
-            # SURGICAL FIX: Wrap SDK query in TaskGroup-safe execution
-            try:
-                async for message in query(prompt=request.message, options=options):
-                    messages.append(str(message))
-                    collected_messages.append(message)
-                    
-                    # SURGICAL FIX: Capture session ID from first SystemMessage
-                    if (hasattr(message, 'subtype') and message.subtype == 'init' and 
-                        hasattr(message, 'data') and 'session_id' in message.data):
-                        actual_claude_session_id = message.data['session_id']
-                        logger.info(f"SDK Executor (SUBPROCESS): Captured REAL Claude session ID: {actual_claude_session_id}")
-                    
-                    # SURGICAL FIX: Capture ALL final metrics from ResultMessage
-                    if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
-                        final_metrics = {
-                            'total_cost_usd': message.total_cost_usd,
-                            'num_turns': getattr(message, 'num_turns', 0),
-                            'subtype': getattr(message, 'subtype', ''),
-                            'duration_ms': getattr(message, 'duration_ms', 0),
-                            'duration_api_ms': getattr(message, 'duration_api_ms', 0),
-                            'is_error': getattr(message, 'is_error', False),
-                            'session_id': getattr(message, 'session_id', session_id),
-                            'result': getattr(message, 'result', ''),
-                            'usage': getattr(message, 'usage', {})
-                        }
-                        
-            except Exception as sdk_error:
-                # If TaskGroup error, retry with sync fallback approach
-                if "TaskGroup" in str(sdk_error):
-                    logger.warning(f"SDK TaskGroup error, attempting sync fallback: {sdk_error}")
-                    # Try to import sync version
-                    try:
-                        from claude_code_sdk.sync import query as sync_query
-                        import asyncio
-                        
-                        # Run sync version in thread to avoid TaskGroup conflicts
-                        loop = asyncio.get_event_loop()
-                        sync_result = await loop.run_in_executor(
-                            None, 
-                            lambda: list(sync_query(prompt=request.message, options=options))
-                        )
-                        
-                        for message in sync_result:
-                            messages.append(str(message))
-                            collected_messages.append(message)
-                            
-                            # Process metrics from sync results too
-                            if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
-                                final_metrics = {
-                                    'total_cost_usd': message.total_cost_usd,
-                                    'num_turns': getattr(message, 'num_turns', 0),
-                                    'subtype': getattr(message, 'subtype', ''),
-                                    'duration_ms': getattr(message, 'duration_ms', 0),
-                                    'duration_api_ms': getattr(message, 'duration_api_ms', 0),
-                                    'is_error': getattr(message, 'is_error', False),
-                                    'session_id': getattr(message, 'session_id', session_id),
-                                    'result': getattr(message, 'result', ''),
-                                    'usage': getattr(message, 'usage', {})
-                                }
-                        
-                        logger.info(f"SDK Executor (SUBPROCESS): Sync fallback successful")
-                        
-                    except ImportError:
-                        logger.error("Sync claude_code_sdk not available for fallback")
-                        raise sdk_error
-                    except Exception as fallback_error:
-                        logger.error(f"Sync fallback failed: {fallback_error}")
-                        raise sdk_error
-                else:
-                    raise sdk_error
+            # Execute SDK query directly
+            async for message in query(prompt=request.message, options=options):
+                messages.append(str(message))
+                collected_messages.append(message)
+                
+                # Capture session ID from first SystemMessage
+                if (hasattr(message, 'subtype') and message.subtype == 'init' and 
+                    hasattr(message, 'data') and 'session_id' in message.data):
+                    actual_claude_session_id = message.data['session_id']
+                    logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
+                
+                # Capture ALL final metrics from ResultMessage
+                if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
+                    final_metrics = {
+                        'total_cost_usd': message.total_cost_usd,
+                        'num_turns': getattr(message, 'num_turns', 0),
+                        'subtype': getattr(message, 'subtype', ''),
+                        'duration_ms': getattr(message, 'duration_ms', 0),
+                        'duration_api_ms': getattr(message, 'duration_api_ms', 0),
+                        'is_error': getattr(message, 'is_error', False),
+                        'session_id': getattr(message, 'session_id', session_id),
+                        'result': getattr(message, 'result', ''),
+                        'usage': getattr(message, 'usage', {})
+                    }
                     
         except Exception as e:
-            logger.error(f"SDK Executor (SUBPROCESS): SDK execution failed: {e}")
+            logger.error(f"SDK Executor: SDK execution failed: {e}")
+            # Mark process as failed
+            if hasattr(request, 'run_id') and request.run_id:
+                mark_process_terminated(request.run_id, status="failed")
             return {
                 'success': False,
                 'session_id': session_id,
-                'result': f"Subprocess SDK execution failed: {str(e)}",
+                'result': f"SDK execution failed: {str(e)}",
                 'exit_code': 1,
                 'execution_time': time.time() - start_time,
-                'logs': f"Subprocess error: {str(e)}",
+                'logs': f"Error: {str(e)}",
                 'workspace_path': str(workspace_path),
                 'cost_usd': 0.0,
                 'total_turns': 0,
                 'tools_used': []
             }
+        finally:
+            # Cancel heartbeat task
+            if heartbeat_task:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
         
         # Extract tool usage from messages
         from claude_code_sdk import AssistantMessage, ToolUseBlock
@@ -404,7 +422,7 @@ class ClaudeSDKExecutor(ExecutorBase):
                     if isinstance(block, ToolUseBlock):
                         if block.name not in tools_used:
                             tools_used.append(block.name)
-                            logger.debug(f"SDK Executor (SUBPROCESS): Captured tool - {block.name}")
+                            logger.debug(f"SDK Executor: Captured tool - {block.name}")
         
         # Extract final metrics
         if final_metrics:
@@ -418,7 +436,11 @@ class ClaudeSDKExecutor(ExecutorBase):
         
         execution_time = time.time() - start_time
         
-        logger.info(f"SDK Executor (SUBPROCESS): Completed successfully - Turns: {total_turns}, Tools: {len(tools_used)}")
+        logger.info(f"SDK Executor: Completed successfully - Turns: {total_turns}, Tools: {len(tools_used)}")
+        
+        # Mark process as completed
+        if hasattr(request, 'run_id') and request.run_id:
+            mark_process_terminated(request.run_id, status="completed")
         
         # Extract token details from final metrics
         token_details = {'total_tokens': 0, 'input_tokens': 0, 'output_tokens': 0, 'cache_created': 0, 'cache_read': 0}
@@ -431,7 +453,7 @@ class ClaudeSDKExecutor(ExecutorBase):
                 'cache_created': usage.get('cache_creation_input_tokens', 0),
                 'cache_read': usage.get('cache_read_input_tokens', 0)
             })
-            logger.info(f"SDK Executor (SUBPROCESS): Extracted token details - Total: {token_details['total_tokens']}")
+            logger.info(f"SDK Executor: Extracted token details - Total: {token_details['total_tokens']}")
 
         # SURGICAL FIX: Update database with subprocess results if run_id available
         if hasattr(request, 'run_id') and request.run_id:
@@ -469,7 +491,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             'result': '\n'.join(messages) if messages else "Subprocess execution completed",
             'exit_code': 0,
             'execution_time': execution_time,
-            'logs': f"Subprocess SDK execution completed in {execution_time:.2f}s",
+            'logs': f"SDK execution completed in {execution_time:.2f}s",
             'workspace_path': str(workspace_path),
             'cost_usd': total_cost,
             'total_turns': total_turns,
@@ -478,183 +500,17 @@ class ClaudeSDKExecutor(ExecutorBase):
             'result_metadata': final_metrics or {}  # SURGICAL FIX: Include ResultMessage metadata
         }
     
-    async def _execute_claude_task_isolated(
+    async def _execute_claude_task_direct(
         self, 
         request: ClaudeCodeRunRequest, 
         agent_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute claude task in isolated context (internal method).
+        """Execute claude task directly without isolation.
         
-        This is the core execution logic but without TaskGroup error handling
-        to avoid infinite recursion in isolated context.
+        This method is used when already in a safe execution context.
         """
-        start_time = time.time()
-        session_id = agent_context.get('session_id')
-        
-        logger.info(f"SDK Executor (ISOLATED): Starting execution for session {session_id}")
-        
-        # Ensure Node.js is available
-        ensure_node_in_path()
-        
-        # Extract workspace from agent context
-        workspace_path = Path(agent_context.get('workspace', '.'))
-        
-        # Build options for SDK
-        options = self._build_options(
-            workspace_path,
-            model=request.model,
-            max_turns=request.max_turns,
-            max_thinking_tokens=request.max_thinking_tokens,
-            session_id=request.session_id  # SURGICAL FIX: Pass session_id for resumption
-        )
-        
-        # Add session metadata to options
-        options.session_metadata = {
-            'session_id': session_id,
-            'workspace': workspace_path
-        }
-        
-        # Execute the task using SDK query function - SIMPLIFIED (no TaskGroup error handling)
-        messages = []
-        execution_incomplete = False
-        
-        # Initialize comprehensive metrics tracking
-        tools_used = []
-        token_details = {
-            'total_tokens': 0,
-            'input_tokens': 0,
-            'output_tokens': 0,
-            'cache_created': 0,
-            'cache_read': 0
-        }
-        
-        # Collect all messages first to avoid TaskGroup issues
-        collected_messages = []
-        final_metrics = None
-        actual_claude_session_id = None  # Capture from first SystemMessage
-        
-        logger.info(f"SDK Executor (ISOLATED): Starting SDK query for request: {request.message[:100]}...")
-        
-        # SIMPLIFIED EXECUTION - just run the SDK without TaskGroup error handling
-        try:
-            async for message in query(prompt=request.message, options=options):
-                messages.append(str(message))
-                collected_messages.append(message)
-                
-                # SURGICAL FIX: Capture session ID from first SystemMessage
-                if (hasattr(message, 'subtype') and message.subtype == 'init' and 
-                    hasattr(message, 'data') and 'session_id' in message.data):
-                    actual_claude_session_id = message.data['session_id']
-                    logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
-                
-                # Capture final metrics during streaming
-                if hasattr(message, 'total_cost_usd') and message.total_cost_usd is not None:
-                    final_metrics = {
-                        'total_cost_usd': message.total_cost_usd,
-                        'num_turns': getattr(message, 'num_turns', 0),
-                        'duration_ms': getattr(message, 'duration_ms', 0),
-                        'usage': getattr(message, 'usage', {})
-                    }
-                    logger.info(f"SDK Executor (ISOLATED): Captured metrics - Cost: ${final_metrics['total_cost_usd']:.4f}, Turns: {final_metrics['num_turns']}")
-        
-        except Exception as sdk_error:
-            logger.error(f"SDK Executor (ISOLATED): SDK streaming failed: {sdk_error}")
-            # In isolated context, we don't retry - just mark as incomplete
-            execution_incomplete = True
-        
-        # SURGICAL FIX: Process collected messages for comprehensive data extraction
-        from claude_code_sdk import ResultMessage, AssistantMessage, ToolUseBlock
-        
-        total_cost = 0.0
-        total_turns = 0
-        tools_used = []
-        token_details = {'total_tokens': 0, 'input_tokens': 0, 'output_tokens': 0, 'cache_created': 0, 'cache_read': 0}
-        result_data = {}  # Store ResultMessage metadata
-        
-        logger.info(f"SDK Executor (ISOLATED): Processing {len(collected_messages)} collected messages")
-        
-        # Extract data from collected messages (same as main execution path)
-        for message in collected_messages:
-            if isinstance(message, ResultMessage):
-                total_cost = message.total_cost_usd or 0.0
-                total_turns = message.num_turns
-                
-                # SURGICAL FIX: Extract ALL available ResultMessage fields
-                result_data = {
-                    'subtype': message.subtype,
-                    'duration_ms': message.duration_ms,
-                    'duration_api_ms': message.duration_api_ms, 
-                    'is_error': message.is_error,
-                    'session_id': message.session_id,
-                    'result': message.result
-                }
-                logger.info(f"SDK Executor: ResultMessage data - {result_data}")
-                
-                # Extract token usage details
-                if message.usage:
-                    token_details = {
-                        'total_tokens': (
-                            message.usage.get('input_tokens', 0) +
-                            message.usage.get('output_tokens', 0) +
-                            message.usage.get('cache_creation_input_tokens', 0) +
-                            message.usage.get('cache_read_input_tokens', 0)
-                        ),
-                        'input_tokens': message.usage.get('input_tokens', 0),
-                        'output_tokens': message.usage.get('output_tokens', 0),
-                        'cache_created': message.usage.get('cache_creation_input_tokens', 0),
-                        'cache_read': message.usage.get('cache_read_input_tokens', 0)
-                    }
-                    
-            elif isinstance(message, AssistantMessage):
-                # Extract tool usage from assistant messages
-                for block in message.content:
-                    if isinstance(block, ToolUseBlock):
-                        if block.name not in tools_used:
-                            tools_used.append(block.name)
-                            logger.info(f"SDK Executor (ISOLATED): Captured tool usage - {block.name}")
-        
-        # Fallback to streaming metrics if no ResultMessage found
-        if not total_cost and final_metrics:
-            total_cost = final_metrics.get('total_cost_usd', 0.0)
-            total_turns = final_metrics.get('num_turns', 0)
-            if final_metrics.get('usage'):
-                usage = final_metrics['usage']
-                token_details = {
-                    'total_tokens': (
-                        usage.get('input_tokens', 0) +
-                        usage.get('output_tokens', 0) +
-                        usage.get('cache_creation_input_tokens', 0) +
-                        usage.get('cache_read_input_tokens', 0)
-                    ),
-                    'input_tokens': usage.get('input_tokens', 0),
-                    'output_tokens': usage.get('output_tokens', 0),
-                    'cache_created': usage.get('cache_creation_input_tokens', 0),
-                    'cache_read': usage.get('cache_read_input_tokens', 0)
-                }
-        
-        # Count actual turns if not available
-        if total_turns == 0:
-            total_turns = self._count_actual_turns(collected_messages)
-        
-        execution_time = time.time() - start_time
-        
-        logger.info(f"SDK Executor (ISOLATED): Extracted comprehensive metrics - Cost: ${total_cost:.4f}, Tokens: {token_details['total_tokens']}")
-        
-        return {
-            'success': not execution_incomplete and len(collected_messages) > 0,
-            'session_id': actual_claude_session_id or session_id,  # SURGICAL FIX: Return real Claude session ID
-            'result': '\n'.join(messages) if messages else "Isolated execution completed",
-            'exit_code': 0 if not execution_incomplete else 1,
-            'execution_time': execution_time,
-            'logs': f"Isolated SDK execution completed in {execution_time:.2f}s",
-            'git_commits': [],
-            'workspace_path': str(workspace_path),
-            'cost_usd': total_cost,
-            'total_turns': total_turns,
-            'tools_used': tools_used,
-            'token_details': token_details,
-            'result_metadata': result_data,  # SURGICAL FIX: Include ResultMessage metadata
-        }
+        # Just delegate to the simple execution method
+        return await self._execute_claude_task_simple(request, agent_context)
     
     async def execute_claude_task(
         self, 
@@ -663,8 +519,7 @@ class ClaudeSDKExecutor(ExecutorBase):
     ) -> Dict[str, Any]:
         """Execute a Claude Code task using the SDK.
         
-        SURGICAL FIX: This method now detects the execution context and uses
-        appropriate isolation mechanisms to prevent TaskGroup conflicts.
+        This method now uses direct execution with proper process tracking.
         
         Args:
             request: Execution request with task details
@@ -673,39 +528,23 @@ class ClaudeSDKExecutor(ExecutorBase):
         Returns:
             Dictionary with execution results
         """
-        # ---------------------------------------------------------------------------------
-        # Decide whether this execution should be isolated from the main event-loop.
-        # ---------------------------------------------------------------------------------
-        # The former implementation attempted to detect a FastAPI/anyio environment by
-        # checking for a non-existent `get_context` attribute on `asyncio.current_task()`.
-        # That condition was therefore **never true** which meant that the Claude SDK was
-        # executed directly in the main event-loop.  When the SDK internally spawned an
-        # `anyio.TaskGroup`, the two distinct task-group lifecycles clashed, eventually
-        # raising the dreaded "TaskGroup has pending tasks" exception and preventing the
-        # workflow from moving beyond the *failed* phase.
-        #
-        # To fix this we now default to *always* running inside `ExecutionIsolator`'s
-        # dedicated thread-pool, unless we are **already** in such an isolated context.
-        # The isolator sets the `CLAUDE_SDK_ISOLATED` environment variable to guard
-        # against infinite recursion.  This makes the isolation behaviour explicit,
-        # reliable, and completely removes the brittle runtime introspection.
-        # ---------------------------------------------------------------------------------
-
-        import os
-
-        # SURGICAL FIX: ALWAYS use thread pool isolation unless explicitly bypassed
-        # This prevents ANY TaskGroup conflicts by ensuring SDK runs in dedicated thread
-        force_isolation = os.environ.get("FORCE_CLAUDE_ISOLATION", "true").lower() == "true"
-        already_isolated = os.environ.get("CLAUDE_SDK_ISOLATED", "false").lower() == "true"
-        
-        if force_isolation and not already_isolated:
-            isolator = get_isolator()
-            logger.info(f"SDK Executor: Forcing thread pool isolation for TaskGroup safety")
-            return await isolator.execute_in_thread_pool(request, agent_context)
-        
-        # Otherwise, proceed with normal execution
         start_time = time.time()
         session_id = request.session_id or str(uuid4())
+        run_id = request.run_id or str(uuid4())
+        
+        # Register workflow process
+        if hasattr(request, 'run_id') and request.run_id:
+            await self._register_workflow_process(request.run_id, request, agent_context)
+        
+        # Start heartbeat updates
+        heartbeat_task = None
+        if hasattr(request, 'run_id') and request.run_id:
+            async def heartbeat_loop():
+                while True:
+                    await asyncio.sleep(30)  # Update every 30 seconds
+                    await self._update_process_heartbeat(request.run_id)
+            
+            heartbeat_task = asyncio.create_task(heartbeat_loop())
         
         try:
             # Ensure Node.js is available for MCP servers before any execution
@@ -747,7 +586,6 @@ class ClaudeSDKExecutor(ExecutorBase):
             # Execute the task using SDK query function with comprehensive data extraction
             messages = []
             final_result_message = None
-            execution_incomplete = False  # Track if execution was truncated due to TaskGroup conflicts
             
             # Initialize comprehensive metrics tracking
             total_cost = 0.0
@@ -761,7 +599,7 @@ class ClaudeSDKExecutor(ExecutorBase):
                 'cache_read': 0
             }
             
-            # Collect all messages first to avoid TaskGroup issues
+            # Collect all messages
             collected_messages = []
             final_metrics = None
             
@@ -781,21 +619,10 @@ class ClaudeSDKExecutor(ExecutorBase):
                         logger.info(f"SDK Executor: Captured final metrics during streaming - Cost: ${final_metrics['total_cost_usd']:.4f}, Turns: {final_metrics['num_turns']}")
                     
             except Exception as sdk_error:
-                # Check if we should bypass TaskGroup conflict detection (when running in thread pool)
-                import os
-                bypass_detection = os.environ.get('BYPASS_TASKGROUP_DETECTION', 'false').lower() == 'true'
-                
-                # TaskGroup errors indicate subprocess context conflicts
-                if "TaskGroup" in str(sdk_error) or "cancel scope" in str(sdk_error):
-                    logger.warning(f"TaskGroup conflict detected in SDK execution: {sdk_error}")
-                    # Mark as incomplete and continue with partial data
-                    execution_incomplete = True
-                    logger.info("SDK Executor: TaskGroup error detected - marking as incomplete")
-                else:
-                    # Re-raise other types of errors
-                    raise sdk_error
+                # Re-raise all errors - no more TaskGroup special handling
+                raise sdk_error
             
-            # Process collected messages OUTSIDE the streaming loop to avoid TaskGroup interference
+            # Process collected messages
             from claude_code_sdk import ResultMessage, AssistantMessage, ToolUseBlock
             
             logger.info(f"SDK Executor: Processing {len(collected_messages)} collected messages for data extraction")
@@ -869,30 +696,6 @@ class ClaudeSDKExecutor(ExecutorBase):
                 result_text = '\n'.join(messages) if messages else "No response received"
                 success = bool(messages)  # Basic success if we got any messages
             
-            # SURGICAL FIX: Improved TaskGroup conflict handling - preserve successful work
-            if execution_incomplete:
-                # Check if substantial work was completed despite TaskGroup conflicts
-                substantial_work = (
-                    len(tools_used) > 0 or  # Tools were executed
-                    total_turns > 0 or      # Multiple turns completed
-                    total_cost > 0.01 or    # Significant cost incurred
-                    len(collected_messages) > 2  # Multiple message exchanges
-                )
-                
-                if substantial_work:
-                    # Mark as success with warning - preserve the completed work
-                    success = True
-                    result_text += "\n\n⚠️ EXECUTION COMPLETED WITH TASKGROUP CONFLICT: Work preserved despite technical interruption"
-                    logger.warning("SURGICAL SUCCESS: TaskGroup conflict occurred but preserving substantial completed work")
-                    logger.info(f"  - Tools executed: {len(tools_used)}")
-                    logger.info(f"  - Turns completed: {total_turns}")
-                    logger.info(f"  - Cost incurred: ${total_cost:.4f}")
-                    logger.info(f"  - Messages exchanged: {len(collected_messages)}")
-                else:
-                    # Only mark as failed if no meaningful work was done
-                    success = False
-                    result_text += "\n\n⚠️ EXECUTION FAILED: TaskGroup conflict prevented meaningful work completion"
-                    logger.error("SDK Executor: Marking execution as failed due to TaskGroup conflict with no substantial work")
             
             execution_time = time.time() - start_time
             
@@ -926,6 +729,10 @@ class ClaudeSDKExecutor(ExecutorBase):
             
             # Extract git commits if any (TODO: parse from tool usage)
             git_commits = []
+            
+            # Mark process as completed
+            if hasattr(request, 'run_id') and request.run_id:
+                mark_process_terminated(request.run_id, status="completed")
             
             # SURGICAL FIX: Persist execution metrics to workflow_runs database table
             # This resolves the critical bug where metrics were captured but not saved
@@ -1006,10 +813,9 @@ class ClaudeSDKExecutor(ExecutorBase):
         except Exception as e:
             logger.error(f"SDK execution failed: {e}")
             
-            # Log additional details for TaskGroup errors
-            if "TaskGroup" in str(e) or "cancel scope" in str(e):
-                logger.warning("SDK TaskGroup error detected - this is a known issue with background execution")
-                logger.warning("The SDK is designed for foreground CLI usage, not background API execution")
+            # Mark process as failed
+            if hasattr(request, 'run_id') and request.run_id:
+                mark_process_terminated(request.run_id, status="failed")
             
             return {
                 'success': False,
@@ -1026,6 +832,14 @@ class ClaudeSDKExecutor(ExecutorBase):
                 'tools_used': []
             }
         finally:
+            # Cancel heartbeat task
+            if heartbeat_task:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
+            
             # Cleanup session
             if session_id in self.active_sessions:
                 del self.active_sessions[session_id]
@@ -1369,26 +1183,18 @@ class ClaudeSDKExecutor(ExecutorBase):
         logger.info(f"Attempting to cancel execution: {execution_id}")
         success = False
         
-        # First check if we're using ExecutionIsolator
-        isolator = get_isolator()
-        execution_info = isolator.get_execution_status(execution_id)
-        
-        if execution_info:
-            # Try to cancel through isolator (this now actually terminates)
-            isolator_success = isolator.cancel_execution(execution_id)
-            if isolator_success:
-                logger.info(f"Execution {execution_id} cancelled via isolator")
-                success = True
+        # Check for process information in workflow_processes table
+        try:
+            from src.db.repository.workflow_process import get_workflow_process
+            process_info = get_workflow_process(execution_id)
             
-            # Double-check process termination if PID is available
-            if execution_info.get("pid"):
+            if process_info and process_info.pid:
                 try:
                     import psutil
-                    import os
                     
                     # SAFETY CHECK: Never kill the main server process
                     current_pid = os.getpid()
-                    target_pid = execution_info["pid"]
+                    target_pid = process_info.pid
                     
                     if target_pid == current_pid:
                         logger.error(f"SAFETY: Refusing to kill main server process (PID: {current_pid})")
@@ -1398,7 +1204,7 @@ class ClaudeSDKExecutor(ExecutorBase):
                     try:
                         process = psutil.Process(target_pid)
                         if process.is_running():
-                            logger.warning(f"Process {target_pid} still running after isolator cancellation, force terminating")
+                            logger.info(f"Terminating process {target_pid} for execution {execution_id}")
                             
                             # Try graceful termination first
                             process.terminate()
@@ -1423,6 +1229,8 @@ class ClaudeSDKExecutor(ExecutorBase):
                     
                 except Exception as e:
                     logger.error(f"Failed to verify process termination: {e}")
+        except ImportError:
+            logger.debug("workflow_process module not available")
                     
         # Check active tasks (asyncio tasks) for cancellation
         if hasattr(self, 'active_tasks') and execution_id in self.active_tasks:

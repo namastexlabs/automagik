@@ -13,7 +13,6 @@ from enum import Enum
 from uuid import uuid4
 
 from .models import ClaudeCodeRunRequest
-from .execution_isolator import get_isolator
 from ...db.repository.workflow_run import update_workflow_run_by_run_id
 from ...db.models import WorkflowRunUpdate
 
@@ -61,7 +60,6 @@ class WorkflowQueueManager:
         self.completed_workflows: Dict[str, QueuedWorkflow] = {}
         self.workers: List[asyncio.Task] = []
         self._shutdown = False
-        self._isolator = get_isolator()
         
         # Start worker tasks
         self._start_workers()
@@ -112,10 +110,14 @@ class WorkflowQueueManager:
         await self._update_workflow_status(run_id, "running")
         
         try:
-            # Execute with isolation
-            result = await self._isolator.execute_in_thread_pool(
-                workflow.request,
-                workflow.agent_context
+            # Execute workflow directly
+            # Import executor factory to create an executor
+            from .executor_factory import ExecutorFactory
+            executor = ExecutorFactory.create_executor(mode="local")
+            
+            result = await executor.execute_claude_task(
+                request=workflow.request,
+                agent_context=workflow.agent_context
             )
             
             # Update workflow record
@@ -311,9 +313,6 @@ class WorkflowQueueManager:
         
         # Wait for workers to finish
         await asyncio.gather(*self.workers, return_exceptions=True)
-        
-        # Shutdown isolator
-        self._isolator.shutdown()
         
         logger.info("Workflow queue manager shutdown complete")
 
