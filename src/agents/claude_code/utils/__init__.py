@@ -16,10 +16,7 @@ from .worktree_cleanup import (
 )
 
 # Import from parent directory git_utils
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from git_utils import get_current_git_branch_with_fallback
+from ..git_utils import get_current_git_branch_with_fallback
 
 __all__ = [
     'generate_unique_run_id',
