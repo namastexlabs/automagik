@@ -742,11 +742,12 @@ class ClaudeCodeAgent(AutomagikAgent):
             # Look up existing Claude session ID from database if session_id provided
             claude_session_id_for_resumption = None
             session_obj = None
-            session_id = self.context.get("session_id")
+            # CRITICAL FIX: Don't overwrite the session_id parameter!
+            lookup_session_id = session_id or self.context.get("session_id")
             
-            if session_id:
+            if lookup_session_id:
                 from src.db import get_session
-                session_obj = get_session(uuid.UUID(session_id))
+                session_obj = get_session(uuid.UUID(lookup_session_id))
                 if session_obj and session_obj.metadata:
                     # Extract actual Claude session ID from metadata for resumption
                     claude_session_id_for_resumption = session_obj.metadata.get("claude_session_id")

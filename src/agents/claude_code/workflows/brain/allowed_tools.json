@@ -1,25 +1,19 @@
-{
-  "allowed_tools": [
-    "Task",
-    "TodoRead",
-    "TodoWrite",
-    "Read",
-    "Write",
-    "LS",
-    "Glob",
-    "mcp__agent-memory__add_memory",
-    "mcp__agent-memory__search_memory_nodes",
-    "mcp__agent-memory__search_memory_facts",
-    "mcp__agent-memory__delete_entity_edge",
-    "mcp__agent-memory__delete_episode",
-    "mcp__agent-memory__get_entity_edge",
-    "mcp__agent-memory__get_episodes",
-    "mcp__agent-memory__clear_graph",
-    "Bash",
-    "Edit",
-    "MultiEdit",
-    "Grep",
-    "ListMcpResourcesTool",
-    "ReadMcpResourceTool"
-  ]
-}
+[
+  "Task",
+  "TodoRead", 
+  "TodoWrite",
+  "Read",
+  "Write",
+  "LS",
+  "Glob",
+  "mcp__agent-memory__add_memories",
+  "mcp__agent-memory__search_memory",
+  "mcp__agent-memory__list_memories",
+  "mcp__agent-memory__delete_all_memories",
+  "Bash",
+  "Edit",
+  "MultiEdit", 
+  "Grep",
+  "ListMcpResourcesTool",
+  "ReadMcpResourceTool"
+]
