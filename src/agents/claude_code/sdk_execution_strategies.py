@@ -1,0 +1,622 @@
+"""Execution strategies for Claude SDK Executor.
+
+This module contains different execution strategies and cancellation logic.
+"""
+
+import asyncio
+import logging
+import os
+import time
+import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, Optional
+from uuid import uuid4
+
+from claude_code_sdk import query, ClaudeCodeOptions
+try:
+    from ...utils.nodejs_detection import ensure_node_in_path
+except ImportError:
+    # Fallback for testing environments
+    def ensure_node_in_path():
+        return True
+
+from .models import ClaudeCodeRunRequest
+from .sdk_config_manager import ConfigPriority
+from .sdk_process_manager import ProcessManager
+from .sdk_metrics_handler import MetricsHandler
+
+logger = logging.getLogger(__name__)
+
+
+# Strategy classes for SDK executor
+class SimpleExecutionStrategy:
+    """Simple execution strategy using ExecutionStrategies."""
+    
+    def __init__(self, environment_manager=None):
+        self.environment_manager = environment_manager
+        self.execution_strategies = ExecutionStrategies(environment_manager)
+    
+    async def execute(self, request, agent_context):
+        """Execute using simple strategy."""
+        return await self.execution_strategies.execute_simple(request, agent_context)
+
+
+class FullExecutionStrategy:
+    """Full execution strategy using ExecutionStrategies."""
+    
+    def __init__(self, environment_manager=None):
+        self.environment_manager = environment_manager
+        self.execution_strategies = ExecutionStrategies(environment_manager)
+    
+    async def execute(self, request, agent_context):
+        """Execute using full strategy."""
+        return await self.execution_strategies.execute_simple(request, agent_context)
+
+
+class FirstResponseStrategy:
+    """First response strategy using ExecutionStrategies."""
+    
+    def __init__(self, environment_manager=None):
+        self.environment_manager = environment_manager
+        self.execution_strategies = ExecutionStrategies(environment_manager)
+    
+    async def execute(self, request, agent_context):
+        """Execute and return first response."""
+        return await self.execution_strategies.execute_first_response(request, agent_context)
+
+
+class StreamingExecutionStrategy:
+    """Streaming execution strategy using ExecutionStrategies."""
+    
+    def __init__(self, environment_manager=None):
+        self.environment_manager = environment_manager
+        self.execution_strategies = ExecutionStrategies(environment_manager)
+    
+    async def execute(self, request, agent_context, run_id=None, stream_processors=None):
+        """Execute with streaming."""
+        return await self.execution_strategies.execute_simple(request, agent_context)
+
+
+class ExecutionStrategies:
+    """Different execution strategies for Claude SDK."""
+    
+    def __init__(self, environment_manager=None):
+        self.environment_manager = environment_manager
+        self.process_manager = ProcessManager()
+    
+    def build_options(self, workspace: Path, **kwargs) -> ClaudeCodeOptions:
+        """Build options with file-based configuration loading."""
+        options = ClaudeCodeOptions()
+        
+        # Set working directory (SDK uses cwd, not workspace)
+        options.cwd = str(workspace)
+        
+        # Load system prompt from prompt.md
+        prompt_file = workspace / "prompt.md"
+        if prompt_file.exists():
+            try:
+                prompt_content = prompt_file.read_text().strip()
+                if prompt_content:
+                    options.system_prompt = prompt_content
+                    logger.info(f"Loaded system prompt from {prompt_file} ({len(prompt_content)} chars)")
+                else:
+                    logger.debug("prompt.md is empty, using default Claude Code behavior")
+            except Exception as e:
+                logger.error(f"Failed to load prompt.md: {e}")
+        else:
+            logger.debug("No prompt.md found, using vanilla Claude Code")
+        
+        # Load allowed tools if file exists
+        if 'allowed_tools' not in kwargs:
+            allowed_tools_file = workspace / "allowed_tools.json"
+            if allowed_tools_file.exists():
+                try:
+                    import json
+                    with open(allowed_tools_file) as f:
+                        tools_list = json.load(f)
+                        if isinstance(tools_list, list):
+                            options.allowed_tools = tools_list
+                            logger.info(f"Loaded {len(tools_list)} allowed tools from file")
+                except Exception as e:
+                    logger.error(f"Failed to load allowed_tools.json: {e}")
+        
+        # Load disallowed tools if file exists
+        if 'disallowed_tools' not in kwargs:
+            disallowed_tools_file = workspace / "disallowed_tools.json"
+            if disallowed_tools_file.exists():
+                try:
+                    import json
+                    with open(disallowed_tools_file) as f:
+                        tools_list = json.load(f)
+                        if isinstance(tools_list, list):
+                            options.disallowed_tools = tools_list
+                            logger.info(f"Loaded {len(tools_list)} disallowed tools from file")
+                except Exception as e:
+                    logger.error(f"Failed to load disallowed_tools.json: {e}")
+        
+        # Load MCP configuration
+        mcp_config_file = workspace / ".mcp.json"
+        if mcp_config_file.exists():
+            try:
+                import json
+                with open(mcp_config_file) as f:
+                    mcp_data = json.load(f)
+                    
+                if 'mcpServers' in mcp_data and isinstance(mcp_data['mcpServers'], dict):
+                    options.mcp_servers = mcp_data['mcpServers']
+                    logger.info(f"Loaded {len(mcp_data['mcpServers'])} MCP servers from config")
+                else:
+                    logger.warning(".mcp.json must contain 'mcpServers' object")
+                    
+            except Exception as e:
+                logger.error(f"Failed to load .mcp.json: {e}")
+        
+        # Apply explicit kwargs (highest priority)
+        for key, value in kwargs.items():
+            if hasattr(options, key) and value is not None:
+                setattr(options, key, value)
+        
+        # Handle session resumption
+        if 'session_id' in kwargs and kwargs['session_id']:
+            options.resume = kwargs['session_id']
+            logger.info(f"Setting session resumption with Claude session ID: {kwargs['session_id']}")
+        
+        # Set permission mode to bypass tool permission prompts
+        options.permission_mode = "bypassPermissions"
+        logger.info("Set permission_mode to bypassPermissions for automated workflow execution")
+        
+        return options
+    
+    async def execute_simple(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute claude task with simplified logic and process tracking."""
+        start_time = time.time()
+        session_id = request.session_id or str(uuid4())
+        run_id = request.run_id or str(uuid4())
+        
+        logger.info(f"SDK Executor: Starting simple execution for run_id: {run_id}, session: {session_id}")
+        
+        # Initialize metrics handler
+        metrics_handler = MetricsHandler()
+        
+        # Register workflow process
+        if hasattr(request, 'run_id') and request.run_id:
+            await self.process_manager.register_workflow_process(request.run_id, request, agent_context)
+        
+        # Ensure Node.js is available
+        ensure_node_in_path()
+        
+        # Start heartbeat updates
+        heartbeat_task = None
+        if hasattr(request, 'run_id') and request.run_id:
+            heartbeat_task = self.process_manager.create_heartbeat_task(request.run_id)
+        
+        # Extract workspace from agent context
+        workspace_path = Path(agent_context.get('workspace', '.'))
+        
+        # Build options for SDK
+        options = self.build_options(
+            workspace_path,
+            model=request.model,
+            max_turns=request.max_turns,
+            max_thinking_tokens=request.max_thinking_tokens,
+            session_id=request.session_id
+        )
+        
+        # Execute the task using SDK query function
+        messages = []
+        collected_messages = []
+        actual_claude_session_id = None
+        
+        try:
+            # CRITICAL FIX: Add real-time progress tracking
+            turn_count = 0
+            token_count = 0
+            
+            # Execute SDK query directly (SDK handles max_turns properly)
+            try:
+                async for message in query(prompt=request.message, options=options):
+                    messages.append(str(message))
+                    collected_messages.append(message)
+                    
+                    # Track turns and tokens for real-time progress
+                    if hasattr(message, 'type') and message.type == 'assistant':
+                        turn_count += 1
+                        
+                    if hasattr(message, 'usage') and message.usage:
+                        if hasattr(message.usage, 'total_tokens'):
+                            token_count = message.usage.total_tokens
+                    
+                    # Real-time progress update every turn
+                    if hasattr(request, 'run_id') and request.run_id and turn_count > 0:
+                        try:
+                            from ...db.models import WorkflowRunUpdate
+                            from ...db.repository.workflow_run import update_workflow_run_by_run_id
+                            
+                            # Build metadata with current progress
+                            progress_metadata = {
+                                "current_turns": turn_count,
+                                "max_turns": request.max_turns,
+                                "total_tokens": token_count,
+                                "last_activity": datetime.utcnow().isoformat(),
+                                "run_status": "running"
+                            }
+                            
+                            # Update database with real-time progress
+                            progress_update = WorkflowRunUpdate(
+                                total_tokens=token_count,
+                                metadata=progress_metadata
+                            )
+                            update_workflow_run_by_run_id(request.run_id, progress_update)
+                            
+                        except Exception as progress_error:
+                            logger.error(f"Real-time progress update failed: {progress_error}")
+                    
+                    # Capture session ID from first SystemMessage
+                    if (hasattr(message, 'subtype') and message.subtype == 'init' and 
+                        hasattr(message, 'data') and 'session_id' in message.data):
+                        actual_claude_session_id = message.data['session_id']
+                        logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
+                        
+                        # CRITICAL FIX: Update database AND session metadata with real Claude session_id immediately
+                        if hasattr(request, 'run_id') and request.run_id:
+                            try:
+                                from ...db.models import WorkflowRunUpdate
+                                from ...db.repository.workflow_run import update_workflow_run_by_run_id
+                                
+                                # Update workflow_runs table
+                                session_update = WorkflowRunUpdate(session_id=actual_claude_session_id)
+                                update_success = update_workflow_run_by_run_id(request.run_id, session_update)
+                                if update_success:
+                                    logger.info(f"Database updated with real Claude session_id: {actual_claude_session_id}")
+                                
+                                # CRITICAL FIX: Also update session metadata for continuation
+                                try:
+                                    from ...db import get_session, update_session
+                                    from ...db.repository.workflow_run import get_workflow_run_by_run_id
+                                    from uuid import UUID
+                                    
+                                    # Find session by workflow run
+                                    workflow_run = get_workflow_run_by_run_id(request.run_id)
+                                    if workflow_run and workflow_run.session_id:
+                                        # Handle both string and UUID types
+                                        session_id = workflow_run.session_id
+                                        if isinstance(session_id, str):
+                                            session_id = UUID(session_id)
+                                        session_obj = get_session(session_id)
+                                        if session_obj and session_obj.metadata:
+                                            session_obj.metadata["claude_session_id"] = actual_claude_session_id
+                                            update_session(session_obj)
+                                            logger.info(f"Session metadata updated with Claude session_id: {actual_claude_session_id}")
+                                except Exception as session_error:
+                                    logger.error(f"Session metadata update failed: {session_error}")
+                                    
+                            except Exception as db_error:
+                                logger.error(f"Database session_id update failed: {db_error}")
+            
+            except Exception as stream_error:
+                # Handle EndOfStream and other streaming errors gracefully
+                if "EndOfStream" in str(stream_error) or "anyio.EndOfStream" in str(type(stream_error)):
+                    logger.info("SDK Executor: Stream ended successfully (EndOfStream is normal after completion)")
+                else:
+                    logger.error(f"SDK Executor: Stream error: {stream_error}")
+                    raise stream_error
+                    
+        except Exception as e:
+            logger.error(f"SDK Executor: SDK execution failed: {e}")
+            logger.error(f"Full exception details: {traceback.format_exc()}")
+            if hasattr(request, 'run_id') and request.run_id:
+                await self.process_manager.terminate_process(request.run_id, status="failed")
+            return self._build_error_result(e, session_id, workspace_path, start_time)
+        finally:
+            if heartbeat_task:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
+        
+        # Process metrics
+        metrics_handler.update_metrics_from_messages(collected_messages, messages)
+        
+        execution_time = time.time() - start_time
+        result_text = '\n'.join(messages) if messages else "Subprocess execution completed"
+        
+        logger.info(f"SDK Executor: Completed successfully - Turns: {metrics_handler.total_turns}, Tools: {len(metrics_handler.tools_used)}")
+        
+        # CRITICAL FIX: Update workflow_runs table with success BEFORE marking process completed
+        if hasattr(request, 'run_id') and request.run_id:
+            try:
+                from ...db.models import WorkflowRunUpdate
+                from ...db.repository.workflow_run import update_workflow_run_by_run_id
+                
+                # Extract final metrics from collected_messages
+                final_result = None
+                total_cost = 0.0
+                total_tokens = 0
+                
+                # Look for completion result in messages (success OR max_turns)
+                for msg in collected_messages:
+                    try:
+                        # Check if msg is a dictionary (Claude SDK JSON format)
+                        if isinstance(msg, dict) and msg.get('subtype') in ['success', 'error_max_turns']:
+                            logger.info(f"Processing completion message: {msg.get('subtype')}")
+                            
+                            # For max_turns, create a meaningful result message
+                            if msg.get('subtype') == 'error_max_turns':
+                                final_result = f"Workflow completed {msg.get('num_turns', 0)} turns (max_turns limit reached)"
+                            else:
+                                final_result = msg.get('result')
+                            
+                            total_cost = msg.get('total_cost_usd', 0.0)
+                            if 'usage' in msg and isinstance(msg['usage'], dict):
+                                usage = msg['usage']
+                                total_tokens = (usage.get('input_tokens', 0) + 
+                                              usage.get('cache_creation_input_tokens', 0) + 
+                                              usage.get('cache_read_input_tokens', 0) + 
+                                              usage.get('output_tokens', 0))
+                                logger.info(f"Extracted metrics: cost={total_cost}, tokens={total_tokens}")
+                            break  # Found the completion result, stop looking
+                    except Exception as msg_error:
+                        logger.error(f"Error processing completion message: {msg_error}")
+                        continue
+                    
+                    # Fallback: Check for completion result in object attributes (legacy format)
+                    if hasattr(msg, 'subtype') and msg.subtype in ['success', 'error_max_turns']:
+                        # For max_turns, create a meaningful result message
+                        if msg.subtype == 'error_max_turns':
+                            final_result = f"Workflow completed {getattr(msg, 'num_turns', 0)} turns (max_turns limit reached)"
+                        else:
+                            final_result = getattr(msg, 'result', None)
+                        
+                        total_cost = getattr(msg, 'total_cost_usd', 0.0)
+                        if hasattr(msg, 'usage'):
+                            usage = msg.usage
+                            total_tokens = (usage.get('input_tokens', 0) + 
+                                          usage.get('cache_creation_input_tokens', 0) + 
+                                          usage.get('cache_read_input_tokens', 0) + 
+                                          usage.get('output_tokens', 0))
+                        break  # Found the completion result, stop looking
+                    
+                    # Fallback: Check for completion result in msg.data structure
+                    elif hasattr(msg, 'data') and isinstance(msg.data, dict):
+                        if msg.data.get('subtype') in ['success', 'error_max_turns']:
+                            # For max_turns, create a meaningful result message
+                            if msg.data.get('subtype') == 'error_max_turns':
+                                final_result = f"Workflow completed {msg.data.get('num_turns', 0)} turns (max_turns limit reached)"
+                            else:
+                                final_result = msg.data.get('result')
+                            
+                            total_cost = msg.data.get('total_cost_usd', 0.0)
+                            if 'usage' in msg.data:
+                                usage = msg.data['usage']
+                                total_tokens = (usage.get('input_tokens', 0) + 
+                                              usage.get('cache_creation_input_tokens', 0) + 
+                                              usage.get('cache_read_input_tokens', 0) + 
+                                              usage.get('output_tokens', 0))
+                            break  # Found the completion result, stop looking
+                
+                if not final_result:
+                    final_result = result_text
+                
+                update_data = WorkflowRunUpdate(
+                    status="completed",
+                    completed_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                    result=final_result,
+                    total_tokens=total_tokens,
+                    cost_estimate=total_cost,
+                    duration_seconds=int(execution_time)
+                )
+                
+                update_success = update_workflow_run_by_run_id(request.run_id, update_data)
+                if update_success:
+                    logger.info(f"Successfully updated workflow_runs table for {request.run_id}")
+                else:
+                    logger.warning(f"Failed to update workflow_runs table for {request.run_id}")
+                    
+            except Exception as db_update_error:
+                logger.error(f"Error updating workflow_runs table: {db_update_error}")
+        
+        # Mark process as completed
+        if hasattr(request, 'run_id') and request.run_id:
+            await self.process_manager.terminate_process(request.run_id, status="completed")
+        
+        # Persist metrics to database
+        if hasattr(request, 'run_id') and request.run_id:
+            await metrics_handler.persist_to_database(request.run_id, True, result_text, execution_time)
+
+        return {
+            'success': True,
+            'session_id': actual_claude_session_id or session_id,
+            'result': result_text,
+            'exit_code': 0,
+            'execution_time': execution_time,
+            'logs': f"SDK execution completed in {execution_time:.2f}s",
+            'workspace_path': str(workspace_path),
+            **metrics_handler.get_summary(),
+            'result_metadata': metrics_handler.final_metrics or {}
+        }
+    
+    async def execute_first_response(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute Claude Code and return after first response."""
+        session_id = request.session_id or str(uuid4())
+        
+        try:
+            # Get workspace
+            workspace_path = self._get_workspace_path(request, session_id)
+            
+            # Build options
+            options = self.build_options(
+                workspace_path,
+                model=request.model,
+                max_turns=request.max_turns,
+                environment=request.environment
+            )
+            
+            # Start streaming execution
+            first_response = None
+            async for message in query(prompt=request.message, options=options):
+                if message and str(message).strip():
+                    first_response = str(message)
+                    break
+            
+            return {
+                'session_id': session_id,
+                'first_response': first_response or "Claude Code is processing...",
+                'streaming_started': True
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to start streaming: {e}")
+            return {
+                'session_id': session_id,
+                'first_response': f"Error: {str(e)}",
+                'streaming_started': False
+            }
+    
+    def _get_workspace_path(self, request: ClaudeCodeRunRequest, session_id: str) -> Path:
+        """Get workspace path from environment manager or current directory."""
+        if self.environment_manager:
+            workspace_info = asyncio.create_task(
+                self.environment_manager.prepare_workspace(
+                    repository_url=request.repository_url,
+                    git_branch=request.git_branch,
+                    session_id=session_id,
+                    workflow_name=request.workflow_name,
+                    persistent=request.persistent
+                )
+            )
+            return Path(workspace_info['workspace_path'])
+        else:
+            return Path.cwd()
+    
+    def _build_error_result(
+        self, 
+        error: Exception, 
+        session_id: str, 
+        workspace_path: Path, 
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Build standardized error result."""
+        return {
+            'success': False,
+            'session_id': session_id,
+            'result': f"SDK execution failed: {str(error)}",
+            'exit_code': 1,
+            'execution_time': time.time() - start_time,
+            'logs': f"Error: {str(error)}",
+            'workspace_path': str(workspace_path),
+            'cost_usd': 0.0,
+            'total_turns': 0,
+            'tools_used': []
+        }
+
+
+class CancellationManager:
+    """Handles execution cancellation and cleanup."""
+    
+    def __init__(self):
+        self.process_manager = ProcessManager()
+    
+    async def cancel_execution(self, execution_id: str, active_sessions: Dict[str, Any]) -> bool:
+        """Cancel a running execution."""
+        logger.info(f"Attempting to cancel execution: {execution_id}")
+        success = False
+        
+        # Get process information and terminate if needed
+        process_info = self.process_manager.get_process_info(execution_id)
+        
+        if process_info and process_info.pid:
+            success = await self._terminate_system_process(process_info.pid, execution_id)
+        
+        # Check active sessions for cancellation
+        if execution_id in active_sessions:
+            success = await self._cancel_session_task(execution_id, active_sessions) or success
+        
+        # Update database status
+        try:
+            await self.process_manager.terminate_process(execution_id, status="killed")
+            logger.info(f"Updated database status for {execution_id} to killed")
+        except Exception as e:
+            logger.error(f"Failed to update database status for {execution_id}: {e}")
+        
+        if success:
+            logger.info(f"Successfully cancelled execution: {execution_id}")
+        else:
+            logger.warning(f"Could not fully cancel execution: {execution_id}")
+            
+        return success
+    
+    async def _terminate_system_process(self, target_pid: int, execution_id: str) -> bool:
+        """Terminate system process safely."""
+        try:
+            import psutil
+            
+            # Safety check: Never kill the main server process
+            current_pid = os.getpid()
+            if target_pid == current_pid:
+                logger.error(f"SAFETY: Refusing to kill main server process (PID: {current_pid})")
+                return False
+            
+            # Check if process still exists and terminate
+            try:
+                process = psutil.Process(target_pid)
+                if process.is_running():
+                    logger.info(f"Terminating process {target_pid} for execution {execution_id}")
+                    
+                    # Try graceful termination first
+                    process.terminate()
+                    
+                    try:
+                        process.wait(timeout=3)
+                        logger.info(f"Process {target_pid} terminated gracefully")
+                    except psutil.TimeoutExpired:
+                        process.kill()
+                        logger.warning(f"Process {target_pid} was force killed")
+                    
+                    return True
+                else:
+                    logger.info(f"Process {target_pid} already terminated")
+                    return True
+                    
+            except psutil.NoSuchProcess:
+                logger.info(f"Process {target_pid} not found (already terminated)")
+                return True
+        
+        except ImportError:
+            logger.error("psutil not available for process termination")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to terminate process: {e}")
+            return False
+    
+    async def _cancel_session_task(self, execution_id: str, active_sessions: Dict[str, Any]) -> bool:
+        """Cancel asyncio task associated with session."""
+        try:
+            session_info = active_sessions[execution_id]
+            
+            # If there's a task associated, try to cancel it
+            if "task" in session_info and session_info["task"] is not None:
+                task = session_info["task"]
+                if not task.done():
+                    task.cancel()
+                    logger.info(f"Cancelled asyncio task for session {execution_id}")
+                    return True
+            
+            # Remove session tracking
+            del active_sessions[execution_id]
+            logger.info(f"Removed session tracking for {execution_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to cancel session {execution_id}: {e}")
+            return False
