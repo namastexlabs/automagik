@@ -65,7 +65,6 @@ class SDKExecutionMetrics:
     # Real-time progress
     current_phase: str = "initializing"
     phases_completed: List[str] = field(default_factory=list)
-    completion_percentage: float = 0.0
     last_activity: Optional[datetime] = None
     
     # Model and MCP info
@@ -139,8 +138,7 @@ class SDKStreamProcessor:
                     "data": {
                         "text": block.text,
                         "response_count": len(self.metrics.assistant_responses),
-                        "current_phase": self.metrics.current_phase,
-                        "completion_percentage": self.metrics.completion_percentage
+                        "current_phase": self.metrics.current_phase
                     }
                 })
                 
@@ -265,8 +263,6 @@ class SDKStreamProcessor:
             else:
                 self.metrics.completion_type = "completed_successfully"
             self.metrics.current_phase = "completed"
-            
-        self.metrics.completion_percentage = 100.0
         
         return {
             "event_type": "execution_complete",
@@ -313,13 +309,7 @@ class SDKStreamProcessor:
             if "completion" not in self.metrics.phases_completed:
                 self.metrics.phases_completed.append("completion")
         
-        # Update completion percentage based on phases
-        total_phases = 5  # analysis, planning, implementation, testing, completion
-        completed_phases = len(self.metrics.phases_completed)
-        self.metrics.completion_percentage = min(
-            (completed_phases / total_phases) * 90,  # Max 90% until actual completion
-            90.0
-        )
+        # Track phase progress (percentage calculation removed per user request)
     
     def get_current_metrics(self) -> SDKExecutionMetrics:
         """Get current execution metrics."""
@@ -340,7 +330,6 @@ class SDKStreamProcessor:
             "progress": {
                 "turns": self.metrics.total_turns,
                 "max_turns": None,  # Should be set externally
-                "completion_percentage": self.metrics.completion_percentage,
                 "current_phase": self.metrics.current_phase,
                 "phases_completed": self.metrics.phases_completed,
                 "is_running": self.metrics.is_running,

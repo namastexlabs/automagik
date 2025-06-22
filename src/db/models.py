@@ -810,6 +810,9 @@ class WorkflowRunUpdate(BaseModel):
     result: Optional[str] = Field(None, description="Updated workflow result")
     error_message: Optional[str] = Field(None, description="Updated error message")
     
+    # Session tracking
+    session_id: Optional[uuid.UUID] = Field(None, description="Real Claude session ID")
+    
     # Git tracking
     final_commit_hash: Optional[str] = Field(None, description="Final commit hash")
     git_diff_added_lines: Optional[int] = Field(None, description="Updated lines added")

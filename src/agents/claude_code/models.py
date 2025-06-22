@@ -115,7 +115,6 @@ class ProgressInfo(BaseModel):
     
     turns: int = Field(..., description="Current number of turns completed")
     max_turns: Optional[int] = Field(None, description="Maximum turns allowed (None for unlimited)")
-    completion_percentage: float = Field(..., description="Completion percentage (0-100)")
     current_phase: str = Field(..., description="Current workflow phase")
     phases_completed: List[str] = Field(default_factory=list, description="List of completed phases")
     is_running: bool = Field(..., description="Whether workflow is currently running")
@@ -184,7 +183,6 @@ class EnhancedStatusResponse(BaseModel):
                 "progress": {
                     "turns": 30,
                     "max_turns": 30,
-                    "completion_percentage": 100.0,
                     "current_phase": "completed",
                     "phases_completed": ["initialization", "planning", "analysis", "implementation"],
                     "is_running": False,
@@ -234,7 +232,6 @@ class DebugStatusResponse(EnhancedStatusResponse):
                 "progress": {
                     "turns": 30,
                     "max_turns": 30,
-                    "completion_percentage": 100.0,
                     "current_phase": "completed",
                     "phases_completed": ["initialization", "planning", "analysis", "implementation"],
                     "is_running": False
