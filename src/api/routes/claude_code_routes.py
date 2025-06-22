@@ -13,6 +13,24 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Path, Body, Query
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
+# Import race condition helpers
+try:
+    from src.agents.claude_code.utils.race_condition_helpers import (
+        generate_unique_run_id,
+        create_workflow_with_retry,
+        validate_session_id
+    )
+except ImportError:
+    # Fallback if module not available yet
+    async def generate_unique_run_id(max_retries=5):
+        return str(uuid.uuid4())
+    async def create_workflow_with_retry(data, max_retries=3):
+        from src.db.models import WorkflowRunCreate
+        from src.db.repository.workflow_run import create_workflow_run
+        return create_workflow_run(WorkflowRunCreate(**data))
+    def validate_session_id(session_id):
+        return session_id
+
 from src.agents.models.agent_factory import AgentFactory
 from src.agents.claude_code.models import (
     EnhancedStatusResponse,
@@ -101,7 +119,7 @@ class ClaudeWorkflowResponse(BaseModel):
 
     run_id: str = Field(description="Unique run identifier")
     status: str = Field(
-        description="Execution status: pending, running, completed, failed"
+        description="Execution status: pending, running, completed, failed, killed"
     )
     message: str = Field(description="Human-readable status message")
     session_id: str = Field(description="Session identifier")
@@ -127,7 +145,7 @@ class ClaudeCodeRunSummary(BaseModel):
 
     run_id: str = Field(..., description="Unique identifier for the run")
     status: str = Field(
-        ..., description="Current status: pending, running, completed, failed"
+        ..., description="Current status: pending, running, completed, failed, killed"
     )
     workflow_name: str = Field(..., description="Workflow that was executed")
     started_at: datetime = Field(..., description="When the run was started")
@@ -240,8 +258,15 @@ async def run_claude_workflow(
                 detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}",
             )
 
-        # Generate run ID - use standard UUID format for MCP server compatibility
-        run_id = str(uuid.uuid4())
+        # Generate unique run ID with collision protection
+        try:
+            run_id = await generate_unique_run_id()
+        except RuntimeError as e:
+            logger.error(f"Failed to generate unique run ID: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="System temporarily unable to generate unique workflow ID. Please try again."
+            )
 
         # Handle user creation if needed
         user_id = request.user_id
@@ -281,13 +306,23 @@ async def run_claude_workflow(
             from src.db.models import WorkflowRunCreate
             from src.db.repository.workflow_run import create_workflow_run
             
+            # Handle session_id properly to avoid UUID errors
+            valid_session_id = None
+            if request.session_id:
+                try:
+                    # Validate it's a proper UUID format
+                    uuid.UUID(request.session_id)
+                    valid_session_id = request.session_id
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid session_id format: {request.session_id}, ignoring")
+            
             workflow_run_data = WorkflowRunCreate(
                 run_id=run_id,
                 workflow_name=workflow_name,
                 agent_type="claude_code",
                 ai_model=request.model if hasattr(request, 'model') else "sonnet",
                 task_input=request.message,
-                session_id=request.session_id,  # Session ID from request (for continuation)
+                session_id=valid_session_id,  # Use validated session ID
                 session_name=session_name,
                 git_repo=request.repository_url,
                 git_branch=request.git_branch,
@@ -305,18 +340,41 @@ async def run_claude_workflow(
             try:
                 workflow_run_id = create_workflow_run(workflow_run_data)
                 logger.info(f"Created workflow run record {workflow_run_id} for run_id {run_id}")
+            except ValueError as ve:
+                # Handle race condition where another process created the workflow
+                if "already exists" in str(ve):
+                    logger.warning(f"Workflow run {run_id} already exists (race condition), checking status")
+                    existing = get_workflow_run_by_run_id(run_id)
+                    if existing and existing.status in ["pending", "running"]:
+                        # Return the existing workflow info
+                        return ClaudeWorkflowResponse(
+                            run_id=run_id,
+                            status=existing.status,
+                            message=f"Workflow {workflow_name} is already {existing.status}. Use the status endpoint to track progress.",
+                            session_id=existing.session_id or str(uuid.uuid4()),
+                            workflow_name=workflow_name,
+                            started_at=existing.created_at.isoformat() if existing.created_at else datetime.utcnow().isoformat(),
+                        )
+                    else:
+                        # Workflow exists but in a terminal state, generate new ID
+                        logger.warning(f"Existing workflow {run_id} is in state {existing.status}, generating new ID")
+                        run_id = str(uuid.uuid4())
+                        workflow_run_data.run_id = run_id
+                        workflow_run_id = create_workflow_run(workflow_run_data)
+                else:
+                    raise
             except Exception as db_error:
                 logger.warning(f"Failed to create workflow run record: {db_error}")
                 # Continue anyway - not critical for execution
             
-            # CRITICAL FIX: Check for existing running workflows to prevent duplicates
-            from src.db.repository.workflow_run import get_workflow_run_by_run_id
+            # Double-check no duplicate workflows after database creation
+            # This is redundant but ensures absolute safety
             existing_workflow = get_workflow_run_by_run_id(run_id)
-            if existing_workflow and existing_workflow.status == "running":
-                logger.warning(f"Workflow {run_id} is already running, rejecting duplicate request")
+            if not existing_workflow:
+                logger.error(f"Failed to find workflow run {run_id} after creation")
                 raise HTTPException(
-                    status_code=409,
-                    detail=f"Workflow {run_id} is already running. Use the status endpoint to monitor progress."
+                    status_code=500,
+                    detail=f"Failed to initialize workflow run {run_id}"
                 )
             
             # SURGICAL FIX: Use proper background task with asyncio instead of raw threading
