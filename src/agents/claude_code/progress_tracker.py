@@ -83,16 +83,12 @@ class ProgressTracker:
             current_phase = self._detect_current_phase(log_entries, current_turns, metadata)
             phases_completed = self._get_completed_phases(log_entries, current_phase, metadata)
             
-            # Time estimation
-            estimated_completion = self._estimate_completion(metadata, current_turns, max_turns)
-            
             return {
                 "turns": current_turns,
                 "max_turns": max_turns,
                 "current_phase": current_phase,
                 "phases_completed": phases_completed,
-                "is_running": is_running,
-                "estimated_completion": estimated_completion
+                "is_running": is_running
             }
             
         except Exception as e:
@@ -102,8 +98,7 @@ class ProgressTracker:
                 "max_turns": None,  # Unlimited by default
                 "current_phase": "unknown",
                 "phases_completed": [],
-                "is_running": False,
-                "estimated_completion": None
+                "is_running": False
             }
     
     def _detect_current_phase(
@@ -298,73 +293,6 @@ class ProgressTracker:
             return "implementation"
         else:
             return "execution"
-    
-    def _estimate_completion(
-        self,
-        metadata: Dict[str, Any],
-        current_turns: int,
-        max_turns: int
-    ) -> Optional[str]:
-        """Estimate workflow completion time.
-        
-        Args:
-            metadata: Session metadata
-            current_turns: Current turn count
-            max_turns: Maximum turns allowed
-            
-        Returns:
-            Estimated completion time string
-        """
-        try:
-            # Check if we have start time
-            started_at = metadata.get("started_at")
-            if not started_at:
-                return None
-            
-            # Parse start time
-            if isinstance(started_at, str):
-                start_time = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-            else:
-                start_time = started_at
-            
-            # Calculate elapsed time
-            now = datetime.now(start_time.tzinfo) if start_time.tzinfo else datetime.now()
-            elapsed = now - start_time
-            
-            # Estimate based on current progress
-            if current_turns > 0:
-                avg_time_per_turn = elapsed.total_seconds() / current_turns
-                
-                # SURGICAL FIX: Handle None max_turns (unlimited turns)
-                if max_turns is None:
-                    # For unlimited turns, estimate based on typical workflow duration
-                    # Most workflows complete in 5-20 turns
-                    estimated_total_turns = min(current_turns * 2, 20)  # Conservative estimate
-                    remaining_turns = max(0, estimated_total_turns - current_turns)
-                else:
-                    remaining_turns = max(0, max_turns - current_turns)
-                
-                if remaining_turns > 0:
-                    estimated_remaining = timedelta(seconds=avg_time_per_turn * remaining_turns)
-                    completion_time = now + estimated_remaining
-                    
-                    # Format as relative time
-                    total_remaining_minutes = estimated_remaining.total_seconds() / 60
-                    
-                    if total_remaining_minutes < 1:
-                        return "< 1 minute"
-                    elif total_remaining_minutes < 60:
-                        return f"~{int(total_remaining_minutes)} minutes"
-                    else:
-                        hours = int(total_remaining_minutes / 60)
-                        minutes = int(total_remaining_minutes % 60)
-                        return f"~{hours}h {minutes}m"
-            
-            return None
-            
-        except Exception as e:
-            logger.debug(f"Error estimating completion: {e}")
-            return None
     
     def get_phase_summary(
         self,

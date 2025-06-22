@@ -41,6 +41,7 @@ from src.agents.claude_code.models import (
     TokenInfo
 )
 from src.db.repository import user as user_repo
+from src.db.repository.workflow_run import get_workflow_run_by_run_id
 
 logger = logging.getLogger(__name__)
 
@@ -695,8 +696,7 @@ async def get_claude_code_run_status(run_id: str, debug: bool = False):
                 max_turns=max_turns,
                 current_phase="completed" if workflow_run.status == "completed" else "running",
                 phases_completed=[],
-                is_running=workflow_run.status == "running",
-                estimated_completion=None
+                is_running=workflow_run.status == "running"
             ),
             metrics=MetricsInfo(
                 cost_usd=float(workflow_run.cost_estimate) if workflow_run.cost_estimate else 0.0,
