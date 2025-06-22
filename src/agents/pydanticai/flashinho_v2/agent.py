@@ -204,7 +204,7 @@ class FlashinhoV2(AutomagikAgent):
         except Exception as e:
             logger.error(f"Error ensuring user memories ready: {str(e)}")
     
-    async def _identify_user(self, channel_payload: Optional[dict], message_history_obj: Optional[MessageHistory]) -> UserIdentificationResult:
+    async def _identify_user(self, channel_payload: Optional[dict], message_history_obj: Optional[MessageHistory], current_message: Optional[str] = None) -> UserIdentificationResult:
         """Comprehensive user identification process."""
         # Store references for other methods
         self.current_channel_payload = channel_payload
@@ -215,14 +215,28 @@ class FlashinhoV2(AutomagikAgent):
         history_user_id = message_history_obj.user_id if message_history_obj else None
         logger.info(f"🔍 User identification starting - Context: {initial_user_id}, History: {history_user_id}")
         
+        # PRIORITY: If we have a user_id from message history, use it first
+        if history_user_id and not initial_user_id:
+            self.context["user_id"] = str(history_user_id)
+            logger.info(f"🔍 Using user_id from session history: {history_user_id}")
+        
         # Try multiple identification methods
         await self._try_session_key_identification(channel_payload)
         await self._try_external_key_identification(message_history_obj, history_user_id)
         await self._try_flashed_id_identification(message_history_obj, history_user_id)
         
-        # Check conversation code requirement
+        # Try conversation code extraction from current message
+        conversation_code_processed = False
+        if current_message:
+            conversation_code_processed = await self._try_extract_and_process_conversation_code(current_message, self.context.get("user_id"))
+        
+        # Check conversation code requirement (skip if just processed)
         user_id = self.context.get("user_id")
-        requires_conversation_code = await self._check_conversation_code_requirement(user_id)
+        if conversation_code_processed:
+            requires_conversation_code = False
+            logger.info("Conversation code processed in current message, skipping requirement check")
+        else:
+            requires_conversation_code = await self._check_conversation_code_requirement(user_id)
         
         return UserIdentificationResult(
             user_id=user_id,
@@ -268,24 +282,24 @@ class FlashinhoV2(AutomagikAgent):
     
     async def _handle_conversation_code_flow(self, input_text: str, user_id: Optional[str], message_history_obj: Optional[MessageHistory], history_user_id: Optional[str], **kwargs) -> Optional[AgentResponse]:
         """Handle conversation code extraction and processing flow."""
-        conversation_code_extracted = await self._try_extract_and_process_conversation_code(input_text, user_id)
+        # Don't extract again - this was already done in _identify_user
+        # Just check if we now have a valid user_id after identification
+        new_user_id = self.context.get("user_id")
         
-        if not conversation_code_extracted:
+        if not new_user_id:
+            # No user identified, request conversation code
             return self._create_conversation_code_request_response()
         
-        # Sync message history after conversation code processing
-        new_user_id = self.context.get("user_id")
-        logger.info(f"🔍 After conversation code processing - Context user_id: {new_user_id}")
+        logger.info(f"🔍 User identified via conversation code - Context user_id: {new_user_id}")
         
+        # Sync message history after successful identification
         if message_history_obj and new_user_id and new_user_id != str(history_user_id):
             await update_message_history_user_id(message_history_obj, new_user_id)
             await update_session_user_id(message_history_obj, new_user_id)
         
-        # Run agent with introduction
-        introduction_prompt = self._create_introduction_prompt()
-        logger.info("Running agent with introduction prompt after conversation code confirmation")
-        
-        return await super().run(input_text=introduction_prompt, **kwargs)
+        # User identified successfully - return None to continue normal flow
+        logger.info("User identified successfully, continuing with normal agent flow")
+        return None
     
     def _create_conversation_code_request_response(self) -> AgentResponse:
         """Create response requesting conversation code."""
@@ -326,7 +340,7 @@ class FlashinhoV2(AutomagikAgent):
         """Enhanced run method with conversation code requirement and memory-based personalization."""
         try:
             # Identify user through multiple methods
-            identification_result = await self._identify_user(channel_payload, message_history_obj)
+            identification_result = await self._identify_user(channel_payload, message_history_obj, input_text)
             
             # Handle conversation code flow if required
             if identification_result.requires_conversation_code:
@@ -553,10 +567,15 @@ class FlashinhoV2(AutomagikAgent):
                             self.context.get("whatsapp_user_number")
                         )
                     
-                    logger.info(f"🔍 Extracted API phone number: {api_phone_number}")
+                    # Fallback to phone from Flashed API response if no API payload phone
+                    if not api_phone_number and phone:
+                        api_phone_number = phone
+                        logger.info(f"🔍 Using phone number from Flashed API response: {api_phone_number}")
+                    else:
+                        logger.info(f"🔍 Extracted API phone number: {api_phone_number}")
                     
                     if not api_phone_number:
-                        logger.error("No phone number available from API payload")
+                        logger.error("No phone number available from API payload or Flashed response")
                         return False
                     
                     # Prepare Flashed user data
@@ -613,10 +632,15 @@ class FlashinhoV2(AutomagikAgent):
                             self.context.get("whatsapp_user_number")
                         )
                     
-                    logger.info(f"🔍 Extracted API phone number (no context): {api_phone_number}")
+                    # Fallback to phone from Flashed API response if no API payload phone
+                    if not api_phone_number and phone:
+                        api_phone_number = phone
+                        logger.info(f"🔍 Using phone number from Flashed API response (no context): {api_phone_number}")
+                    else:
+                        logger.info(f"🔍 Extracted API phone number (no context): {api_phone_number}")
                     
                     if not api_phone_number:
-                        logger.error("No phone number available from API payload")
+                        logger.error("No phone number available from API payload or Flashed response")
                         return False
                     
                     # Prepare Flashed user data
