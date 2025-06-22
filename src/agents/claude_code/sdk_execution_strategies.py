@@ -220,6 +220,16 @@ class ExecutionStrategies:
             # Execute SDK query directly (SDK handles max_turns properly)
             try:
                 async for message in query(prompt=request.message, options=options):
+                    # Check for kill signal before processing each message
+                    if hasattr(request, 'run_id') and request.run_id:
+                        try:
+                            process_info = self.process_manager.get_process_info(request.run_id)
+                            if process_info and process_info.status == "killed":
+                                logger.info(f"🛑 Workflow {request.run_id} killed during execution, stopping...")
+                                break
+                        except Exception as kill_check_error:
+                            logger.error(f"Kill signal check failed: {kill_check_error}")
+                    
                     messages.append(str(message))
                     collected_messages.append(message)
                     
@@ -311,6 +321,17 @@ class ExecutionStrategies:
             logger.error(f"Full exception details: {traceback.format_exc()}")
             if hasattr(request, 'run_id') and request.run_id:
                 await self.process_manager.terminate_process(request.run_id, status="failed")
+            
+            # SURGICAL FIX: Clean up worktree on failure if not persistent
+            if hasattr(request, 'run_id') and request.run_id and not request.persistent:
+                try:
+                    from .utils.worktree_cleanup import cleanup_workflow_worktree
+                    cleanup_success = await cleanup_workflow_worktree(request.run_id)
+                    if cleanup_success:
+                        logger.info(f"Successfully cleaned up worktree after failure for workflow {request.run_id}")
+                except Exception as cleanup_error:
+                    logger.error(f"Error during failure cleanup: {cleanup_error}")
+            
             return self._build_error_result(e, session_id, workspace_path, start_time)
         finally:
             if heartbeat_task:
@@ -429,6 +450,18 @@ class ExecutionStrategies:
         # Persist metrics to database
         if hasattr(request, 'run_id') and request.run_id:
             await metrics_handler.persist_to_database(request.run_id, True, result_text, execution_time)
+        
+        # SURGICAL FIX: Clean up worktree if not persistent
+        if hasattr(request, 'run_id') and request.run_id and not request.persistent:
+            try:
+                from .utils.worktree_cleanup import cleanup_workflow_worktree
+                cleanup_success = await cleanup_workflow_worktree(request.run_id)
+                if cleanup_success:
+                    logger.info(f"Successfully cleaned up worktree for non-persistent workflow {request.run_id}")
+                else:
+                    logger.warning(f"Failed to clean up worktree for workflow {request.run_id}")
+            except Exception as cleanup_error:
+                logger.error(f"Error during worktree cleanup: {cleanup_error}")
 
         return {
             'success': True,

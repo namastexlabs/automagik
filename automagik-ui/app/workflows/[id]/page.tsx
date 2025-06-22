@@ -39,7 +39,6 @@ interface WorkflowDetails {
         current_phase: string;
         phases_completed: string[];
         is_running: boolean;
-        estimated_completion?: string;
     };
     metrics?: {
         cost_usd: number;

@@ -101,6 +101,12 @@ class WorkflowQueueManager:
         run_id = workflow.run_id
         logger.info(f"Worker {worker_id} processing workflow {run_id}")
         
+        # Check if workflow was cancelled while queued
+        if workflow.status == "killed":
+            logger.info(f"Worker {worker_id} skipping cancelled workflow {run_id}")
+            self.completed_workflows[run_id] = workflow
+            return
+        
         # Move to active workflows
         workflow.status = "running"
         workflow.started_at = datetime.utcnow()
@@ -295,6 +301,62 @@ class WorkflowQueueManager:
             update_workflow_run_by_run_id(run_id, update_data)
         except Exception as e:
             logger.error(f"Failed to update workflow failure: {e}")
+    
+    async def cancel_workflow(self, run_id: str) -> bool:
+        """Cancel a workflow execution.
+        
+        Args:
+            run_id: Workflow run ID to cancel
+            
+        Returns:
+            True if cancelled successfully
+        """
+        # Check if workflow is active
+        if run_id in self.active_workflows:
+            workflow = self.active_workflows[run_id]
+            workflow.status = "killed"
+            workflow.completed_at = datetime.utcnow()
+            workflow.error = "Workflow cancelled by user"
+            
+            # Update database
+            await self._update_workflow_status(run_id, "killed")
+            
+            # Move to completed
+            del self.active_workflows[run_id]
+            self.completed_workflows[run_id] = workflow
+            
+            logger.info(f"Cancelled active workflow {run_id}")
+            return True
+        
+        # Check if workflow is queued
+        # Note: Removing from asyncio.PriorityQueue is complex, 
+        # so we'll mark it for cancellation when processed
+        for i in range(self.queue.qsize()):
+            try:
+                priority_value, timestamp, workflow = self.queue.get_nowait()
+                if workflow.run_id == run_id:
+                    workflow.status = "killed"
+                    workflow.error = "Workflow cancelled while queued"
+                    self.completed_workflows[run_id] = workflow
+                    
+                    # Update database
+                    await self._update_workflow_status(run_id, "killed")
+                    
+                    logger.info(f"Cancelled queued workflow {run_id}")
+                    return True
+                else:
+                    # Put it back
+                    self.queue.put_nowait((priority_value, timestamp, workflow))
+            except asyncio.QueueEmpty:
+                break
+        
+        # Check if already completed
+        if run_id in self.completed_workflows:
+            logger.info(f"Workflow {run_id} already completed, cannot cancel")
+            return False
+        
+        logger.warning(f"Workflow {run_id} not found in queue")
+        return False
     
     def get_queue_stats(self) -> Dict[str, Any]:
         """Get queue statistics."""

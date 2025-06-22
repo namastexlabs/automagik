@@ -88,7 +88,7 @@ class ClaudeCodeRunResponse(BaseModel):
     """Response model for async Claude CLI execution start."""
     
     run_id: str = Field(..., description="Unique identifier for this execution run")
-    status: Literal["pending", "running", "completed", "failed"] = Field(
+    status: Literal["pending", "running", "completed", "failed", "killed"] = Field(
         ..., 
         description="Current status of the execution"
     )
@@ -118,7 +118,6 @@ class ProgressInfo(BaseModel):
     current_phase: str = Field(..., description="Current workflow phase")
     phases_completed: List[str] = Field(default_factory=list, description="List of completed phases")
     is_running: bool = Field(..., description="Whether workflow is currently running")
-    estimated_completion: Optional[str] = Field(None, description="Estimated completion time")
 
 
 class TokenInfo(BaseModel):
@@ -158,7 +157,7 @@ class EnhancedStatusResponse(BaseModel):
     """Enhanced status response with simplified structure."""
     
     run_id: str = Field(..., description="Unique identifier for this execution run")
-    status: Literal["pending", "running", "completed", "failed"] = Field(
+    status: Literal["pending", "running", "completed", "failed", "killed"] = Field(
         ..., 
         description="Current status of the execution"
     )
@@ -185,8 +184,7 @@ class EnhancedStatusResponse(BaseModel):
                     "max_turns": 30,
                     "current_phase": "completed",
                     "phases_completed": ["initialization", "planning", "analysis", "implementation"],
-                    "is_running": False,
-                    "estimated_completion": None
+                    "is_running": False
                 },
                 "metrics": {
                     "cost_usd": 0.7159,
@@ -267,7 +265,7 @@ class ClaudeCodeStatusResponse(BaseModel):
     """Legacy response model for execution status polling (backward compatibility)."""
     
     run_id: str = Field(..., description="Unique identifier for this execution run")
-    status: Literal["pending", "running", "completed", "failed"] = Field(
+    status: Literal["pending", "running", "completed", "failed", "killed"] = Field(
         ..., 
         description="Current status of the execution"
     )
@@ -445,6 +443,7 @@ class ContainerStatus(str, Enum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     TERMINATED = "terminated"
+    KILLED = "killed"
 
 
 class ExecutionStatus(str, Enum):
@@ -456,6 +455,7 @@ class ExecutionStatus(str, Enum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
+    KILLED = "killed"
 
 
 class WorkflowType(str, Enum):
