@@ -25,6 +25,7 @@ from .models import ClaudeCodeRunRequest
 from .sdk_config_manager import ConfigPriority
 from .sdk_process_manager import ProcessManager
 from .sdk_metrics_handler import MetricsHandler
+from .log_manager import get_log_manager
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +213,11 @@ class ExecutionStrategies:
         collected_messages = []
         actual_claude_session_id = None
         
+        # Initialize LogManager for workflow log file creation
+        log_manager = get_log_manager()
+        log_writer = None
+        log_writer_context = None
+        
         try:
             # CRITICAL FIX: Add real-time progress tracking
             turn_count = 0
@@ -232,6 +238,13 @@ class ExecutionStrategies:
                     
                     messages.append(str(message))
                     collected_messages.append(message)
+                    
+                    # Log message to individual workflow log file
+                    if log_writer:
+                        try:
+                            await log_writer(str(message), "claude_message")
+                        except Exception as log_error:
+                            logger.error(f"Failed to write to workflow log: {log_error}")
                     
                     # Track turns and tokens for real-time progress
                     if hasattr(message, 'type') and message.type == 'assistant':
@@ -271,6 +284,17 @@ class ExecutionStrategies:
                         hasattr(message, 'data') and 'session_id' in message.data):
                         actual_claude_session_id = message.data['session_id']
                         logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
+                        
+                        # CRITICAL FIX: Create individual workflow log file NOW with correct naming
+                        if log_manager and hasattr(request, 'run_id') and request.run_id and hasattr(request, 'workflow_name') and request.workflow_name:
+                            try:
+                                # Get the async context manager and enter it properly
+                                log_writer_context = log_manager.get_log_writer(request.run_id, request.workflow_name, actual_claude_session_id)
+                                log_writer = await log_writer_context.__aenter__()
+                                await log_writer(f"Workflow {request.workflow_name} started with Claude session: {actual_claude_session_id}", "execution_init")
+                                logger.info(f"Created individual log file: {request.workflow_name}_{actual_claude_session_id}.log")
+                            except Exception as log_error:
+                                logger.error(f"Failed to create workflow log file: {log_error}")
                         
                         # CRITICAL FIX: Update database AND session metadata with real Claude session_id immediately
                         if hasattr(request, 'run_id') and request.run_id:
@@ -340,6 +364,14 @@ class ExecutionStrategies:
                     await heartbeat_task
                 except asyncio.CancelledError:
                     pass
+            
+            # Clean up log writer context
+            if log_writer_context:
+                try:
+                    await log_writer_context.__aexit__(None, None, None)
+                    logger.info("Closed workflow log file")
+                except Exception as log_cleanup_error:
+                    logger.error(f"Failed to close workflow log file: {log_cleanup_error}")
         
         # Process metrics
         metrics_handler.update_metrics_from_messages(collected_messages, messages)
