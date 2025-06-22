@@ -77,17 +77,7 @@ class ProgressTracker:
             completed_at = metadata.get("completed_at")
             is_running = run_status == "running" and not completed_at
             
-            # Basic progress metrics
-            # If workflow is completed, always show 100%
-            if run_status in ["completed", "failed"] or completed_at:
-                completion_percentage = 100.0
-            elif max_turns and max_turns > 0:
-                # Traditional percentage based on turn limit
-                completion_percentage = min(100.0, (current_turns / max_turns) * 100)
-            else:
-                # Unlimited turns - calculate based on activity and phases
-                activity_progress = min(100.0, max(10.0, current_turns * 5))  # 5% per turn, min 10%
-                completion_percentage = activity_progress
+            # Progress tracking without percentage (removed per user request)
             
             # Phase detection based on metadata and log entries
             current_phase = self._detect_current_phase(log_entries, current_turns, metadata)
@@ -99,7 +89,6 @@ class ProgressTracker:
             return {
                 "turns": current_turns,
                 "max_turns": max_turns,
-                "completion_percentage": round(completion_percentage, 1),
                 "current_phase": current_phase,
                 "phases_completed": phases_completed,
                 "is_running": is_running,
@@ -111,7 +100,6 @@ class ProgressTracker:
             return {
                 "turns": 0,
                 "max_turns": None,  # Unlimited by default
-                "completion_percentage": 0.0,
                 "current_phase": "unknown",
                 "phases_completed": [],
                 "is_running": False,

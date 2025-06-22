@@ -2,11 +2,14 @@
 
 import uuid
 import json
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 
 from ..models import WorkflowRun, WorkflowRunCreate, WorkflowRunUpdate
 from ..connection import execute_query, safe_uuid
+
+logger = logging.getLogger(__name__)
 
 
 def create_workflow_run(workflow_run: WorkflowRunCreate) -> str:
@@ -194,6 +197,10 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         update_fields.append("error_message = ?")
         params.append(update_data.error_message)
     
+    if update_data.session_id is not None:
+        update_fields.append("session_id = ?")
+        params.append(str(safe_uuid(update_data.session_id)))
+    
     if update_data.final_commit_hash is not None:
         update_fields.append("final_commit_hash = ?")
         params.append(update_data.final_commit_hash)
@@ -266,8 +273,12 @@ def update_workflow_run(workflow_id: str, update_data: WorkflowRunUpdate) -> boo
         WHERE id = ?
     """
     
-    execute_query(query, params)
-    return True  # Assume success if no exception
+    try:
+        result = execute_query(query, params, fetch=False, commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to update workflow_run {workflow_id}: {e}")
+        return False
 
 
 def list_workflow_runs(
