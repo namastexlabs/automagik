@@ -147,7 +147,7 @@ class SDKConfigManager:
             options.max_thinking_tokens = kwargs['max_thinking_tokens']
             logger.info(f"Set max_thinking_tokens to {kwargs['max_thinking_tokens']}")
         
-        # SURGICAL FIX: Handle session resumption - only use resume with correct Claude session ID
+        # Handle session resumption - only use resume with correct Claude session ID
         if 'session_id' in kwargs and kwargs['session_id']:
             options.resume = kwargs['session_id']
             logger.info(f"Setting session resumption with Claude session ID: {kwargs['session_id']}")

@@ -156,7 +156,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=self.context.get("session_id"),
-                run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
+                run_id=run_id,
                 workflow_name=workflow_name,
                 max_turns=int(self.config.get("max_turns")) if self.config.get("max_turns") else None,
                 git_branch=git_branch,
@@ -452,7 +452,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=session_id,
-                run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
+                run_id=run_id,
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns"),
                 git_branch=git_branch,
@@ -575,7 +575,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=kwargs.get("session_id"),
-                run_id=run_id,  # SURGICAL FIX: Include run_id for database persistence
+                run_id=run_id,
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch", self.config.get("git_branch")),
@@ -648,9 +648,6 @@ class ClaudeCodeAgent(AutomagikAgent):
                                          session_id: str, run_id: str, **kwargs) -> None:
         """Execute a workflow in the background without waiting for response.
         
-        SURGICAL FIX: This method now supports queue-based execution to prevent
-        TaskGroup conflicts and properly manage concurrent workflows.
-        
         Args:
             input_text: User message
             workflow_name: Workflow to execute
@@ -661,80 +658,11 @@ class ClaudeCodeAgent(AutomagikAgent):
         # Track execution timing for message persistence
         start_time = time.time()
         
-        # SURGICAL FIX: Check if we should use queue-based execution
-        import os
-        use_queue = os.environ.get('USE_WORKFLOW_QUEUE', 'false').lower() == 'true'
-        
-        if use_queue:
-            # Use queue manager for proper concurrent execution control
-            from .workflow_queue import get_queue_manager, WorkflowPriority
-            
-            logger.info(f"Using queue-based execution for workflow {run_id}")
-            
-            queue_manager = get_queue_manager()
-            
-            # Create request from parameters
-            request = ClaudeCodeRunRequest(
-                message=input_text,
-                workflow_name=workflow_name,
-                session_id=session_id,
-                run_id=run_id,
-                max_turns=kwargs.get('max_turns'),
-                timeout=kwargs.get('timeout', 7200),
-                repository_url=kwargs.get('repository_url'),
-                git_branch=kwargs.get('git_branch'),
-                persistent=kwargs.get('persistent', True),
-                auto_merge=kwargs.get('auto_merge', False)  # SURGICAL FIX: Pass auto_merge flag
-            )
-            
-            # Determine priority based on workflow type
-            priority = WorkflowPriority.NORMAL
-            if workflow_name in ['fix', 'surgeon', 'guardian']:
-                priority = WorkflowPriority.HIGH
-            elif workflow_name in ['document', 'shipper']:
-                priority = WorkflowPriority.LOW
-            elif workflow_name == 'genie':
-                priority = WorkflowPriority.CRITICAL
-            
-            # Submit to queue
-            agent_context = {
-                'session_id': session_id,
-                'run_id': run_id,
-                'workspace': kwargs.get('workspace_path', '.'),
-                'start_time': start_time,
-                'kwargs': kwargs
-            }
-            
-            await queue_manager.submit_workflow(
-                request, 
-                agent_context,
-                priority
-            )
-            
-            logger.info(f"Submitted workflow {run_id} to queue with priority {priority.name}")
-            
-            # Update session to indicate queued status
-            if session_id:
-                try:
-                    from src.db import get_session, update_session
-                    session_obj = get_session(uuid.UUID(session_id))
-                    if session_obj and session_obj.metadata:
-                        session_obj.metadata.update({
-                            "run_status": "queued",
-                            "queue_priority": priority.name,
-                            "queued_at": datetime.utcnow().isoformat()
-                        })
-                        update_session(session_obj)
-                except Exception as e:
-                    logger.warning(f"Failed to update session with queue status: {e}")
-            
-            return  # Exit early for queued execution
-        
         try:
             # Look up existing Claude session ID from database if session_id provided
             claude_session_id_for_resumption = None
             session_obj = None
-            # CRITICAL FIX: Don't overwrite the session_id parameter!
+            # Don't overwrite the session_id parameter
             lookup_session_id = session_id or self.context.get("session_id")
             
             if lookup_session_id:
@@ -748,14 +676,14 @@ class ClaudeCodeAgent(AutomagikAgent):
             request = ClaudeCodeRunRequest(
                 message=input_text,
                 session_id=claude_session_id_for_resumption,  # Use Claude session ID, not database session ID
-                run_id=run_id,  # SURGICAL FIX: Pass run_id for database persistence
+                run_id=run_id,
                 workflow_name=workflow_name,
                 max_turns=kwargs.get("max_turns"),
                 git_branch=kwargs.get("git_branch"),
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
                 repository_url=kwargs.get("repository_url"),
                 persistent=kwargs.get("persistent", True),
-                auto_merge=kwargs.get("auto_merge", False)  # SURGICAL FIX: Pass auto_merge flag
+                auto_merge=kwargs.get("auto_merge", False)
             )
             
             # Update session metadata with run information
@@ -886,7 +814,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 # Extract the ACTUAL Claude session ID from the execution result
                 actual_claude_session_id = result.get("session_id") 
                 if actual_claude_session_id:
-                    # SURGICAL FIX: Only set Claude session ID if not already set (preserve first workflow's session)
+                    # Only set Claude session ID if not already set (preserve first workflow's session)
                     if not metadata.get("claude_session_id"):
                         metadata["claude_session_id"] = actual_claude_session_id
                         logger.info(f"Setting initial Claude session ID: {actual_claude_session_id}")
@@ -899,7 +827,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                 # Extract comprehensive SDK executor data
                 token_details = result.get("token_details", {})
                 
-                # SURGICAL FIX: Create usage_tracker from SDK executor result data
+                # Create usage_tracker from SDK executor result data
                 usage_tracker = {
                     "total_tokens": token_details.get("total_tokens", 0),
                     "input_tokens": token_details.get("input_tokens", 0),
@@ -913,10 +841,10 @@ class ClaudeCodeAgent(AutomagikAgent):
                     "run_status": final_status,
                     "completed_at": datetime.utcnow().isoformat(),
                     "success": result.get("success", False),
-                    # Keep essential session info for legacy compatibility
+                    # Keep essential session info
                     "workflow_run_id": workflow_run_id,  # Link to workflow_runs table
                     "final_result_summary": result.get("result", "")[:200] + "..." if result.get("result", "") and len(result.get("result", "")) > 200 else result.get("result", ""),
-                    # SURGICAL FIX: Add usage_tracker data to metadata for database update
+                    # Add usage_tracker data to metadata for database update
                     "total_cost_usd": usage_tracker.get("cost_usd", 0.0),
                     "total_tokens": usage_tracker.get("total_tokens", 0),
                     "input_tokens": usage_tracker.get("input_tokens", 0),
@@ -1017,7 +945,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                             "files_changed": result.get('files_changed', []),
                             "git_commits": result.get('git_commits', []),
                             "completion_type": "completed_successfully" if result.get("success") else "failed",
-                            # SURGICAL FIX: Include comprehensive ResultMessage metadata
+                            # Include comprehensive ResultMessage metadata
                             "result_metadata": result.get('result_metadata', {}),
                             "subtype": result.get('result_metadata', {}).get('subtype', ''),
                             "duration_ms": result.get('result_metadata', {}).get('duration_ms', 0),

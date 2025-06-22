@@ -262,7 +262,7 @@ class DebugStatusResponse(EnhancedStatusResponse):
 
 
 class ClaudeCodeStatusResponse(BaseModel):
-    """Legacy response model for execution status polling (backward compatibility)."""
+    """Response model for execution status polling."""
     
     run_id: str = Field(..., description="Unique identifier for this execution run")
     status: Literal["pending", "running", "completed", "failed", "killed"] = Field(
@@ -283,7 +283,7 @@ class ClaudeCodeStatusResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if execution failed")
     logs: Optional[str] = Field(None, description="Container execution logs")
     
-    # Extended fields for backward compatibility
+    # Extended fields
     workflow_name: Optional[str] = Field(None, description="Workflow name")
     claude_session_id: Optional[str] = Field(None, description="Claude session ID")
     cost: Optional[float] = Field(None, description="Execution cost in USD")

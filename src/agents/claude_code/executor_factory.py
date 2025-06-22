@@ -1,8 +1,4 @@
-"""Factory for creating appropriate executor based on configuration.
-
-This module provides the ExecutorFactory class that creates the appropriate
-executor. After SDK migration, defaults to SDK executor with emergency legacy override.
-"""
+"""Factory for creating Claude Code SDK executor."""
 
 import logging
 import os
@@ -15,28 +11,20 @@ logger = logging.getLogger(__name__)
 
 
 class ExecutorFactory:
-    """Factory for creating appropriate executor based on configuration."""
+    """Factory for creating SDK executor."""
     
     @staticmethod
-    def create_executor(
-        mode: Optional[str] = None,
-        **kwargs
-    ) -> ExecutorBase:
-        """Create an executor based on mode.
-        
-        Migration complete: Only SDK executor is available.
+    def create_executor(**kwargs) -> ExecutorBase:
+        """Create SDK executor.
         
         Args:
-            mode: Execution mode (deprecated - ignored, always returns SDK executor). 
             **kwargs: Additional arguments for the executor
             
         Returns:
             ClaudeSDKExecutor instance
         """
-        # Migration complete: SDK executor only
-        logger.info("Creating SDK executor (post-migration)")
+        logger.info("Creating SDK executor")
         
-        # Import SDK executor
         from .sdk_executor import ClaudeSDKExecutor
         
         # Create environment manager if needed
