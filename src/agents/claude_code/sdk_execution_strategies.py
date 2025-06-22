@@ -14,12 +14,7 @@ from typing import Dict, Any, Optional
 from uuid import uuid4
 
 from claude_code_sdk import query, ClaudeCodeOptions
-try:
-    from ...utils.nodejs_detection import ensure_node_in_path
-except ImportError:
-    # Fallback for testing environments
-    def ensure_node_in_path():
-        return True
+from ...utils.nodejs_detection import ensure_node_in_path
 
 from .models import ClaudeCodeRunRequest
 from .sdk_config_manager import ConfigPriority
@@ -219,7 +214,7 @@ class ExecutionStrategies:
         log_writer_context = None
         
         try:
-            # CRITICAL FIX: Add real-time progress tracking
+            # Add real-time progress tracking
             turn_count = 0
             token_count = 0
             
@@ -285,7 +280,7 @@ class ExecutionStrategies:
                         actual_claude_session_id = message.data['session_id']
                         logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
                         
-                        # CRITICAL FIX: Create individual workflow log file NOW with correct naming
+                        # Create individual workflow log file NOW with correct naming
                         if log_manager and hasattr(request, 'run_id') and request.run_id and hasattr(request, 'workflow_name') and request.workflow_name:
                             try:
                                 # Get the async context manager and enter it properly
@@ -296,7 +291,7 @@ class ExecutionStrategies:
                             except Exception as log_error:
                                 logger.error(f"Failed to create workflow log file: {log_error}")
                         
-                        # CRITICAL FIX: Update database AND session metadata with real Claude session_id immediately
+                        # Update database AND session metadata with real Claude session_id immediately
                         if hasattr(request, 'run_id') and request.run_id:
                             try:
                                 from ...db.models import WorkflowRunUpdate
@@ -308,7 +303,7 @@ class ExecutionStrategies:
                                 if update_success:
                                     logger.info(f"Database updated with real Claude session_id: {actual_claude_session_id}")
                                 
-                                # CRITICAL FIX: Also update session metadata for continuation
+                                # Also update session metadata for continuation
                                 try:
                                     from ...db import get_session, update_session
                                     from ...db.repository.workflow_run import get_workflow_run_by_run_id
@@ -346,7 +341,7 @@ class ExecutionStrategies:
             if hasattr(request, 'run_id') and request.run_id:
                 await self.process_manager.terminate_process(request.run_id, status="failed")
             
-            # SURGICAL FIX: Clean up worktree on failure if not persistent
+            # Clean up worktree on failure if not persistent
             if hasattr(request, 'run_id') and request.run_id and not request.persistent:
                 try:
                     from .utils.worktree_cleanup import cleanup_workflow_worktree
@@ -381,7 +376,7 @@ class ExecutionStrategies:
         
         logger.info(f"SDK Executor: Completed successfully - Turns: {metrics_handler.total_turns}, Tools: {len(metrics_handler.tools_used)}")
         
-        # CRITICAL FIX: Update workflow_runs table with success BEFORE marking process completed
+        # Update workflow_runs table with success BEFORE marking process completed
         if hasattr(request, 'run_id') and request.run_id:
             try:
                 from ...db.models import WorkflowRunUpdate
@@ -418,7 +413,7 @@ class ExecutionStrategies:
                         logger.error(f"Error processing completion message: {msg_error}")
                         continue
                     
-                    # Fallback: Check for completion result in object attributes (legacy format)
+                    # Check for completion result in object attributes
                     if hasattr(msg, 'subtype') and msg.subtype in ['success', 'error_max_turns']:
                         # For max_turns, create a meaningful result message
                         if msg.subtype == 'error_max_turns':
@@ -435,7 +430,7 @@ class ExecutionStrategies:
                                           usage.get('output_tokens', 0))
                         break  # Found the completion result, stop looking
                     
-                    # Fallback: Check for completion result in msg.data structure
+                    # Check for completion result in msg.data structure
                     elif hasattr(msg, 'data') and isinstance(msg.data, dict):
                         if msg.data.get('subtype') in ['success', 'error_max_turns']:
                             # For max_turns, create a meaningful result message
@@ -483,7 +478,7 @@ class ExecutionStrategies:
         if hasattr(request, 'run_id') and request.run_id:
             await metrics_handler.persist_to_database(request.run_id, True, result_text, execution_time)
         
-        # SURGICAL FIX: Clean up worktree if not persistent
+        # Clean up worktree if not persistent
         if hasattr(request, 'run_id') and request.run_id and not request.persistent:
             try:
                 from .utils.worktree_cleanup import cleanup_workflow_worktree
