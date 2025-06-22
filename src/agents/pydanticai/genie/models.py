@@ -44,7 +44,7 @@ class WorkflowResult(BaseModel):
     """Result from a workflow execution."""
     workflow: str  # Dynamic workflow name
     container_id: str
-    status: Literal["success", "failed", "timeout", "cancelled"]
+    status: Literal["success", "failed", "timeout", "cancelled", "killed"]
     start_time: datetime
     end_time: Optional[datetime] = None
     cost_usd: float = 0.0
@@ -171,7 +171,7 @@ class ClaudeCodeRequest(BaseModel):
 class ClaudeCodeResponse(BaseModel):
     """Response from Claude Code API."""
     run_id: str
-    status: Literal["running", "completed", "failed", "timeout"]
+    status: Literal["running", "completed", "failed", "timeout", "killed"]
     container_id: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
