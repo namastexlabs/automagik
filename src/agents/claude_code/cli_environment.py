@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 class CLIEnvironmentManager:
-    """Manages isolated CLI execution environments."""
+    """Manages isolated CLI execution environments with thread-safe operations."""
+    
+    # Class-level lock for worktree creation to prevent race conditions
+    _worktree_creation_lock = asyncio.Lock()
     
     def __init__(
         self,
@@ -80,12 +83,13 @@ class CLIEnvironmentManager:
         logger.info(f"CLIEnvironmentManager initialized with base path: {self.base_path}")
     
     async def create_workspace(self, run_id: str, workflow_name: Optional[str] = None, persistent: bool = True, git_branch: Optional[str] = None) -> Path:
-        """Create git worktree workspace instead of isolated copy.
+        """Create git worktree workspace with race condition protection.
         
         Args:
             run_id: Unique identifier for this run
             workflow_name: Optional workflow name for persistent workspaces
             persistent: Whether to create a persistent workspace (default: True)
+            git_branch: Optional git branch to checkout
             
         Returns:
             Path to the created worktree workspace
@@ -93,6 +97,8 @@ class CLIEnvironmentManager:
         Raises:
             OSError: If worktree creation fails
         """
+        # Use lock to prevent concurrent worktree creation race conditions
+        async with CLIEnvironmentManager._worktree_creation_lock:
         # Use main repository's worktrees directory
         repo_root = Path(os.environ.get("PWD", "/home/namastex/workspace/am-agents-labs"))
         
@@ -123,15 +129,24 @@ class CLIEnvironmentManager:
             # Fallback to original behavior if no workflow name
             worktree_path = repo_root / "worktrees" / f"builder_run_{run_id}"
         
-        # Check if persistent worktree already exists
-        if worktree_path.exists() and workflow_name and persistent:
-            logger.info(f"Reusing existing persistent worktree: {worktree_path}")
-            # Switch to the requested branch if different
-            if git_branch:
-                await self._checkout_branch_in_worktree(worktree_path, git_branch)
-            # Track active workspace
-            self.active_workspaces[run_id] = worktree_path
-            return worktree_path
+            # Check if persistent worktree already exists
+            if worktree_path.exists() and workflow_name and persistent:
+                logger.info(f"Reusing existing persistent worktree: {worktree_path}")
+                # Switch to the requested branch if different
+                if git_branch:
+                    await self._checkout_branch_in_worktree(worktree_path, git_branch)
+                # Track active workspace
+                self.active_workspaces[run_id] = worktree_path
+                return worktree_path
+            
+            # For non-persistent workspaces, check if the path already exists (race condition)
+            if worktree_path.exists() and not persistent:
+                # Add a unique suffix to avoid conflicts
+                import time
+                timestamp = int(time.time() * 1000)  # milliseconds for uniqueness
+                safe_branch_name = branch_name.replace("/", "-")
+                worktree_path = repo_root / "worktrees" / f"{safe_branch_name}-{timestamp}"
+                logger.warning(f"Worktree path already exists, using alternative: {worktree_path}")
         
         try:
             # For temporary workspaces or when a specific branch is requested, create new worktree
@@ -196,6 +211,14 @@ class CLIEnvironmentManager:
             return worktree_path
             
         except Exception as e:
+            # Check if it's a "already exists" error from concurrent creation
+            error_msg = str(e).lower()
+            if "already exists" in error_msg and worktree_path.exists():
+                logger.warning(f"Worktree already created by concurrent process for run {run_id}, using existing")
+                # Track active workspace
+                self.active_workspaces[run_id] = worktree_path
+                return worktree_path
+            
             logger.error(f"Failed to create worktree workspace for run {run_id}: {e}")
             raise OSError(f"Failed to create worktree workspace: {e}")
     
