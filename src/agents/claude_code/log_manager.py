@@ -45,16 +45,22 @@ class LogManager:
 
         logger.info(f"LogManager initialized with logs directory: {self.logs_dir}")
 
-    def get_log_path(self, run_id: str) -> Path:
+    def get_log_path(self, run_id: str, workflow_name: str = None, session_id: str = None) -> Path:
         """Get the log file path for a run ID.
 
         Args:
             run_id: Unique run identifier
+            workflow_name: Name of the workflow (optional, for new naming convention)
+            session_id: Claude session ID (optional, for new naming convention)
 
         Returns:
-            Path to the log file in format: ./logs/run_{run_id}.log
+            Path to the log file in format: ./logs/workflowname_sessionid.log if both provided,
+            otherwise fallback to ./logs/run_{run_id}.log
         """
-        return self.logs_dir / f"run_{run_id}.log"
+        if workflow_name and session_id:
+            return self.logs_dir / f"{workflow_name}_{session_id}.log"
+        else:
+            return self.logs_dir / f"run_{run_id}.log"
 
     async def _get_file_lock(self, run_id: str) -> asyncio.Lock:
         """Get or create a file-specific lock for thread-safe operations.
@@ -70,18 +76,20 @@ class LogManager:
                 self._file_locks[run_id] = asyncio.Lock()
             return self._file_locks[run_id]
 
-    async def log_event(self, run_id: str, event_type: str, data: Any) -> None:
+    async def log_event(self, run_id: str, event_type: str, data: Any, workflow_name: str = None, session_id: str = None) -> None:
         """Write a structured log event to the run's log file.
 
         Args:
             run_id: Unique run identifier
             event_type: Type of event (execution_init, session_established, etc.)
             data: Event data (can be string, dict, or any JSON-serializable type)
+            workflow_name: Name of the workflow (optional, for proper log file naming)
+            session_id: Claude session ID (optional, for proper log file naming)
         """
         file_lock = await self._get_file_lock(run_id)
 
         async with file_lock:
-            log_path = self.get_log_path(run_id)
+            log_path = self.get_log_path(run_id, workflow_name, session_id)
 
             # Create log entry in enhanced format
             log_entry = {
@@ -477,11 +485,13 @@ class LogManager:
             logger.error(f"Error during LogManager cleanup: {e}")
     
     @asynccontextmanager
-    async def get_log_writer(self, run_id: str):
+    async def get_log_writer(self, run_id: str, workflow_name: str = None, session_id: str = None):
         """Get a log writer function as a context manager.
         
         Args:
             run_id: Unique run identifier
+            workflow_name: Name of the workflow (optional, for proper log file naming)
+            session_id: Claude session ID (optional, for proper log file naming)
             
         Yields:
             Log writer function that accepts (message, event_type, metadata=None)
@@ -516,7 +526,7 @@ class LogManager:
                     # If metadata is not serializable, log the error and continue with just the message
                     logger.warning(f"Metadata not JSON serializable for event_type '{event_type}': {e}")
                     log_data["metadata_error"] = f"Non-serializable metadata: {type(metadata)}"
-            await self.log_event(run_id, event_type, log_data)
+            await self.log_event(run_id, event_type, log_data, workflow_name, session_id)
         
         try:
             # Skip redundant init event - will be logged by execution_init
