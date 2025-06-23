@@ -340,15 +340,31 @@ class ClaudeCodeAgent(AutomagikAgent):
                 return False
             
             # Check for required workflow files and validate JSON files
-            required_files = ["prompt.md", ".mcp.json", "allowed_tools.json"]
+            # Note: prompt.md is optional - when missing, workflow uses default Claude behavior
+            required_files = [".mcp.json", "allowed_tools.json"]
+            optional_files = ["prompt.md"]
+            
             for required_file in required_files:
                 file_path = os.path.join(workflow_path, required_file)
                 if not os.path.exists(file_path):
                     logger.warning(f"Required workflow file missing: {file_path}")
                     return False
+            
+            # Check optional files (log info but don't fail validation)
+            for optional_file in optional_files:
+                file_path = os.path.join(workflow_path, optional_file)
+                if not os.path.exists(file_path):
+                    logger.info(f"Optional workflow file missing (will use default behavior): {file_path}")
+            
+            # Validate JSON files for both required and optional files that exist
+            all_files = required_files + optional_files
+            for file_name in all_files:
+                file_path = os.path.join(workflow_path, file_name)
+                if not os.path.exists(file_path):
+                    continue  # Skip files that don't exist (already logged above)
                 
                 # Validate JSON files
-                if required_file.endswith('.json'):
+                if file_name.endswith('.json'):
                     try:
                         async with aiofiles.open(file_path, 'r') as f:
                             content = await f.read()
