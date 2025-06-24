@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_usage ON messages USING GIN(usage);
 CREATE INDEX IF NOT EXISTS idx_messages_usage_model ON messages((usage->>'model'));
 
 -- Create index for token queries  
-CREATE INDEX IF NOT EXISTS idx_messages_usage_tokens ON messages((usage->>'total_tokens')::INTEGER);
+CREATE INDEX IF NOT EXISTS idx_messages_usage_tokens ON messages(CAST(usage->>'total_tokens' AS INTEGER));
 
 -- Add constraint to ensure valid JSON structure (use DO block for idempotency)
 DO $$
