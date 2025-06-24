@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, List, ClassVar
+from typing import Optional, Dict, Any, List, ClassVar, Literal
 import json
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -89,6 +89,11 @@ class Session(BaseDBModel):
     updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
     run_finished_at: Optional[datetime] = Field(None, description="Run finished at timestamp")
     message_count: Optional[int] = Field(None, description="Number of messages in the session")
+    # Conversation branching fields
+    parent_session_id: Optional[uuid.UUID] = Field(None, description="Parent session ID for branches")
+    branch_point_message_id: Optional[uuid.UUID] = Field(None, description="Message where branch was created")
+    branch_type: Optional[Literal["edit_branch", "manual_branch"]] = Field(None, description="Type of branch")
+    is_main_branch: bool = Field(True, description="Whether this is the main conversation thread")
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Session":
