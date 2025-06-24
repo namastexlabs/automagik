@@ -1,5 +1,6 @@
 from pydantic_ai import Agent, RunContext
 import logging
+import re
 from typing import Dict, Any, Optional
 
 from src.config import settings
@@ -172,7 +173,12 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             'Your role is to be efficient, accurate, and helpful in managing backend business operations.\n\n'
             'Any problem that you encounter, please add as much information as possible to the error message so it can be fixed.'
             'If info is missing, ask for it. If you dont have the info, say so.'
-            'If you need to verify a CNPJ, use the bp_get_info_cnpj tool.'
+            'If you need to verify a CNPJ, use the bp_get_info_cnpj tool.\n\n'
+            'CRITICAL: When creating a client, you MUST extract each field from the structured information and call bp_create_cliente with individual parameters. '
+            'For example, if you receive "Razão Social: ABC LTDA; CNPJ: 12.345.678/0001-90; Email: test@test.com", '
+            'you must extract each field value (razao_social="ABC LTDA", cnpj="12345678000190", email="test@test.com") '
+            'and pass them as separate parameters to the bp_create_cliente function. '
+            'The CNPJ field is REQUIRED and must be provided with only numbers (no formatting).\n\n'
 
             f'Here is a summary of the conversation so far: {summary_result_str}'
         ),
@@ -236,7 +242,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         nome_fantasia: str,
         email: str,
         telefone_comercial: str,
-        cnpj: str = None,
+        cnpj: str,  # Made required - no default value
         inscricao_estadual: str = None,
         endereco: str = None,
         endereco_numero: str = None,
@@ -245,50 +251,75 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         cidade: str = None,
         estado: str = None,
         cep: str = None,
-        numero_funcionarios:int = None,
+        numero_funcionarios: int = None,
         tipo_operacao: TipoOperacaoEnum = None,
         observacao: str = None
     ) -> Dict[str, Any]:
         """Create a new client in BlackPearl. 
            This tool should be used as soon as we have all the information about the client.
            When creating a new client, the tool will automatically send a lead email to the solid team.
+           
+           IMPORTANT: You must extract each field from the structured text and pass them as individual parameters.
+           For "Tipo de operação: ambos", use tipo_operacao="Híbrida".
+           For "Inscrição Estadual: Isento", use inscricao_estadual="Isento".
         
         Args:
-            razao_social: Company legal name
-            nome_fantasia: Company trading name
-            email: Client email
-            telefone_comercial: Client commercial phone number, numbers only, no formatting
-            cnpj: Client CNPJ Numbers only, no formatting
-            inscricao_estadual: Client state registration [Obligatory]
-            endereco: Street address [Obligatory]
-            endereco_numero: Address number [Obligatory]
+            razao_social: Company legal name (REQUIRED)
+            nome_fantasia: Company trading name (REQUIRED)
+            email: Client email (REQUIRED)
+            telefone_comercial: Client commercial phone number, numbers only, no formatting (REQUIRED)
+            cnpj: Client CNPJ Numbers only, no formatting (REQUIRED)
+            inscricao_estadual: Client state registration - use "Isento" if none
+            endereco: Street address
+            endereco_numero: Address number
             endereco_complemento: Address complement
             bairro: Neighborhood
             cidade: Client city 
             estado: Client state 
             cep: Client postal code 
             numero_funcionarios: Number of employees
-            tipo_operacao: Operation type
-            contatos: List of contact IDs associated with this client
+            tipo_operacao: Operation type (Online, Física, Híbrida, Indefinido)
             observacao: Additional notes about the client 
         """
+        # Log all received parameters for debugging
+        logger.info(f"bp_create_cliente called with parameters:")
+        logger.info(f"  razao_social: {razao_social}")
+        logger.info(f"  nome_fantasia: {nome_fantasia}")
+        logger.info(f"  email: {email}")
+        logger.info(f"  telefone_comercial: {telefone_comercial}")
+        logger.info(f"  cnpj: {cnpj}")
+        logger.info(f"  inscricao_estadual: {inscricao_estadual}")
+        logger.info(f"  endereco: {endereco}")
+        logger.info(f"  endereco_numero: {endereco_numero}")
+        logger.info(f"  numero_funcionarios: {numero_funcionarios}")
+        logger.info(f"  tipo_operacao: {tipo_operacao}")
+        
+        # Clean phone number - remove all formatting and keep only numbers
+        telefone_clean = re.sub(r'[^0-9]', '', telefone_comercial) if telefone_comercial else ""
+        
         # Criar dicionário com os dados diretamente, sem usar o modelo Cliente
         cliente_data = {
             "razao_social": razao_social,
             "nome_fantasia": nome_fantasia,
             "email": email,
-            "telefone_comercial": telefone_comercial,
+            "telefone_comercial": telefone_clean,
             "status_aprovacao": StatusAprovacaoEnum.PENDING_REVIEW  # Passa a string direto
         }
         
-        # Add optional fields if provided
-        if cnpj:
-            cliente_data["cnpj"] = cnpj
+        # Add CNPJ field (now required)
+        # Clean and format CNPJ - remove formatting and keep only numbers
+        cnpj_clean = re.sub(r'[^0-9]', '', cnpj) if cnpj else None
+        if cnpj_clean and len(cnpj_clean) == 14:
+            cliente_data["cnpj"] = cnpj_clean
+        else:
+            logger.error(f"Invalid CNPJ format: {cnpj}, cleaned: {cnpj_clean}")
+            return {"error": f"CNPJ inválido: {cnpj}. O CNPJ deve conter 14 dígitos."}
+        # Handle inscricao_estadual
         if inscricao_estadual:
             cliente_data["inscricao_estadual"] = inscricao_estadual
         else:
-            # Inscrição Estadual is required for registration
-            return {"error": "Inscrição Estadual é obrigatória para o cadastro. Por favor, forneça este dado."}
+            # Set default for exempt companies
+            cliente_data["inscricao_estadual"] = "Isento"
         if endereco:
             cliente_data["endereco"] = endereco
         if endereco_numero:
@@ -312,13 +343,22 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             
         # Get user information and add contact if available
         blackpearl_contact_id = None
+        full_contact_object = None
         if user_id:
             user_info = get_user(user_id)
             if user_info:
                 user_data = user_info.user_data
                 blackpearl_contact_id = user_data.get("blackpearl_contact_id")
                 if blackpearl_contact_id:
-                    cliente_data["contatos_ids"] = [blackpearl_contact_id]
+                    try:
+                        # Fetch the full contact object instead of just using the ID
+                        full_contact_object = await get_contato(ctx.deps, blackpearl_contact_id)
+                        if full_contact_object:
+                            # Convert the Contato object to a dictionary for the Cliente schema with JSON serialization
+                            cliente_data["contatos"] = [full_contact_object.model_dump(mode='json')]
+                    except Exception as e:
+                        logger.warning(f"Could not fetch contact {blackpearl_contact_id}: {str(e)}")
+                        # Continue without contact if fetch fails
         
         # Criar objeto Cliente corretamente
         cliente = Cliente(**cliente_data)
@@ -381,7 +421,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         numero_funcionarios: Optional[int] = None,
         tipo_operacao: Optional[str] = None,
         status_aprovacao: Optional[str] = None,
-        contatos_ids: Optional[list] = None,
+        contatos: Optional[list] = None,
         observacao: Optional[str] = None
     ) -> Dict[str, Any]:
         """Update a client in BlackPearl.
@@ -404,7 +444,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             numero_funcionarios: Number of employees (optional)
             tipo_operacao: Operation type (optional)
             status_aprovacao: Approval status (NOT_REGISTERED, REJECTED, APPROVED, VERIFYING) (optional)
-            contatos_ids: List of contact IDs associated with this client (optional)
+            contatos: List of contact objects associated with this client (optional)
             observacao: Additional notes (optional)
         """
         try:
@@ -451,19 +491,27 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             if status_aprovacao:
                 # Simplesmente passa a string diretamente
                 cliente_data["status_aprovacao"] = status_aprovacao
-            if contatos_ids:
-                cliente_data["contatos_ids"] = contatos_ids
+            if contatos:
+                cliente_data["contatos"] = contatos
             if observacao:
                 cliente_data["observacao"] = observacao
                 
             # Get user information and add contact if not already present
-            if user_id and not contatos_ids:
+            if user_id and not contatos:
                 user_info = get_user(user_id)
                 if user_info:
                     user_data = user_info.user_data
                     blackpearl_contact_id = user_data.get("blackpearl_contact_id")
                     if blackpearl_contact_id:
-                        cliente_data["contatos_ids"] = [blackpearl_contact_id]
+                        try:
+                            # Fetch the full contact object instead of just using the ID
+                            full_contact_object = await get_contato(ctx.deps, blackpearl_contact_id)
+                            if full_contact_object:
+                                # Convert the Contato object to a dictionary for the Cliente schema with JSON serialization
+                                cliente_data["contatos"] = [full_contact_object.model_dump(mode='json')]
+                        except Exception as e:
+                            logger.warning(f"Could not fetch contact {blackpearl_contact_id} for update: {str(e)}")
+                            # Continue without contact if fetch fails
             
             # Criar objeto Cliente corretamente
             cliente = Cliente(**cliente_data)
@@ -593,8 +641,9 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         
         # Create email input with HTML formatting
         email_input = SendEmailInput(
-            cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
-            #cc=['cezar@namastex.ai'],
+            # TESTING ONLY: Sending only to cezar@namastex.ai
+            cc=[],  # No CC recipients during testing
+            #cc=['andre@theroscreations.com', 'marcos@theroscreations.com', 'chris@theroscreations.com'],
             to=recipient,
             subject=subject,
             message=message,

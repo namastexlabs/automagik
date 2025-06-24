@@ -25,11 +25,13 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Escopos da API Gmail
+# Escopos da API Gmail - incluindo escopos extras que o Google pode retornar
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.modify'
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/gmail.labels',
+    'https://www.googleapis.com/auth/drive.readonly'
 ]
 
 def show_google_project_setup_instructions():
@@ -136,7 +138,7 @@ def setup_credentials(credentials_path, token_path):
         flow = InstalledAppFlow.from_client_secrets_file(
             str(credentials_path),
             SCOPES,
-            redirect_uri='http://localhost:8080/'
+            redirect_uri='http://localhost'
         )
         
         # Gerar URL de autorização

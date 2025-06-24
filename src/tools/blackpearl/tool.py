@@ -577,20 +577,38 @@ async def update_regra_negocio(ctx: RunContext[Dict], regra_id: int, regra: Regr
     async with provider:
         return await provider.update_regra_negocio(regra_id, regra)
 
+def _format_cnpj_for_api(cnpj: str) -> str:
+    """Format CNPJ to the standard format expected by BlackPearl API: XX.XXX.XXX/XXXX-XX"""
+    import re
+    
+    # Remove all non-numeric characters
+    clean_cnpj = re.sub(r'[^0-9]', '', cnpj)
+    
+    # If not 14 digits, return original
+    if len(clean_cnpj) != 14:
+        return cnpj
+    
+    # Format to XX.XXX.XXX/XXXX-XX
+    formatted = f"{clean_cnpj[:2]}.{clean_cnpj[2:5]}.{clean_cnpj[5:8]}/{clean_cnpj[8:12]}-{clean_cnpj[12:14]}"
+    return formatted
+
 async def verificar_cnpj(ctx: RunContext[Dict], cnpj: str) -> Dict[str, Any]:
     """Verify a CNPJ in the Blackpearl API.
     
     Args:
         ctx: Agent context
-        cnpj: The CNPJ number to verify (format: xx.xxx.xxx/xxxx-xx or clean numbers)
+        cnpj: The CNPJ number to verify (accepts any format, automatically formats for API)
         
     Returns:
         CNPJ verification result containing validation status and company information if valid
     """
+    # Format CNPJ to the standard format expected by the API
+    formatted_cnpj = _format_cnpj_for_api(cnpj)
+    
     provider = BlackpearlProvider()
     async with provider:
-        print(f"Verifying CNPJ: {cnpj}")
-        verification_result = await provider.verificar_cnpj(cnpj)
+        print(f"Verifying CNPJ: {cnpj} -> formatted: {formatted_cnpj}")
+        verification_result = await provider.verificar_cnpj(formatted_cnpj)
         
         # Create a modified result without status and reason fields if they exist
         # Only remove these fields in development environment

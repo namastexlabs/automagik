@@ -83,8 +83,17 @@ class BlackpearlProvider:
         
         try:
             async with self.session.request(method, url, json=data, params=params) as response:
-                response.raise_for_status()
-                result = await response.json()
+                # Always read the response body first, regardless of status
+                try:
+                    result = await response.json()
+                except Exception as json_error:
+                    # If JSON parsing fails, try to get text
+                    try:
+                        result = await response.text()
+                        logger.error(f"BP - Non-JSON response received: {result[:500]}...")
+                    except Exception as text_error:
+                        result = f"Could not read response: {str(text_error)}"
+                        logger.error(f"BP - Failed to read response: {str(text_error)}")
                 
                 # Enhanced logging for API responses in development/debug mode
                 if is_dev_debug:
@@ -99,6 +108,17 @@ class BlackpearlProvider:
                             logger.debug(f"BP - API Error Details: {result.get('message')}")
                 else:
                     logger.info(f"BP - API Response Status: {response.status}")
+                
+                # Log detailed error information for non-successful responses
+                if response.status >= 400:
+                    logger.error(f"BP - HTTP {response.status} Error Response: {result}")
+                    if isinstance(result, dict):
+                        for key in ['error', 'message', 'detail', 'errors', 'non_field_errors']:
+                            if key in result:
+                                logger.error(f"BP - {key.title()}: {result[key]}")
+                
+                # Raise for status after we've captured the response body
+                response.raise_for_status()
                 
                 return result
         except aiohttp.ClientResponseError as e:
@@ -115,6 +135,11 @@ class BlackpearlProvider:
                         logger.debug(f"BP - API Error Response: {response_text}")
                 except Exception as text_error:
                     logger.debug(f"BP - Could not read error response: {str(text_error)}")
+            else:
+                # Always log error details for 500 errors even in non-debug mode
+                if e.status >= 500:
+                    logger.error(f"BP - Server Error {e.status}: {e.message}")
+                    logger.error(f"BP - Error URL: {e.request_info.url if hasattr(e, 'request_info') else 'Unknown'}")
             
             raise
         
