@@ -47,70 +47,13 @@ class SimpleAgent(AutomagikAgent):
         # Register Evolution WhatsApp helpers for parity with Sofia
         self.tool_registry.register_evolution_tools(self.context)
 
-        # simple helper: analyze_image tool for compatibility
-        self._register_helper_tools()
+        # Register multimodal tools using common helper
+        self._register_multimodal_tools()
 
-    def _register_helper_tools(self):
-        deps = self.dependencies
-
-        async def analyze_image(ctx, question: str = "What do you see in this image?") -> str:
-            if not deps or not deps.has_media('image'):
-                return "No images are attached to analyze."
-            return f"Image analysis requested: {question}"
-
-        async def analyze_document(ctx, question: str = "What is this document about?") -> str:
-            if not deps or not deps.has_media('document'):
-                return "No documents are attached to analyze."
-            
-            documents = deps.current_documents
-            if not documents:
-                return "No documents found in the current context."
-            
-            # Get the first document for analysis
-            doc = documents[0]
-            doc_name = doc.get('name', 'document')
-            doc_size = doc.get('size_bytes', 0)
-            
-            return f"Document analysis requested for '{doc_name}' ({doc_size} bytes): {question}"
-
-        async def analyze_attached_media(ctx, media_type: str = "any") -> str:
-            """Analyze any attached media (images, documents, audio)."""
-            if not deps:
-                return "No media context available."
-            
-            if not deps.has_media():
-                return "No media files are attached to analyze."
-            
-            analysis_parts = []
-            
-            # Check images
-            if deps.has_media('image'):
-                images = deps.current_images
-                analysis_parts.append(f"Found {len(images)} image(s) attached")
-            
-            # Check documents  
-            if deps.has_media('document'):
-                documents = deps.current_documents
-                doc_names = [doc.get('name', 'unnamed') for doc in documents]
-                analysis_parts.append(f"Found {len(documents)} document(s): {', '.join(doc_names)}")
-            
-            # Check audio
-            if deps.has_media('audio'):
-                audio = deps.current_audio
-                analysis_parts.append(f"Found {len(audio)} audio file(s) attached")
-            
-            if analysis_parts:
-                return "Media analysis: " + "; ".join(analysis_parts)
-            else:
-                return "No supported media types found for analysis."
-
-        analyze_image.__name__ = "analyze_image"
-        analyze_document.__name__ = "analyze_document" 
-        analyze_attached_media.__name__ = "analyze_attached_media"
-        
-        self.tool_registry.register_tool(analyze_image)
-        self.tool_registry.register_tool(analyze_document)
-        self.tool_registry.register_tool(analyze_attached_media)
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> SimpleAgent:
