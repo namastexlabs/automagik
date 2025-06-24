@@ -70,6 +70,8 @@ IMPORTANTE: NUNCA comunique ao usuário que está delegando a um especialista. A
 """
 
 PROMPT = f"""
+# [APPROVED] Instructions
+
 {agent_persona}
 {solid_info}
 {communication_guidelines}
