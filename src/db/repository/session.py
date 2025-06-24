@@ -435,3 +435,272 @@ def update_session_name_if_empty(session_id: uuid.UUID, new_name: str) -> bool:
     except Exception as e:
         logger.error(f"Error updating session name: {str(e)}")
         return False
+
+
+# Session branching functions
+def create_branch_session(
+    parent_session_id: uuid.UUID,
+    branch_point_message_id: uuid.UUID,
+    branch_name: Optional[str] = None,
+    branch_type: str = "edit_branch"
+) -> Optional[uuid.UUID]:
+    """Create a new session as a branch from an existing session.
+    
+    Args:
+        parent_session_id: The ID of the parent session
+        branch_point_message_id: The message where the branch starts
+        branch_name: Optional name for the branch session
+        branch_type: Type of branch ('edit_branch' or 'manual_branch')
+        
+    Returns:
+        The new session ID if successful, None otherwise
+    """
+    try:
+        # Get the parent session to copy basic info
+        parent_session = get_session(parent_session_id)
+        if not parent_session:
+            logger.error(f"Parent session {parent_session_id} not found")
+            return None
+        
+        # Generate new session ID
+        new_session_id = uuid.uuid4()
+        
+        # Generate branch name if not provided
+        if not branch_name:
+            branch_name = f"{parent_session.name or 'Session'} - Branch"
+        
+        # Insert the new branch session
+        result = execute_query(
+            """
+            INSERT INTO sessions (
+                id, user_id, agent_id, name, platform, metadata,
+                parent_session_id, branch_point_message_id, branch_type, is_main_branch,
+                created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                NOW(), NOW()
+            ) RETURNING id
+            """,
+            (
+                str(new_session_id),
+                parent_session.user_id,
+                parent_session.agent_id,
+                branch_name,
+                parent_session.platform,
+                json.dumps(parent_session.metadata) if parent_session.metadata else None,
+                str(parent_session_id),
+                str(branch_point_message_id),
+                branch_type,
+                False  # is_main_branch
+            )
+        )
+        
+        if result:
+            session_id = uuid.UUID(result[0]["id"])
+            logger.info(f"Created branch session {session_id} from parent {parent_session_id}")
+            return session_id
+        else:
+            logger.error("Failed to create branch session - no result returned")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error creating branch session: {str(e)}")
+        return None
+
+
+def copy_messages_to_branch(
+    parent_session_id: uuid.UUID,
+    branch_session_id: uuid.UUID,
+    branch_point_message_id: uuid.UUID
+) -> bool:
+    """Copy messages from parent session to branch session up to the branch point.
+    
+    Args:
+        parent_session_id: The parent session ID
+        branch_session_id: The new branch session ID
+        branch_point_message_id: The message where the branch starts
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Copy messages created before or at the branch point
+        execute_query(
+            """
+            INSERT INTO messages (
+                id, session_id, user_id, agent_id, role, text_content,
+                media_url, mime_type, message_type, raw_payload, channel_payload,
+                tool_calls, tool_outputs, system_prompt, user_feedback, flagged,
+                context, usage, created_at, updated_at
+            )
+            SELECT 
+                uuid_generate_v4(), %s, user_id, agent_id, role, text_content,
+                media_url, mime_type, message_type, raw_payload, channel_payload,
+                tool_calls, tool_outputs, system_prompt, user_feedback, flagged,
+                context, usage, created_at, updated_at
+            FROM messages 
+            WHERE session_id = %s 
+            AND created_at <= (
+                SELECT created_at FROM messages WHERE id = %s
+            )
+            ORDER BY created_at ASC
+            """,
+            (str(branch_session_id), str(parent_session_id), str(branch_point_message_id)),
+            fetch=False
+        )
+        
+        logger.info(f"Copied messages to branch session {branch_session_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error copying messages to branch: {str(e)}")
+        return False
+
+
+def get_session_branches(session_id: uuid.UUID) -> List[Session]:
+    """Get all branch sessions for a given session.
+    
+    Args:
+        session_id: The session ID (main or branch)
+        
+    Returns:
+        List of branch sessions
+    """
+    try:
+        # Find the root session if this is a branch
+        root_session_query = """
+            WITH RECURSIVE session_tree AS (
+                SELECT id, parent_session_id, 0 as level
+                FROM sessions 
+                WHERE id = %s
+                
+                UNION ALL
+                
+                SELECT s.id, s.parent_session_id, st.level + 1
+                FROM sessions s
+                INNER JOIN session_tree st ON s.id = st.parent_session_id
+            )
+            SELECT id FROM session_tree WHERE parent_session_id IS NULL
+        """
+        
+        root_result = execute_query(root_session_query, (str(session_id),))
+        if not root_result:
+            logger.warning(f"Could not find root session for {session_id}")
+            return []
+        
+        root_session_id = root_result[0]["id"]
+        
+        # Get all branches from the root
+        query = """
+            WITH RECURSIVE session_branches AS (
+                SELECT 
+                    s.*,
+                    a.name AS agent_name,
+                    0 as depth
+                FROM sessions s
+                LEFT JOIN agents a ON s.agent_id = a.id
+                WHERE s.id = %s
+                
+                UNION ALL
+                
+                SELECT 
+                    s.*,
+                    a.name AS agent_name,
+                    sb.depth + 1
+                FROM sessions s
+                LEFT JOIN agents a ON s.agent_id = a.id
+                INNER JOIN session_branches sb ON s.parent_session_id = sb.id
+            )
+            SELECT * FROM session_branches
+            WHERE depth > 0
+            ORDER BY created_at ASC
+        """
+        
+        result = execute_query(query, (root_session_id,))
+        
+        branches = []
+        for row in result:
+            session = Session.from_db_row(row)
+            branches.append(session)
+        
+        logger.info(f"Found {len(branches)} branches for session {session_id}")
+        return branches
+        
+    except Exception as e:
+        logger.error(f"Error getting session branches: {str(e)}")
+        return []
+
+
+def get_session_branch_tree(session_id: uuid.UUID) -> Optional[Session]:
+    """Get the complete branch tree for a session as a hierarchical structure.
+    
+    Args:
+        session_id: The session ID (main or branch)
+        
+    Returns:
+        Root session with branch hierarchy, None if not found
+    """
+    try:
+        # Get the complete tree using recursive CTE
+        query = """
+            WITH RECURSIVE session_tree AS (
+                -- Find the root session
+                WITH root_finder AS (
+                    SELECT id, parent_session_id
+                    FROM sessions 
+                    WHERE id = %s
+                    
+                    UNION ALL
+                    
+                    SELECT s.id, s.parent_session_id
+                    FROM sessions s
+                    INNER JOIN root_finder rf ON s.id = rf.parent_session_id
+                )
+                SELECT 
+                    s.*,
+                    a.name AS agent_name,
+                    0 as depth,
+                    ARRAY[s.id] as path
+                FROM sessions s
+                LEFT JOIN agents a ON s.agent_id = a.id
+                WHERE s.id = (SELECT id FROM root_finder WHERE parent_session_id IS NULL)
+                
+                UNION ALL
+                
+                SELECT 
+                    s.*,
+                    a.name AS agent_name,
+                    st.depth + 1,
+                    st.path || s.id
+                FROM sessions s
+                LEFT JOIN agents a ON s.agent_id = a.id
+                INNER JOIN session_tree st ON s.parent_session_id = st.id
+            )
+            SELECT * FROM session_tree
+            ORDER BY depth ASC, created_at ASC
+        """
+        
+        result = execute_query(query, (str(session_id),))
+        
+        if not result:
+            logger.warning(f"No sessions found for tree query with session {session_id}")
+            return None
+        
+        # Build the tree structure
+        sessions_by_id = {}
+        root_session = None
+        
+        for row in result:
+            session = Session.from_db_row(row)
+            sessions_by_id[session.id] = session
+            
+            if row.get("depth") == 0:
+                root_session = session
+        
+        logger.info(f"Built session tree with {len(sessions_by_id)} sessions")
+        return root_session
+        
+    except Exception as e:
+        logger.error(f"Error getting session branch tree: {str(e)}")
+        return None
