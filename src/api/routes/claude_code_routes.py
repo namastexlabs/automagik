@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Path, Body, Query
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 # Import race condition helpers
 try:
@@ -96,23 +96,6 @@ class ClaudeWorkflowRequest(BaseModel):
         description="Execution timeout in seconds (1-4 hours)",
         example=10800,
     )
-    
-    # PR creation options (UI-driven)
-    create_pr_on_success: bool = Field(
-        default=False,
-        description="Create a Pull Request when workflow completes successfully (UI option)",
-        example=False,
-    )
-    pr_title: Optional[str] = Field(
-        None,
-        description="Custom title for the PR (defaults to workflow name and run ID)",
-        example="feat: Implement JWT authentication system",
-    )
-    pr_body: Optional[str] = Field(
-        None,
-        description="Custom body for the PR (defaults to auto-generated summary)",
-        example="## Summary\nImplements JWT authentication with secure token handling\n\n## Changes\n- Added JWT middleware\n- Created auth endpoints\n- Updated user model",
-    )
 
 
 class ClaudeWorkflowResponse(BaseModel):
@@ -130,12 +113,6 @@ class ClaudeWorkflowResponse(BaseModel):
     # Git operation results (populated when workflow completes)
     auto_commit_sha: Optional[str] = Field(
         None, description="SHA of the final auto-commit (if any)"
-    )
-    pr_url: Optional[str] = Field(
-        None, description="URL of the created Pull Request (if any)"
-    )
-    merge_sha: Optional[str] = Field(
-        None, description="SHA of the merge commit to main (if any)"
     )
 
 
@@ -210,6 +187,54 @@ class WorkflowInfo(BaseModel):
     description="""
     Execute a Claude Code workflow with comprehensive configuration options.
     
+    ## Workflow Modes:
+    
+    ### 1. Default Mode (Current Repository)
+    Uses the Automagik agents repository as the working directory.
+    ```json
+    {
+      "message": "Implement user authentication",
+      "max_turns": 50,
+      "persistent": true
+    }
+    ```
+    
+    ### 2. External Repository Mode
+    Clones and works with an external Git repository.
+    ```json
+    {
+      "message": "Add dark mode support",
+      "repository_url": "https://github.com/org/project.git",
+      "git_branch": "feature/dark-mode",
+      "max_turns": 30,
+      "persistent": false,
+      "auto_merge": false
+    }
+    ```
+    
+    ### 3. Temporary Workspace Mode
+    Creates an isolated, empty workspace for temporary tasks.
+    ```json
+    {
+      "message": "Analyze this screenshot and create a summary",
+      "temp_workspace": true,
+      "max_turns": 10
+    }
+    ```
+    
+    ## Full Parameter List:
+    - `message` (required): Task description for Claude
+    - `max_turns`: Maximum conversation turns (1-200, unlimited if not specified)
+    - `session_id`: Continue a previous session
+    - `session_name`: Human-readable session name
+    - `user_id`: User identifier for tracking
+    - `timeout`: Execution timeout in seconds (60-14400)
+    - `persistent`: Keep workspace after completion (default: true, ignored for temp_workspace)
+    - `temp_workspace`: Use temporary isolated workspace (default: false)
+    - `repository_url`: External repository to clone (incompatible with temp_workspace)
+    - `git_branch`: Git branch to work on (incompatible with temp_workspace)
+    - `auto_merge`: Auto-merge to main branch (incompatible with temp_workspace)
+    
     ## Available Workflows:
     - **architect**: Design system architecture and technical specifications
     - **implement**: Implement features based on architectural designs  
@@ -218,7 +243,6 @@ class WorkflowInfo(BaseModel):
     - **fix**: Apply surgical fixes for specific issues
     - **refactor**: Improve code structure and maintainability
     - **document**: Generate comprehensive documentation
-    - **pr**: Prepare pull requests for review
     """,
 )
 async def run_claude_workflow(
@@ -232,9 +256,29 @@ async def run_claude_workflow(
     auto_merge: bool = Query(
         False, description="Automatically merge to main branch (true=auto-merge, false=manual)"
     ),
+    temp_workspace: bool = Query(
+        False, description="Use temporary isolated workspace without git integration"
+    ),
 ) -> ClaudeWorkflowResponse:
     """Execute Claude Code workflow with comprehensive configuration"""
     try:
+        # Validate parameter compatibility
+        if temp_workspace:
+            incompatible_params = []
+            if request.repository_url:
+                incompatible_params.append("repository_url")
+            if request.git_branch:
+                incompatible_params.append("git_branch")
+            if auto_merge:
+                incompatible_params.append("auto_merge")
+            
+            if incompatible_params:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"temp_workspace cannot be used with: {', '.join(incompatible_params)}. "
+                           "Temporary workspaces are isolated environments without git integration."
+                )
+        
         # Validate workflow exists
         agent = AgentFactory.get_agent("claude_code")
         if not agent:
@@ -300,6 +344,8 @@ async def run_claude_workflow(
                 "run_id": run_id,
                 "persistent": persistent,
                 "auto_merge": auto_merge,
+                "temp_workspace": temp_workspace,
+                "user_id": user_id,  # Pass user_id to agent execution
             }
             
             # SURGICAL FIX: Create workflow run record in database BEFORE execution starts
@@ -329,6 +375,7 @@ async def run_claude_workflow(
                 git_branch=request.git_branch,
                 status="pending",
                 workspace_persistent=persistent,
+                temp_workspace=temp_workspace,  # Include temp_workspace flag
                 user_id=user_id,
                 metadata={
                     "max_turns": request.max_turns,
@@ -412,7 +459,7 @@ async def run_claude_workflow(
                             updated_at=datetime.utcnow()
                         )
                         update_workflow_run_by_run_id(run_id, update_data)
-                    except:
+                    except Exception:
                         pass
                 finally:
                     # Cleanup
