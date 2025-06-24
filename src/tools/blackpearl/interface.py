@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 from functools import wraps
 from datetime import datetime
 import pytz
+from enum import Enum
 from src.config import settings
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,10 @@ def format_api_request(data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     formatted_data = {}
     for k, v in data.items():
         if v is not None:
-            if isinstance(v, datetime):
+            if isinstance(v, Enum):
+                # Convert enum to its string value
+                formatted_data[k] = v.value
+            elif isinstance(v, datetime):
                 # Ensure datetime is timezone-aware
                 if v.tzinfo is None:
                     v = pytz.timezone('America/Sao_Paulo').localize(v)
