@@ -287,7 +287,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         logger.info(f"  nome_fantasia: {nome_fantasia}")
         logger.info(f"  email: {email}")
         logger.info(f"  telefone_comercial: {telefone_comercial}")
-        logger.info(f"  cnpj: {cnpj}")
+        logger.info(f"  cnpj_cpf: {cnpj_cpf}")
         logger.info(f"  inscricao_estadual: {inscricao_estadual}")
         logger.info(f"  endereco: {endereco}")
         logger.info(f"  endereco_numero: {endereco_numero}")

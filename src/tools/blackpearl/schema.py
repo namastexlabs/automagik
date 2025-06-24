@@ -105,7 +105,7 @@ class Cliente(BaseModel):
     contatos: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Contacts list from API response")
     contatos_ids: Optional[List[int]] = Field(None, description="Contact IDs")
     vendedores: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Salesperson IDs")
-    telefone_comercial: Optional[str] = None
+    # telefone_comercial: Optional[str] = None
     tipo_operacao: Optional[TipoOperacaoEnum] = None
     numero_funcionarios: Optional[int] = None
     razao_social: Optional[str] = Field(None, max_length=255)
@@ -187,7 +187,7 @@ class Produto(BaseModel):
     ncm: Optional[str] = Field(None, max_length=32)
     especificacoes: Optional[str]
     marketing_info: Optional[str]
-    imagem = Optional[str] = Field(None, max_length=255)
+    # imagem = Optional[str] = Field(None, max_length=255)
     manual_tecnico: Optional[str] = Field(None, max_length=255)
     precificacao: Optional[Precificacao] = None
     estoque: int
