@@ -433,7 +433,14 @@ class PostgreSQLProvider(DatabaseProvider):
         
         try:
             manager = MigrationManager(connection)
-            migrations_dir = Path("src/db/migrations")
+            base_migrations_dir = Path("src/db/migrations")
+            
+            # Use database-specific directory if it exists
+            postgres_migrations_dir = base_migrations_dir / "postgresql"
+            if postgres_migrations_dir.exists():
+                migrations_dir = postgres_migrations_dir
+            else:
+                migrations_dir = base_migrations_dir
             
             if not migrations_dir.exists():
                 return True, []
@@ -444,8 +451,8 @@ class PostgreSQLProvider(DatabaseProvider):
             
             for migration_file in migration_files:
                 migration_name = migration_file.name
-                # Skip SQLite-specific migrations for PostgreSQL
-                if migration_name == "00000000_000000_create_initial_schema.sql":
+                # Skip SQLite-specific migrations for PostgreSQL (only if in base directory)
+                if migrations_dir == base_migrations_dir and migration_name == "00000000_000000_create_initial_schema.sql":
                     continue
                     
                 if migration_name not in manager.applied_migrations:
@@ -466,7 +473,7 @@ class PostgreSQLProvider(DatabaseProvider):
                 manager = MigrationManager(connection)
                 migrations_path = Path(migrations_dir)
                 
-                success_count, error_count, error_messages = manager.apply_all_migrations(migrations_path)
+                success_count, error_count, error_messages = manager.apply_all_migrations(migrations_path, "postgresql")
                 
                 if error_count > 0:
                     for error_msg in error_messages:
