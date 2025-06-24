@@ -439,12 +439,20 @@ class UpdateMessageRequest(BaseResponseModel):
     flagged: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
     usage: Optional[Dict[str, Any]] = None
+    # Branching options
+    create_branch: bool = Field(False, description="Whether to create a new conversation branch instead of updating in-place")
+    branch_name: Optional[str] = Field(None, description="Optional name for the new branch session (only used when create_branch=True)")
+    run_agent: bool = Field(True, description="Whether to re-run the agent from the branch point (only used when create_branch=True)")
 
 class UpdateMessageResponse(BaseResponseModel):
     """Response model for message update."""
     status: str = "success"
     message_id: uuid.UUID
     detail: str = "Message updated successfully"
+    # Branching response fields (only present when create_branch=True)
+    branch_session_id: Optional[uuid.UUID] = Field(None, description="ID of the new branch session (only when create_branch=True)")
+    original_session_id: Optional[uuid.UUID] = Field(None, description="ID of the original session (only when create_branch=True)")
+    branch_point_message_id: Optional[uuid.UUID] = Field(None, description="ID of the branch point message (only when create_branch=True)")
 
 class MessageResponse(BaseResponseModel):
     """Response model for a single message."""
@@ -478,6 +486,56 @@ class MessageListResponse(BaseResponseModel):
     total_pages: int = 1
     has_next: Optional[bool] = None
     has_prev: Optional[bool] = None
+
+# Message branching API models
+class CreateBranchRequest(BaseResponseModel):
+    """Request model for creating a conversation branch from a message."""
+    edited_message_content: str = Field(..., description="New content for the message at branch point")
+    branch_name: Optional[str] = Field(None, description="Optional name for the new branch session")
+    run_agent: bool = Field(True, description="Whether to re-run the agent from the branch point")
+
+class CreateBranchResponse(BaseResponseModel):
+    """Response model for branch creation."""
+    status: str = "success"
+    branch_session_id: uuid.UUID
+    original_session_id: uuid.UUID
+    branch_point_message_id: uuid.UUID
+    detail: str = "Branch created successfully"
+
+class BranchInfo(BaseResponseModel):
+    """Information about a conversation branch."""
+    session_id: uuid.UUID
+    session_name: Optional[str] = None
+    branch_type: Optional[Literal["edit_branch", "manual_branch"]] = None
+    branch_point_message_id: Optional[uuid.UUID] = None
+    is_main_branch: bool = True
+    created_at: Optional[datetime] = None
+    message_count: Optional[int] = None
+
+class SessionBranchesResponse(BaseResponseModel):
+    """Response model for listing session branches."""
+    main_session: BranchInfo
+    branches: List[BranchInfo]
+    total_branches: int
+
+class BranchTreeNode(BaseResponseModel):
+    """Node in a branch tree structure."""
+    session_id: uuid.UUID
+    session_name: Optional[str] = None
+    branch_type: Optional[Literal["edit_branch", "manual_branch"]] = None
+    branch_point_message_id: Optional[uuid.UUID] = None
+    is_main_branch: bool = True
+    created_at: Optional[datetime] = None
+    message_count: Optional[int] = None
+    children: List["BranchTreeNode"] = Field(default_factory=list)
+
+class SessionBranchTreeResponse(BaseResponseModel):
+    """Response model for session branch tree."""
+    root: BranchTreeNode
+    total_sessions: int
+
+# Make BranchTreeNode work with forward references
+BranchTreeNode.model_rebuild()
 
 # Prompt API models
 class PromptResponse(BaseResponseModel):

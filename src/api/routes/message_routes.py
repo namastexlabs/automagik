@@ -7,7 +7,8 @@ from src.api.controllers.message_controller import (
     get_message_controller,
     list_messages_controller,
     update_message_controller,
-    delete_message_controller
+    delete_message_controller,
+    create_message_branch_controller
 )
 from src.api.models import (
     CreateMessageRequest,
@@ -16,7 +17,9 @@ from src.api.models import (
     MessageListResponse,
     UpdateMessageRequest,
     UpdateMessageResponse,
-    DeleteMessageResponse
+    DeleteMessageResponse,
+    CreateBranchRequest,
+    CreateBranchResponse
 )
 
 # Create router for message endpoints
@@ -153,4 +156,37 @@ async def delete_message_route(
     except Exception as e:
         # Catch any other unexpected errors from the controller or this level
         logger.error(f"Unexpected error in delete_message_route for message_id {message_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while trying to delete the message.") 
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while trying to delete the message.")
+
+
+@message_router.post(
+    "/messages/{message_id}/branch",
+    response_model=CreateBranchResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Messages", "Branching"],
+    summary="Create Conversation Branch from Message",
+    description="Creates a new conversation branch starting from a specific message with edited content."
+)
+async def create_message_branch_route(
+    message_id: uuid.UUID = Path(..., description="The unique identifier of the message to branch from."),
+    request: CreateBranchRequest = ...
+):
+    """
+    Endpoint to create a conversation branch from a specific message.
+    
+    This allows users to:
+    1. Edit a message in the conversation history
+    2. Create a new conversation branch from that point
+    3. Optionally re-run the agent from the edited message
+    
+    The original conversation remains unchanged, and the new branch
+    becomes a separate conversation thread that can be developed independently.
+    """
+    try:
+        response_data = await create_message_branch_controller(message_id, request)
+        return CreateBranchResponse(**response_data)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error in create_message_branch_route for message_id {message_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while trying to create the conversation branch.") 
