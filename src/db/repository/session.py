@@ -568,20 +568,21 @@ def get_session_branches(session_id: uuid.UUID) -> List[Session]:
         List of branch sessions
     """
     try:
-        # Find the root session if this is a branch
+        # First find the root session
         root_session_query = """
-            WITH RECURSIVE session_tree AS (
+            WITH RECURSIVE find_root AS (
                 SELECT id, parent_session_id, 0 as level
                 FROM sessions 
                 WHERE id = %s
                 
                 UNION ALL
                 
-                SELECT s.id, s.parent_session_id, st.level + 1
+                SELECT s.id, s.parent_session_id, fr.level + 1
                 FROM sessions s
-                INNER JOIN session_tree st ON s.id = st.parent_session_id
+                INNER JOIN find_root fr ON s.id = fr.parent_session_id
+                WHERE fr.level < 10  -- Prevent infinite recursion
             )
-            SELECT id FROM session_tree WHERE parent_session_id IS NULL
+            SELECT id FROM find_root WHERE parent_session_id IS NULL LIMIT 1
         """
         
         root_result = execute_query(root_session_query, (str(session_id),))
@@ -591,11 +592,13 @@ def get_session_branches(session_id: uuid.UUID) -> List[Session]:
         
         root_session_id = root_result[0]["id"]
         
-        # Get all branches from the root
+        # Get all branches from the root (exclude the root itself)
         query = """
             WITH RECURSIVE session_branches AS (
                 SELECT 
-                    s.*,
+                    s.id, s.user_id, s.agent_id, s.name, s.platform, s.metadata,
+                    s.created_at, s.updated_at, s.run_finished_at, s.message_count,
+                    s.parent_session_id, s.branch_point_message_id, s.branch_type, s.is_main_branch,
                     a.name AS agent_name,
                     0 as depth
                 FROM sessions s
@@ -605,12 +608,15 @@ def get_session_branches(session_id: uuid.UUID) -> List[Session]:
                 UNION ALL
                 
                 SELECT 
-                    s.*,
+                    s.id, s.user_id, s.agent_id, s.name, s.platform, s.metadata,
+                    s.created_at, s.updated_at, s.run_finished_at, s.message_count,
+                    s.parent_session_id, s.branch_point_message_id, s.branch_type, s.is_main_branch,
                     a.name AS agent_name,
                     sb.depth + 1
                 FROM sessions s
                 LEFT JOIN agents a ON s.agent_id = a.id
                 INNER JOIN session_branches sb ON s.parent_session_id = sb.id
+                WHERE sb.depth < 10  -- Prevent infinite recursion
             )
             SELECT * FROM session_branches
             WHERE depth > 0
@@ -642,63 +648,46 @@ def get_session_branch_tree(session_id: uuid.UUID) -> Optional[Session]:
         Root session with branch hierarchy, None if not found
     """
     try:
-        # Get the complete tree using recursive CTE
-        query = """
-            WITH RECURSIVE session_tree AS (
-                -- Find the root session
-                WITH root_finder AS (
-                    SELECT id, parent_session_id
-                    FROM sessions 
-                    WHERE id = %s
-                    
-                    UNION ALL
-                    
-                    SELECT s.id, s.parent_session_id
-                    FROM sessions s
-                    INNER JOIN root_finder rf ON s.id = rf.parent_session_id
-                )
-                SELECT 
-                    s.*,
-                    a.name AS agent_name,
-                    0 as depth,
-                    ARRAY[s.id] as path
-                FROM sessions s
-                LEFT JOIN agents a ON s.agent_id = a.id
-                WHERE s.id = (SELECT id FROM root_finder WHERE parent_session_id IS NULL)
+        # First find the root session
+        root_query = """
+            WITH RECURSIVE find_root AS (
+                SELECT id, parent_session_id, 0 as level
+                FROM sessions 
+                WHERE id = %s
                 
                 UNION ALL
                 
-                SELECT 
-                    s.*,
-                    a.name AS agent_name,
-                    st.depth + 1,
-                    st.path || s.id
+                SELECT s.id, s.parent_session_id, fr.level + 1
                 FROM sessions s
-                LEFT JOIN agents a ON s.agent_id = a.id
-                INNER JOIN session_tree st ON s.parent_session_id = st.id
+                INNER JOIN find_root fr ON s.id = fr.parent_session_id
+                WHERE fr.level < 10  -- Prevent infinite recursion
             )
-            SELECT * FROM session_tree
-            ORDER BY depth ASC, created_at ASC
+            SELECT id FROM find_root WHERE parent_session_id IS NULL LIMIT 1
         """
         
-        result = execute_query(query, (str(session_id),))
-        
-        if not result:
-            logger.warning(f"No sessions found for tree query with session {session_id}")
+        root_result = execute_query(root_query, (str(session_id),))
+        if not root_result:
+            logger.warning(f"Could not find root session for {session_id}")
             return None
         
-        # Build the tree structure
-        sessions_by_id = {}
-        root_session = None
+        root_session_id = root_result[0]["id"]
         
-        for row in result:
-            session = Session.from_db_row(row)
-            sessions_by_id[session.id] = session
-            
-            if row.get("depth") == 0:
-                root_session = session
+        # Get the root session details using raw query
+        session_query = """
+            SELECT s.*, a.name as agent_name
+            FROM sessions s
+            LEFT JOIN agents a ON s.agent_id = a.id
+            WHERE s.id = %s
+        """
         
-        logger.info(f"Built session tree with {len(sessions_by_id)} sessions")
+        session_result = execute_query(session_query, (root_session_id,))
+        if not session_result:
+            logger.warning(f"Root session {root_session_id} not found")
+            return None
+        
+        root_session = Session.from_db_row(session_result[0])
+        
+        logger.info(f"Built session tree with root session {root_session_id}")
         return root_session
         
     except Exception as e:
