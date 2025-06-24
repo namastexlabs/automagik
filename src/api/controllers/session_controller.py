@@ -4,8 +4,9 @@ from fastapi import HTTPException
 from src.db import list_sessions, get_session as db_get_session, get_session_by_name
 from src.db.connection import safe_uuid
 from src.memory.message_history import MessageHistory
-from src.api.models import SessionListResponse, SessionInfo
-from src.db.repository.session import get_system_prompt
+from src.api.models import SessionListResponse, SessionInfo, BranchInfo
+from src.db.repository.session import get_system_prompt, get_session_branches, get_session_branch_tree
+from src.db.repository.session import get_session as get_session_by_id
 from src.db import list_session_messages
 from typing import Dict, Any, List
 import uuid
@@ -265,4 +266,97 @@ async def delete_session(session_id_or_name: str) -> bool:
         raise
     except Exception as e:
         logger.error(f"Error deleting session: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
+
+
+async def get_session_branches_controller(session_id: uuid.UUID) -> dict:
+    """
+    Controller to get all branches for a session.
+    """
+    try:
+        # Get the main session
+        main_session = await run_in_threadpool(get_session_by_id, session_id)
+        if not main_session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
+        
+        # Get all branches
+        branches = await run_in_threadpool(get_session_branches, session_id)
+        
+        # Convert to BranchInfo objects
+        main_branch_info = BranchInfo(
+            session_id=main_session.id,
+            session_name=main_session.name,
+            branch_type=main_session.branch_type,
+            branch_point_message_id=main_session.branch_point_message_id,
+            is_main_branch=main_session.is_main_branch,
+            created_at=main_session.created_at,
+            message_count=main_session.message_count
+        )
+        
+        branch_infos = []
+        for branch in branches:
+            branch_info = BranchInfo(
+                session_id=branch.id,
+                session_name=branch.name,
+                branch_type=branch.branch_type,
+                branch_point_message_id=branch.branch_point_message_id,
+                is_main_branch=branch.is_main_branch,
+                created_at=branch.created_at,
+                message_count=branch.message_count
+            )
+            branch_infos.append(branch_info)
+        
+        logger.info(f"Found {len(branch_infos)} branches for session {session_id}")
+        
+        return {
+            "main_session": main_branch_info,
+            "branches": branch_infos,
+            "total_branches": len(branch_infos)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session branches: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get session branches due to an internal error.")
+
+
+async def get_session_branch_tree_controller(session_id: uuid.UUID) -> dict:
+    """
+    Controller to get the complete branch tree for a session.
+    """
+    try:
+        # Get the root session with tree structure
+        root_session = await run_in_threadpool(get_session_branch_tree, session_id)
+        if not root_session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
+        
+        # For now, we'll return a simplified tree structure
+        # The repository function returns just the root; we'd need to enhance it
+        # to build the full hierarchical structure with children
+        
+        from src.api.models import BranchTreeNode
+        
+        root_node = BranchTreeNode(
+            session_id=root_session.id,
+            session_name=root_session.name,
+            branch_type=root_session.branch_type,
+            branch_point_message_id=root_session.branch_point_message_id,
+            is_main_branch=root_session.is_main_branch,
+            created_at=root_session.created_at,
+            message_count=root_session.message_count,
+            children=[]  # TODO: Build actual tree structure
+        )
+        
+        logger.info(f"Built branch tree for session {session_id}")
+        
+        return {
+            "root": root_node,
+            "total_sessions": 1  # TODO: Count actual sessions in tree
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session branch tree: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get session branch tree due to an internal error.") 
