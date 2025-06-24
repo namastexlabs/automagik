@@ -394,6 +394,91 @@ class DeleteMessageResponse(BaseResponseModel):
     message_id: uuid.UUID
     detail: str = "Message deleted successfully"
 
+class CreateMessageRequest(BaseResponseModel):
+    """Request model for creating a new message."""
+    session_id: uuid.UUID
+    user_id: Optional[uuid.UUID] = None
+    agent_id: Optional[int] = None
+    role: str = Field(..., description="Message role (user, assistant, system)")
+    text_content: Optional[str] = None
+    media_url: Optional[str] = None
+    mime_type: Optional[str] = None
+    message_type: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    channel_payload: Optional[Dict[str, Any]] = None
+    tool_calls: Optional[Dict[str, Any]] = None
+    tool_outputs: Optional[Dict[str, Any]] = None
+    system_prompt: Optional[str] = None
+    user_feedback: Optional[str] = None
+    flagged: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    usage: Optional[Dict[str, Any]] = None
+
+class CreateMessageResponse(BaseResponseModel):
+    """Response model for message creation."""
+    status: str = "success"
+    message_id: uuid.UUID
+    detail: str = "Message created successfully"
+
+class UpdateMessageRequest(BaseResponseModel):
+    """Request model for updating a message."""
+    session_id: Optional[uuid.UUID] = None
+    user_id: Optional[uuid.UUID] = None
+    agent_id: Optional[int] = None
+    role: Optional[str] = None
+    text_content: Optional[str] = None
+    media_url: Optional[str] = None
+    mime_type: Optional[str] = None
+    message_type: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    channel_payload: Optional[Dict[str, Any]] = None
+    tool_calls: Optional[Dict[str, Any]] = None
+    tool_outputs: Optional[Dict[str, Any]] = None
+    system_prompt: Optional[str] = None
+    user_feedback: Optional[str] = None
+    flagged: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    usage: Optional[Dict[str, Any]] = None
+
+class UpdateMessageResponse(BaseResponseModel):
+    """Response model for message update."""
+    status: str = "success"
+    message_id: uuid.UUID
+    detail: str = "Message updated successfully"
+
+class MessageResponse(BaseResponseModel):
+    """Response model for a single message."""
+    id: uuid.UUID
+    session_id: Optional[uuid.UUID] = None
+    user_id: Optional[uuid.UUID] = None
+    agent_id: Optional[int] = None
+    role: str
+    text_content: Optional[str] = None
+    media_url: Optional[str] = None
+    mime_type: Optional[str] = None
+    message_type: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    channel_payload: Optional[Dict[str, Any]] = None
+    tool_calls: Optional[Dict[str, Any]] = None
+    tool_outputs: Optional[Dict[str, Any]] = None
+    system_prompt: Optional[str] = None
+    user_feedback: Optional[str] = None
+    flagged: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    usage: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+class MessageListResponse(BaseResponseModel):
+    """Response model for listing messages."""
+    messages: List[MessageResponse]
+    total: int
+    page: int = 1
+    page_size: int = 50
+    total_pages: int = 1
+    has_next: Optional[bool] = None
+    has_prev: Optional[bool] = None
+
 # Prompt API models
 class PromptResponse(BaseResponseModel):
     """Response model for a single prompt."""
