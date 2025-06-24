@@ -1,7 +1,8 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query
-from src.api.models import SessionListResponse
-from src.api.controllers.session_controller import get_sessions, get_session, delete_session
+import uuid
+from fastapi import APIRouter, HTTPException, Query, Path
+from src.api.models import SessionListResponse, SessionBranchesResponse, SessionBranchTreeResponse
+from src.api.controllers.session_controller import get_sessions, get_session, delete_session, get_session_branches_controller, get_session_branch_tree_controller
 
 # Create router for session endpoints
 session_router = APIRouter()
@@ -88,4 +89,56 @@ async def delete_session_route(session_id_or_name: str):
         "status": "success",
         "session_id": session_id_or_name,
         "message": f"Session {session_id_or_name} deleted successfully"
-    } 
+    }
+
+
+@session_router.get(
+    "/sessions/{session_id}/branches",
+    response_model=SessionBranchesResponse,
+    tags=["Sessions", "Branching"],
+    summary="Get Session Branches",
+    description="Retrieve all conversation branches for a specific session."
+)
+async def get_session_branches_route(
+    session_id: uuid.UUID = Path(..., description="The unique identifier of the session.")
+):
+    """
+    Get all conversation branches for a session.
+    
+    Returns the main session and all its branches, including metadata
+    about each branch such as the branch point message and creation time.
+    """
+    try:
+        response_data = await get_session_branches_controller(session_id)
+        return SessionBranchesResponse(**response_data)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error in get_session_branches_route for session_id {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while trying to get session branches.")
+
+
+@session_router.get(
+    "/sessions/{session_id}/branch-tree",
+    response_model=SessionBranchTreeResponse,
+    tags=["Sessions", "Branching"],
+    summary="Get Session Branch Tree",
+    description="Retrieve the complete conversation branch tree for a session as a hierarchical structure."
+)
+async def get_session_branch_tree_route(
+    session_id: uuid.UUID = Path(..., description="The unique identifier of the session.")
+):
+    """
+    Get the complete conversation branch tree for a session.
+    
+    Returns a hierarchical tree structure showing the relationship
+    between the main session and all its branches and sub-branches.
+    """
+    try:
+        response_data = await get_session_branch_tree_controller(session_id)
+        return SessionBranchTreeResponse(**response_data)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error in get_session_branch_tree_route for session_id {session_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while trying to get session branch tree.") 
