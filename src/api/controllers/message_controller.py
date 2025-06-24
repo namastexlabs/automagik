@@ -10,8 +10,13 @@ from src.db.repository.message import (
     list_messages as db_list_messages,
     count_messages as db_count_messages
 )
+from src.db.repository.session import (
+    create_branch_session,
+    copy_messages_to_branch,
+    get_session
+)
 from src.db.models import Message
-from src.api.models import CreateMessageRequest, UpdateMessageRequest
+from src.api.models import CreateMessageRequest, UpdateMessageRequest, CreateBranchRequest
 from fastapi.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
@@ -198,6 +203,29 @@ async def update_message_controller(message_id: uuid.UUID, request: UpdateMessag
             logger.warning(f"Message with ID {message_id} not found for update")
             raise HTTPException(status_code=404, detail=f"Message with ID {message_id} not found.")
         
+        # Check if we should create a branch instead of updating in-place
+        if request.create_branch:
+            # Create a branch request with the updated content
+            branch_request = CreateBranchRequest(
+                edited_message_content=request.text_content if request.text_content is not None else existing_message.text_content,
+                branch_name=request.branch_name,
+                run_agent=request.run_agent
+            )
+            
+            # Use the branch creation logic
+            branch_result = await create_message_branch_controller(message_id, branch_request)
+            
+            # Return branch-specific response
+            return {
+                "status": "success",
+                "message_id": branch_result["branch_point_message_id"],
+                "detail": "Message branch created successfully",
+                "branch_session_id": branch_result["branch_session_id"],
+                "original_session_id": branch_result["original_session_id"],
+                "branch_point_message_id": branch_result["branch_point_message_id"]
+            }
+        
+        # Regular in-place update logic
         # Update only the fields that were provided in the request
         updated_message = Message(
             id=existing_message.id,
@@ -257,4 +285,92 @@ async def delete_message_controller(message_id: uuid.UUID) -> dict:
     except Exception as e:
         logger.error(f"Error deleting message {message_id}: {str(e)}")
         # Consider if any other specific exception types should be caught and handled differently
-        raise HTTPException(status_code=500, detail=f"Failed to delete message {message_id} due to an internal error.") 
+        raise HTTPException(status_code=500, detail=f"Failed to delete message {message_id} due to an internal error.")
+
+
+async def create_message_branch_controller(message_id: uuid.UUID, request: CreateBranchRequest) -> dict:
+    """
+    Controller to handle creating a conversation branch from a message.
+    """
+    try:
+        # Get the original message to get session context
+        original_message = await run_in_threadpool(db_get_message, message_id)
+        if not original_message:
+            logger.warning(f"Message {message_id} not found for branching")
+            raise HTTPException(status_code=404, detail=f"Message with ID {message_id} not found.")
+        
+        # Get the session to ensure it exists
+        parent_session = await run_in_threadpool(get_session, original_message.session_id)
+        if not parent_session:
+            logger.error(f"Parent session {original_message.session_id} not found")
+            raise HTTPException(status_code=404, detail="Parent session not found.")
+        
+        # Create the branch session
+        branch_session_id = await run_in_threadpool(
+            create_branch_session,
+            parent_session_id=original_message.session_id,
+            branch_point_message_id=message_id,
+            branch_name=request.branch_name,
+            branch_type="edit_branch"
+        )
+        
+        if not branch_session_id:
+            logger.error(f"Failed to create branch session for message {message_id}")
+            raise HTTPException(status_code=500, detail="Failed to create branch session.")
+        
+        # Copy messages up to the branch point
+        copy_success = await run_in_threadpool(
+            copy_messages_to_branch,
+            parent_session_id=original_message.session_id,
+            branch_session_id=branch_session_id,
+            branch_point_message_id=message_id
+        )
+        
+        if not copy_success:
+            logger.error(f"Failed to copy messages to branch session {branch_session_id}")
+            raise HTTPException(status_code=500, detail="Failed to copy conversation history to branch.")
+        
+        # Update the branch point message with the edited content
+        # Create a new message with the edited content
+        edited_message = Message(
+            id=uuid.uuid4(),
+            session_id=branch_session_id,
+            user_id=original_message.user_id,
+            agent_id=original_message.agent_id,
+            role=original_message.role,
+            text_content=request.edited_message_content,
+            media_url=original_message.media_url,
+            mime_type=original_message.mime_type,
+            message_type=original_message.message_type,
+            raw_payload=original_message.raw_payload,
+            channel_payload=original_message.channel_payload,
+            tool_calls=original_message.tool_calls,
+            tool_outputs=original_message.tool_outputs,
+            system_prompt=original_message.system_prompt,
+            context=original_message.context,
+            usage=original_message.usage
+        )
+        
+        edited_message_id = await run_in_threadpool(db_create_message, edited_message)
+        if not edited_message_id:
+            logger.error(f"Failed to create edited message in branch {branch_session_id}")
+            raise HTTPException(status_code=500, detail="Failed to create edited message in branch.")
+        
+        # TODO: If request.run_agent is True, trigger agent execution from this point
+        # This would be implemented as part of the agent-aware branching logic
+        
+        logger.info(f"Successfully created branch {branch_session_id} from message {message_id}")
+        
+        return {
+            "status": "success",
+            "branch_session_id": branch_session_id,
+            "original_session_id": original_message.session_id,
+            "branch_point_message_id": message_id,
+            "detail": "Branch created successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating message branch: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create conversation branch due to an internal error.") 
