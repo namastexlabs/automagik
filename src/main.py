@@ -165,6 +165,24 @@ async def initialize_all_agents():
                     logger.warning(f"⚠️ Agent '{agent_name}' not found in database")
             
             logger.info(f"✅ Activated {activated_count} agents based on AM_AGENTS_NAMES")
+        else:
+            # AM_AGENTS_NAMES is not set - activate all available agents
+            logger.info("🔧 AM_AGENTS_NAMES not specified - activating all available agents")
+            
+            all_db_agents = list_agents(active_only=False)
+            activated_count = 0
+            for db_agent in all_db_agents:
+                # Only activate agents that are in the available_agents list (discovered)
+                if db_agent.name in available_agents and not db_agent.active:
+                    db_agent.active = True
+                    if update_agent(db_agent):
+                        activated_count += 1
+                        logger.info(f"✅ Activated agent: {db_agent.name}")
+            
+            if activated_count > 0:
+                logger.info(f"✅ Activated {activated_count} agents (all available agents)")
+            else:
+                logger.info("📌 All discovered agents are already active")
         
         # Get only active agents from database for initialization
         from src.db.repository.agent import list_agents
