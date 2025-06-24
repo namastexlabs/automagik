@@ -15,8 +15,8 @@ from src.db.repository.session import (
     copy_messages_to_branch,
     get_session
 )
-from src.db.models import Message
-from src.api.models import CreateMessageRequest, UpdateMessageRequest, CreateBranchRequest
+from src.db.models import Message, Session
+from src.api.models import CreateMessageRequest, UpdateMessageRequest, CreateBranchRequest, AgentRunRequest
 from fastapi.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
@@ -356,8 +356,14 @@ async def create_message_branch_controller(message_id: uuid.UUID, request: Creat
             logger.error(f"Failed to create edited message in branch {branch_session_id}")
             raise HTTPException(status_code=500, detail="Failed to create edited message in branch.")
         
-        # TODO: If request.run_agent is True, trigger agent execution from this point
-        # This would be implemented as part of the agent-aware branching logic
+        # Trigger agent execution if requested
+        if request.run_agent:
+            logger.info(f"Triggering agent execution for branch session {branch_session_id}")
+            await trigger_agent_execution_for_branch(
+                branch_session_id=branch_session_id,
+                parent_session=parent_session,
+                edited_message_content=request.edited_message_content
+            )
         
         logger.info(f"Successfully created branch {branch_session_id} from message {message_id}")
         
@@ -373,4 +379,61 @@ async def create_message_branch_controller(message_id: uuid.UUID, request: Creat
         raise
     except Exception as e:
         logger.error(f"Error creating message branch: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to create conversation branch due to an internal error.") 
+        raise HTTPException(status_code=500, detail="Failed to create conversation branch due to an internal error.")
+
+
+async def trigger_agent_execution_for_branch(
+    branch_session_id: uuid.UUID,
+    parent_session: Session,
+    edited_message_content: str
+) -> None:
+    """
+    Trigger agent execution for a newly created branch session.
+    
+    Args:
+        branch_session_id: The new branch session ID
+        parent_session: The parent session containing agent information
+        edited_message_content: The edited message content that started the branch
+    """
+    try:
+        # Import here to avoid circular imports
+        from src.api.controllers.agent_controller import handle_agent_run
+        
+        # Determine which agent to run based on parent session
+        agent_name = None
+        if parent_session.agent_id:
+            # Get agent name from database
+            from src.db import get_agent
+            agent = await run_in_threadpool(get_agent, parent_session.agent_id)
+            if agent:
+                agent_name = agent.name
+        
+        if not agent_name:
+            logger.warning(f"No agent found for parent session {parent_session.id}, skipping agent execution")
+            return
+        
+        # Create agent run request for the branch session
+        agent_request = AgentRunRequest(
+            message_content=edited_message_content,
+            session_id=str(branch_session_id),
+            user_id=parent_session.user_id,
+            agent_id=parent_session.agent_id,
+            message_limit=10,  # Reasonable default for branch context
+            session_origin="automagik-agent",  # Use valid session origin
+            force_new_session=False  # Use existing branch session
+        )
+        
+        logger.info(f"Executing agent {agent_name} for branch session {branch_session_id}")
+        
+        # Execute the agent asynchronously
+        response = await handle_agent_run(agent_name, agent_request)
+        
+        if response.get("status") == "success":
+            logger.info(f"Agent execution completed successfully for branch {branch_session_id}")
+        else:
+            logger.warning(f"Agent execution completed with issues for branch {branch_session_id}: {response}")
+            
+    except Exception as e:
+        logger.error(f"Error triggering agent execution for branch {branch_session_id}: {str(e)}")
+        # Don't raise the exception - branch creation should succeed even if agent execution fails
+        # This prevents branch creation from failing due to agent issues
