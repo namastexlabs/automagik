@@ -1,5 +1,7 @@
 from .prompt import agent_persona, solid_info, communication_guidelines, user_information_prompt
 PROMPT = f"""
+# [REJECTED] Instructions
+
 {agent_persona}
 {solid_info}
 {communication_guidelines}
