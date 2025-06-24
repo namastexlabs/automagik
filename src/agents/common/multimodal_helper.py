@@ -68,10 +68,6 @@ def register_multimodal_tools(tool_registry, dependencies):
         if not dependencies:
             return "No media context available."
         
-        # Debug: Check what's in the dependencies
-        logger.debug(f"Checking media - has_media(): {dependencies.has_media()}")
-        logger.debug(f"Multimodal content: {dependencies.multimodal_content}")
-        logger.debug(f"Current context: {getattr(dependencies, '_context', 'No context')}")
         
         if not dependencies.has_media():
             return "No media files are attached to analyze."
