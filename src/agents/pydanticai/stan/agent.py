@@ -65,6 +65,9 @@ class StanAgent(AutomagikAgent):
         # Register default tools (handled automatically by AutomagikAgent)
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Register Stan-specific tools
         self._register_stan_tools()
         
@@ -511,3 +514,7 @@ class StanAgent(AutomagikAgent):
             
         except Exception as e:
             logger.error(f"Error storing Stan user memory: {str(e)}") 
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)

@@ -69,6 +69,9 @@ class EstruturarAgent(AutomagikAgent):
             self.dependencies.set_agent_id(self.db_id)
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Initialize whitelist configuration
         self.whitelist_config = WhitelistConfig()
         
@@ -127,6 +130,11 @@ class EstruturarAgent(AutomagikAgent):
             channel_payload=channel_payload,
             message_limit=message_limit
         )
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> EstruturarAgent:
