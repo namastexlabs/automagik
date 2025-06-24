@@ -9,16 +9,14 @@ import os
 import logging
 import traceback
 
-# Removed import of AGENT_PROMPT as it no longer exists in prompt.py
-# from src.agents.simple.stan_agent.prompts.prompt import AGENT_PROMPT
-
 # Setup logging first
 logger = logging.getLogger(__name__)
 
+# Import PlaceholderAgent outside try block so it's available in except block
+from src.agents.models.placeholder import PlaceholderAgent
 
 try:
     from .agent import StanAgent
-    from src.agents.models.placeholder import PlaceholderAgent
     
     # Standardized create_agent function
     def create_agent(config: Optional[Dict[str, str]] = None) -> Any:
