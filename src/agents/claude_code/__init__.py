@@ -62,8 +62,12 @@ try:
     ClaudeCodeAgent = _get_claude_code_agent()
     LogManager, get_log_manager = _get_log_manager()
     
-    # Import SDK executor
-    from .sdk_executor import ClaudeSDKExecutor
+    # Import SDK executor (optional - may fail if claude_code_sdk not installed)
+    try:
+        from .sdk_executor import ClaudeSDKExecutor
+    except ImportError as e:
+        logger.warning(f"ClaudeSDKExecutor not available: {e}")
+        ClaudeSDKExecutor = None
     
     # Load models lazily on first access
     _models_cache = None
