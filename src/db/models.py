@@ -760,6 +760,7 @@ class WorkflowRunBase(BaseDBModel):
     workspace_auto_merge: bool = Field(False, description="Automatically merge to main branch")
     workspace_cleaned_up: bool = Field(False, description="Workspace cleanup status")
     workspace_path: Optional[str] = Field(None, description="Local filesystem workspace directory")
+    temp_workspace: bool = Field(False, description="Whether using temporary isolated workspace")
     
     # Cost and token tracking
     cost_estimate: Optional[float] = Field(None, description="Estimated API cost in USD")

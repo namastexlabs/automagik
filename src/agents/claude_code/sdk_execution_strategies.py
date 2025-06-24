@@ -10,14 +10,13 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from uuid import uuid4
 
 from claude_code_sdk import query, ClaudeCodeOptions
 from ...utils.nodejs_detection import ensure_node_in_path
 
 from .models import ClaudeCodeRunRequest
-from .sdk_config_manager import ConfigPriority
 from .sdk_process_manager import ProcessManager
 from .sdk_metrics_handler import MetricsHandler
 from .log_manager import get_log_manager
@@ -26,27 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 # Strategy classes for SDK executor
-class SimpleExecutionStrategy:
-    """Simple execution strategy using ExecutionStrategies."""
+class StandardExecutionStrategy:
+    """Standard execution strategy using ExecutionStrategies."""
     
     def __init__(self, environment_manager=None):
         self.environment_manager = environment_manager
         self.execution_strategies = ExecutionStrategies(environment_manager)
     
     async def execute(self, request, agent_context):
-        """Execute using simple strategy."""
-        return await self.execution_strategies.execute_simple(request, agent_context)
-
-
-class FullExecutionStrategy:
-    """Full execution strategy using ExecutionStrategies."""
-    
-    def __init__(self, environment_manager=None):
-        self.environment_manager = environment_manager
-        self.execution_strategies = ExecutionStrategies(environment_manager)
-    
-    async def execute(self, request, agent_context):
-        """Execute using full strategy."""
+        """Execute using standard strategy."""
         return await self.execution_strategies.execute_simple(request, agent_context)
 
 
@@ -60,18 +47,6 @@ class FirstResponseStrategy:
     async def execute(self, request, agent_context):
         """Execute and return first response."""
         return await self.execution_strategies.execute_first_response(request, agent_context)
-
-
-class StreamingExecutionStrategy:
-    """Streaming execution strategy using ExecutionStrategies."""
-    
-    def __init__(self, environment_manager=None):
-        self.environment_manager = environment_manager
-        self.execution_strategies = ExecutionStrategies(environment_manager)
-    
-    async def execute(self, request, agent_context, run_id=None, stream_processors=None):
-        """Execute with streaming."""
-        return await self.execution_strategies.execute_simple(request, agent_context)
 
 
 class ExecutionStrategies:
@@ -191,8 +166,27 @@ class ExecutionStrategies:
         if hasattr(request, 'run_id') and request.run_id:
             heartbeat_task = self.process_manager.create_heartbeat_task(request.run_id)
         
-        # Extract workspace from agent context
-        workspace_path = Path(agent_context.get('workspace', '.'))
+        # Handle temporary workspace creation if requested
+        if hasattr(request, 'temp_workspace') and request.temp_workspace:
+            # Create temporary workspace instead of using git worktree
+            user_id = agent_context.get('user_id', 'anonymous')
+            
+            # Fallback: If user_id is 'anonymous', try to get it from the database using run_id
+            if user_id == 'anonymous' and run_id:
+                try:
+                    from ...db.repository.workflow_run import get_workflow_run_by_run_id
+                    workflow_run = get_workflow_run_by_run_id(run_id)
+                    if workflow_run and workflow_run.user_id:
+                        user_id = workflow_run.user_id
+                        logger.info(f"Retrieved user_id {user_id} from database for run {run_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve user_id from database: {e}")
+            
+            workspace_path = await self.environment_manager.create_temp_workspace(user_id, run_id)
+            logger.info(f"Using temporary workspace: {workspace_path} (user_id: {user_id})")
+        else:
+            # Extract workspace from agent context (normal flow)
+            workspace_path = Path(agent_context.get('workspace', '.'))
         
         # Build options for SDK
         options = self.build_options(
@@ -341,15 +335,42 @@ class ExecutionStrategies:
             if hasattr(request, 'run_id') and request.run_id:
                 await self.process_manager.terminate_process(request.run_id, status="failed")
             
-            # Clean up worktree on failure if not persistent
-            if hasattr(request, 'run_id') and request.run_id and not request.persistent:
-                try:
-                    from .utils.worktree_cleanup import cleanup_workflow_worktree
-                    cleanup_success = await cleanup_workflow_worktree(request.run_id)
-                    if cleanup_success:
-                        logger.info(f"Successfully cleaned up worktree after failure for workflow {request.run_id}")
-                except Exception as cleanup_error:
-                    logger.error(f"Error during failure cleanup: {cleanup_error}")
+            # Clean up workspace on failure based on persistence settings and workspace type
+            if hasattr(request, 'run_id') and request.run_id:
+                # Check if this is a temp workspace
+                is_temp_workspace = hasattr(request, 'temp_workspace') and request.temp_workspace
+                
+                if is_temp_workspace:
+                    # Always cleanup temp workspaces even on failure
+                    try:
+                        cleanup_success = await self.environment_manager.cleanup_temp_workspace(workspace_path)
+                        if cleanup_success:
+                            logger.info(f"Successfully cleaned up temporary workspace after failure for {request.run_id}")
+                        else:
+                            logger.warning(f"Failed to clean up temporary workspace after failure for {request.run_id}")
+                    except Exception as cleanup_error:
+                        logger.error(f"Error during temp workspace failure cleanup: {cleanup_error}")
+                else:
+                    # Normal workspace cleanup logic
+                    should_cleanup = False
+                    
+                    if hasattr(request, 'persistent'):
+                        # Explicit persistent parameter takes precedence
+                        should_cleanup = not request.persistent
+                    else:
+                        # Fallback to environment variable
+                        should_cleanup = os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
+                    
+                    if should_cleanup:
+                        try:
+                            from .utils.worktree_cleanup import cleanup_workflow_worktree
+                            cleanup_success = await cleanup_workflow_worktree(request.run_id)
+                            if cleanup_success:
+                                logger.info(f"Successfully cleaned up worktree after failure for workflow {request.run_id}")
+                        except Exception as cleanup_error:
+                            logger.error(f"Error during failure cleanup: {cleanup_error}")
+                    else:
+                        logger.info(f"Keeping persistent workspace after failure for workflow {request.run_id}")
             
             return self._build_error_result(e, session_id, workspace_path, start_time)
         finally:
@@ -478,17 +499,49 @@ class ExecutionStrategies:
         if hasattr(request, 'run_id') and request.run_id:
             await metrics_handler.persist_to_database(request.run_id, True, result_text, execution_time)
         
-        # Clean up worktree if not persistent
-        if hasattr(request, 'run_id') and request.run_id and not request.persistent:
-            try:
-                from .utils.worktree_cleanup import cleanup_workflow_worktree
-                cleanup_success = await cleanup_workflow_worktree(request.run_id)
-                if cleanup_success:
-                    logger.info(f"Successfully cleaned up worktree for non-persistent workflow {request.run_id}")
+        # Clean up workspace based on persistence settings and workspace type
+        # Logic: 
+        # - temp_workspace=true: always cleanup (ignore persistent)
+        # - persistent=true: keep workspace
+        # - persistent=false: cleanup workspace
+        # - Environment variable CLAUDE_LOCAL_CLEANUP is fallback when persistent not set
+        if hasattr(request, 'run_id') and request.run_id:
+            # Check if this is a temp workspace
+            is_temp_workspace = hasattr(request, 'temp_workspace') and request.temp_workspace
+            
+            if is_temp_workspace:
+                # Always cleanup temp workspaces
+                try:
+                    cleanup_success = await self.environment_manager.cleanup_temp_workspace(workspace_path)
+                    if cleanup_success:
+                        logger.info(f"Successfully cleaned up temporary workspace for {request.run_id}")
+                    else:
+                        logger.warning(f"Failed to clean up temporary workspace for {request.run_id}")
+                except Exception as cleanup_error:
+                    logger.error(f"Error during temp workspace cleanup: {cleanup_error}")
+            else:
+                # Normal workspace cleanup logic
+                should_cleanup = False
+                
+                if hasattr(request, 'persistent'):
+                    # Explicit persistent parameter takes precedence
+                    should_cleanup = not request.persistent
                 else:
-                    logger.warning(f"Failed to clean up worktree for workflow {request.run_id}")
-            except Exception as cleanup_error:
-                logger.error(f"Error during worktree cleanup: {cleanup_error}")
+                    # Fallback to environment variable
+                    should_cleanup = os.environ.get("CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
+                
+                if should_cleanup:
+                    try:
+                        from .utils.worktree_cleanup import cleanup_workflow_worktree
+                        cleanup_success = await cleanup_workflow_worktree(request.run_id)
+                        if cleanup_success:
+                            logger.info(f"Successfully cleaned up worktree for non-persistent workflow {request.run_id}")
+                        else:
+                            logger.warning(f"Failed to clean up worktree for workflow {request.run_id}")
+                    except Exception as cleanup_error:
+                        logger.error(f"Error during worktree cleanup: {cleanup_error}")
+                else:
+                    logger.info(f"Keeping persistent workspace for workflow {request.run_id}")
 
         return {
             'success': True,
