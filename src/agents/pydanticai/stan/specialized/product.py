@@ -113,10 +113,13 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             '   - Evite usar o parâmetro `search` com nomes completos de marcas ou famílias; use os parâmetros `marca_nome` ou `familia_nome` para isso.\n'
             '   - Para marcas populares como Redragon, SEMPRE prefira usar o parâmetro `marca` (com o ID) ou `marca_nome`.\n\n'
             
-            '2. CASOS DE PREÇO ZERO: Muitos produtos na BlackPearl têm preço R$0,00. Isso geralmente indica '
-            'itens promocionais ou produtos especiais como camisetas e brindes. Ao listar produtos, mencione '
-            'esse detalhe quando relevante.\n\n'
-            
+            # '2. CASOS DE PREÇO ZERO: Muitos produtos na BlackPearl têm preço R$0,00. Isso geralmente indica '
+            # 'itens promocionais ou produtos especiais como camisetas e brindes. Ao listar produtos, mencione '
+            # 'esse detalhe quando relevante.\n\n'
+            '2. PARA OBTER PREÇO CORRETO DE UM PRODUTO: Para consultar o preço correto de um produto, use o parâmetro `tabela_preco` na ferramenta `get_product` e/ou `get_products`.\n'
+            '   - O parâmetro `tabela_preco` é um ID de tabela de preços que está contido nas informações do cliente já cadastrado.\n'
+            '   - O preço correto do produto esta na chave `precificacao.valor_venda`.\n'
+
             '3. ESTRATÉGIA DE BUSCA EM DUAS ETAPAS (Marcas/Famílias): Para consultas por marca ou família, use uma abordagem em duas etapas:\n'
             '   - Primeiro, encontre o ID da marca/família usando `get_brands` ou `get_product_families`.\n'
             '   - Depois, use esse ID com o parâmetro `marca` ou `familia` em `get_products`.\n'
@@ -193,6 +196,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         familia_nome: Optional[str] = None,
         marca: Optional[int] = None,
         marca_nome: Optional[str] = None,
+        tabela_preco: Optional[int] = None,
         try_alternate_codes: bool = True
     ) -> Dict[str, Any]:
         """Obter lista de produtos da BlackPearl.
@@ -208,6 +212,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             familia_nome: Filtrar por nome da família de produtos
             marca: Filtrar por ID da marca (preferido para melhor desempenho)
             marca_nome: Filtrar por nome da marca
+            tabela_preco: Filtrar por ID da tabela de preços
             try_alternate_codes: Se deve tentar variações do código de produto caso não encontre resultados inicialmente
         """
         filters = {}
@@ -223,6 +228,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             filters["marca"] = marca
         if marca_nome:
             filters["marca_nome"] = marca_nome
+        if tabela_preco:
+            filters["tabela_preco"] = tabela_preco
         
         # First attempt with original parameters
         result = await get_produtos(ctx.deps, limit, offset, search, ordering, **filters)
@@ -261,13 +268,13 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         return result
     
     @product_catalog_agent.tool
-    async def get_product(ctx: RunContext[Dict[str, Any]], product_id: int) -> Dict[str, Any]:
+    async def get_product(ctx: RunContext[Dict[str, Any]], product_id: int, tabela_preco: Optional[int] = None) -> Dict[str, Any]:
         """Obter detalhes de um produto específico da BlackPearl.
         
         Args:
             product_id: ID do produto
         """
-        return await get_produto(ctx.deps, product_id)
+        return await get_produto(ctx.deps, product_id, tabela_preco)
     
     @product_catalog_agent.tool
     async def get_product_families(
@@ -372,6 +379,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         requirements: str,
         budget: Optional[float] = None,
         brand_preference: Optional[str] = None,
+        tabela_preco: Optional[int] = None,
         max_results: int = 5
     ) -> Dict[str, Any]:
         """Recomendar produtos com base nos requisitos do usuário.
@@ -388,6 +396,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
         try:
             # Inicializar parâmetros de busca
             search_params = {}
+            if tabela_preco:
+                search_params["tabela_preco"] = tabela_preco
             
             # Se houver preferência de marca, primeiro obtenha o ID da marca
             if brand_preference:
@@ -488,7 +498,8 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
     @product_catalog_agent.tool
     async def compare_products(
         ctx: RunContext[Dict[str, Any]], 
-        product_ids: List[int]
+        product_ids: List[int],
+        tabela_preco: Optional[int] = None
     ) -> Dict[str, Any]:
         """Comparar múltiplos produtos lado a lado.
         
@@ -501,7 +512,7 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
             # Recuperar detalhes para cada produto
             for product_id in product_ids:
                 try:
-                    product_details = await get_produto(ctx.deps, product_id)
+                    product_details = await get_produto(ctx.deps, product_id, tabela_preco)
                     products.append(product_details)
                 except Exception as e:
                     logger.error(f"Erro ao recuperar produto {product_id}: {str(e)}")
@@ -531,9 +542,15 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
                     "ean": product.get("ean"),
                 })
                 
+                precificacao = product.get("precificacao", None)
+                if precificacao:
+                    valor_venda = precificacao.get("valor_venda", None)
+                else:
+                    valor_venda = None
+                
                 # Preços
                 comparison["pricing"].append({
-                    "valor_unitario": product.get("valor_unitario"),
+                    "valor_venda": valor_venda,
                 })
                 
                 # Especificações
