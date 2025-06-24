@@ -5,7 +5,8 @@ from src.db import list_sessions, get_session as db_get_session, get_session_by_
 from src.db.connection import safe_uuid
 from src.memory.message_history import MessageHistory
 from src.api.models import SessionListResponse, SessionInfo, BranchInfo
-from src.db.repository.session import get_system_prompt, get_session_branches, get_session_branch_tree, get_session
+from src.db.repository.session import get_system_prompt, get_session_branches, get_session_branch_tree
+from src.db.repository.session import get_session as get_session_by_id
 from src.db import list_session_messages
 from typing import Dict, Any, List
 import uuid
@@ -274,7 +275,7 @@ async def get_session_branches_controller(session_id: uuid.UUID) -> dict:
     """
     try:
         # Get the main session
-        main_session = await run_in_threadpool(get_session, session_id)
+        main_session = await run_in_threadpool(get_session_by_id, session_id)
         if not main_session:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
         
