@@ -709,9 +709,9 @@ def create_mcp_config(config_data: MCPConfigCreate) -> Optional[str]:
         # Serialize config as JSON
         config_json = json.dumps(config_data.config)
         
-        # Insert the config (SQLite compatible)
+        # Insert the config (database agnostic)
         execute_query(
-            "INSERT INTO mcp_configs (id, name, config, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            "INSERT INTO mcp_configs (id, name, config, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())",
             (config_id, config_data.name, config_json),
             fetch=False
         )
@@ -742,7 +742,7 @@ def update_mcp_config(config_id: str, update_data: MCPConfigUpdate) -> bool:
         config_json = json.dumps(update_data.config)
         
         execute_query(
-            "UPDATE mcp_configs SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE mcp_configs SET config = %s, updated_at = NOW() WHERE id = %s",
             (config_json, config_id),
             fetch=False
         )
@@ -773,7 +773,7 @@ def update_mcp_config_by_name(name: str, update_data: MCPConfigUpdate) -> bool:
         config_json = json.dumps(update_data.config)
         
         execute_query(
-            "UPDATE mcp_configs SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE name = ?",
+            "UPDATE mcp_configs SET config = %s, updated_at = NOW() WHERE name = %s",
             (config_json, name),
             fetch=False
         )
