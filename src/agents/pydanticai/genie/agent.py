@@ -72,6 +72,9 @@ class GenieAgent(AutomagikAgent):
         # Register tools
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Note: PydanticAI agent and tool registration will be done lazily in run()
         
         # Initialize orchestration components only if LangGraph is available
@@ -621,3 +624,8 @@ Your epic is now executing! Check the status URL above for progress updates."""
                 "error": str(e),
                 "status": "failed"
             }
+    
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
