@@ -278,18 +278,30 @@ class MigrationManager:
         except Exception as e:
             return False, f"❌ Failed to apply migration '{migration_name}': {e}"
     
-    def apply_all_migrations(self, migrations_dir: Path) -> Tuple[int, int, List[str]]:
+    def apply_all_migrations(self, migrations_dir: Path, database_type: str = None) -> Tuple[int, int, List[str]]:
         """
         Apply all pending migrations from a directory.
+        Supports database-specific migration directories.
         Returns (success_count, error_count, error_messages).
         """
         if not migrations_dir.exists():
             return 0, 0, ["Migrations directory not found"]
         
-        migration_files = sorted(migrations_dir.glob("*.sql"))
+        # Determine the actual migrations directory to use
+        actual_migrations_dir = self._get_migrations_directory(migrations_dir, database_type)
+        
+        if not actual_migrations_dir.exists():
+            # Fall back to the main directory if database-specific doesn't exist
+            actual_migrations_dir = migrations_dir
+            logger.warning(f"Database-specific migrations directory not found, falling back to {migrations_dir}")
+        
+        migration_files = sorted(actual_migrations_dir.glob("*.sql"))
         success_count = 0
         error_count = 0
         error_messages = []
+        
+        logger.info(f"Applying migrations from: {actual_migrations_dir}")
+        logger.info(f"Found {len(migration_files)} migration files")
         
         for migration_file in migration_files:
             success, message = self.apply_migration(migration_file)
@@ -303,3 +315,31 @@ class MigrationManager:
                 logger.error(message)
         
         return success_count, error_count, error_messages
+    
+    def _get_migrations_directory(self, base_dir: Path, database_type: str = None) -> Path:
+        """
+        Get the appropriate migrations directory based on database type.
+        Returns database-specific directory if it exists, otherwise returns base directory.
+        """
+        if database_type is None:
+            # Try to detect database type from connection
+            try:
+                with self.connection.cursor() as cursor:
+                    cursor.execute("SELECT version()")
+                    version_info = cursor.fetchone()[0].lower()
+                    if 'postgresql' in version_info:
+                        database_type = 'postgresql'
+                    elif 'sqlite' in version_info:
+                        database_type = 'sqlite'
+            except Exception:
+                # If we can't detect, assume the connection knows
+                pass
+        
+        if database_type:
+            db_specific_dir = base_dir / database_type
+            if db_specific_dir.exists():
+                logger.info(f"Using database-specific migrations directory: {db_specific_dir}")
+                return db_specific_dir
+        
+        logger.info(f"Using base migrations directory: {base_dir}")
+        return base_dir
