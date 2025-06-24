@@ -98,6 +98,9 @@ class FlashinhoV2(AutomagikAgent):
         if self.db_id:
             self.dependencies.set_agent_id(self.db_id)
         self.tool_registry.register_default_tools(self.context)
+        
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
     
     def _initialize_user_status(self) -> None:
         """Initialize user status tracking."""
@@ -736,6 +739,11 @@ class FlashinhoV2(AutomagikAgent):
             await update_message_history_user_id(history, str(user_id))
             await update_session_user_id(history, str(user_id))
         await make_session_persistent(self, history, str(user_id))
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoV2:
