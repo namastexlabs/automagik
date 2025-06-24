@@ -22,10 +22,8 @@ if local_sdk_path.exists():
 from .executor_base import ExecutorBase
 from .models import ClaudeCodeRunRequest
 from .sdk_execution_strategies import (
-    SimpleExecutionStrategy,
-    FullExecutionStrategy, 
-    FirstResponseStrategy,
-    StreamingExecutionStrategy
+    StandardExecutionStrategy,
+    FirstResponseStrategy
 )
 from .sdk_process_manager import SDKProcessManager
 
@@ -57,10 +55,8 @@ class ClaudeSDKExecutor(ExecutorBase):
         self.process_manager = SDKProcessManager()
         
         # Initialize execution strategies - SURGICAL PATTERN: Strategy Pattern
-        self.simple_strategy = SimpleExecutionStrategy(environment_manager)
-        self.full_strategy = FullExecutionStrategy(environment_manager) 
+        self.standard_strategy = StandardExecutionStrategy(environment_manager)
         self.first_response_strategy = FirstResponseStrategy(environment_manager)
-        self.streaming_strategy = StreamingExecutionStrategy(environment_manager)
         
     async def execute(self, message: str, **kwargs) -> Dict[str, Any]:
         """Simplified execute method for compatibility with tests and legacy usage.
@@ -129,7 +125,7 @@ class ClaudeSDKExecutor(ExecutorBase):
             Dictionary with execution results
         """
         # SURGICAL PATTERN: Strategy delegation - no implementation logic here
-        return await self.full_strategy.execute(request, agent_context)
+        return await self.standard_strategy.execute(request, agent_context)
     
     async def execute_until_first_response(
         self, 
@@ -167,9 +163,8 @@ class ClaudeSDKExecutor(ExecutorBase):
         Returns:
             Dictionary with execution results
         """
-        return await self.streaming_strategy.execute(
-            request, agent_context, run_id, self.stream_processors
-        )
+        # Streaming uses the same standard strategy as regular execution
+        return await self.standard_strategy.execute(request, agent_context)
     
     def get_execution_status(self, run_id: str) -> Optional[Dict[str, Any]]:
         """Get real-time execution status from stream processor.
