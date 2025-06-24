@@ -1,0 +1,16 @@
+[
+  "Task",
+  "TodoRead",
+  "TodoWrite",
+  "Read",
+  "Write",
+  "Edit",
+  "MultiEdit",
+  "Bash",
+  "LS",
+  "Glob",
+  "Grep",
+  "WebSearch",
+  "ListMcpResourcesTool",
+  "ReadMcpResourceTool"
+]
