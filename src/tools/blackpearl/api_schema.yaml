@@ -283,7 +283,7 @@ paths:
       operationId: v1_cadastro_clientes_list
       parameters:
       - in: query
-        name: cnpj
+        name: cnpj_cpf
         schema:
           type: string
       - in: query
@@ -294,28 +294,28 @@ paths:
         name: email
         schema:
           type: string
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
       - in: query
         name: nome_fantasia
         schema:
           type: string
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - in: query
         name: razao_social
         schema:
@@ -440,24 +440,24 @@ paths:
     get:
       operationId: v1_cadastro_contatos_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -593,28 +593,105 @@ paths:
       responses:
         '200':
           description: No response body
-  /api/v1/cadastro/vendedores/:
+  /api/v1/cadastro/transportadoras/:
     get:
-      operationId: v1_cadastro_vendedores_list
+      operationId: v1_cadastro_transportadoras_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
+      - in: query
+        name: estado
         schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
+          type: string
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTransportadoraList'
+          description: ''
+  /api/v1/cadastro/transportadoras/{id}/:
+    get:
+      operationId: v1_cadastro_transportadoras_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transportadora.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transportadora'
+          description: ''
+  /api/v1/cadastro/valores-receber/:
+    post:
+      operationId: v1_cadastro_valores_receber_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/cadastro/vendedores/:
+    get:
+      operationId: v1_cadastro_vendedores_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -717,28 +794,28 @@ paths:
     get:
       operationId: v1_catalogo_familiadeprodutos_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
       - in: query
         name: nomeFamilia
         schema:
           type: string
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -815,26 +892,26 @@ paths:
     get:
       operationId: v1_catalogo_imagensdeproduto_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - in: query
-        name: produto
+        name: produto__id
         schema:
           type: integer
       - name: search
@@ -881,28 +958,28 @@ paths:
     get:
       operationId: v1_catalogo_marcas_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
       - in: query
         name: nome
         schema:
           type: string
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -967,12 +1044,6 @@ paths:
         name: familia_nome
         schema:
           type: string
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
       - in: query
         name: marca
         schema:
@@ -981,24 +1052,34 @@ paths:
         name: marca_nome
         schema:
           type: string
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: tabela_preco
+        schema:
+          type: number
       tags:
       - v1
       security:
@@ -1065,20 +1146,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/Produto'
           description: ''
-  /api/v1/dashboard/cadastro/buscar/:
+  /api/v1/dashboard/clientes/:
     get:
-      operationId: v1_dashboard_cadastro_buscar_list
+      operationId: v1_dashboard_clientes_list
       parameters:
-      - name: limit
+      - in: query
+        name: ativo
+        schema:
+          type: boolean
+      - in: query
+        name: fisica
+        schema:
+          type: boolean
+      - in: query
+        name: hibrida
+        schema:
+          type: boolean
+      - in: query
+        name: inativo
+        schema:
+          type: boolean
+      - in: query
+        name: novo
+        schema:
+          type: boolean
+      - in: query
+        name: online
+        schema:
+          type: boolean
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
         required: false
         in: query
         description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
         schema:
           type: integer
       - name: search
@@ -1098,9 +1203,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedClienteList'
           description: ''
-  /api/v1/dashboard/cadastro/buscar/{id}/:
+    post:
+      operationId: v1_dashboard_clientes_create
+      description: Método POST para criar Cliente com contatos
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Cliente'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Cliente'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Cliente'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cliente'
+          description: ''
+  /api/v1/dashboard/clientes/{id}/:
     get:
-      operationId: v1_dashboard_cadastro_buscar_retrieve
+      operationId: v1_dashboard_clientes_retrieve
       parameters:
       - in: path
         name: id
@@ -1119,75 +1250,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Cliente'
           description: ''
-  /api/v1/dashboard/cadastro/count/:
-    get:
-      operationId: v1_dashboard_cadastro_count_retrieve
-      description: |-
-        API para exibir a contagem de cadastros por período
-
-        Filtros disponíveis:
-        - start_date: string (default: 30 dias atras)
-        - end_date: string (default: hoje)
-
-        Exemplo de uso:
-        GET api/v1/dashboard/cadastro/cadastro/count/?start_date=2024-01-01&end_date=2024-03-01
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/v1/dashboard/cadastro/detalhes/:
-    get:
-      operationId: v1_dashboard_cadastro_detalhes_list
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedClienteDetalhesList'
-          description: ''
-  /api/v1/dashboard/cadastro/detalhes/{id}/:
-    get:
-      operationId: v1_dashboard_cadastro_detalhes_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Cliente.
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClienteDetalhes'
-          description: ''
     patch:
-      operationId: v1_dashboard_cadastro_detalhes_partial_update
+      operationId: v1_dashboard_clientes_partial_update
+      description: Método PATCH para atualizar Cliente do Dashboard - herda funcionalidade
+        do ClienteViewSet
       parameters:
       - in: path
         name: id
@@ -1201,13 +1267,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedClienteDetalhes'
+              $ref: '#/components/schemas/PatchedCliente'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedClienteDetalhes'
+              $ref: '#/components/schemas/PatchedCliente'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedClienteDetalhes'
+              $ref: '#/components/schemas/PatchedCliente'
       security:
       - jwtAuth: []
       responses:
@@ -1215,477 +1281,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClienteDetalhes'
-          description: ''
-    delete:
-      operationId: v1_dashboard_cadastro_detalhes_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Cliente.
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/v1/dashboard/cadastro/leads/count/:
-    get:
-      operationId: v1_dashboard_cadastro_leads_count_retrieve
-      description: |-
-        API para exibir a contagem de leads por período
-
-        Filtros disponíveis:
-        - start_date: string (default: 30 dias atras)
-        - end_date: string (default: hoje)
-
-        Exemplo de uso:
-        GET api/v1/dashboard/cadastro/leads-count/?start_date=2024-01-01&end_date=2024-03-01
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/v1/dashboard/cadastro/listar/:
-    get:
-      operationId: v1_dashboard_cadastro_listar_retrieve
-      description: |-
-        API para listar clientes com filtros avançados.
-
-        Filtros disponíveis:
-        - online: boolean (default: True)
-        - fisica: boolean (default: True)
-        - hibrida: boolean (default: True)
-        - ativo: boolean (default: True)
-        - inativo: boolean (default: True)
-        - novo: boolean (default: True)
-        - page: integer (default: 1)
-
-        Exemplo de uso:
-        GET api/v1/dashboard/cadastro/buscar/?online=true&fisica=false&page=1
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/v1/dashboard/cadastro/vendedores/:
-    get:
-      operationId: v1_dashboard_cadastro_vendedores_list
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedVendedorList'
-          description: ''
-  /api/v1/dashboard/cadastro/vendedores/{id}/:
-    get:
-      operationId: v1_dashboard_cadastro_vendedores_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Vendedor.
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Vendedor'
-          description: ''
-  /api/v1/dashboard/catalogo/buscar/:
-    get:
-      operationId: v1_dashboard_catalogo_buscar_list
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedProdutoList'
-          description: ''
-  /api/v1/dashboard/catalogo/buscar/{id}/:
-    get:
-      operationId: v1_dashboard_catalogo_buscar_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Produto.
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Produto'
-          description: ''
-  /api/v1/dashboard/catalogo/listar/:
-    get:
-      operationId: v1_dashboard_catalogo_listar_retrieve
-      description: |-
-        API para listar produtos com filtros avançados.
-
-        Filtros disponíveis:
-        - marca: integer (opcional)
-        - familia: integer (opcional)
-
-        Exemplo de uso:
-        GET api/v1/dashboard/catalogo/listar/?marca=1&familia=1&page=1
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/v1/dashboard/catalogo/produto/:
-    get:
-      operationId: v1_dashboard_catalogo_produto_list
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedProdutoDetalhadoList'
-          description: ''
-  /api/v1/dashboard/catalogo/produto/{id}/:
-    get:
-      operationId: v1_dashboard_catalogo_produto_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Produto.
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProdutoDetalhado'
-          description: ''
-    patch:
-      operationId: v1_dashboard_catalogo_produto_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Produto.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedProdutoDetalhado'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedProdutoDetalhado'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedProdutoDetalhado'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProdutoDetalhado'
-          description: ''
-    delete:
-      operationId: v1_dashboard_catalogo_produto_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Produto.
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/v1/dashboard/catalogo/produto/{produto_id}/imagens/:
-    get:
-      operationId: v1_dashboard_catalogo_produto_imagens_list
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      - in: path
-        name: produto_id
-        schema:
-          type: string
-          pattern: ^\d+$
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedImagemDeProdutoList'
-          description: ''
-    post:
-      operationId: v1_dashboard_catalogo_produto_imagens_create
-      parameters:
-      - in: path
-        name: produto_id
-        schema:
-          type: string
-          pattern: ^\d+$
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImagemDeProduto'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ImagemDeProduto'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ImagemDeProduto'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImagemDeProduto'
-          description: ''
-  /api/v1/dashboard/catalogo/produto/{produto_id}/imagens/{id}/:
-    get:
-      operationId: v1_dashboard_catalogo_produto_imagens_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Imagem de Produto.
-        required: true
-      - in: path
-        name: produto_id
-        schema:
-          type: string
-          pattern: ^\d+$
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImagemDeProduto'
-          description: ''
-    patch:
-      operationId: v1_dashboard_catalogo_produto_imagens_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Imagem de Produto.
-        required: true
-      - in: path
-        name: produto_id
-        schema:
-          type: string
-          pattern: ^\d+$
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedImagemDeProduto'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedImagemDeProduto'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedImagemDeProduto'
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImagemDeProduto'
-          description: ''
-    delete:
-      operationId: v1_dashboard_catalogo_produto_imagens_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Imagem de Produto.
-        required: true
-      - in: path
-        name: produto_id
-        schema:
-          type: string
-          pattern: ^\d+$
-        required: true
-      tags:
-      - v1
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '204':
-          description: No response body
-  /api/v1/dashboard/catalogo/produto/{produto_id}/manual-tecnico/:
-    post:
-      operationId: v1_dashboard_catalogo_produto_manual_tecnico_create
-      parameters:
-      - in: path
-        name: produto_id
-        schema:
-          type: string
-          pattern: ^\d+$
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Produto'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Produto'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Produto'
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Produto'
+                $ref: '#/components/schemas/Cliente'
           description: ''
   /api/v1/dashboard/conversas/:
     get:
@@ -1732,6 +1328,578 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/dashboard/familiadeprodutos/:
+    get:
+      operationId: v1_dashboard_familiadeprodutos_list
+      parameters:
+      - in: query
+        name: nomeFamilia
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFamiliaDeProdutoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_familiadeprodutos_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamiliaDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FamiliaDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FamiliaDeProduto'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamiliaDeProduto'
+          description: ''
+  /api/v1/dashboard/familiadeprodutos/{id}/:
+    get:
+      operationId: v1_dashboard_familiadeprodutos_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Família de Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamiliaDeProduto'
+          description: ''
+    patch:
+      operationId: v1_dashboard_familiadeprodutos_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Família de Produto.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFamiliaDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFamiliaDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFamiliaDeProduto'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamiliaDeProduto'
+          description: ''
+  /api/v1/dashboard/imagensdeproduto/:
+    get:
+      operationId: v1_dashboard_imagensdeproduto_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: produto__id
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedImagemDeProdutoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_imagensdeproduto_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+  /api/v1/dashboard/imagensdeproduto/{id}/:
+    get:
+      operationId: v1_dashboard_imagensdeproduto_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+    patch:
+      operationId: v1_dashboard_imagensdeproduto_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+    delete:
+      operationId: v1_dashboard_imagensdeproduto_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/items/:
+    get:
+      operationId: v1_dashboard_items_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: pedido_id
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedItemDePedidoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_items_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemDePedido'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ItemDePedido'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ItemDePedido'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemDePedido'
+          description: ''
+  /api/v1/dashboard/items/{id}/:
+    get:
+      operationId: v1_dashboard_items_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item de Pedido.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemDePedido'
+          description: ''
+    patch:
+      operationId: v1_dashboard_items_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item de Pedido.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedItemDePedido'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedItemDePedido'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedItemDePedido'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemDePedido'
+          description: ''
+    delete:
+      operationId: v1_dashboard_items_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Item de Pedido.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/marcas/:
+    get:
+      operationId: v1_dashboard_marcas_list
+      parameters:
+      - in: query
+        name: nome
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMarcaList'
+          description: ''
+    post:
+      operationId: v1_dashboard_marcas_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Marca'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Marca'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Marca'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Marca'
+          description: ''
+  /api/v1/dashboard/marcas/{id}/:
+    get:
+      operationId: v1_dashboard_marcas_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Marca.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Marca'
+          description: ''
+    patch:
+      operationId: v1_dashboard_marcas_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Marca.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMarca'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMarca'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMarca'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Marca'
+          description: ''
+  /api/v1/dashboard/pagamento/:
+    get:
+      operationId: v1_dashboard_pagamento_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCondicaoDePagamentoList'
+          description: ''
+  /api/v1/dashboard/pagamento/{id}/:
+    get:
+      operationId: v1_dashboard_pagamento_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Condição de Pagamento.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CondicaoDePagamento'
+          description: ''
   /api/v1/dashboard/pedidos/abertos/count/:
     get:
       operationId: v1_dashboard_pedidos_abertos_count_retrieve
@@ -1921,10 +2089,1119 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/dashboard/precificacoes/:
+    get:
+      operationId: v1_dashboard_precificacoes_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: produto__id
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: tabela__id
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPrecificacaoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_precificacoes_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Precificacao'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Precificacao'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Precificacao'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Precificacao'
+          description: ''
+  /api/v1/dashboard/precificacoes/{id}/:
+    get:
+      operationId: v1_dashboard_precificacoes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Precificação.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Precificacao'
+          description: ''
+    patch:
+      operationId: v1_dashboard_precificacoes_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Precificação.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPrecificacao'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPrecificacao'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPrecificacao'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Precificacao'
+          description: ''
+  /api/v1/dashboard/produto/{produto_id}/imagens/:
+    get:
+      operationId: v1_dashboard_produto_imagens_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedImagemDeProdutoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_produto_imagens_create
+      parameters:
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImagemDeProduto'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+  /api/v1/dashboard/produto/{produto_id}/imagens/{id}/:
+    get:
+      operationId: v1_dashboard_produto_imagens_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+    patch:
+      operationId: v1_dashboard_produto_imagens_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedImagemDeProduto'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImagemDeProduto'
+          description: ''
+    delete:
+      operationId: v1_dashboard_produto_imagens_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem de Produto.
+        required: true
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/produto/{produto_id}/manual-tecnico/:
+    post:
+      operationId: v1_dashboard_produto_manual_tecnico_create
+      parameters:
+      - in: path
+        name: produto_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Produto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Produto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Produto'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Produto'
+          description: ''
+  /api/v1/dashboard/produtos/:
+    get:
+      operationId: v1_dashboard_produtos_list
+      parameters:
+      - in: query
+        name: codigo
+        schema:
+          type: string
+      - in: query
+        name: ean
+        schema:
+          type: string
+      - in: query
+        name: familia
+        schema:
+          type: integer
+      - in: query
+        name: familia__nomeFamilia
+        schema:
+          type: string
+      - in: query
+        name: familia_nome
+        schema:
+          type: string
+      - in: query
+        name: marca
+        schema:
+          type: integer
+      - in: query
+        name: marca_nome
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: tabela_preco
+        schema:
+          type: number
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProdutoList'
+          description: ''
+  /api/v1/dashboard/produtos/{id}/:
+    get:
+      operationId: v1_dashboard_produtos_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Produto'
+          description: ''
+    patch:
+      operationId: v1_dashboard_produtos_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Produto.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProduto'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProduto'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProduto'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Produto'
+          description: ''
+  /api/v1/dashboard/tabelasdepreco/:
+    get:
+      operationId: v1_dashboard_tabelasdepreco_list
+      parameters:
+      - in: query
+        name: ativo
+        schema:
+          type: boolean
+      - in: query
+        name: nome
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: padrao
+        schema:
+          type: boolean
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTabelaDePrecoList'
+          description: ''
+    post:
+      operationId: v1_dashboard_tabelasdepreco_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TabelaDePreco'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TabelaDePreco'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TabelaDePreco'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TabelaDePreco'
+          description: ''
+  /api/v1/dashboard/tabelasdepreco/{id}/:
+    get:
+      operationId: v1_dashboard_tabelasdepreco_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Tabela de Preço.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TabelaDePreco'
+          description: ''
+    patch:
+      operationId: v1_dashboard_tabelasdepreco_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Tabela de Preço.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTabelaDePreco'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTabelaDePreco'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTabelaDePreco'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TabelaDePreco'
+          description: ''
+  /api/v1/dashboard/tabelasdepreco/{tabela_id}/upload/:
+    post:
+      operationId: v1_dashboard_tabelasdepreco_upload_create
+      description: |-
+        API para upload de tabelas de preço
+        Endpoint protegido que aceita arquivos xls, xlsx ou csv
+      parameters:
+      - in: path
+        name: tabela_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/times/:
+    get:
+      operationId: v1_dashboard_times_list
+      parameters:
+      - in: query
+        name: inativo
+        schema:
+          type: boolean
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTimeList'
+          description: ''
+    post:
+      operationId: v1_dashboard_times_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Time'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Time'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Time'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Time'
+          description: ''
+  /api/v1/dashboard/times/{id}/:
+    get:
+      operationId: v1_dashboard_times_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Time.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Time'
+          description: ''
+    patch:
+      operationId: v1_dashboard_times_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Time.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTime'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTime'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTime'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Time'
+          description: ''
+  /api/v1/dashboard/transportadoras/:
+    get:
+      operationId: v1_dashboard_transportadoras_list
+      parameters:
+      - in: query
+        name: estado
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTransportadoraList'
+          description: ''
+  /api/v1/dashboard/transportadoras/{id}/:
+    get:
+      operationId: v1_dashboard_transportadoras_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transportadora.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transportadora'
+          description: ''
+  /api/v1/dashboard/vendas/:
+    get:
+      operationId: v1_dashboard_vendas_list
+      parameters:
+      - in: query
+        name: cancelado
+        schema:
+          type: boolean
+      - in: query
+        name: cliente_id
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status_negociacao
+        schema:
+          type: string
+          title: Status da Negociação
+          enum:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+        description: |-
+          * `0` - Negociação
+          * `1` - Análise
+          * `2` - Renegociação
+          * `3` - Reprovado
+          * `4` - Aprovado
+      - in: query
+        name: status_pedido
+        schema:
+          type: string
+          title: Status do Pedido na Omie
+          enum:
+          - '0'
+          - '10'
+          - '20'
+          - '50'
+          - '60'
+          - '70'
+        description: |-
+          * `0` - Pedido em Aberto
+          * `10` - Pedido de Venda
+          * `20` - Separar Estoque
+          * `50` - Faturar
+          * `60` - Faturado
+          * `70` - Entrega
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPedidoDeVendaList'
+          description: ''
+    post:
+      operationId: v1_dashboard_vendas_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PedidoDeVenda'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PedidoDeVenda'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PedidoDeVenda'
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoDeVenda'
+          description: ''
+  /api/v1/dashboard/vendas/{id}/:
+    get:
+      operationId: v1_dashboard_vendas_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Pedido de Venda.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoDeVenda'
+          description: ''
+    patch:
+      operationId: v1_dashboard_vendas_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Pedido de Venda.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPedidoDeVenda'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPedidoDeVenda'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPedidoDeVenda'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoDeVenda'
+          description: ''
+    delete:
+      operationId: v1_dashboard_vendas_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Pedido de Venda.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/dashboard/vendedores/:
+    get:
+      operationId: v1_dashboard_vendedores_list
+      parameters:
+      - in: query
+        name: inativo
+        schema:
+          type: boolean
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVendedorList'
+          description: ''
+    post:
+      operationId: v1_dashboard_vendedores_create
+      description: Criação de vendedor com integração à API da Omie - sucesso total
+        ou falha total
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vendedor'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Vendedor'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Vendedor'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendedor'
+          description: ''
+  /api/v1/dashboard/vendedores/{id}/:
+    get:
+      operationId: v1_dashboard_vendedores_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vendedor.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendedor'
+          description: ''
+    patch:
+      operationId: v1_dashboard_vendedores_partial_update
+      description: Atualização de vendedor com integração à API da Omie - sucesso
+        total ou falha total
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vendedor.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedVendedor'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedVendedor'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedVendedor'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendedor'
+          description: ''
   /api/v1/hooks/:
     post:
       operationId: v1_hooks_create
       description: Endpoint para receber e salvar webhooks da Omie sem verificações
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/hooks/clientes-fornecedores/:
+    post:
+      operationId: v1_hooks_clientes_fornecedores_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/hooks/financas/:
+    post:
+      operationId: v1_hooks_financas_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/hooks/produtos/:
+    post:
+      operationId: v1_hooks_produtos_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/hooks/vendas-produtos/:
+    post:
+      operationId: v1_hooks_vendas_produtos_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/hooks/vendedores/:
+    post:
+      operationId: v1_hooks_vendedores_create
       tags:
       - v1
       security:
@@ -1971,24 +3248,28 @@ paths:
     get:
       operationId: v1_pedidos_items_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: pedido_id
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -2108,24 +3389,24 @@ paths:
     get:
       operationId: v1_pedidos_pagamento_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -2178,24 +3459,24 @@ paths:
         name: cliente_id
         schema:
           type: integer
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -2265,7 +3546,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PedidoDeVenda'
-        required: true
       security:
       - jwtAuth: []
       - {}
@@ -2330,28 +3610,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/PedidoDeVenda'
           description: ''
+    delete:
+      operationId: v1_pedidos_vendas_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Pedido de Venda.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
   /api/v1/regras/frete/:
     get:
       operationId: v1_regras_frete_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -2453,24 +3750,24 @@ paths:
     get:
       operationId: v1_regras_negocio_list
       parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
       - name: ordering
         required: false
         in: query
         description: Which field to use when ordering the results.
         schema:
           type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -2599,22 +3896,40 @@ components:
             type: integer
             writeOnly: true
           writeOnly: true
+        presenca_online:
+          $ref: '#/components/schemas/PresencaOnline'
+        tabela_preco:
+          type: integer
+          nullable: true
+        condicoes_pagamento:
+          type: array
+          items:
+            type: integer
         razao_social:
           type: string
         nome_fantasia:
           type: string
-        cnpj:
+        cnpj_cpf:
           type: string
         email:
-          type: string
-          format: email
-        telefone_comercial:
           type: string
         tipo_operacao:
           type: string
         numero_funcionarios:
           type: integer
-          minimum: 1
+          minimum: 0
+        valor_limite_credito:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        telefone1_ddd:
+          type: string
+        telefone1_numero:
+          type: string
+        telefone2_ddd:
+          type: string
+        telefone2_numero:
+          type: string
         inscricao_estadual:
           type: string
           title: Inscrição Estadual
@@ -2655,11 +3970,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/StatusAprovacaoEnum'
           title: Status da Aprovação
-        valor_limite_credito:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          title: Valor Limite de Crédito
         data_aprovacao:
           type: string
           format: date-time
@@ -2684,162 +3994,18 @@ components:
           readOnly: true
           nullable: true
           title: Última Atualização
+        inativo_omie:
+          type: boolean
+          title: Inativo
       required:
       - cep
       - cidade
-      - cnpj
       - contatos
       - data_registro
-      - email
       - endereco
       - estado
       - id
       - inscricao_estadual
-      - nome_fantasia
-      - numero_funcionarios
-      - razao_social
-      - telefone_comercial
-      - tipo_operacao
-      - ultima_atualizacao
-      - vendedores
-    ClienteDetalhes:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        contatos:
-          type: array
-          items:
-            $ref: '#/components/schemas/Contato'
-          readOnly: true
-        vendedores:
-          type: array
-          items:
-            $ref: '#/components/schemas/Vendedor'
-          readOnly: true
-        contatos_ids:
-          type: array
-          items:
-            type: integer
-            writeOnly: true
-          writeOnly: true
-        vendedores_ids:
-          type: array
-          items:
-            type: integer
-            writeOnly: true
-          writeOnly: true
-        razao_social:
-          type: string
-          title: Razão Social
-          maxLength: 255
-        nome_fantasia:
-          type: string
-          maxLength: 255
-        cnpj:
-          type: string
-          maxLength: 18
-        inscricao_estadual:
-          type: string
-          title: Inscrição Estadual
-          maxLength: 255
-        email:
-          type: string
-          title: E-mails
-          description: Separe os e-mails por vírgula.
-          maxLength: 500
-        endereco:
-          type: string
-          title: Endereço
-        endereco_numero:
-          type: string
-          nullable: true
-          title: Número
-          maxLength: 16
-        endereco_complemento:
-          type: string
-          nullable: true
-          title: Complemento
-          maxLength: 255
-        bairro:
-          type: string
-          maxLength: 255
-        cidade:
-          type: string
-          maxLength: 255
-        estado:
-          type: string
-          maxLength: 2
-        cep:
-          type: string
-          maxLength: 9
-        telefone_comercial:
-          type: string
-          title: Telefone com DDD
-          maxLength: 20
-        numero_funcionarios:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          title: Número de Funcionários
-        tipo_operacao:
-          allOf:
-          - $ref: '#/components/schemas/TipoOperacaoEnum'
-          title: Tipo de Operação
-        codigo_cliente_omie:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          nullable: true
-          title: Código do Cliente Omie
-        status_aprovacao:
-          allOf:
-          - $ref: '#/components/schemas/StatusAprovacaoEnum'
-          title: Status da Aprovação
-        valor_limite_credito:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          title: Valor Limite de Crédito
-        data_aprovacao:
-          type: string
-          format: date-time
-          nullable: true
-          title: Data de Aprovação
-        detalhes_aprovacao:
-          type: string
-          nullable: true
-          title: Detalhes da Aprovação
-        observacoes:
-          type: string
-          nullable: true
-          title: Observações
-        data_registro:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Data de Registro
-        ultima_atualizacao:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-          title: Última Atualização
-      required:
-      - cep
-      - cidade
-      - cnpj
-      - contatos
-      - data_registro
-      - email
-      - endereco
-      - estado
-      - id
-      - inscricao_estadual
-      - nome_fantasia
-      - razao_social
       - ultima_atualizacao
       - vendedores
     ClientePedido:
@@ -2848,6 +4014,9 @@ components:
         id:
           type: integer
           readOnly: true
+        tabela_preco_efetiva:
+          type: string
+          readOnly: true
         razao_social:
           type: string
           title: Razão Social
@@ -2855,9 +4024,11 @@ components:
         nome_fantasia:
           type: string
           maxLength: 255
-        cnpj:
+        cnpj_cpf:
           type: string
-          maxLength: 18
+          nullable: true
+          title: CNPJ/CPF
+          maxLength: 50
         inscricao_estadual:
           type: string
           title: Inscrição Estadual
@@ -2905,6 +4076,35 @@ components:
           allOf:
           - $ref: '#/components/schemas/TipoOperacaoEnum'
           title: Tipo de Operação
+        telefone1_ddd:
+          type: string
+          nullable: true
+          title: DDD do Telefone 1
+          maxLength: 2
+        telefone1_numero:
+          type: string
+          nullable: true
+          title: Número do Telefone 1
+          maxLength: 50
+        telefone2_ddd:
+          type: string
+          nullable: true
+          title: DDD do Telefone 2
+          maxLength: 2
+        telefone2_numero:
+          type: string
+          nullable: true
+          title: Número do Telefone 2
+          maxLength: 50
+        numero_funcionarios:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Número de Funcionários
+        tipo_operacao:
+          allOf:
+          - $ref: '#/components/schemas/TipoOperacaoEnum'
+          title: Tipo de Operação
         codigo_cliente_omie:
           type: integer
           maximum: 9223372036854775807
@@ -2917,9 +4117,9 @@ components:
           - $ref: '#/components/schemas/StatusAprovacaoEnum'
           title: Status da Aprovação
         valor_limite_credito:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           title: Valor Limite de Crédito
         data_aprovacao:
           type: string
@@ -2945,6 +4145,17 @@ components:
           readOnly: true
           nullable: true
           title: Última Atualização
+        inativo_omie:
+          type: boolean
+          title: Inativo
+        tabela_preco:
+          type: integer
+          nullable: true
+          title: Tabela de Preço
+        presenca_online:
+          type: integer
+          nullable: true
+          title: Presença Online
         vendedores:
           type: array
           items:
@@ -2953,10 +4164,15 @@ components:
           type: array
           items:
             type: integer
+        condicoes_pagamento:
+          type: array
+          items:
+            type: integer
+            title: Condições de Pagamento
+          title: Condições de Pagamento
       required:
       - cep
       - cidade
-      - cnpj
       - contatos
       - data_registro
       - email
@@ -2966,8 +4182,8 @@ components:
       - inscricao_estadual
       - nome_fantasia
       - razao_social
+      - tabela_preco_efetiva
       - ultima_atualizacao
-      - vendedores
     CondicaoDePagamento:
       type: object
       properties:
@@ -2999,6 +4215,9 @@ components:
           maximum: 2147483647
           minimum: -2147483648
           title: Quantidade de Parcelas
+        padrao:
+          type: boolean
+          title: Padrão
       required:
       - id
     Contato:
@@ -3013,6 +4232,7 @@ components:
           type: string
         wpp_session_id:
           type: string
+          nullable: true
         email:
           type: string
           format: email
@@ -3050,7 +4270,6 @@ components:
       - nome
       - telefone
       - ultima_atualizacao
-      - wpp_session_id
     FamiliaDeProduto:
       type: object
       properties:
@@ -3115,39 +4334,44 @@ components:
           allOf:
           - $ref: '#/components/schemas/Produto'
           readOnly: true
+        desconto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          default: '0.00'
+        porcentagem_desconto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          default: '0.00'
+        codigo_item_integracao:
+          type: string
+          nullable: true
+          maxLength: 64
+        valor_unitario:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+        valor_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
         quantidade:
           type: integer
           maximum: 2147483647
           minimum: 0
-        valor_unitario:
-          type: number
-          format: double
-          title: Valor Unitário
-        desconto:
-          type: number
-          format: double
-        porcentagem_desconto:
-          type: number
-          format: double
-          title: Porcentagem de Desconto
-        valor_total:
-          type: number
-          format: double
-        codigo_item_integracao:
-          type: string
-          nullable: true
-          title: Código Item Integração
-          maxLength: 64
         pedido:
           type: integer
+          nullable: true
           title: Pedido de Venda
         produto:
           type: integer
       required:
       - id
-      - pedido
       - produto
       - produto_detalhes
+      - valor_total
+      - valor_unitario
     Marca:
       type: object
       properties:
@@ -3171,29 +4395,6 @@ components:
       required:
       - id
       - nome
-    PaginatedClienteDetalhesList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/ClienteDetalhes'
     PaginatedClienteList:
       type: object
       required:
@@ -3207,12 +4408,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3230,12 +4431,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3253,12 +4454,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3276,12 +4477,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3299,12 +4500,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3322,12 +4523,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3345,12 +4546,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3368,17 +4569,17 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/PedidoDeVenda'
-    PaginatedProdutoDetalhadoList:
+    PaginatedPrecificacaoList:
       type: object
       required:
       - count
@@ -3391,16 +4592,16 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
-            $ref: '#/components/schemas/ProdutoDetalhado'
+            $ref: '#/components/schemas/Precificacao'
     PaginatedProdutoList:
       type: object
       required:
@@ -3414,12 +4615,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3437,12 +4638,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3460,16 +4661,85 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/RegraDeNegocio'
+    PaginatedTabelaDePrecoList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TabelaDePreco'
+    PaginatedTimeList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Time'
+    PaginatedTransportadoraList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transportadora'
     PaginatedVendedorList:
       type: object
       required:
@@ -3483,12 +4753,12 @@ components:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=400&limit=100
+          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?offset=200&limit=100
+          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
@@ -3521,138 +4791,44 @@ components:
             type: integer
             writeOnly: true
           writeOnly: true
+        presenca_online:
+          $ref: '#/components/schemas/PresencaOnline'
+        tabela_preco:
+          type: integer
+          nullable: true
+        condicoes_pagamento:
+          type: array
+          items:
+            type: integer
         razao_social:
           type: string
         nome_fantasia:
           type: string
-        cnpj:
+        cnpj_cpf:
           type: string
         email:
-          type: string
-          format: email
-        telefone_comercial:
           type: string
         tipo_operacao:
           type: string
         numero_funcionarios:
           type: integer
-          minimum: 1
-        inscricao_estadual:
-          type: string
-          title: Inscrição Estadual
-          maxLength: 255
-        endereco:
-          type: string
-          title: Endereço
-        endereco_numero:
-          type: string
-          nullable: true
-          title: Número
-          maxLength: 16
-        endereco_complemento:
-          type: string
-          nullable: true
-          title: Complemento
-          maxLength: 255
-        bairro:
-          type: string
-          maxLength: 255
-        cidade:
-          type: string
-          maxLength: 255
-        estado:
-          type: string
-          maxLength: 2
-        cep:
-          type: string
-          maxLength: 9
-        codigo_cliente_omie:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          nullable: true
-          title: Código do Cliente Omie
-        status_aprovacao:
-          allOf:
-          - $ref: '#/components/schemas/StatusAprovacaoEnum'
-          title: Status da Aprovação
+          minimum: 0
         valor_limite_credito:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          title: Valor Limite de Crédito
-        data_aprovacao:
           type: string
-          format: date-time
-          nullable: true
-          title: Data de Aprovação
-        detalhes_aprovacao:
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        telefone1_ddd:
           type: string
-          nullable: true
-          title: Detalhes da Aprovação
-        observacoes:
+        telefone1_numero:
           type: string
-          nullable: true
-          title: Observações
-        data_registro:
+        telefone2_ddd:
           type: string
-          format: date-time
-          readOnly: true
-          title: Data de Registro
-        ultima_atualizacao:
+        telefone2_numero:
           type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-          title: Última Atualização
-    PatchedClienteDetalhes:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        contatos:
-          type: array
-          items:
-            $ref: '#/components/schemas/Contato'
-          readOnly: true
-        vendedores:
-          type: array
-          items:
-            $ref: '#/components/schemas/Vendedor'
-          readOnly: true
-        contatos_ids:
-          type: array
-          items:
-            type: integer
-            writeOnly: true
-          writeOnly: true
-        vendedores_ids:
-          type: array
-          items:
-            type: integer
-            writeOnly: true
-          writeOnly: true
-        razao_social:
-          type: string
-          title: Razão Social
-          maxLength: 255
-        nome_fantasia:
-          type: string
-          maxLength: 255
-        cnpj:
-          type: string
-          maxLength: 18
         inscricao_estadual:
           type: string
           title: Inscrição Estadual
           maxLength: 255
-        email:
-          type: string
-          title: E-mails
-          description: Separe os e-mails por vírgula.
-          maxLength: 500
         endereco:
           type: string
           title: Endereço
@@ -3702,11 +4878,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/StatusAprovacaoEnum'
           title: Status da Aprovação
-        valor_limite_credito:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          title: Valor Limite de Crédito
         data_aprovacao:
           type: string
           format: date-time
@@ -3731,6 +4902,9 @@ components:
           readOnly: true
           nullable: true
           title: Última Atualização
+        inativo_omie:
+          type: boolean
+          title: Inativo
     PatchedContato:
       type: object
       properties:
@@ -3743,6 +4917,7 @@ components:
           type: string
         wpp_session_id:
           type: string
+          nullable: true
         email:
           type: string
           format: email
@@ -3773,6 +4948,22 @@ components:
           readOnly: true
           nullable: true
           title: Última Atualização
+    PatchedFamiliaDeProduto:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        codigo:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: Código da Família de Produto na Omie
+        nomeFamilia:
+          type: string
+          title: Nome
+          maxLength: 255
     PatchedImagemDeProduto:
       type: object
       properties:
@@ -3798,34 +4989,58 @@ components:
           allOf:
           - $ref: '#/components/schemas/Produto'
           readOnly: true
+        desconto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          default: '0.00'
+        porcentagem_desconto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          default: '0.00'
+        codigo_item_integracao:
+          type: string
+          nullable: true
+          maxLength: 64
+        valor_unitario:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+        valor_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
         quantidade:
           type: integer
           maximum: 2147483647
           minimum: 0
-        valor_unitario:
-          type: number
-          format: double
-          title: Valor Unitário
-        desconto:
-          type: number
-          format: double
-        porcentagem_desconto:
-          type: number
-          format: double
-          title: Porcentagem de Desconto
-        valor_total:
-          type: number
-          format: double
-        codigo_item_integracao:
-          type: string
-          nullable: true
-          title: Código Item Integração
-          maxLength: 64
         pedido:
           type: integer
+          nullable: true
           title: Pedido de Venda
         produto:
           type: integer
+    PatchedMarca:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nome:
+          type: string
+          maxLength: 255
+        logo:
+          type: string
+          format: uri
+          nullable: true
+          title: Logotipo
+        site:
+          type: string
+          format: uri
+          nullable: true
+          title: Site do Fabricante
+          maxLength: 200
     PatchedPedidoDeVenda:
       type: object
       properties:
@@ -3835,6 +5050,15 @@ components:
         cliente_detalhes:
           allOf:
           - $ref: '#/components/schemas/ClientePedido'
+          readOnly: true
+        vendedor_detalhes:
+          type: string
+          readOnly: true
+        valor_total:
+          type: string
+          readOnly: true
+        comissao:
+          type: string
           readOnly: true
         status_negociacao:
           allOf:
@@ -3878,6 +5102,9 @@ components:
         cliente:
           type: integer
           nullable: true
+        vendedor:
+          type: integer
+          nullable: true
         pagamento:
           type: integer
           nullable: true
@@ -3885,12 +5112,57 @@ components:
         transportadora:
           type: integer
           nullable: true
-        vendedor:
-          type: array
-          items:
-            type: integer
-            title: Vendedor(es)
-          title: Vendedor(es)
+    PatchedPrecificacao:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        produto:
+          allOf:
+          - $ref: '#/components/schemas/ProdutoEnxuto'
+          readOnly: true
+        representacoes:
+          type: string
+          readOnly: true
+        ipi:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        st:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        custo:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        lucro:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        valor_venda:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          title: Valor de Venda
+        valor_venda_sem_impostos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          title: Valor de Venda sem Impostos
+        comissao:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          title: Comissão
+        desconto_maximo:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          title: Desconto Máximo
+        tabela:
+          type: integer
     PatchedProduto:
       type: object
       properties:
@@ -3908,6 +5180,9 @@ components:
         imagem:
           type: string
           readOnly: true
+        precificacao:
+          type: string
+          readOnly: true
         codigo_produto:
           type: integer
           maximum: 9223372036854775807
@@ -3939,8 +5214,9 @@ components:
           nullable: true
           maxLength: 32
         valor_unitario:
-          type: number
-          format: double
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,9}(?:\.\d{0,6})?$
           title: Valor Unitário
         peso_bruto:
           type: number
@@ -3966,96 +5242,14 @@ components:
           type: string
           nullable: true
           maxLength: 32
-        marketing_info:
-          type: string
-          nullable: true
-          title: Informações de Marketing
-        especificacoes_tecnicas:
-          nullable: true
-          title: Especificações Técnicas
-        manual_tecnico:
-          type: string
-          format: uri
-          nullable: true
-          title: Manual Técnico
-    PatchedProdutoDetalhado:
-      type: object
-      properties:
-        id:
+        estoque:
           type: integer
-          readOnly: true
-        marca:
-          allOf:
-          - $ref: '#/components/schemas/Marca'
-          readOnly: true
-        familia:
-          allOf:
-          - $ref: '#/components/schemas/FamiliaDeProduto'
-          readOnly: true
-        marca_id:
+          maximum: 2147483647
+          minimum: -2147483648
+        reservado:
           type: integer
-          writeOnly: true
-        familia_id:
-          type: integer
-          writeOnly: true
-        codigo_produto:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          title: Código do Produto na Omie
-        inativo:
-          type: boolean
-        ean:
-          type: string
-          nullable: true
-          maxLength: 64
-        codigo:
-          type: string
-          nullable: true
-          title: Código
-          maxLength: 64
-        descricao:
-          type: string
-          nullable: true
-          title: Descrição
-          maxLength: 255
-        descr_detalhada:
-          type: string
-          nullable: true
-          title: Descricao Detalhada
-        unidade:
-          type: string
-          nullable: true
-          maxLength: 32
-        valor_unitario:
-          type: number
-          format: double
-          title: Valor Unitário
-        peso_bruto:
-          type: number
-          format: double
-        peso_liq:
-          type: number
-          format: double
-          title: Peso Líquido
-        largura:
-          type: number
-          format: double
-        altura:
-          type: number
-          format: double
-        profundidade:
-          type: number
-          format: double
-        cfop:
-          type: string
-          nullable: true
-          maxLength: 32
-        ncm:
-          type: string
-          nullable: true
-          maxLength: 32
+          maximum: 2147483647
+          minimum: -2147483648
         marketing_info:
           type: string
           nullable: true
@@ -4122,39 +5316,88 @@ components:
           type: string
         ativo:
           type: boolean
-    PatchedVendedor:
+    PatchedTabelaDePreco:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        nome:
-          type: string
-        email:
-          type: string
-          format: email
-        telefone:
-          type: string
         codigo:
           type: integer
           maximum: 9223372036854775807
           minimum: -9223372036854775808
           format: int64
           title: Código do Vendedor Omie
-        regiao:
+        nome:
           type: string
-          nullable: true
-          title: Região
-          maxLength: 64
-        regras:
+          maxLength: 255
+        ativo:
+          type: boolean
+        padrao:
+          type: boolean
+          title: Padrão
+        ultima_atualizacao:
           type: string
-          nullable: true
-        time:
-          $ref: '#/components/schemas/TimeEnum'
+          format: date-time
+          readOnly: true
+          title: Última Atualização
+    PatchedTime:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        membros:
+          type: array
+          items:
+            type: integer
+        marcas:
+          type: array
+          items:
+            type: integer
+        nome:
+          type: string
+          maxLength: 255
+        comissao:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          title: Comissão (%)
         inativo:
           type: boolean
+    PatchedVendedor:
+      type: object
+      properties:
+        id:
+          type: integer
           readOnly: true
-        time_stan:
+        codigo:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: Código do Vendedor Omie
+        nome:
+          type: string
+          title: Nome Completo
+          maxLength: 255
+        apelido:
+          type: string
+          nullable: true
+          maxLength: 255
+        email:
+          type: string
+          format: email
+        telefone:
+          type: string
+          nullable: true
+          title: Telefone com DDD
+          maxLength: 20
+        fatura_pedido:
+          type: boolean
+        visualiza_pedido:
+          type: boolean
+        inativo:
           type: boolean
     PedidoDeVenda:
       type: object
@@ -4165,6 +5408,15 @@ components:
         cliente_detalhes:
           allOf:
           - $ref: '#/components/schemas/ClientePedido'
+          readOnly: true
+        vendedor_detalhes:
+          type: string
+          readOnly: true
+        valor_total:
+          type: string
+          readOnly: true
+        comissao:
+          type: string
           readOnly: true
         status_negociacao:
           allOf:
@@ -4208,6 +5460,9 @@ components:
         cliente:
           type: integer
           nullable: true
+        vendedor:
+          type: integer
+          nullable: true
         pagamento:
           type: integer
           nullable: true
@@ -4215,17 +5470,119 @@ components:
         transportadora:
           type: integer
           nullable: true
-        vendedor:
-          type: array
-          items:
-            type: integer
-            title: Vendedor(es)
-          title: Vendedor(es)
       required:
       - cliente_detalhes
+      - comissao
       - data_emissao
       - id
-      - vendedor
+      - valor_total
+      - vendedor_detalhes
+    Precificacao:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        produto:
+          allOf:
+          - $ref: '#/components/schemas/ProdutoEnxuto'
+          readOnly: true
+        representacoes:
+          type: string
+          readOnly: true
+        ipi:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        st:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        custo:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        lucro:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        valor_venda:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          title: Valor de Venda
+        valor_venda_sem_impostos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          title: Valor de Venda sem Impostos
+        comissao:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          title: Comissão
+        desconto_maximo:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          title: Desconto Máximo
+        tabela:
+          type: integer
+      required:
+      - comissao
+      - custo
+      - desconto_maximo
+      - id
+      - ipi
+      - lucro
+      - produto
+      - representacoes
+      - st
+      - tabela
+      - valor_venda
+    PresencaOnline:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        instagram:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        facebook:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        youtube:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        tiktok:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        twitter:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        linkedin:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+      required:
+      - id
     Produto:
       type: object
       properties:
@@ -4243,6 +5600,9 @@ components:
         imagem:
           type: string
           readOnly: true
+        precificacao:
+          type: string
+          readOnly: true
         codigo_produto:
           type: integer
           maximum: 9223372036854775807
@@ -4274,8 +5634,9 @@ components:
           nullable: true
           maxLength: 32
         valor_unitario:
-          type: number
-          format: double
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,9}(?:\.\d{0,6})?$
           title: Valor Unitário
         peso_bruto:
           type: number
@@ -4301,101 +5662,14 @@ components:
           type: string
           nullable: true
           maxLength: 32
-        marketing_info:
-          type: string
-          nullable: true
-          title: Informações de Marketing
-        especificacoes_tecnicas:
-          nullable: true
-          title: Especificações Técnicas
-        manual_tecnico:
-          type: string
-          format: uri
-          nullable: true
-          title: Manual Técnico
-      required:
-      - familia
-      - id
-      - imagem
-      - marca
-    ProdutoDetalhado:
-      type: object
-      properties:
-        id:
+        estoque:
           type: integer
-          readOnly: true
-        marca:
-          allOf:
-          - $ref: '#/components/schemas/Marca'
-          readOnly: true
-        familia:
-          allOf:
-          - $ref: '#/components/schemas/FamiliaDeProduto'
-          readOnly: true
-        marca_id:
+          maximum: 2147483647
+          minimum: -2147483648
+        reservado:
           type: integer
-          writeOnly: true
-        familia_id:
-          type: integer
-          writeOnly: true
-        codigo_produto:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          title: Código do Produto na Omie
-        inativo:
-          type: boolean
-        ean:
-          type: string
-          nullable: true
-          maxLength: 64
-        codigo:
-          type: string
-          nullable: true
-          title: Código
-          maxLength: 64
-        descricao:
-          type: string
-          nullable: true
-          title: Descrição
-          maxLength: 255
-        descr_detalhada:
-          type: string
-          nullable: true
-          title: Descricao Detalhada
-        unidade:
-          type: string
-          nullable: true
-          maxLength: 32
-        valor_unitario:
-          type: number
-          format: double
-          title: Valor Unitário
-        peso_bruto:
-          type: number
-          format: double
-        peso_liq:
-          type: number
-          format: double
-          title: Peso Líquido
-        largura:
-          type: number
-          format: double
-        altura:
-          type: number
-          format: double
-        profundidade:
-          type: number
-          format: double
-        cfop:
-          type: string
-          nullable: true
-          maxLength: 32
-        ncm:
-          type: string
-          nullable: true
-          maxLength: 32
+          maximum: 2147483647
+          minimum: -2147483648
         marketing_info:
           type: string
           nullable: true
@@ -4412,8 +5686,35 @@ components:
       - familia
       - familia_id
       - id
+      - imagem
       - marca
-      - marca_id
+      - precificacao
+    ProdutoEnxuto:
+      type: object
+      properties:
+        codigo:
+          type: string
+          nullable: true
+          title: Código
+          maxLength: 64
+        descricao:
+          type: string
+          nullable: true
+          title: Descrição
+          maxLength: 255
+        marca__nome:
+          type: string
+          readOnly: true
+        unidade:
+          type: string
+          nullable: true
+          maxLength: 32
+        familia__nomeFamilia:
+          type: string
+          readOnly: true
+      required:
+      - familia__nomeFamilia
+      - marca__nome
     RegiaoEnum:
       enum:
       - AC
@@ -4585,18 +5886,56 @@ components:
         * `50` - Faturar
         * `60` - Faturado
         * `70` - Entrega
-    TimeEnum:
-      enum:
-      - Indefinido
-      - Redragon
-      - Outras Marcas
-      - Kalkan/Keytime
-      type: string
-      description: |-
-        * `Indefinido` - Indefinido
-        * `Redragon` - Redragon
-        * `Outras Marcas` - Outras Marcas
-        * `Kalkan/Keytime` - Kalkan/Keytime
+    TabelaDePreco:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nome:
+          type: string
+          maxLength: 255
+        ativo:
+          type: boolean
+        padrao:
+          type: boolean
+          title: Padrão
+        ultima_atualizacao:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última Atualização
+      required:
+      - id
+      - nome
+      - ultima_atualizacao
+    Time:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        membros:
+          type: array
+          items:
+            type: integer
+        marcas:
+          type: array
+          items:
+            type: integer
+        nome:
+          type: string
+          maxLength: 255
+        comissao:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          title: Comissão (%)
+        inativo:
+          type: boolean
+      required:
+      - id
+      - nome
     TipoOperacaoEnum:
       enum:
       - Indefinido
@@ -4645,6 +5984,7 @@ components:
           readOnly: true
         refresh:
           type: string
+          writeOnly: true
       required:
       - access
       - refresh
@@ -4656,6 +5996,78 @@ components:
           writeOnly: true
       required:
       - token
+    Transportadora:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        razao_social:
+          type: string
+        nome_fantasia:
+          type: string
+        cnpj_cpf:
+          type: string
+          title: Nome Completo
+          maxLength: 255
+        email:
+          type: string
+          format: email
+        telefone_comercial:
+          type: string
+        inscricao_estadual:
+          type: string
+          title: Inscrição Estadual
+          maxLength: 255
+        endereco:
+          type: string
+          title: Endereço
+        endereco_numero:
+          type: string
+          nullable: true
+          title: Número
+          maxLength: 16
+        endereco_complemento:
+          type: string
+          nullable: true
+          title: Complemento
+          maxLength: 255
+        bairro:
+          type: string
+          nullable: true
+          maxLength: 255
+        cidade:
+          type: string
+          nullable: true
+          maxLength: 255
+        estado:
+          type: string
+          nullable: true
+          maxLength: 2
+        cep:
+          type: string
+          nullable: true
+          maxLength: 9
+        codigo_cliente_omie:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Código do Cliente Omie
+        inativo:
+          type: boolean
+          readOnly: true
+      required:
+      - cnpj_cpf
+      - email
+      - endereco
+      - id
+      - inativo
+      - inscricao_estadual
+      - nome_fantasia
+      - razao_social
+      - telefone_comercial
     Vendedor:
       type: object
       properties:
@@ -4664,31 +6076,25 @@ components:
           readOnly: true
         nome:
           type: string
+          title: Nome Completo
+          maxLength: 255
+        apelido:
+          type: string
+          nullable: true
+          maxLength: 255
         email:
           type: string
           format: email
         telefone:
           type: string
-        codigo:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          title: Código do Vendedor Omie
-        regiao:
-          type: string
           nullable: true
-          title: Região
-          maxLength: 64
-        regras:
-          type: string
-          nullable: true
-        time:
-          $ref: '#/components/schemas/TimeEnum'
-        inativo:
+          title: Telefone com DDD
+          maxLength: 20
+        fatura_pedido:
           type: boolean
-          readOnly: true
-        time_stan:
+        visualiza_pedido:
+          type: boolean
+        inativo:
           type: boolean
       required:
       - email
