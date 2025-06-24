@@ -116,7 +116,7 @@ async def make_lead_email(lead_information: str, extra_context: str = None) -> s
         f"It should follow some structure, like: "
         f"BlackPearl Cliente ID: 1234567890"
         f"Nome: João Silva"
-        f"CNPJ: 12.345.678/0001-00"
+        f"CNPJ/CPF: 12.345.678/0001-00"
         f"Email: joao.silva@exemplo.com"
         f"Telefone: +5511987654321"
         f"Empresa: Exemplo Ltda."
@@ -194,7 +194,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         ordering: Optional[str] = None,
         cidade: Optional[str] = None,
         estado: Optional[str] = None,
-        cnpj: Optional[str] = None
+        cnpj_cpf: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get list of clients from BlackPearl.
         
@@ -205,15 +205,15 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             ordering: Field to order results by (example: 'nome' or '-nome' for descending)
             cidade: Filter by city name
             estado: Filter by state code (2 letters)
-            cnpj: Filter by CNPJ number
+            cnpj_cpf: Filter by CNPJ or CPF number
         """
         filters = {}
         if cidade:
             filters["cidade"] = cidade
         if estado:
             filters["estado"] = estado
-        if cnpj:
-            filters["cnpj"] = cnpj
+        if cnpj_cpf:
+            filters["cnpj_cpf"] = cnpj_cpf
             
         return await get_clientes(ctx.deps, limit, offset, search, ordering, **filters)
     
@@ -242,7 +242,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         nome_fantasia: str,
         email: str,
         telefone_comercial: str,
-        cnpj: str,  # Made required - no default value
+        cnpj_cpf: str = None,
         inscricao_estadual: str = None,
         endereco: str = None,
         endereco_numero: str = None,
@@ -264,14 +264,14 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
            For "Inscrição Estadual: Isento", use inscricao_estadual="Isento".
         
         Args:
-            razao_social: Company legal name (REQUIRED)
-            nome_fantasia: Company trading name (REQUIRED)
-            email: Client email (REQUIRED)
-            telefone_comercial: Client commercial phone number, numbers only, no formatting (REQUIRED)
-            cnpj: Client CNPJ Numbers only, no formatting (REQUIRED)
-            inscricao_estadual: Client state registration - use "Isento" if none
-            endereco: Street address
-            endereco_numero: Address number
+            razao_social: Company legal name
+            nome_fantasia: Company trading name
+            email: Client email
+            telefone_comercial: Client commercial phone number, numbers only, no formatting
+            cnpj_cpf: Client CNPJ or CPF Numbers only, no formatting
+            inscricao_estadual: Client state registration [Obligatory]
+            endereco: Street address [Obligatory]
+            endereco_numero: Address number [Obligatory]
             endereco_complemento: Address complement
             bairro: Neighborhood
             cidade: Client city 
@@ -302,19 +302,14 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             "razao_social": razao_social,
             "nome_fantasia": nome_fantasia,
             "email": email,
-            "telefone_comercial": telefone_clean,
+            "telefone1_ddd": telefone_comercial[:2],
+            "telefone1_numero": telefone_comercial[2:],
             "status_aprovacao": StatusAprovacaoEnum.PENDING_REVIEW  # Passa a string direto
         }
         
-        # Add CNPJ field (now required)
-        # Clean and format CNPJ - remove formatting and keep only numbers
-        cnpj_clean = re.sub(r'[^0-9]', '', cnpj) if cnpj else None
-        if cnpj_clean and len(cnpj_clean) == 14:
-            cliente_data["cnpj"] = cnpj_clean
-        else:
-            logger.error(f"Invalid CNPJ format: {cnpj}, cleaned: {cnpj_clean}")
-            return {"error": f"CNPJ inválido: {cnpj}. O CNPJ deve conter 14 dígitos."}
-        # Handle inscricao_estadual
+        # Add optional fields if provided
+        if cnpj_cpf:
+            cliente_data["cnpj_cpf"] = cnpj_cpf
         if inscricao_estadual:
             cliente_data["inscricao_estadual"] = inscricao_estadual
         else:
@@ -376,10 +371,10 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         lead_information = f"BlackPearl Cliente ID: {cliente_created['id']}\n"
         lead_information += f"Nome: {cliente_created['razao_social']}\n"
         lead_information += f"Email: {cliente_created['email']}\n"
-        lead_information += f"Telefone: {cliente_created['telefone_comercial']}\n"
+        lead_information += f"Telefone: {cliente_created['telefone1_ddd']}{cliente_created['telefone1_numero']}\n"
         lead_information += f"Empresa: {cliente_created['razao_social']}\n"
         lead_information += f"Endereço: {cliente_created['endereco']} {cliente_created['endereco_numero']} {cliente_created['endereco_complemento']} {cliente_created['bairro']} {cliente_created['cidade']} {cliente_created['estado']} {cliente_created['cep']}\n"
-        lead_information += f"CNPJ: {cliente_created['cnpj']}\n"
+        lead_information += f"CNPJ/CPF: {cliente_created['cnpj_cpf']}\n"
         lead_information += f"Inscrição Estadual: {cliente_created['inscricao_estadual']}\n"
         lead_information += f"Número de Funcionários: {cliente_created['numero_funcionarios']}\n"
         lead_information += f"Tipo de Operação: {cliente_created['tipo_operacao']}\n"
@@ -409,7 +404,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
         nome_fantasia: Optional[str] = None,
         email: Optional[str] = None,
         telefone_comercial: Optional[str] = None,
-        cnpj: Optional[str] = None,
+        cnpj_cpf: Optional[str] = None,
         inscricao_estadual: Optional[str] = None,
         endereco: Optional[str] = None,
         endereco_numero: Optional[str] = None,
@@ -432,7 +427,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             nome_fantasia: Company trading name (optional)
             email: Client email (optional)
             telefone_comercial: Client commercial phone number (optional)
-            cnpj: Client CNPJ (optional)
+            cnpj_cpf: Client CNPJ or CPF (optional)
             inscricao_estadual: Client state registration (optional)
             endereco: Street address (optional)
             endereco_numero: Address number (optional)
@@ -465,9 +460,11 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
             if email:
                 cliente_data["email"] = email
             if telefone_comercial:
-                cliente_data["telefone_comercial"] = telefone_comercial
-            if cnpj:
-                cliente_data["cnpj"] = cnpj
+                cliente_data["telefone1_ddd"] = telefone_comercial[:2]
+                cliente_data["telefone1_numero"] = telefone_comercial[2:]
+                # cliente_data["telefone_comercial"] = telefone_comercial
+            if cnpj_cpf:
+                cliente_data["cnpj_cpf"] = cnpj_cpf
             if inscricao_estadual:
                 cliente_data["inscricao_estadual"] = inscricao_estadual
             if endereco:
@@ -614,7 +611,7 @@ async def backoffice_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> 
                 Empresa: Exemplo Ltda.
                 Detalhes: Algumas informações adicionais
                 Interesses: Algumas informações sobre os interesses do lead
-                CNPJ: 12.345.678/0001-00
+                CNPJ/CPF: 12.345.678/0001-00
                 Endereço: Rua Exemplo, 123 - São Paulo/SP 
         
         Args:

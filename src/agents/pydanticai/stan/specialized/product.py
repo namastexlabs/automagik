@@ -144,38 +144,38 @@ async def product_agent(ctx: RunContext[Dict[str, Any]], input_text: str) -> str
 
             '8. RESPONDA SEMPRE EM PORTUGUÊS: Todas as respostas devem ser em português claro e conciso.\n\n'
            
-            '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\n\n'
+            # '----------- CATÁLOGO DE PRODUTOS PARA DEMONSTRAÇÃO -----------\n\n'
             
-            'Os produtos abaixo estão disponíveis no catálogo da Redragon e devem ser priorizados nas demonstrações. '
-            'Use os códigos exatos **com o parâmetro `codigo` em `get_products`** para encontrar estes produtos específicos:\n\n'
+            # 'Os produtos abaixo estão disponíveis no catálogo da Redragon e devem ser priorizados nas demonstrações. '
+            # 'Use os códigos exatos **com o parâmetro `codigo` em `get_products`** para encontrar estes produtos específicos:\n\n'
             
-            'TECLADOS MECÂNICOS:\n'
-            '- K671 (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON SINDRI RAINBOW PRETO\n'
-            '- K636CLO-RGB (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON KITAVA RGB PRETO, BEGE E LARANJA SWITCH MARROM\n\n'
+            # 'TECLADOS MECÂNICOS:\n'
+            # '- K671 (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON SINDRI RAINBOW PRETO\n'
+            # '- K636CLO-RGB (PT-BROWN) - TECLADO MECANICO GAMER REDRAGON KITAVA RGB PRETO, BEGE E LARANJA SWITCH MARROM\n\n'
             
-            'TECLADOS MEMBRANA:\n'
-            '- K513-RGB PT - TECLADO MEMBRANA GAMER REDRAGON ADITYA PRETO\n'
-            '- K502RGB (PT) - TECLADO MEMBRANA RGB PRETO KARURA 2\n\n'
+            # 'TECLADOS MEMBRANA:\n'
+            # '- K513-RGB PT - TECLADO MEMBRANA GAMER REDRAGON ADITYA PRETO\n'
+            # '- K502RGB (PT) - TECLADO MEMBRANA RGB PRETO KARURA 2\n\n'
             
-            'TECLADOS ÓPTICOS:\n'
-            '- K586RGB-PRO (PT-RED) - TECLADO OPTICO GAMER BRAHMA PRO RGB PRETO SWITCH VERMELHO\n'
-            '- K582W-RGB-PRO (PT-BLUE) - TECLADO OPTICO GAMER SURARA PRO RGB BRANCO SWITCH AZUL ABNT2\n\n'
+            # 'TECLADOS ÓPTICOS:\n'
+            # '- K586RGB-PRO (PT-RED) - TECLADO OPTICO GAMER BRAHMA PRO RGB PRETO SWITCH VERMELHO\n'
+            # '- K582W-RGB-PRO (PT-BLUE) - TECLADO OPTICO GAMER SURARA PRO RGB BRANCO SWITCH AZUL ABNT2\n\n'
             
-            'MOUSES:\n'
-            '- M721-PRO - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\n'
-            '- M993-RGB - MOUSE GAMER REDRAGON DEVOURER PRETO\n'
-            '- M690-PRO - MOUSE GAMER REDRAGON MIRAGE PRO PRETO\n'
-            '- M802-RGB-1 - MOUSE TITANOBOA 2 CHROMA RGB PTO M802-RGB-1\n\n'
+            # 'MOUSES:\n'
+            # '- M721-PRO - MOUSE GAMER REDRAGON KING PRO HORDA DO WORLD OF WARCRAFT VERMELHO\n'
+            # '- M993-RGB - MOUSE GAMER REDRAGON DEVOURER PRETO\n'
+            # '- M690-PRO - MOUSE GAMER REDRAGON MIRAGE PRO PRETO\n'
+            # '- M802-RGB-1 - MOUSE TITANOBOA 2 CHROMA RGB PTO M802-RGB-1\n\n'
             
-            'Para buscar qualquer um destes produtos, utilize o código exato **com o parâmetro `codigo`** na ferramenta `get_products`. '
-            '**Não use o parâmetro `search` para estes códigos.**\n'
-            '--------------------------------------------------------------\n\n'
+            # 'Para buscar qualquer um destes produtos, utilize o código exato **com o parâmetro `codigo`** na ferramenta `get_products`. '
+            # '**Não use o parâmetro `search` para estes códigos.**\n'
+            # '--------------------------------------------------------------\n\n'
             
             'Lembre-se: Se não encontrar resultados para uma consulta específica (especialmente usando `codigo`), informe ao usuário. '
             'Se a busca por `search` falhar ou retornar erro, explique que tentou buscar por termo geral e sugira alternativas ou peça mais detalhes. Não tente usar `search` com códigos de produto.\n\n'
             
-            'Caso o usuário peça a tabela de preços dos produtos, aqui estão os links:\n'
-            f'{files_text}\n\n'
+            # 'Caso o usuário peça a tabela de preços dos produtos, aqui estão os links:\n'
+            # f'{files_text}\n\n'
         ),
     )
     
