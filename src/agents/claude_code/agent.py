@@ -61,7 +61,7 @@ class ClaudeCodeAgent(AutomagikAgent):
         
         # Configure dependencies for claude-code agent
         self.dependencies = AutomagikAgentsDependencies(
-            model_name="claude-3-5-sonnet-20241022",  # Default model for Claude Code
+            model_name="sonnet",  # Default model for Claude Code
             model_settings={}
         )
         
@@ -79,10 +79,6 @@ class ClaudeCodeAgent(AutomagikAgent):
             "default_workflow": self.config.get("default_workflow", "surgeon"),
             "git_branch": self.config.get("git_branch")  # None by default, will use current branch
         })
-        
-        # Determine execution mode
-        self.execution_mode = os.environ.get("CLAUDE_CODE_MODE", "local").lower()
-        logger.info(f"ClaudeCodeAgent initializing in {self.execution_mode} mode")
         
         # Initialize local executor
         try:
@@ -473,7 +469,10 @@ class ClaudeCodeAgent(AutomagikAgent):
                 max_turns=kwargs.get("max_turns"),
                 git_branch=git_branch,
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
-                repository_url=kwargs.get("repository_url")
+                repository_url=kwargs.get("repository_url"),
+                persistent=kwargs.get("persistent", True),
+                auto_merge=kwargs.get("auto_merge", False),
+                temp_workspace=kwargs.get("temp_workspace", False)
             )
             
             # Set context for execution
@@ -484,6 +483,8 @@ class ClaudeCodeAgent(AutomagikAgent):
             })
             if kwargs.get("repository_url"):
                 self.context["repository_url"] = kwargs["repository_url"]
+            if kwargs.get("user_id"):
+                self.context["user_id"] = kwargs["user_id"]
             
             # Setup log manager
             log_manager = get_log_manager()
@@ -699,7 +700,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 timeout=kwargs.get("timeout", self.config.get("container_timeout")),
                 repository_url=kwargs.get("repository_url"),
                 persistent=kwargs.get("persistent", True),
-                auto_merge=kwargs.get("auto_merge", False)
+                auto_merge=kwargs.get("auto_merge", False),
+                temp_workspace=kwargs.get("temp_workspace", False)
             )
             
             # Update session metadata with run information
@@ -748,7 +750,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                 status="running",
                 user_id=session_obj.user_id if session_obj else None,
                 workspace_persistent=kwargs.get("persistent", True),
-                ai_model="claude-3-5-sonnet-20241022"  # Default model for Claude Code
+                temp_workspace=kwargs.get("temp_workspace", False),
+                ai_model="sonnet"  # Default model for Claude Code
             )
             
             try:
@@ -819,7 +822,8 @@ class ClaudeCodeAgent(AutomagikAgent):
                     "session_id": session_id,
                     "run_id": run_id,  # Ensure run_id is always present for logging
                     "db_id": self.db_id,
-                    "workspace": str(workspace_path) if workspace_path else "."  # Add workspace path
+                    "workspace": str(workspace_path) if workspace_path else ".",  # Add workspace path
+                    "user_id": kwargs.get("user_id")  # Pass user_id for temp workspace creation
                 }
             )
             
