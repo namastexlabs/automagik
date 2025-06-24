@@ -426,3 +426,56 @@ class PostgreSQLProvider(DatabaseProvider):
     ):
         """Async wrapper around execute_batch that runs in a threadpool."""
         return await run_in_threadpool(self.execute_batch, query, params_list, commit)
+    
+    def check_migrations(self, connection) -> Tuple[bool, List[str]]:
+        """Check if all migrations are applied."""
+        from ..migration_manager import MigrationManager
+        
+        try:
+            manager = MigrationManager(connection)
+            migrations_dir = Path("src/db/migrations")
+            
+            if not migrations_dir.exists():
+                return True, []
+            
+            # Get all migration files
+            migration_files = sorted(migrations_dir.glob("*.sql"))
+            pending_migrations = []
+            
+            for migration_file in migration_files:
+                migration_name = migration_file.name
+                # Skip SQLite-specific migrations for PostgreSQL
+                if migration_name == "00000000_000000_create_initial_schema.sql":
+                    continue
+                    
+                if migration_name not in manager.applied_migrations:
+                    pending_migrations.append(migration_name)
+            
+            return len(pending_migrations) == 0, pending_migrations
+            
+        except Exception as e:
+            logger.error(f"Error checking migrations: {e}")
+            return False, []
+    
+    def apply_migrations(self, migrations_dir: str) -> bool:
+        """Apply pending migrations."""
+        from ..migration_manager import MigrationManager
+        
+        try:
+            with self.get_connection() as connection:
+                manager = MigrationManager(connection)
+                migrations_path = Path(migrations_dir)
+                
+                success_count, error_count, error_messages = manager.apply_all_migrations(migrations_path)
+                
+                if error_count > 0:
+                    for error_msg in error_messages:
+                        logger.error(error_msg)
+                    return False
+                
+                logger.info(f"✅ Applied {success_count} migrations successfully")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to apply migrations: {e}")
+            return False
