@@ -114,10 +114,8 @@ class EvolutionMessagePayload(BaseModel):
         if chosen_jid and "@" in chosen_jid:
             user_number = chosen_jid.split("@")[0]
 
-        # Remove Brazil country code if present (keep generic for now)
-        if user_number and user_number.startswith("55") and len(user_number) > 2:
-            user_number = user_number[2:]
-
+        # Keep the full phone number including country code for consistency
+        # This ensures session IDs are consistent across different parts of the system
         return user_number
 
     def get_user_jid(self) -> Optional[str]:
