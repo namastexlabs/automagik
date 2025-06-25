@@ -51,6 +51,10 @@ class ClaudeCodeRunRequest(BaseModel):
         default=False,
         description="Automatically merge to main branch (true=auto-merge, false=manual)"
     )
+    temp_workspace: bool = Field(
+        default=False,
+        description="Use temporary isolated workspace without git integration"
+    )
     
     @validator('message')
     def message_not_empty(cls, v):
@@ -64,6 +68,25 @@ class ClaudeCodeRunRequest(BaseModel):
         """Validate workflow name format."""
         if not v or not v.replace('-', '').replace('_', '').isalnum():
             raise ValueError('Workflow name must be alphanumeric with dashes or underscores')
+        return v
+    
+    @validator('temp_workspace')
+    def validate_temp_workspace_compatibility(cls, v, values):
+        """Validate temp_workspace compatibility with other parameters."""
+        if v:  # If temp_workspace is True
+            incompatible = []
+            if values.get('repository_url'):
+                incompatible.append('repository_url')
+            if values.get('git_branch'):
+                incompatible.append('git_branch')
+            if values.get('auto_merge'):
+                incompatible.append('auto_merge')
+            
+            if incompatible:
+                raise ValueError(
+                    f"temp_workspace cannot be used with: {', '.join(incompatible)}. "
+                    "Temporary workspaces are isolated environments without git integration."
+                )
         return v
     
     model_config = ConfigDict(

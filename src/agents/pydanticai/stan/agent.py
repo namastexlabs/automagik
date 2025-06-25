@@ -65,6 +65,9 @@ class StanAgent(AutomagikAgent):
         # Register default tools (handled automatically by AutomagikAgent)
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Register Stan-specific tools
         self._register_stan_tools()
         
@@ -552,12 +555,11 @@ class StanAgent(AutomagikAgent):
         try:
             from src.db.repository.user import create_user
             from src.db.models import User
-            from src.config import get_settings
+            from src.config import settings
             import uuid
             from datetime import datetime
             
             # Only create test users in development/test environments
-            settings = get_settings()
             if settings.AM_ENV.value not in ["development", "test"]:
                 logger.warning(f"🔍 Not creating test user {user_id} in {settings.AM_ENV.value} environment")
                 return False
@@ -598,3 +600,8 @@ class StanAgent(AutomagikAgent):
         except Exception as e:
             logger.error(f"🔍 Error creating test user {user_id}: {str(e)}")
             return False 
+    
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)

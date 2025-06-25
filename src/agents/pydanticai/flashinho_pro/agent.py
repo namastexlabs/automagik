@@ -2,9 +2,12 @@
 
 This agent combines the authentic Brazilian educational coaching personality of Flashinho
 with advanced multimodal capabilities powered by Google Gemini 2.5 Pro model.
+Includes mathematical problem detection and solving via flashinho_thinker workflow.
 """
 import logging
-from typing import Dict, Optional
+import time
+from datetime import datetime
+from typing import Dict, Optional, Tuple
 
 from src.agents.models.automagik_agent import AutomagikAgent
 from src.agents.models.response import AgentResponse
@@ -18,6 +21,24 @@ from src.tools.flashed.provider import FlashedProvider
 from .prompts.prompt import AGENT_PROMPT, AGENT_FREE
 from .memory_manager import update_flashinho_pro_memories, initialize_flashinho_pro_memories
 from .user_identification import FlashinhoProUserMatcher
+# from .models import ImageAnalysis, WorkflowStatus, StepBreakdown
+# from .workflow_monitor import track_workflow, update_workflow_status, log_workflow_summary
+
+# Import shared utilities from tools/flashed
+from src.tools.flashed.auth_utils import (
+    UserStatusChecker, preserve_authentication_state, restore_authentication_state
+)
+from src.tools.flashed.user_identification import (
+    identify_user_comprehensive, UserIdentificationResult,
+    ensure_user_uuid_matches_flashed_id, make_session_persistent
+)
+from src.tools.flashed.workflow_runner import run_flashinho_thinker_workflow, analyze_math_image, analyze_student_problem
+from src.tools.flashed.message_generator import (
+    generate_math_processing_message, generate_pro_feature_message,
+    generate_error_message
+)
+from src.tools.evolution.api import send_text_message
+from src.utils.multimodal import detect_content_type, is_image_type
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +82,9 @@ class FlashinhoPro(AutomagikAgent):
         # Register Flashed API tools for educational context
         self._register_flashed_tools()
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Flag to track if we've checked user status
         self._user_status_checked = False
         # Default to non-pro until verified
@@ -69,7 +93,10 @@ class FlashinhoPro(AutomagikAgent):
         # Initialize provider
         self.flashed_provider = FlashedProvider()
         
-        logger.info("Flashinho Pro initialized with dynamic model selection based on user status")
+        # Initialize user status checker for shared authentication
+        self.user_status_checker = UserStatusChecker()
+        
+        logger.info("Flashinho Pro initialized with dynamic model selection, math detection, and workflow integration")
     
     def _register_flashed_tools(self) -> None:
         """Register all Flashed API tools for educational gaming functionality."""
@@ -114,11 +141,14 @@ class FlashinhoPro(AutomagikAgent):
         """
         # Skip if we've already checked this session
         if self._user_status_checked:
+            logger.debug(f"User status already checked this session, Pro status: {self._is_pro_user}")
             return
             
+        logger.debug(f"Checking Pro status for user: {user_id}")
         # Check user Pro status
         self._is_pro_user = await self._check_user_pro_status(user_id)
         self._user_status_checked = True
+        logger.debug(f"Pro status check complete: {self._is_pro_user}")
         
         # Update model and prompt based on status
         if self._is_pro_user:
@@ -234,6 +264,383 @@ class FlashinhoPro(AutomagikAgent):
             logger.error(f"Error ensuring user memories ready: {str(e)}")
             # Continue with default memories - the framework will handle missing variables
     
+    async def _detect_student_problem_in_image(self, multimodal_content, user_message: str = "") -> Tuple[bool, str]:
+        """Detect if image contains any student problem based on context clues.
+        
+        Args:
+            multimodal_content: Multimodal content dictionary
+            user_message: User's message for context
+            
+        Returns:
+            Tuple of (is_student_problem_detected, subject_context)
+        """
+        if not multimodal_content:
+            logger.debug("No multimodal content provided")
+            return False, ""
+            
+        try:
+            logger.debug(f"Multimodal content structure: {list(multimodal_content.keys())}")
+            
+            # Check if we have image content
+            image_data = multimodal_content.get("image_data") or multimodal_content.get("image_url")
+            
+            # Also check for 'images' key which might contain a list
+            if not image_data and "images" in multimodal_content:
+                images = multimodal_content.get("images", [])
+                logger.debug(f"Found {len(images)} images in multimodal content")
+                if images:
+                    # Handle the structure where images is a list of dicts
+                    if isinstance(images, list) and len(images) > 0:
+                        first_image = images[0]
+                        if isinstance(first_image, dict):
+                            # Extract image data from dict structure
+                            image_data = first_image.get("data") or first_image.get("url") or first_image.get("media_url")
+                            logger.debug(f"Extracted image data from dict: {type(image_data).__name__}")
+                        else:
+                            image_data = first_image
+                    else:
+                        image_data = images
+            
+            if not image_data:
+                logger.debug("No image data found in multimodal content")
+                return False, ""
+            
+            logger.debug("Analyzing user message for educational context")
+            
+            # Detect educational context from user message
+            educational_keywords = {
+                "matemática": ["equação", "resolver", "matemática", "cálculo", "álgebra", "geometria"],
+                "física": ["física", "cinemática", "força", "energia", "movimento"],
+                "química": ["química", "reação", "elemento", "molécula", "átomo"],
+                "biologia": ["biologia", "célula", "DNA", "fotossíntese", "evolução"],
+                "história": ["história", "guerra", "império", "revolução", "século"],
+                "geografia": ["geografia", "mapa", "país", "clima", "relevo"],
+                "português": ["português", "texto", "gramática", "literatura"],
+                "inglês": ["inglês", "english", "tradução", "vocabulário"],
+                "educacional": ["exercício", "questão", "problema", "dúvida", "estudar", "prova", "vestibular"]
+            }
+            
+            detected_subject = "geral"
+            user_text = user_message.lower()
+            
+            # Check for subject-specific keywords
+            for subject, keywords in educational_keywords.items():
+                if any(keyword in user_text for keyword in keywords):
+                    detected_subject = subject
+                    logger.debug(f"Detected educational subject: {subject}")
+                    break
+            
+            # If we have an image and any educational context, consider it a student problem
+            is_educational = detected_subject != "geral" or any(
+                keyword in user_text for keywords in educational_keywords.values() for keyword in keywords
+            )
+            
+            if is_educational:
+                context = f"educational content detected: {detected_subject} problem"
+                logger.info(f"Student problem detected: {context}")
+                return True, context
+            else:
+                logger.debug("No educational context detected")
+                return False, ""
+            
+        except Exception as e:
+            logger.error(f"Error detecting student problem in image: {str(e)}")
+            return False, ""
+    
+    async def _send_processing_message(self, phone: str, user_name: str, problem_context: str, user_message: str = ""):
+        """Send customized processing message via Evolution.
+        
+        Args:
+            phone: User's phone number
+            user_name: User's name
+            problem_context: Context about the student problem
+            user_message: Original user message for context
+        """
+        try:
+            # Generate personalized message using LLM
+            message = await generate_math_processing_message(
+                user_name=user_name,
+                math_context=problem_context,
+                user_message=user_message
+            )
+            
+            # Get Evolution instance from context
+            instance = (
+                self.context.get("evolution_instance") or 
+                self.context.get("whatsapp_instance") or
+                self.context.get("instanceId")
+            )
+            
+            if not instance:
+                logger.warning("No Evolution instance in context, cannot send message")
+                return
+                
+            # Send message using Evolution API directly
+            success, msg_id = await send_text_message(
+                instance_name=instance,
+                number=phone,
+                text=message
+            )
+            
+            if success:
+                logger.info(f"Sent processing message to {phone}: {message[:50]}...")
+            else:
+                logger.error(f"Failed to send processing message: {msg_id}")
+                
+        except Exception as e:
+            logger.error(f"Error sending processing message: {str(e)}")
+    
+    async def _handle_student_problem_flow(self, multimodal_content, user_id: str, phone: str, problem_context: str, user_message: str = "") -> str:
+        """Handle the complete student problem solving flow with 3-step breakdown.
+        
+        Args:
+            multimodal_content: Multimodal content with image
+            user_id: User ID
+            phone: User's phone number
+            problem_context: Context about the student problem
+            user_message: Original user message
+            
+        Returns:
+            Result text from workflow execution with 3-step breakdown
+        """
+        try:
+            logger.debug(f"Starting student problem flow for user {user_id} with phone {phone}")
+            
+            # Send processing message to user
+            user_name = self.context.get("flashed_user_name", "")
+            logger.debug(f"Sending processing message to {user_name}")
+            await self._send_processing_message(phone, user_name, problem_context, user_message)
+            
+            # Extract image data
+            logger.debug(f"Extracting image data from multimodal content: {list(multimodal_content.keys())}")
+            image_data = multimodal_content.get("image_data") or multimodal_content.get("image_url")
+            
+            # Also check for 'images' key which might contain a list
+            if not image_data and "images" in multimodal_content:
+                images = multimodal_content.get("images", [])
+                logger.debug(f"Found {len(images)} images in multimodal content for workflow")
+                if images and isinstance(images, list) and len(images) > 0:
+                    first_image = images[0]
+                    if isinstance(first_image, dict):
+                        # Extract image data from dict structure
+                        image_data = first_image.get("data") or first_image.get("url") or first_image.get("media_url")
+                        logger.debug(f"Extracted image data from dict for workflow: {type(image_data).__name__}")
+                    else:
+                        image_data = first_image
+            
+            if not image_data:
+                logger.error(f"No image data found in multimodal content: {multimodal_content}")
+                return "Desculpa, não consegui acessar a imagem. Pode tentar enviar novamente?"
+            
+            # Start workflow monitoring
+            workflow_id = f"flashinho_{int(time.time())}_{str(user_id)[:8]}"
+            
+            # Start workflow with simple monitoring
+            logger.info(f"Starting student problem workflow {workflow_id} for user {user_id}")
+            
+            try:
+                # Use the analyze_student_problem convenience function
+                result_text = await analyze_student_problem(image_data, user_message)
+                
+                duration = time.time() - float(workflow_id.split('_')[1])
+                logger.info(f"Student problem workflow {workflow_id} completed in {duration:.2f}s")
+                
+                # Add workflow tracking info to result
+                result_text += f"\n\n<!-- workflow:{workflow_id} -->"
+                
+                return result_text
+                
+            except Exception as e:
+                duration = time.time() - float(workflow_id.split('_')[1])
+                logger.error(f"Student problem workflow {workflow_id} failed after {duration:.2f}s: {str(e)}")
+                raise
+            
+        except Exception as e:
+            logger.error(f"Error in math problem flow: {str(e)}")
+            
+            # Generate error message using LLM
+            error_msg = await generate_error_message(
+                user_name=self.context.get("flashed_user_name"),
+                error_context="falha ao processar o problema",
+                suggestion="tentar enviar a imagem novamente com mais clareza"
+            )
+            
+            return error_msg
+    
+    async def _identify_user_with_conversation_code(self, input_text: str, message_history_obj: Optional[MessageHistory]) -> UserIdentificationResult:
+        """Identify user using shared authentication utilities with state restoration.
+        
+        Args:
+            input_text: User's message text
+            message_history_obj: Message history object
+            
+        Returns:
+            UserIdentificationResult with identification details
+        """
+        try:
+            # First, try to restore authentication state from cache
+            phone_number = (
+                self.context.get("whatsapp_user_number") or 
+                self.context.get("user_phone_number")
+            )
+            session_id = self.context.get("session_id")
+            
+            if phone_number:
+                cached_auth = await restore_authentication_state(phone_number, session_id)
+                if cached_auth:
+                    # Restore context from cached authentication
+                    self.context.update({
+                        "flashed_user_id": cached_auth.get("flashed_user_id"),
+                        "flashed_conversation_code": cached_auth.get("flashed_conversation_code"),
+                        "user_id": cached_auth.get("flashed_user_id"),  # Use flashed_user_id as user_id
+                        "user_identification_method": "cached_authentication"
+                    })
+                    
+                    # Also restore additional user data if available
+                    if cached_auth.get("user_data"):
+                        user_data = cached_auth["user_data"]
+                        if user_data.get("user", {}).get("name"):
+                            self.context["flashed_user_name"] = user_data["user"]["name"]
+                        if user_data.get("user", {}).get("phone"):
+                            self.context["user_phone_number"] = user_data["user"]["phone"]
+                        if user_data.get("user", {}).get("email"):
+                            self.context["user_email"] = user_data["user"]["email"]
+                    
+                    logger.info(f"Restored authentication state for {phone_number} - no conversation code needed")
+                    return UserIdentificationResult(
+                        user_id=cached_auth.get("flashed_user_id"),
+                        method="cached_authentication",
+                        requires_conversation_code=False
+                    )
+            
+            # If no cached authentication, proceed with normal identification
+            identification_result = await identify_user_comprehensive(
+                context=self.context,
+                channel_payload=getattr(self, 'current_channel_payload', None),
+                message_history_obj=message_history_obj,
+                current_message=input_text
+            )
+            
+            # Handle conversation code flow if needed
+            if identification_result.requires_conversation_code:
+                # Try to extract and process conversation code from current message
+                conversation_code_processed = await self._try_extract_and_process_conversation_code(
+                    input_text, identification_result.user_id, message_history_obj
+                )
+                
+                if conversation_code_processed:
+                    identification_result.requires_conversation_code = False
+                    identification_result.user_id = self.context.get("user_id")
+            
+            return identification_result
+            
+        except Exception as e:
+            logger.error(f"Error in user identification: {str(e)}")
+            return UserIdentificationResult(
+                user_id=None,
+                method=None,
+                requires_conversation_code=True
+            )
+    
+    async def _try_extract_and_process_conversation_code(self, message: str, user_id: Optional[str], message_history_obj: Optional[MessageHistory]) -> bool:
+        """Try to extract and process conversation code from message.
+        
+        Args:
+            message: User's message
+            user_id: Current user ID
+            message_history_obj: Message history object
+            
+        Returns:
+            True if conversation code was processed successfully
+        """
+        try:
+            # Extract conversation code using shared utility
+            conversation_code = self.user_status_checker.extract_conversation_code_from_message(message)
+            
+            if not conversation_code:
+                return False
+            
+            logger.info(f"Found conversation code in message: {conversation_code}")
+            
+            # Get user data by conversation code
+            user_result = await self.user_status_checker.get_user_by_conversation_code(conversation_code)
+            
+            if not user_result["success"]:
+                logger.error(f"Failed to get user by conversation code: {user_result.get('error')}")
+                return False
+            
+            # Extract user information from Flashed API response
+            flashed_user_data = user_result["user_data"]
+            user_info = flashed_user_data.get("user", {})
+            flashed_user_id = user_info.get("id")
+            name = user_info.get("name")
+            phone = user_info.get("phone")
+            email = user_info.get("email")
+            
+            if not flashed_user_id:
+                logger.error("No user ID found in Flashed API response")
+                return False
+            
+            # Get phone number from context or API response
+            api_phone_number = (
+                self.context.get("whatsapp_user_number") or 
+                self.context.get("user_phone_number") or
+                phone
+            )
+            
+            if not api_phone_number:
+                logger.error("No phone number available")
+                return False
+            
+            # Prepare Flashed user data
+            flashed_user_data_dict = {
+                "name": name,
+                "phone": phone,
+                "email": email,
+                "conversation_code": conversation_code
+            }
+            
+            # Ensure user UUID matches Flashed user_id
+            final_user_id = await ensure_user_uuid_matches_flashed_id(
+                phone_number=api_phone_number,
+                flashed_user_id=flashed_user_id,
+                flashed_user_data=flashed_user_data_dict
+            )
+            
+            # Update context with synchronized user information
+            self.context.update({
+                "user_id": final_user_id,
+                "flashed_user_id": flashed_user_id,
+                "flashed_conversation_code": conversation_code,
+                "flashed_user_name": name,
+                "user_identification_method": "conversation_code"
+            })
+            
+            # Make session persistent with force update for user conversion
+            if message_history_obj:
+                await make_session_persistent(self, message_history_obj, final_user_id, force_user_update=True)
+            
+            # Preserve authentication state to prevent re-authentication
+            session_id = self.context.get("session_id")
+            await preserve_authentication_state(
+                phone_number=api_phone_number,
+                flashed_user_id=flashed_user_id,
+                conversation_code=conversation_code,
+                user_data=flashed_user_data,
+                session_id=session_id,
+                context={
+                    "final_user_id": final_user_id,
+                    "context_preserved_at": message[:50] + "..." if message else ""
+                }
+            )
+            
+            logger.info(f"Successfully processed conversation code for user: {final_user_id} (authentication preserved)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error processing conversation code: {str(e)}")
+            return False
+    
     async def run(
         self, 
         input_text: str, 
@@ -244,30 +651,99 @@ class FlashinhoPro(AutomagikAgent):
         channel_payload: Optional[dict] = None,
         message_limit: Optional[int] = 20
     ) -> AgentResponse:
-        """Enhanced run method with user identification and memory-based personalization."""
+        """Enhanced run method with conversation code auth, math detection, and workflow integration."""
         
         try:
-            # First check for prettyId in the message and update context if found
-            prettyid_user_id = await self._check_for_prettyid_identification(input_text)
+            # Store channel payload for later use
+            self.current_channel_payload = channel_payload
             
-            # Extract user information from context (populated by Evolution handler or prettyId detection)
-            user_id = (
-                prettyid_user_id or 
-                self.context.get("user_id") or 
-                self.context.get("flashed_user_id")
-            )
+            # 1. Handle user identification with conversation code
+            identification_result = await self._identify_user_with_conversation_code(input_text, message_history_obj)
+            
+            if identification_result.requires_conversation_code:
+                # User needs to provide conversation code
+                request_message = self.user_status_checker.generate_conversation_code_request_message()
+                return AgentResponse(
+                    text=request_message,
+                    success=True,
+                    usage={
+                        "model": self.free_model,
+                        "request_tokens": 0,
+                        "response_tokens": 0,
+                        "total_tokens": 0
+                    }
+                )
+            
+            # 2. Check Pro status and update model/prompt
+            user_id = identification_result.user_id
+            logger.debug(f"User ID after identification: {user_id}")
+            if user_id:
+                await self._update_model_and_prompt_based_on_status(user_id)
+                await self._ensure_user_memories_ready(user_id)
+            
+            logger.debug(f"Pro user status: {self._is_pro_user}")
+            logger.debug(f"Multimodal content present: {bool(multimodal_content)}")
+            
+            # 3. Check for student problem in image (Pro users only)
+            if self._is_pro_user and multimodal_content:
+                logger.debug("Pro user with multimodal content - checking for student problems")
+                is_student_problem, problem_context = await self._detect_student_problem_in_image(multimodal_content, input_text)
+                logger.debug(f"Student problem detection result: is_problem={is_student_problem}, context={problem_context}")
+                
+                if is_student_problem:
+                    phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+                    logger.debug(f"Student problem detected, phone number: {phone}")
+                    
+                    if phone:
+                        # Handle student problem flow with workflow
+                        result_text = await self._handle_student_problem_flow(
+                            multimodal_content, user_id, phone, problem_context, input_text
+                        )
+                        
+                        # Add workflow indicator to the result text
+                        workflow_result = result_text
+                        if "[Resposta simulada" in result_text:
+                            # Mark that this used the workflow (even if mock)
+                            workflow_result += "\n\n<!-- workflow:flashinho_thinker -->"
+                        
+                        return AgentResponse(
+                            text=workflow_result,
+                            success=True,
+                            usage={
+                                "model": self.pro_model,
+                                "request_tokens": 0,  # Will be filled by workflow
+                                "response_tokens": 0,
+                                "total_tokens": 0
+                            }
+                        )
+                    else:
+                        logger.error("No phone number available for Evolution message")
+            
+            elif multimodal_content and not self._is_pro_user:
+                # Non-Pro user trying to use educational image analysis
+                pro_message = await generate_pro_feature_message(
+                    user_name=self.context.get("flashed_user_name"),
+                    feature_name="análise de imagens educacionais com explicação em 3 passos"
+                )
+                
+                return AgentResponse(
+                    text=pro_message,
+                    success=True,
+                    metadata={"feature_restricted": True, "user_type": "free"},
+                    usage={
+                        "model": self.free_model,
+                        "request_tokens": 0,
+                        "response_tokens": 0,
+                        "total_tokens": 0
+                    }
+                )
+            
+            # 4. Regular chat flow
             whatsapp_phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
             whatsapp_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
-            
-            # Log identification method for debugging
             identification_method = self.context.get("user_identification_method", "context")
-            logger.info(f"Flashinho Pro processing message from {whatsapp_name} ({whatsapp_phone}) - User ID: {user_id} via {identification_method}")
             
-            # Check user Pro status and update model/prompt accordingly
-            await self._update_model_and_prompt_based_on_status(user_id)
-            
-            # Ensure user memories are ready
-            await self._ensure_user_memories_ready(user_id)
+            logger.info(f"Flashinho Pro regular chat from {whatsapp_name} ({whatsapp_phone}) - User ID: {user_id} via {identification_method}")
             
             # Use the enhanced framework to handle execution
             return await self._run_agent(
@@ -281,15 +757,30 @@ class FlashinhoPro(AutomagikAgent):
             
         except Exception as e:
             logger.error(f"Error in Flashinho Pro run method: {str(e)}")
-            # Fallback to basic execution - framework will still handle memory substitution
-            return await self._run_agent(
-                input_text=input_text,
-                system_prompt=system_message,
-                message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit) if message_history_obj else [],
-                multimodal_content=multimodal_content,
-                channel_payload=channel_payload,
-                message_limit=message_limit
+            
+            # Generate error response
+            error_msg = await generate_error_message(
+                user_name=self.context.get("flashed_user_name"),
+                error_context="erro geral no processamento",
+                suggestion="tentar novamente"
             )
+            
+            return AgentResponse(
+                text=error_msg,
+                success=False,
+                error_message=str(e),
+                usage={
+                    "model": self.free_model,
+                    "request_tokens": 0,
+                    "response_tokens": 0,
+                    "total_tokens": 0
+                }
+            )
+    
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoPro:
