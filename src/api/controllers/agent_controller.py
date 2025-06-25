@@ -301,6 +301,52 @@ async def get_or_create_user(
     return user.id if user else None
 
 
+def _sanitize_payload_for_logging(request: AgentRunRequest) -> Dict[str, Any]:
+    """Sanitize request payload for logging by truncating base64 content."""
+    import json
+    import copy
+    
+    try:
+        # Create a deep copy to avoid modifying the original request
+        sanitized = copy.deepcopy(request.dict())
+        
+        # Truncate base64 content in media_contents
+        if sanitized.get("media_contents"):
+            for media in sanitized["media_contents"]:
+                if hasattr(media, "data") and isinstance(media.get("data"), str):
+                    data = media["data"]
+                    # Check if it's base64 data (long string or data URL)
+                    if len(data) > 100 and ("base64" in data or len(data) > 200):
+                        media["data"] = data[:50] + "...[TRUNCATED " + str(len(data)-100) + " chars]..." + data[-50:]
+                elif isinstance(media, dict) and "data" in media:
+                    data = media["data"]
+                    if isinstance(data, str) and len(data) > 100 and ("base64" in data or len(data) > 200):
+                        media["data"] = data[:50] + "...[TRUNCATED " + str(len(data)-100) + " chars]..." + data[-50:]
+        
+        # Truncate base64 content in channel_payload
+        if sanitized.get("channel_payload") and isinstance(sanitized["channel_payload"], dict):
+            payload = sanitized["channel_payload"]
+            # Check for WhatsApp base64 content
+            if "data" in payload and "message" in payload and "imageMessage" in payload["message"]:
+                image_msg = payload["message"]["imageMessage"]
+                if "base64" in image_msg and isinstance(image_msg["base64"], str):
+                    base64_data = image_msg["base64"]
+                    if len(base64_data) > 100:
+                        image_msg["base64"] = base64_data[:50] + "...[TRUNCATED " + str(len(base64_data)-100) + " chars]..." + base64_data[-50:]
+        
+        return sanitized
+        
+    except Exception as e:
+        # If sanitization fails, just return a basic representation
+        logger.warning(f"Failed to sanitize payload for logging: {e}")
+        return {
+            "message_content": getattr(request, "message_content", ""),
+            "message_type": getattr(request, "message_type", ""),
+            "agent_name": getattr(request, "agent_name", ""),
+            "error": "Failed to sanitize payload"
+        }
+
+
 async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[str, Any]:
     """
     Run an agent with the specified parameters
@@ -337,7 +383,9 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 
             return response_data
 
-        logger.info(f"Request payload: {request}")
+        # Create sanitized payload for logging (truncate base64 data)
+        sanitized_request = _sanitize_payload_for_logging(request)
+        logger.info(f"Request payload: {sanitized_request}")
 
         # Continue with regular agent execution for non-orchestrated agents
         logger.info(f"Using regular execution for agent: {agent_name}")
