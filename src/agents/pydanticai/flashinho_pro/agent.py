@@ -6,6 +6,7 @@ Includes mathematical problem detection and solving via flashinho_thinker workfl
 """
 import logging
 import time
+from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 from src.agents.models.automagik_agent import AutomagikAgent
@@ -20,6 +21,8 @@ from src.tools.flashed.provider import FlashedProvider
 from .prompts.prompt import AGENT_PROMPT, AGENT_FREE
 from .memory_manager import update_flashinho_pro_memories, initialize_flashinho_pro_memories
 from .user_identification import FlashinhoProUserMatcher
+# from .models import ImageAnalysis, WorkflowStatus, StepBreakdown
+# from .workflow_monitor import track_workflow, update_workflow_status, log_workflow_summary
 
 # Import shared utilities from tools/flashed
 from src.tools.flashed.auth_utils import (
@@ -29,7 +32,7 @@ from src.tools.flashed.user_identification import (
     identify_user_comprehensive, UserIdentificationResult,
     ensure_user_uuid_matches_flashed_id, make_session_persistent
 )
-from src.tools.flashed.workflow_runner import run_flashinho_thinker_workflow, analyze_math_image
+from src.tools.flashed.workflow_runner import run_flashinho_thinker_workflow, analyze_math_image, analyze_student_problem
 from src.tools.flashed.message_generator import (
     generate_math_processing_message, generate_pro_feature_message,
     generate_error_message
@@ -138,11 +141,14 @@ class FlashinhoPro(AutomagikAgent):
         """
         # Skip if we've already checked this session
         if self._user_status_checked:
+            logger.debug(f"User status already checked this session, Pro status: {self._is_pro_user}")
             return
             
+        logger.debug(f"Checking Pro status for user: {user_id}")
         # Check user Pro status
         self._is_pro_user = await self._check_user_pro_status(user_id)
         self._user_status_checked = True
+        logger.debug(f"Pro status check complete: {self._is_pro_user}")
         
         # Update model and prompt based on status
         if self._is_pro_user:
@@ -258,52 +264,103 @@ class FlashinhoPro(AutomagikAgent):
             logger.error(f"Error ensuring user memories ready: {str(e)}")
             # Continue with default memories - the framework will handle missing variables
     
-    async def _detect_math_in_image(self, multimodal_content) -> Tuple[bool, str]:
-        """Detect if image contains math problem and extract context.
+    async def _detect_student_problem_in_image(self, multimodal_content, user_message: str = "") -> Tuple[bool, str]:
+        """Detect if image contains any student problem based on context clues.
         
         Args:
             multimodal_content: Multimodal content dictionary
+            user_message: User's message for context
             
         Returns:
-            Tuple of (is_math_detected, math_context_description)
+            Tuple of (is_student_problem_detected, subject_context)
         """
         if not multimodal_content:
+            logger.debug("No multimodal content provided")
             return False, ""
             
         try:
+            logger.debug(f"Multimodal content structure: {list(multimodal_content.keys())}")
+            
             # Check if we have image content
             image_data = multimodal_content.get("image_data") or multimodal_content.get("image_url")
+            
+            # Also check for 'images' key which might contain a list
+            if not image_data and "images" in multimodal_content:
+                images = multimodal_content.get("images", [])
+                logger.debug(f"Found {len(images)} images in multimodal content")
+                if images:
+                    # Handle the structure where images is a list of dicts
+                    if isinstance(images, list) and len(images) > 0:
+                        first_image = images[0]
+                        if isinstance(first_image, dict):
+                            # Extract image data from dict structure
+                            image_data = first_image.get("data") or first_image.get("url") or first_image.get("media_url")
+                            logger.debug(f"Extracted image data from dict: {type(image_data).__name__}")
+                        else:
+                            image_data = first_image
+                    else:
+                        image_data = images
+            
             if not image_data:
+                logger.debug("No image data found in multimodal content")
                 return False, ""
             
-            # Use multimodal analysis to detect math content
-            # For now, we'll use a simple heuristic based on the message content
-            # and assume images with math-related keywords are math problems
+            logger.debug("Analyzing user message for educational context")
             
-            # TODO: Implement proper image analysis using multimodal tools
-            # This is a placeholder that could be enhanced with actual image analysis
+            # Detect educational context from user message
+            educational_keywords = {
+                "matemática": ["equação", "resolver", "matemática", "cálculo", "álgebra", "geometria"],
+                "física": ["física", "cinemática", "força", "energia", "movimento"],
+                "química": ["química", "reação", "elemento", "molécula", "átomo"],
+                "biologia": ["biologia", "célula", "DNA", "fotossíntese", "evolução"],
+                "história": ["história", "guerra", "império", "revolução", "século"],
+                "geografia": ["geografia", "mapa", "país", "clima", "relevo"],
+                "português": ["português", "texto", "gramática", "literatura"],
+                "inglês": ["inglês", "english", "tradução", "vocabulário"],
+                "educacional": ["exercício", "questão", "problema", "dúvida", "estudar", "prova", "vestibular"]
+            }
             
-            # For now, treat all images as potentially mathematical if sent to Pro
-            return True, "mathematical content detected in image"
+            detected_subject = "geral"
+            user_text = user_message.lower()
+            
+            # Check for subject-specific keywords
+            for subject, keywords in educational_keywords.items():
+                if any(keyword in user_text for keyword in keywords):
+                    detected_subject = subject
+                    logger.debug(f"Detected educational subject: {subject}")
+                    break
+            
+            # If we have an image and any educational context, consider it a student problem
+            is_educational = detected_subject != "geral" or any(
+                keyword in user_text for keywords in educational_keywords.values() for keyword in keywords
+            )
+            
+            if is_educational:
+                context = f"educational content detected: {detected_subject} problem"
+                logger.info(f"Student problem detected: {context}")
+                return True, context
+            else:
+                logger.debug("No educational context detected")
+                return False, ""
             
         except Exception as e:
-            logger.error(f"Error detecting math in image: {str(e)}")
+            logger.error(f"Error detecting student problem in image: {str(e)}")
             return False, ""
     
-    async def _send_processing_message(self, phone: str, user_name: str, math_context: str, user_message: str = ""):
+    async def _send_processing_message(self, phone: str, user_name: str, problem_context: str, user_message: str = ""):
         """Send customized processing message via Evolution.
         
         Args:
             phone: User's phone number
             user_name: User's name
-            math_context: Context about the math problem
+            problem_context: Context about the student problem
             user_message: Original user message for context
         """
         try:
             # Generate personalized message using LLM
             message = await generate_math_processing_message(
                 user_name=user_name,
-                math_context=math_context,
+                math_context=problem_context,
                 user_message=user_message
             )
             
@@ -333,35 +390,70 @@ class FlashinhoPro(AutomagikAgent):
         except Exception as e:
             logger.error(f"Error sending processing message: {str(e)}")
     
-    async def _handle_math_problem_flow(self, multimodal_content, user_id: str, phone: str, math_context: str, user_message: str = "") -> str:
-        """Handle the complete math problem solving flow.
+    async def _handle_student_problem_flow(self, multimodal_content, user_id: str, phone: str, problem_context: str, user_message: str = "") -> str:
+        """Handle the complete student problem solving flow with 3-step breakdown.
         
         Args:
             multimodal_content: Multimodal content with image
             user_id: User ID
             phone: User's phone number
-            math_context: Context about the math problem
+            problem_context: Context about the student problem
             user_message: Original user message
             
         Returns:
-            Result text from workflow execution
+            Result text from workflow execution with 3-step breakdown
         """
         try:
+            logger.debug(f"Starting student problem flow for user {user_id} with phone {phone}")
+            
             # Send processing message to user
             user_name = self.context.get("flashed_user_name", "")
-            await self._send_processing_message(phone, user_name, math_context, user_message)
+            logger.debug(f"Sending processing message to {user_name}")
+            await self._send_processing_message(phone, user_name, problem_context, user_message)
             
             # Extract image data
+            logger.debug(f"Extracting image data from multimodal content: {list(multimodal_content.keys())}")
             image_data = multimodal_content.get("image_data") or multimodal_content.get("image_url")
             
+            # Also check for 'images' key which might contain a list
+            if not image_data and "images" in multimodal_content:
+                images = multimodal_content.get("images", [])
+                logger.debug(f"Found {len(images)} images in multimodal content for workflow")
+                if images and isinstance(images, list) and len(images) > 0:
+                    first_image = images[0]
+                    if isinstance(first_image, dict):
+                        # Extract image data from dict structure
+                        image_data = first_image.get("data") or first_image.get("url") or first_image.get("media_url")
+                        logger.debug(f"Extracted image data from dict for workflow: {type(image_data).__name__}")
+                    else:
+                        image_data = first_image
+            
             if not image_data:
+                logger.error(f"No image data found in multimodal content: {multimodal_content}")
                 return "Desculpa, não consegui acessar a imagem. Pode tentar enviar novamente?"
             
-            # Use the analyze_math_image convenience function from workflow_runner
-            result_text = await analyze_math_image(image_data)
+            # Start workflow monitoring
+            workflow_id = f"flashinho_{int(time.time())}_{str(user_id)[:8]}"
             
-            logger.info(f"Math problem workflow completed for user {user_id}")
-            return result_text
+            # Start workflow with simple monitoring
+            logger.info(f"Starting student problem workflow {workflow_id} for user {user_id}")
+            
+            try:
+                # Use the analyze_student_problem convenience function
+                result_text = await analyze_student_problem(image_data, user_message)
+                
+                duration = time.time() - float(workflow_id.split('_')[1])
+                logger.info(f"Student problem workflow {workflow_id} completed in {duration:.2f}s")
+                
+                # Add workflow tracking info to result
+                result_text += f"\n\n<!-- workflow:{workflow_id} -->"
+                
+                return result_text
+                
+            except Exception as e:
+                duration = time.time() - float(workflow_id.split('_')[1])
+                logger.error(f"Student problem workflow {workflow_id} failed after {duration:.2f}s: {str(e)}")
+                raise
             
         except Exception as e:
             logger.error(f"Error in math problem flow: {str(e)}")
@@ -369,8 +461,8 @@ class FlashinhoPro(AutomagikAgent):
             # Generate error message using LLM
             error_msg = await generate_error_message(
                 user_name=self.context.get("flashed_user_name"),
-                error_context="falha ao processar problema matemático",
-                suggestion="tentar enviar a imagem novamente"
+                error_context="falha ao processar o problema",
+                suggestion="tentar enviar a imagem novamente com mais clareza"
             )
             
             return error_msg
@@ -584,31 +676,39 @@ class FlashinhoPro(AutomagikAgent):
             
             # 2. Check Pro status and update model/prompt
             user_id = identification_result.user_id
+            logger.debug(f"User ID after identification: {user_id}")
             if user_id:
                 await self._update_model_and_prompt_based_on_status(user_id)
                 await self._ensure_user_memories_ready(user_id)
             
-            # 3. Check for math problem in image (Pro users only)
+            logger.debug(f"Pro user status: {self._is_pro_user}")
+            logger.debug(f"Multimodal content present: {bool(multimodal_content)}")
+            
+            # 3. Check for student problem in image (Pro users only)
             if self._is_pro_user and multimodal_content:
-                is_math, math_context = await self._detect_math_in_image(multimodal_content)
+                logger.debug("Pro user with multimodal content - checking for student problems")
+                is_student_problem, problem_context = await self._detect_student_problem_in_image(multimodal_content, input_text)
+                logger.debug(f"Student problem detection result: is_problem={is_student_problem}, context={problem_context}")
                 
-                if is_math:
+                if is_student_problem:
                     phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+                    logger.debug(f"Student problem detected, phone number: {phone}")
                     
                     if phone:
-                        # Handle math problem flow with workflow
-                        result_text = await self._handle_math_problem_flow(
-                            multimodal_content, user_id, phone, math_context, input_text
+                        # Handle student problem flow with workflow
+                        result_text = await self._handle_student_problem_flow(
+                            multimodal_content, user_id, phone, problem_context, input_text
                         )
                         
+                        # Add workflow indicator to the result text
+                        workflow_result = result_text
+                        if "[Resposta simulada" in result_text:
+                            # Mark that this used the workflow (even if mock)
+                            workflow_result += "\n\n<!-- workflow:flashinho_thinker -->"
+                        
                         return AgentResponse(
-                            text=result_text,
+                            text=workflow_result,
                             success=True,
-                            metadata={
-                                "workflow": "flashinho_thinker", 
-                                "math_detected": True,
-                                "user_type": "pro"
-                            },
                             usage={
                                 "model": self.pro_model,
                                 "request_tokens": 0,  # Will be filled by workflow
@@ -620,10 +720,10 @@ class FlashinhoPro(AutomagikAgent):
                         logger.error("No phone number available for Evolution message")
             
             elif multimodal_content and not self._is_pro_user:
-                # Non-Pro user trying to use math solving
+                # Non-Pro user trying to use educational image analysis
                 pro_message = await generate_pro_feature_message(
                     user_name=self.context.get("flashed_user_name"),
-                    feature_name="análise de imagens matemáticas"
+                    feature_name="análise de imagens educacionais com explicação em 3 passos"
                 )
                 
                 return AgentResponse(
