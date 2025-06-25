@@ -631,52 +631,43 @@ async def list_agents():
     return await list_registered_agents()
 
 @agent_router.post("/agent/{agent_name}/run", response_model=Dict[str, Any], tags=["Agents"],
-            summary="Run Agent with Optional LangGraph Orchestration",
-            description="Execute an agent with the specified name. Supports both simple agent execution and LangGraph orchestration for collaborative multi-agent workflows.")
+            summary="Run Agent",
+            description="Execute an agent with the specified name. Supports agent execution with configurable parameters and session management.")
 async def run_agent(
     agent_name: str,
-    agent_request: AgentRunRequest = Body(..., description="Agent request parameters with optional orchestration settings")
+    agent_request: AgentRunRequest = Body(..., description="Agent request parameters including message content and session configuration")
 ):
     """
     Run an agent with the specified parameters
 
-    **Basic Agent Execution:**
+    **Agent Execution Parameters:**
     - **message_content**: Text message to send to the agent (required)
     - **session_id**: Optional ID to maintain conversation context
     - **session_name**: Optional name for the session (creates a persistent session)
     - **message_type**: Optional message type identifier
     - **user_id**: Optional user ID to associate with the request
-    
-    **LangGraph Orchestration (activated automatically for langgraph-* agents):**
-    - **orchestration_config**: Orchestration settings and parameters
-    - **target_agents**: List of agents to coordinate with (e.g., ["beta", "gamma", "delta"])
-    - **workspace_paths**: Agent-specific workspace paths for isolated work
-    - **max_rounds**: Maximum orchestration rounds (default: 3)
-    - **run_count**: Number of agent iterations to run (default: 1 for cost control)
+    - **run_count**: Number of agent iterations to run (default: 1)
     - **enable_rollback**: Enable git rollback capabilities (default: true)
-    - **enable_realtime**: Enable real-time progress streaming (default: false)
     
     **Examples:**
     ```
-    # Simple agent
+    # Simple agent execution
     POST /agent/simple/run
     {"message_content": "Hello world"}
     
-    # LangGraph orchestrated workflow with full team
-    POST /agent/langgraph-alpha/run  
+    # Agent with session persistence
+    POST /agent/flashinho_pro/run  
     {
-      "message_content": "Implement user authentication API",
-      "target_agents": ["beta", "gamma", "delta"],
-      "max_rounds": 5,
-      "run_count": 2,
-      "enable_rollback": true
+      "message_content": "Analyze this code snippet",
+      "session_name": "code_review_session",
+      "run_count": 1
     }
     
-    # Single agent orchestration with limited runs
-    POST /agent/langgraph-beta/run
+    # Agent with user context
+    POST /agent/flashinho_pro/run
     {
-      "message_content": "Fix the authentication bug",
-      "run_count": 1,
+      "message_content": "Help me debug this issue",
+      "user_id": "user123",
       "enable_rollback": false
     }
     ```
