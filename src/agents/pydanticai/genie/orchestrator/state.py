@@ -117,14 +117,19 @@ def create_orchestration_graph(
     workflow.add_edge("complete_epic", END)
     workflow.add_edge("handle_failure", END)
     
-    # Create checkpointer
-    checkpointer = PostgresSaver.from_conn_string(database_url)
-    
-    # Compile with checkpointer
-    app = workflow.compile(
-        checkpointer=checkpointer,
-        interrupt_before=["human_review"]  # Pause for human input
-    )
+    # Create checkpointer (only if PostgresSaver is available)
+    if PostgresSaver is not None:
+        checkpointer = PostgresSaver.from_conn_string(database_url)
+        # Compile with checkpointer
+        app = workflow.compile(
+            checkpointer=checkpointer,
+            interrupt_before=["human_review"]  # Pause for human input
+        )
+    else:
+        # Fallback to in-memory checkpointing
+        app = workflow.compile(
+            interrupt_before=["human_review"]  # Pause for human input
+        )
     
     # Store components in app for node access
     app.router = router
@@ -148,19 +153,19 @@ async def plan_epic_node(state: EpicState) -> Dict[str, Any]:
     
     # Get workflow sequence from router
     router = WorkflowRouter()
-    planned_workflows = router.select_workflows(epic_analysis)
+    planned_workflows = router.select_task_sequence(epic_analysis)
     
     # Estimate costs
     cost_estimates = {}
     total_estimated_cost = 0.0
     for workflow in planned_workflows:
-        cost = router.estimate_workflow_cost(workflow, epic_analysis["complexity"])
-        cost_estimates[workflow.value] = cost
+        cost = router.estimate_task_cost(workflow, epic_analysis["complexity"])
+        cost_estimates[workflow] = cost
         total_estimated_cost += cost
     
     # Update state
     return {
-        "planned_workflows": [w.value for w in planned_workflows],
+        "planned_workflows": planned_workflows,
         "complexity_score": epic_analysis["complexity"],
         "cost_estimates": cost_estimates,
         "phase": EpicPhase.EXECUTING.value,
