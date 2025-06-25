@@ -737,8 +737,8 @@ class AutomagikAgent(ABC, Generic[T]):
                         
                         if isinstance(data_content, str) and mime_type.startswith("image/"):
                             if data_content.lower().startswith("http"):
-                                # Check if this is a WhatsApp encrypted URL that might cause issues
-                                if "whatsapp.net" in data_content and ".enc?" in data_content:
+                                # Check if this is a WhatsApp URL that might cause issues
+                                if "whatsapp.net" in data_content:
                                     # Try to download the image and convert to base64
                                     try:
                                         downloaded_base64 = await self._download_whatsapp_image(data_content, mime_type)
