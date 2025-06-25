@@ -22,7 +22,9 @@ from .memory_manager import update_flashinho_pro_memories, initialize_flashinho_
 from .user_identification import FlashinhoProUserMatcher
 
 # Import shared utilities from tools/flashed
-from src.tools.flashed.auth_utils import UserStatusChecker
+from src.tools.flashed.auth_utils import (
+    UserStatusChecker, preserve_authentication_state, restore_authentication_state
+)
 from src.tools.flashed.user_identification import (
     identify_user_comprehensive, UserIdentificationResult,
     ensure_user_uuid_matches_flashed_id, make_session_persistent
@@ -374,7 +376,7 @@ class FlashinhoPro(AutomagikAgent):
             return error_msg
     
     async def _identify_user_with_conversation_code(self, input_text: str, message_history_obj: Optional[MessageHistory]) -> UserIdentificationResult:
-        """Identify user using shared authentication utilities.
+        """Identify user using shared authentication utilities with state restoration.
         
         Args:
             input_text: User's message text
@@ -384,7 +386,42 @@ class FlashinhoPro(AutomagikAgent):
             UserIdentificationResult with identification details
         """
         try:
-            # Use shared user identification logic
+            # First, try to restore authentication state from cache
+            phone_number = (
+                self.context.get("whatsapp_user_number") or 
+                self.context.get("user_phone_number")
+            )
+            session_id = self.context.get("session_id")
+            
+            if phone_number:
+                cached_auth = await restore_authentication_state(phone_number, session_id)
+                if cached_auth:
+                    # Restore context from cached authentication
+                    self.context.update({
+                        "flashed_user_id": cached_auth.get("flashed_user_id"),
+                        "flashed_conversation_code": cached_auth.get("flashed_conversation_code"),
+                        "user_id": cached_auth.get("flashed_user_id"),  # Use flashed_user_id as user_id
+                        "user_identification_method": "cached_authentication"
+                    })
+                    
+                    # Also restore additional user data if available
+                    if cached_auth.get("user_data"):
+                        user_data = cached_auth["user_data"]
+                        if user_data.get("user", {}).get("name"):
+                            self.context["flashed_user_name"] = user_data["user"]["name"]
+                        if user_data.get("user", {}).get("phone"):
+                            self.context["user_phone_number"] = user_data["user"]["phone"]
+                        if user_data.get("user", {}).get("email"):
+                            self.context["user_email"] = user_data["user"]["email"]
+                    
+                    logger.info(f"Restored authentication state for {phone_number} - no conversation code needed")
+                    return UserIdentificationResult(
+                        user_id=cached_auth.get("flashed_user_id"),
+                        method="cached_authentication",
+                        requires_conversation_code=False
+                    )
+            
+            # If no cached authentication, proceed with normal identification
             identification_result = await identify_user_comprehensive(
                 context=self.context,
                 channel_payload=getattr(self, 'current_channel_payload', None),
@@ -487,11 +524,25 @@ class FlashinhoPro(AutomagikAgent):
                 "user_identification_method": "conversation_code"
             })
             
-            # Make session persistent
+            # Make session persistent with force update for user conversion
             if message_history_obj:
-                await make_session_persistent(self, message_history_obj, final_user_id)
+                await make_session_persistent(self, message_history_obj, final_user_id, force_user_update=True)
             
-            logger.info(f"Successfully processed conversation code for user: {final_user_id}")
+            # Preserve authentication state to prevent re-authentication
+            session_id = self.context.get("session_id")
+            await preserve_authentication_state(
+                phone_number=api_phone_number,
+                flashed_user_id=flashed_user_id,
+                conversation_code=conversation_code,
+                user_data=flashed_user_data,
+                session_id=session_id,
+                context={
+                    "final_user_id": final_user_id,
+                    "context_preserved_at": message[:50] + "..." if message else ""
+                }
+            )
+            
+            logger.info(f"Successfully processed conversation code for user: {final_user_id} (authentication preserved)")
             return True
             
         except Exception as e:
