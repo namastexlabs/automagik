@@ -301,9 +301,41 @@ async def get_or_create_user(
     return user.id if user else None
 
 
+def _recursively_sanitize_base64(data: Any) -> Any:
+    """Recursively sanitize base64 content in nested data structures."""
+    import copy
+    
+    try:
+        if isinstance(data, dict):
+            sanitized = {}
+            for key, value in data.items():
+                if key == "base64" and isinstance(value, str) and len(value) > 100:
+                    # This looks like base64 data, truncate it
+                    logger.debug(f"DEBUG: Truncating base64 data in key '{key}', length: {len(value)}")
+                    sanitized[key] = value[:50] + "...[TRUNCATED " + str(len(value)-100) + " chars]..." + value[-50:]
+                elif isinstance(value, str) and len(value) > 1000 and (
+                    # Check for base64-like patterns
+                    value.startswith("data:image/") or
+                    (len(value) % 4 == 0 and all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in value[:100]))
+                ):
+                    # This looks like base64 data (data URL or pure base64), truncate it
+                    logger.debug(f"DEBUG: Truncating potential base64 data in key '{key}', length: {len(value)}")
+                    sanitized[key] = value[:50] + "...[TRUNCATED " + str(len(value)-100) + " chars]..." + value[-50:]
+                else:
+                    # Recursively sanitize nested structures
+                    sanitized[key] = _recursively_sanitize_base64(value)
+            return sanitized
+        elif isinstance(data, list):
+            return [_recursively_sanitize_base64(item) for item in data]
+        else:
+            return data
+    except Exception as e:
+        logger.warning(f"Failed to recursively sanitize base64 data: {e}")
+        return data
+
+
 def _sanitize_payload_for_logging(request: AgentRunRequest) -> Dict[str, Any]:
     """Sanitize request payload for logging by truncating base64 content."""
-    import json
     import copy
     
     try:
@@ -326,13 +358,10 @@ def _sanitize_payload_for_logging(request: AgentRunRequest) -> Dict[str, Any]:
         # Truncate base64 content in channel_payload
         if sanitized.get("channel_payload") and isinstance(sanitized["channel_payload"], dict):
             payload = sanitized["channel_payload"]
-            # Check for WhatsApp base64 content
-            if "data" in payload and "message" in payload and "imageMessage" in payload["message"]:
-                image_msg = payload["message"]["imageMessage"]
-                if "base64" in image_msg and isinstance(image_msg["base64"], str):
-                    base64_data = image_msg["base64"]
-                    if len(base64_data) > 100:
-                        image_msg["base64"] = base64_data[:50] + "...[TRUNCATED " + str(len(base64_data)-100) + " chars]..." + base64_data[-50:]
+            logger.debug(f"DEBUG: Found channel_payload with keys: {list(payload.keys())}")
+            
+            # Use recursive sanitization to handle any nested base64 content
+            sanitized["channel_payload"] = _recursively_sanitize_base64(payload)
         
         return sanitized
         
@@ -347,6 +376,38 @@ def _sanitize_payload_for_logging(request: AgentRunRequest) -> Dict[str, Any]:
         }
 
 
+def _sanitize_multimodal_content_for_logging(content: Any) -> Any:
+    """Sanitize multimodal content for logging by truncating base64 data."""
+    import copy
+    
+    try:
+        if isinstance(content, str):
+            # Check if it's a base64 string
+            if len(content) > 100 and ("base64" in content[:100] or len(content) > 200):
+                return content[:50] + "...[TRUNCATED " + str(len(content)-100) + " chars]..." + content[-50:]
+            return content
+            
+        elif isinstance(content, dict):
+            sanitized = copy.deepcopy(content)
+            for key, value in sanitized.items():
+                if key in ["data", "base64", "image_data", "content"] and isinstance(value, str):
+                    if len(value) > 100 and ("base64" in value[:100] or len(value) > 200):
+                        sanitized[key] = value[:50] + "...[TRUNCATED " + str(len(value)-100) + " chars]..." + value[-50:]
+                elif isinstance(value, (dict, list)):
+                    sanitized[key] = _sanitize_multimodal_content_for_logging(value)
+            return sanitized
+            
+        elif isinstance(content, list):
+            return [_sanitize_multimodal_content_for_logging(item) for item in content]
+            
+        else:
+            return content
+            
+    except Exception as e:
+        logger.warning(f"Failed to sanitize multimodal content for logging: {e}")
+        return "[SANITIZATION_ERROR]"
+
+
 async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[str, Any]:
     """
     Run an agent with the specified parameters
@@ -358,6 +419,10 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Ensure agent_name is a string
         if not isinstance(agent_name, str):
             agent_name = str(agent_name)
+
+        # Create sanitized payload for logging (truncate base64 data) - BEFORE orchestration check
+        sanitized_request = _sanitize_payload_for_logging(request)
+        logger.info(f"Request payload: {sanitized_request}")
 
         # Check if this should use LangGraph orchestration
         if should_use_orchestration(agent_name, request):
@@ -383,9 +448,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 
             return response_data
 
-        # Create sanitized payload for logging (truncate base64 data)
-        sanitized_request = _sanitize_payload_for_logging(request)
-        logger.info(f"Request payload: {sanitized_request}")
+        # Payload already logged above with sanitization
 
         # Continue with regular agent execution for non-orchestrated agents
         logger.info(f"Using regular execution for agent: {agent_name}")
@@ -622,7 +685,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     logger.error(f"Error processing media content item: {str(e)}")
                     continue
 
-            logger.debug(f"Final multimodal_content: {multimodal_content}")
+            logger.debug(f"Final multimodal_content: {_sanitize_multimodal_content_for_logging(multimodal_content)}")
 
         # Add multimodal content to the message
         combined_content = {"text": content}
