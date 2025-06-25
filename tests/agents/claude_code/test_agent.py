@@ -18,21 +18,15 @@ from src.memory.message_history import MessageHistory
 class TestClaudeCodeAgentInitialization:
     """Test ClaudeCodeAgent initialization."""
     
-    @patch('src.agents.claude_code.agent.ContainerManager')
     @patch('src.agents.claude_code.agent.ExecutorFactory')
-    @patch.dict('os.environ', {'CLAUDE_CODE_MODE': 'docker'})
-    def test_agent_initialization(self, mock_executor_factory, mock_container_class):
+    def test_agent_initialization(self, mock_executor_factory):
         """Test basic agent initialization."""
-        # Mock the classes
-        mock_container = Mock()
+        # Mock executor
         mock_executor = Mock()
-        mock_container_class.return_value = mock_container
         mock_executor_factory.create_executor.return_value = mock_executor
         
         # Initialize agent
         config = {
-            "docker_image": "test-image:latest",
-            "container_timeout": "3600",
             "max_concurrent_sessions": "5"
         }
         agent = ClaudeCodeAgent(config)
@@ -41,19 +35,11 @@ class TestClaudeCodeAgentInitialization:
         assert agent.description == "Containerized Claude CLI agent for autonomous code tasks"
         assert agent.config.get("agent_type") == "claude-code"
         assert agent.config.get("framework") == "claude-cli"
-        assert agent.config.get("docker_image") == "test-image:latest"
-        assert agent.config.get("container_timeout") == 3600
         assert agent.config.get("max_concurrent_sessions") == 5
         
-        # Verify managers were created
-        mock_container_class.assert_called_once_with(
-            docker_image="test-image:latest",
-            container_timeout=3600,
-            max_concurrent=5
-        )
+        # Verify executor was created
         mock_executor_factory.create_executor.assert_called_once_with(
-            mode="docker",
-            container_manager=mock_container,
+            mode="local",
             workspace_base=os.getenv('CLAUDE_LOCAL_WORKSPACE', '/tmp/claude-workspace'),
             cleanup_on_complete=True
         )
@@ -64,11 +50,9 @@ class TestClaudeCodeAgentInitialization:
         agent = ClaudeCodeAgent({})
         
         # Check defaults
-        assert agent.config.get("docker_image") == "claude-code-agent:latest"
-        assert agent.config.get("container_timeout") == 7200
         assert agent.config.get("max_concurrent_sessions") == 10
-        assert agent.config.get("default_workflow") == "bug-fixer"
-        assert agent.config.get("git_branch") == "NMSTX-187-langgraph-orchestrator-migration"
+        assert agent.config.get("default_workflow") == "surgeon"
+        assert agent.config.get("git_branch") is None
         
     @patch('src.agents.claude_code.agent.ExecutorFactory')
     def test_agent_dependencies(self, mock_executor_factory):
