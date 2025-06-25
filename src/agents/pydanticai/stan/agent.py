@@ -22,6 +22,7 @@ from src.tools import blackpearl
 from src.tools.blackpearl.tool import get_or_create_contact
 from src.tools.blackpearl.schema import StatusAprovacaoEnum
 from src.tools.blackpearl import verificar_cnpj
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -374,9 +375,14 @@ class StanAgent(AutomagikAgent):
             logger.debug(f"🔍 Stan.run() WhatsApp user number: {self.context.get('whatsapp_user_number')}")
             logger.debug(f"🔍 Stan.run() WhatsApp user name: {self.context.get('whatsapp_user_name')}")
         
-        # Handle BlackPearl contact management after channel payload processing
+        # Identify or create user if needed
+        final_user_id = await self._identify_or_create_user(channel_payload, user_id)
+        if final_user_id:
+            self.context["user_id"] = final_user_id
+        
+        # Handle BlackPearl contact management after user identification
         logger.debug("🔍 Stan.run() starting BlackPearl contact management...")
-        await self._handle_blackpearl_contact_management(channel_payload, user_id)
+        await self._handle_blackpearl_contact_management(channel_payload, final_user_id)
         
         # Use the framework to handle the execution
         logger.debug("🔍 Stan.run() executing framework run...")
@@ -403,26 +409,33 @@ class StanAgent(AutomagikAgent):
             logger.debug("🔍 No channel_payload, skipping BlackPearl contact management")
             return
             
+        # Handle case where no user_id is available (fallback scenario)
+        if not user_id:
+            logger.warning("🔍 No user_id available for BlackPearl contact management, using NOT_REGISTERED prompt")
+            await self.load_active_prompt_template(status_key="NOT_REGISTERED")
+            return
+        
         # Validate user exists in database before proceeding
-        if user_id:
-            from src.db.repository.user import get_user
-            import uuid
-            try:
-                user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
-                user = get_user(user_uuid)
-                if not user:
-                    logger.warning(f"🔍 User {user_id} not found in database, creating test user for development")
-                    success = await self._ensure_test_user_exists(user_id)
-                    if not success:
-                        logger.error(f"🔍 Failed to create test user {user_id}, using default NOT_REGISTERED prompt")
-                        await self.load_active_prompt_template(status_key="NOT_REGISTERED")
-                        return
-                else:
-                    logger.debug(f"🔍 User {user_id} found in database")
-            except (ValueError, TypeError) as e:
-                logger.error(f"🔍 Invalid user_id format: {user_id}, error: {e}")
+        from src.db.repository.user import get_user
+        import uuid
+        try:
+            user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+            user = get_user(user_uuid)
+            if not user:
+                logger.warning(f"🔍 User {user_id} not found in database, using NOT_REGISTERED prompt")
                 await self.load_active_prompt_template(status_key="NOT_REGISTERED")
                 return
+            else:
+                logger.debug(f"🔍 User {user_id} found in database")
+                # Ensure user has user_data to prevent None errors later
+                if user.user_data is None:
+                    logger.info(f"🔍 User {user_id} has no user_data, initializing empty dict")
+                    from src.db.repository.user import update_user_data
+                    update_user_data(user_uuid, {})
+        except (ValueError, TypeError) as e:
+            logger.error(f"🔍 Invalid user_id format: {user_id}, error: {e}")
+            await self.load_active_prompt_template(status_key="NOT_REGISTERED")
+            return
             
         try:
             # Extract user information from context (already processed by channel handler)
@@ -605,3 +618,167 @@ class StanAgent(AutomagikAgent):
         """Register multimodal analysis tools using common helper."""
         from src.agents.common.multimodal_helper import register_multimodal_tools
         register_multimodal_tools(self.tool_registry, self.dependencies)
+    
+    async def _identify_or_create_user(self, channel_payload: Optional[dict], initial_user_id: Optional[str]) -> Optional[str]:
+        """Identify existing user or create new user from WhatsApp context.
+        
+        Args:
+            channel_payload: Channel payload containing user context
+            initial_user_id: User ID from request (may be None)
+            
+        Returns:
+            User ID to use for the session, or None if failed
+        """
+        logger.debug(f"🔍 User identification started - initial_user_id: {initial_user_id}")
+        
+        # Extract WhatsApp context information
+        phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+        name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
+        
+        logger.debug(f"🔍 Extracted context - phone: {phone}, name: {name}")
+        
+        # 1. Try to find existing user by phone number first (highest priority)
+        if phone:
+            existing_user = await self._find_user_by_phone(phone)
+            if existing_user:
+                logger.info(f"🔍 ✅ Found existing user by phone {phone}: {existing_user.id}")
+                return str(existing_user.id)
+        
+        # 2. Try to validate initial_user_id if provided
+        if initial_user_id:
+            if await self._validate_user_exists(initial_user_id):
+                logger.info(f"🔍 ✅ Validated existing user_id: {initial_user_id}")
+                return initial_user_id
+            else:
+                logger.warning(f"🔍 ⚠️ Provided user_id {initial_user_id} not found in database")
+        
+        # 3. Create new user from WhatsApp context if we have phone number
+        if phone:
+            new_user_id = await self._create_user_from_whatsapp_context(phone, name)
+            if new_user_id:
+                logger.info(f"🔍 ✅ Created new user from WhatsApp context: {new_user_id}")
+                return new_user_id
+        
+        # 4. Fallback to test user creation for development (only for known test UUIDs)
+        if initial_user_id and settings.AM_ENV.value in ["development", "test"]:
+            logger.info(f"🔍 🧪 Attempting test user creation for development: {initial_user_id}")
+            success = await self._ensure_test_user_exists(initial_user_id)
+            if success:
+                return initial_user_id
+        
+        logger.error(f"🔍 ❌ Could not identify or create user - phone: {phone}, user_id: {initial_user_id}")
+        return None
+    
+    async def _find_user_by_phone(self, phone: str) -> Optional['User']:
+        """Find user by phone number in various phone fields.
+        
+        Args:
+            phone: Phone number to search for
+            
+        Returns:
+            User object if found, None otherwise
+        """
+        try:
+            from src.db.repository.user import list_users
+            
+            # Clean phone number for consistent matching
+            clean_phone = self._clean_phone_number(phone)
+            
+            # Search in multiple phone fields
+            all_users = list_users()
+            for user in all_users:
+                # Check phone_number field
+                if user.phone_number and self._clean_phone_number(user.phone_number) == clean_phone:
+                    return user
+                
+                # Check user_data for WhatsApp numbers
+                if user.user_data:
+                    whatsapp_number = user.user_data.get("whatsapp_user_number")
+                    if whatsapp_number and self._clean_phone_number(whatsapp_number) == clean_phone:
+                        return user
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"🔍 Error searching for user by phone {phone}: {e}")
+            return None
+    
+    async def _validate_user_exists(self, user_id: str) -> bool:
+        """Validate that a user exists in the database.
+        
+        Args:
+            user_id: User ID to validate
+            
+        Returns:
+            True if user exists, False otherwise
+        """
+        try:
+            from src.db.repository.user import get_user
+            import uuid
+            
+            user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+            user = get_user(user_uuid)
+            return user is not None
+            
+        except Exception as e:
+            logger.error(f"🔍 Error validating user {user_id}: {e}")
+            return False
+    
+    async def _create_user_from_whatsapp_context(self, phone: str, name: Optional[str]) -> Optional[str]:
+        """Create a new user from WhatsApp context information.
+        
+        Args:
+            phone: WhatsApp phone number
+            name: WhatsApp display name (optional)
+            
+        Returns:
+            Created user ID, or None if failed
+        """
+        try:
+            from src.db.repository.user import create_user
+            from src.db.models import User
+            import uuid
+            from datetime import datetime
+            
+            # Generate clean email based on phone
+            clean_phone = self._clean_phone_number(phone)
+            email = f"whatsapp-{clean_phone[-4:]}@blackpearl.local"
+            
+            # Create user with WhatsApp context
+            new_user = User(
+                id=uuid.uuid4(),
+                email=email,
+                phone_number=phone,
+                user_data={
+                    "whatsapp_user_name": name,
+                    "whatsapp_user_number": phone,
+                    "auto_created": True,
+                    "created_by": "stan_agent",
+                    "source": "whatsapp_context",
+                    "created_at": datetime.utcnow().isoformat()
+                }
+            )
+            
+            created_id = create_user(new_user)
+            if created_id:
+                logger.info(f"🔍 ✅ Auto-created user {created_id} from WhatsApp context")
+                return str(created_id)
+            else:
+                logger.error(f"🔍 ❌ Failed to create user from WhatsApp context")
+                return None
+                
+        except Exception as e:
+            logger.error(f"🔍 Error creating user from WhatsApp context: {e}")
+            return None
+    
+    def _clean_phone_number(self, phone: str) -> str:
+        """Clean phone number for consistent matching.
+        
+        Args:
+            phone: Raw phone number
+            
+        Returns:
+            Cleaned phone number (digits only)
+        """
+        import re
+        return re.sub(r'[^\d]', '', phone)
