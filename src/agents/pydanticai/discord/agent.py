@@ -89,6 +89,9 @@ class DiscordAgent(AutomagikAgent):
         # Register default tools
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         logger.info("DiscordAgent initialized successfully")
     
     async def _initialize_pydantic_agent(self) -> None:
@@ -329,6 +332,11 @@ class DiscordAgent(AutomagikAgent):
                 error_message=str(e),
                 raw_message=pydantic_message_history if 'pydantic_message_history' in locals() else None
             )
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> DiscordAgent:

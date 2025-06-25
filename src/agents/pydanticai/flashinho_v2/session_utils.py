@@ -104,56 +104,162 @@ async def make_session_persistent(
     agent,  # FlashinhoV2 instance – needed for context & db_id
     message_history_obj: Optional[MessageHistory],
     user_id: str,
+    force_user_update: bool = False,
 ) -> None:
-    """Persist a previously local MessageHistory into the database."""
+    """Persist a previously local MessageHistory into the database with improved user conversion support.
+    
+    Args:
+        agent: Agent instance for context and db_id
+        message_history_obj: MessageHistory object to persist
+        user_id: User ID to link session to
+        force_user_update: If True, always update session user_id even if session exists
+    """
     if not message_history_obj or not user_id:
         return
     try:
-        # Skip if already persistent (only process if currently in local-only mode)
-        if not getattr(message_history_obj, "_local_only", False):
-            logger.debug("Session already persistent, skipping")
-            return
-
         session_uuid = uuid.UUID(message_history_obj.session_id)
         user_uuid = uuid.UUID(user_id)
 
-        # Save session row if missing
-        if not get_session(session_uuid):
-            # Try to get the original session name from agent context
-            session_name = None
-            if hasattr(agent, 'context'):
-                # Try multiple ways to get the session name
-                session_name = (
-                    agent.context.get("session_name") or
-                    agent.context.get("whatsapp_session_name")
-                )
-                
-                # If no session name, build it from phone number (flashinho pattern)
-                if not session_name:
-                    phone = (
-                        agent.context.get("whatsapp_user_number") or 
-                        agent.context.get("user_phone_number")
-                    )
-                    if phone:
-                        # Clean phone number (remove + and other chars)
-                        clean_phone = phone.replace("+", "").replace("-", "").replace(" ", "")
-                        session_name = f"flashinho-v2-{clean_phone}"
+        # Check if session exists in database regardless of local_only flag
+        existing_session = get_session(session_uuid)
+        
+        # Skip if session exists and is properly linked to this user (unless forced update)
+        if existing_session and existing_session.user_id == user_uuid and not force_user_update:
+            # Update the MessageHistory object to mark as persistent if needed
+            if getattr(message_history_obj, "_local_only", False):
+                message_history_obj._local_only = False
+            logger.debug("Session already exists and properly linked, skipping")
+            return
+
+        # Handle session creation or user migration
+        if not existing_session:
+            # Create new session
+            session_name = _build_session_name(agent, session_uuid)
+            # Get the correct agent ID from database if needed
+            agent_db_id = getattr(agent, 'db_id', None)
+            if not agent_db_id and hasattr(agent, '__class__'):
+                # Try to get agent ID by name
+                try:
+                    from src.db.repository.agent import get_agent_by_name
+                    agent_name = agent.__class__.__name__.lower().replace('agent', '').replace('flashinho', 'flashinho_pro')
+                    db_agent = get_agent_by_name(agent_name)
+                    if db_agent:
+                        agent_db_id = db_agent.id
+                        # Also set it on the agent for future use
+                        agent.db_id = agent_db_id
+                        logger.info(f"Found agent {agent_name} with ID {agent_db_id}")
+                except Exception as e:
+                    logger.warning(f"Could not find agent in database: {e}")
             
-            # Fallback to UUID-based name if no session name found
-            if not session_name:
-                session_name = f"Session-{session_uuid}"
-                
             session_row = Session(
                 id=session_uuid,
                 user_id=user_uuid,
                 name=session_name,
                 platform="automagik",
-                agent_id=getattr(agent, 'db_id', None),
+                agent_id=agent_db_id,  # This can be None if agent not found
             )
-            create_session(session_row)
-            logger.info("✅ Created session %s in DB with name: %s", session_uuid, session_name)
+            created_session_id = create_session(session_row)
+            if created_session_id:
+                logger.info("✅ Created session %s in DB with name: %s", session_uuid, session_name)
+                # Verify session was actually created
+                verification_session = get_session(session_uuid)
+                if not verification_session:
+                    logger.error("❌ Session creation verification failed for %s", session_uuid)
+                    raise Exception(f"Session {session_uuid} was not properly created in database")
+            else:
+                logger.error("❌ Failed to create session %s", session_uuid)
+                raise Exception(f"Failed to create session {session_uuid}")
+            
+        elif existing_session.user_id != user_uuid or force_user_update:
+            # Session exists but needs user migration or forced update
+            old_user_id = existing_session.user_id
+            logger.info("🔄 Updating session %s user_id from %s to %s (force=%s)", 
+                       session_uuid, old_user_id, user_uuid, force_user_update)
+            
+            # Migrate all related data for this session
+            await _migrate_session_data(session_uuid, old_user_id, user_uuid)
+            
+            # Update session record
+            updated_session = Session(
+                id=session_uuid,
+                user_id=user_uuid,
+                name=existing_session.name,
+                platform=existing_session.platform,
+                agent_id=getattr(agent, 'db_id', None),
+                created_at=existing_session.created_at,
+            )
+            update_session(updated_session)
+            logger.info("✅ Session user migration completed: %s → %s", old_user_id, user_uuid)
 
-        # Save local messages to DB, avoiding duplicates
+        # Save local messages to DB, avoiding duplicates  
+        await _save_local_messages_to_db(message_history_obj, session_uuid, user_uuid, agent)
+
+        # Mark session as persistent and update message history
+        message_history_obj._local_only = False
+        message_history_obj.user_id = user_uuid
+        message_history_obj._local_messages.clear()
+
+    except Exception as exc:
+        logger.error("Error persisting session: %s", exc)
+
+
+def _build_session_name(agent, session_uuid: uuid.UUID) -> str:
+    """Build appropriate session name from agent context."""
+    session_name = None
+    
+    if hasattr(agent, 'context'):
+        # Try multiple ways to get the session name
+        session_name = (
+            agent.context.get("session_name") or
+            agent.context.get("whatsapp_session_name")
+        )
+        
+        # If no session name, build it from phone number (flashinho pattern)
+        if not session_name:
+            phone = (
+                agent.context.get("whatsapp_user_number") or 
+                agent.context.get("user_phone_number")
+            )
+            if phone:
+                # Clean phone number (remove + and other chars)
+                clean_phone = phone.replace("+", "").replace("-", "").replace(" ", "")
+                session_name = f"flashinho-v2-{clean_phone}"
+    
+    # Fallback to UUID-based name if no session name found
+    return session_name or f"Session-{session_uuid}"
+
+
+async def _migrate_session_data(session_uuid: uuid.UUID, old_user_id: uuid.UUID, new_user_id: uuid.UUID) -> None:
+    """Migrate all session-related data from old user to new user."""
+    try:
+        from src.db.repository.message import list_messages, update_message
+        
+        # Get all messages for this session
+        messages = list_messages(session_uuid, sort_desc=False)
+        updated_count = 0
+        
+        for message in messages:
+            if message.user_id == old_user_id:
+                # Update message user_id
+                message.user_id = new_user_id
+                if update_message(message):
+                    updated_count += 1
+                    
+        logger.info("Migrated %d messages for session %s: %s → %s", 
+                   updated_count, session_uuid, old_user_id, new_user_id)
+                   
+    except Exception as e:
+        logger.error("Error migrating session data for %s: %s", session_uuid, e)
+
+
+async def _save_local_messages_to_db(
+    message_history_obj: MessageHistory, 
+    session_uuid: uuid.UUID, 
+    user_uuid: uuid.UUID, 
+    agent
+) -> None:
+    """Save local messages to database, avoiding duplicates."""
+    try:
         local_msgs = getattr(message_history_obj, "_local_messages", [])
         
         # Get existing messages to avoid duplicates
@@ -197,15 +303,11 @@ async def make_session_persistent(
                 if create_message(msg_row):
                     saved += 1
                     existing_content.add(content_key)  # Add to set to prevent further duplicates
+                    
         logger.info("💾 Saved %s local messages for session %s (skipped duplicates)", saved, session_uuid)
-
-        # Mark session as persistent and reload
-        message_history_obj._local_only = False
-        message_history_obj.user_id = user_uuid
-        message_history_obj._local_messages.clear()
-
-    except Exception as exc:
-        logger.error("Error persisting session: %s", exc)
+        
+    except Exception as e:
+        logger.error("Error saving local messages: %s", e)
 
 
 # ---------------------------------------------------------------------------
