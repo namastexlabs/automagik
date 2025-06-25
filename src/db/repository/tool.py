@@ -275,8 +275,20 @@ def log_tool_execution(
 def get_tool_execution_stats(tool_id: uuid.UUID, days: int = 30) -> Dict[str, Any]:
     """Get execution statistics for a tool."""
     try:
+        # Import here to avoid circular imports
+        from ..providers.factory import get_database_type
+        
+        # Use database-specific date functions
+        db_type = get_database_type()
+        if db_type == "postgresql":
+            date_condition = "executed_at >= NOW() - INTERVAL '%s days'"
+            query_params = (str(tool_id), days)
+        else:  # SQLite
+            date_condition = "executed_at >= datetime('now', '-%s days')"
+            query_params = (str(tool_id), days)
+        
         results = execute_query(
-            """
+            f"""
             SELECT 
                 COUNT(*) as total_executions,
                 COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_executions,
@@ -285,10 +297,10 @@ def get_tool_execution_stats(tool_id: uuid.UUID, days: int = 30) -> Dict[str, An
                 MAX(execution_time_ms) as max_execution_time,
                 MIN(execution_time_ms) as min_execution_time
             FROM tool_executions 
-            WHERE tool_id = %s 
-            AND executed_at >= NOW() - INTERVAL '%s days'
+            WHERE tool_id = ? 
+            AND {date_condition}
             """,
-            (str(tool_id), days)
+            query_params
         )
         
         if results:
