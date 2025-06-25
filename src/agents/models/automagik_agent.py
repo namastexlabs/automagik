@@ -646,6 +646,67 @@ class AutomagikAgent(ABC, Generic[T]):
         
         return normalized
     
+    async def _download_whatsapp_image(self, image_url: str, mime_type: str) -> Optional[str]:
+        """Download WhatsApp encrypted image and return as base64.
+        
+        Args:
+            image_url: WhatsApp encrypted image URL
+            mime_type: Expected MIME type of the image
+            
+        Returns:
+            Base64 encoded image data or None if download fails
+        """
+        try:
+            import httpx
+            import base64
+            import hashlib
+            import os
+            from pathlib import Path
+            
+            # Create user-specific tmp directory
+            user_id = getattr(self.dependencies, 'user_id', 'unknown')
+            tmp_dir = Path("./data/tmp") / str(user_id)
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate a unique filename based on URL hash
+            url_hash = hashlib.md5(image_url.encode()).hexdigest()[:12]
+            ext = mime_type.split('/')[-1] if '/' in mime_type else 'jpg'
+            filename = f"whatsapp_image_{url_hash}.{ext}"
+            file_path = tmp_dir / filename
+            
+            # Check if already downloaded
+            if file_path.exists():
+                logger.debug(f"Using cached WhatsApp image: {file_path}")
+                with open(file_path, 'rb') as f:
+                    return base64.b64encode(f.read()).decode('utf-8')
+            
+            # Download the image
+            logger.debug(f"Downloading WhatsApp image from: {image_url}")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                try:
+                    response = await client.get(image_url)
+                    response.raise_for_status()
+                    
+                    # Save to file
+                    with open(file_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    # Convert to base64
+                    base64_data = base64.b64encode(response.content).decode('utf-8')
+                    logger.debug(f"Successfully downloaded and cached WhatsApp image ({len(response.content)} bytes)")
+                    return base64_data
+                    
+                except httpx.HTTPStatusError as e:
+                    logger.warning(f"HTTP error downloading WhatsApp image: {e.response.status_code}")
+                    return None
+                except Exception as e:
+                    logger.warning(f"Error downloading WhatsApp image: {e}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Failed to download WhatsApp image: {e}")
+            return None
+    
     async def _process_multimodal_input(self, input_text: str, multimodal_content: Optional[Dict]) -> Union[str, List[Any]]:
         """Process multimodal content for framework input."""
         if not multimodal_content:
@@ -676,7 +737,26 @@ class AutomagikAgent(ABC, Generic[T]):
                         
                         if isinstance(data_content, str) and mime_type.startswith("image/"):
                             if data_content.lower().startswith("http"):
-                                input_list.append(ImageUrl(url=data_content))
+                                # Check if this is a WhatsApp encrypted URL that might cause issues
+                                if "whatsapp.net" in data_content and ".enc?" in data_content:
+                                    # Try to download the image and convert to base64
+                                    try:
+                                        downloaded_base64 = await self._download_whatsapp_image(data_content, mime_type)
+                                        if downloaded_base64:
+                                            # Use the downloaded base64 instead of the URL
+                                            data_content = downloaded_base64
+                                            logger.debug(f"Successfully downloaded WhatsApp image, using base64 data")
+                                        else:
+                                            # Fallback to URL if download fails
+                                            input_list.append(ImageUrl(url=data_content))
+                                            continue
+                                    except Exception as download_error:
+                                        logger.warning(f"Failed to download WhatsApp image: {download_error}")
+                                        # Fallback to URL if download fails
+                                        input_list.append(ImageUrl(url=data_content))
+                                        continue
+                                else:
+                                    input_list.append(ImageUrl(url=data_content))
                             else:
                                 # Handle base64 image data properly
                                 import base64
