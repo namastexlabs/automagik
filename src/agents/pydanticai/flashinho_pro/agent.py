@@ -6,7 +6,6 @@ Includes mathematical problem detection and solving via flashinho_thinker workfl
 """
 import logging
 import time
-from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 from src.agents.models.automagik_agent import AutomagikAgent
@@ -32,13 +31,12 @@ from src.tools.flashed.user_identification import (
     identify_user_comprehensive, UserIdentificationResult,
     ensure_user_uuid_matches_flashed_id, make_session_persistent
 )
-from src.tools.flashed.workflow_runner import run_flashinho_thinker_workflow, analyze_math_image, analyze_student_problem
+from src.tools.flashed.workflow_runner import analyze_student_problem
 from src.tools.flashed.message_generator import (
     generate_math_processing_message, generate_pro_feature_message,
     generate_error_message
 )
 from src.tools.evolution.api import send_text_message
-from src.utils.multimodal import detect_content_type, is_image_type
 
 logger = logging.getLogger(__name__)
 
@@ -429,7 +427,8 @@ class FlashinhoPro(AutomagikAgent):
                         image_data = first_image
             
             if not image_data:
-                logger.error(f"No image data found in multimodal content: {multimodal_content}")
+                from src.api.controllers.agent_controller import _sanitize_multimodal_content_for_logging
+                logger.error(f"No image data found in multimodal content: {_sanitize_multimodal_content_for_logging(multimodal_content)}")
                 return "Desculpa, não consegui acessar a imagem. Pode tentar enviar novamente?"
             
             # Start workflow monitoring
