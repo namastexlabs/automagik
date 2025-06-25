@@ -35,6 +35,7 @@ class FlashedProvider():
         self._mock_pro_users = [
             "123e4567-e89b-12d3-a456-426614174000",  # Test Pro user
             "550e8400-e29b-41d4-a716-446655440000",  # Another test Pro user
+            "c0743fb7-7765-4cf0-9ab6-90a196a1559a",  # Cezar - test user
         ]
         
     async def __aenter__(self):
