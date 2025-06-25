@@ -346,7 +346,8 @@ def get_tool_categories() -> List[str]:
         
         categories = set()
         for row in results:
-            categories_json = row[0]
+            # execute_query returns dictionaries, so access by column name
+            categories_json = row.get('categories')
             if categories_json and categories_json != '[]':
                 try:
                     parsed_categories = json.loads(categories_json)
