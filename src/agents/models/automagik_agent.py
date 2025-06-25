@@ -614,6 +614,38 @@ class AutomagikAgent(ABC, Generic[T]):
         except Exception as e:
             logger.warning(f"Error ensuring memory ready: {e}")
     
+    def _validate_mime_type(self, mime_type: str) -> str:
+        """Validate and normalize MIME type for media content with fallback."""
+        if not mime_type:
+            logger.debug("Empty MIME type, defaulting to image/jpeg")
+            return "image/jpeg"
+        
+        # Clean the MIME type - remove charset and other parameters
+        mime_type = mime_type.split(';')[0].strip().lower()
+        
+        # If it's not an image type, default to image/jpeg for image processing
+        if not mime_type.startswith('image/'):
+            logger.debug(f"Non-image MIME type '{mime_type}', defaulting to image/jpeg")
+            return "image/jpeg"
+        
+        # Common image MIME types mapping
+        valid_image_types = {
+            'image/jpg': 'image/jpeg',  # Normalize jpg to jpeg
+            'image/jpeg': 'image/jpeg',
+            'image/png': 'image/png',
+            'image/gif': 'image/gif',
+            'image/webp': 'image/webp',
+            'image/bmp': 'image/bmp',
+            'image/tiff': 'image/tiff'
+        }
+        
+        # Return normalized MIME type or default
+        normalized = valid_image_types.get(mime_type, "image/jpeg")
+        if normalized != mime_type:
+            logger.debug(f"Normalized MIME type from '{mime_type}' to '{normalized}'")
+        
+        return normalized
+    
     async def _process_multimodal_input(self, input_text: str, multimodal_content: Optional[Dict]) -> Union[str, List[Any]]:
         """Process multimodal content for framework input."""
         if not multimodal_content:
@@ -634,7 +666,10 @@ class AutomagikAgent(ABC, Generic[T]):
                         input_list.append(image_data)
                     elif isinstance(image_data, dict):
                         data_content = image_data.get("data")
-                        mime_type = image_data.get("mime_type", "")
+                        raw_mime_type = image_data.get("mime_type", "")
+                        
+                        # Validate and normalize MIME type with fallback
+                        mime_type = self._validate_mime_type(raw_mime_type)
                         
                         if isinstance(data_content, str) and mime_type.startswith("image/"):
                             if data_content.lower().startswith("http"):
@@ -653,15 +688,41 @@ class AutomagikAgent(ABC, Generic[T]):
                                 
                                 try:
                                     binary_data = base64.b64decode(data_content)
+                                    # Validate binary data size
+                                    if len(binary_data) == 0:
+                                        raise ValueError("Decoded binary data is empty")
+                                    
                                     input_list.append(BinaryContent(
                                         data=binary_data,
                                         media_type=mime_type
                                     ))
-                                    logger.debug(f"Converted base64 image to BinaryContent: {len(binary_data)} bytes")
-                                except Exception as decode_error:
+                                    logger.debug(f"Converted base64 image to BinaryContent: {len(binary_data)} bytes, MIME: {mime_type}")
+                                except (base64.binascii.Error, ValueError) as decode_error:
                                     logger.error(f"Failed to decode base64 image data: {decode_error}")
-                                    # Fallback: keep as-is
-                                    input_list.append(image_data)
+                                    # Try fallback with ImageUrl if it looks like a URL
+                                    if data_content.lower().startswith('http'):
+                                        try:
+                                            input_list.append(ImageUrl(url=data_content))
+                                            logger.debug(f"Fallback: Using ImageUrl for URL-like data")
+                                        except Exception as url_error:
+                                            logger.error(f"Fallback ImageUrl failed: {url_error}")
+                                            input_list.append(image_data)
+                                    else:
+                                        # Final fallback: keep original data
+                                        input_list.append(image_data)
+                                except Exception as content_error:
+                                    logger.error(f"Failed to create BinaryContent (Content-Type error): {content_error}")
+                                    # Try with default MIME type
+                                    try:
+                                        binary_data = base64.b64decode(data_content)
+                                        input_list.append(BinaryContent(
+                                            data=binary_data,
+                                            media_type="image/jpeg"  # Final fallback MIME type
+                                        ))
+                                        logger.debug(f"Fallback: Created BinaryContent with default MIME type")
+                                    except Exception as final_error:
+                                        logger.error(f"All BinaryContent creation attempts failed: {final_error}")
+                                        input_list.append(image_data)
             
             # Process audio
             if isinstance(multimodal_content, dict) and "audio" in multimodal_content:
