@@ -18,13 +18,17 @@ from src.tools.flashed.tool import (
 )
 from src.tools.flashed.provider import FlashedProvider
 from .prompts import AGENT_FREE, AGENT_PROMPT
-from .identification import (
-    UserStatusChecker,
+# Import shared authentication utilities from tools/flashed
+from src.tools.flashed.auth_utils import UserStatusChecker
+from src.tools.flashed.user_identification import (
     build_external_key,
     attach_user_by_external_key,
     attach_user_by_flashed_id_lookup,
     find_user_by_whatsapp_id,
     user_has_conversation_code,
+    identify_user_comprehensive,
+    UserIdentificationResult,
+    ensure_user_uuid_matches_flashed_id
 )
 from .memories import FlashinhoMemories
 from .session_utils import (
@@ -34,7 +38,6 @@ from .session_utils import (
     ensure_session_row,
 )
 from .api_client import FlashinhoAPI
-from src.db.repository.user_uuid_migration import ensure_user_uuid_matches_flashed_id
 
 
 logger = logging.getLogger(__name__)
@@ -48,13 +51,7 @@ class ModelConfig:
     system_message: str
 
 
-@dataclass
-class UserIdentificationResult:
-    """Result of user identification process."""
-    user_id: Optional[str]
-    method: Optional[str]
-    requires_conversation_code: bool
-    conversation_code_extracted: bool = False
+# UserIdentificationResult is now imported from shared utilities
 
 
 class FlashinhoV2(AutomagikAgent):
