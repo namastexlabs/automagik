@@ -10,6 +10,7 @@ class MCPServerType(str, Enum):
     """Types of MCP servers supported."""
     STDIO = "stdio"
     HTTP = "http"
+    SSE = "sse"
 
 
 class MCPServerStatus(str, Enum):

@@ -105,12 +105,12 @@ class Cliente(BaseModel):
     contatos: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Contacts list from API response")
     contatos_ids: Optional[List[int]] = Field(None, description="Contact IDs")
     vendedores: Optional[List[Union[int, Dict[str, Any]]]] = Field(None, description="Salesperson IDs")
-    telefone_comercial: Optional[str] = None
+    # telefone_comercial: Optional[str] = None
     tipo_operacao: Optional[TipoOperacaoEnum] = None
     numero_funcionarios: Optional[int] = None
     razao_social: Optional[str] = Field(None, max_length=255)
     nome_fantasia: Optional[str] = Field(None, max_length=255)
-    cnpj: Optional[str] = Field(None, max_length=18)
+    cnpj_cpf: Optional[str] = Field(None, max_length=18)
     inscricao_estadual: Optional[str] = Field(None, max_length=255)
     email: Optional[str] = Field(None, max_length=500)
     endereco: Optional[str] = None
@@ -127,6 +127,12 @@ class Cliente(BaseModel):
     detalhes_aprovacao: Optional[str] = None
     data_registro: Optional[datetime] = None
     ultima_atualizacao: Optional[datetime] = None
+    tabela_preco: Optional[int] = None
+    telefone1_ddd: Optional[str] = None
+    telefone1_numero: Optional[str] = None
+    telefone2_ddd: Optional[str] = None
+    telefone2_numero: Optional[str] = None
+    valor_limite_credito: Optional[int] = None
 
 class Contato(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
@@ -144,13 +150,21 @@ class Vendedor(BaseModel):
     id: int = Field(..., description="Unique identifier")
     codigo: int = Field(..., description="Omie salesperson code")
     nome: str = Field(..., max_length=255)
+    apelido: Optional[str] = Field(None, max_length=255)
     email: EmailStr = Field(..., max_length=254)
     telefone: Optional[str] = Field(None, max_length=20)
-    regiao: Optional[str] = Field(None, max_length=64)
-    regras: Optional[str]
-    time: TimeEnum
     inativo: bool
-    time_stan: bool
+
+class Precificacao(BaseModel):
+    """Estrutura de precificação do produto"""
+    ipi: str 
+    st: str 
+    custo: str 
+    lucro: str 
+    valor_venda: str 
+    valor_venda_sem_impostos: str 
+    comissao: str 
+    desconto_maximo: str 
 
 class Produto(BaseModel):
     id: int = Field(..., description="Unique identifier")
@@ -163,7 +177,7 @@ class Produto(BaseModel):
     descricao: Optional[str] = Field(None, max_length=255)
     descr_detalhada: Optional[str]
     unidade: Optional[str] = Field(None, max_length=32)
-    valor_unitario: float
+    # valor_unitario: float
     peso_bruto: float
     peso_liq: float
     largura: float
@@ -173,6 +187,11 @@ class Produto(BaseModel):
     ncm: Optional[str] = Field(None, max_length=32)
     especificacoes: Optional[str]
     marketing_info: Optional[str]
+    # imagem = Optional[str] = Field(None, max_length=255)
+    manual_tecnico: Optional[str] = Field(None, max_length=255)
+    precificacao: Optional[Precificacao] = None
+    estoque: int
+    
 
 class ItemDePedido(BaseModel):
     id: int = Field(..., description="Unique identifier")

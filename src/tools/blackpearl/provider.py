@@ -422,7 +422,7 @@ class BlackpearlProvider:
         
     @handle_api_error
     @validate_api_response
-    async def get_produto(self, produto_id: int) -> Dict[str, Any]:
+    async def get_produto(self, produto_id: int, tabela_preco: Optional[int] = None) -> Dict[str, Any]:
         """Get a specific product.
         
         Args:
@@ -431,7 +431,7 @@ class BlackpearlProvider:
         Returns:
             Product data
         """
-        return await self._request("GET", f"/api/v1/catalogo/produtos/{produto_id}/")
+        return await self._request("GET", f"/api/v1/catalogo/produtos/{produto_id}/?tabela_preco={tabela_preco}")
         
     @handle_api_error
     @validate_api_response
