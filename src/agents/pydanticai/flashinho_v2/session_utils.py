@@ -109,16 +109,22 @@ async def make_session_persistent(
     if not message_history_obj or not user_id:
         return
     try:
-        # Skip if already persistent (only process if currently in local-only mode)
-        if not getattr(message_history_obj, "_local_only", False):
-            logger.debug("Session already persistent, skipping")
-            return
-
         session_uuid = uuid.UUID(message_history_obj.session_id)
         user_uuid = uuid.UUID(user_id)
 
-        # Save session row if missing
-        if not get_session(session_uuid):
+        # Check if session exists in database regardless of local_only flag
+        existing_session = get_session(session_uuid)
+        
+        # Skip if session exists and is properly linked to this user
+        if existing_session and existing_session.user_id == user_uuid:
+            # Update the MessageHistory object to mark as persistent if needed
+            if getattr(message_history_obj, "_local_only", False):
+                message_history_obj._local_only = False
+            logger.debug("Session already exists and properly linked, skipping")
+            return
+
+        # Create session row if missing or incorrectly linked
+        if not existing_session:
             # Try to get the original session name from agent context
             session_name = None
             if hasattr(agent, 'context'):
@@ -152,6 +158,18 @@ async def make_session_persistent(
             )
             create_session(session_row)
             logger.info("✅ Created session %s in DB with name: %s", session_uuid, session_name)
+        elif existing_session.user_id != user_uuid:
+            # Session exists but linked to different user - update it
+            logger.info("🔄 Updating session %s user_id from %s to %s", session_uuid, existing_session.user_id, user_uuid)
+            updated_session = Session(
+                id=session_uuid,
+                user_id=user_uuid,
+                name=existing_session.name,
+                platform=existing_session.platform,
+                agent_id=getattr(agent, 'db_id', None),
+                created_at=existing_session.created_at,
+            )
+            update_session(updated_session)
 
         # Save local messages to DB, avoiding duplicates
         local_msgs = getattr(message_history_obj, "_local_messages", [])
