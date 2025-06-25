@@ -888,7 +888,11 @@ class AutomagikAgent(ABC, Generic[T]):
                                     media_type=doc_data.get("media_type") or doc_data.get("mime_type")
                                 ))
                         
-            return input_list if len(input_list) > 1 else (input_text or "")
+            # Return input_list if we have multimodal content, otherwise return text
+            if len(input_list) > 1 or (len(input_list) == 1 and not isinstance(input_list[0], str)):
+                return input_list
+            else:
+                return input_text or ""
             
         except Exception as e:
             logger.warning(f"Error processing multimodal content: {e}")
