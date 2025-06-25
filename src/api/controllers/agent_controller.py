@@ -303,7 +303,6 @@ async def get_or_create_user(
 
 def _recursively_sanitize_base64(data: Any) -> Any:
     """Recursively sanitize base64 content in nested data structures."""
-    import copy
     
     try:
         if isinstance(data, dict):
@@ -617,7 +616,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
                         if data_content:
                             multimodal_content["images"].append(
-                                {"data": data_content, "mime_type": mime_type}
+                                {"data": data_content, "media_type": mime_type}
                             )
                             logger.debug(
                                 f"Added image to multimodal content: {mime_type}"
@@ -643,7 +642,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
                         if data_content:
                             multimodal_content["audio"].append(
-                                {"data": data_content, "mime_type": mime_type}
+                                {"data": data_content, "media_type": mime_type}
                             )
                             logger.debug(
                                 f"Added audio to multimodal content: {mime_type}"
@@ -669,7 +668,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
                         if data_content:
                             multimodal_content["documents"].append(
-                                {"data": data_content, "mime_type": mime_type}
+                                {"data": data_content, "media_type": mime_type}
                             )
                             logger.debug(
                                 f"Added document to multimodal content: {mime_type}"

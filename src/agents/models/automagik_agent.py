@@ -658,6 +658,8 @@ class AutomagikAgent(ABC, Generic[T]):
             # Build multimodal input list
             input_list = [input_text] if input_text else []
             
+            logger.debug(f"Processing multimodal content: {type(multimodal_content)}, keys: {multimodal_content.keys() if isinstance(multimodal_content, dict) else 'N/A'}")
+            
             # Process images
             if isinstance(multimodal_content, dict) and "images" in multimodal_content:
                 images = multimodal_content.get("images", [])
@@ -666,7 +668,8 @@ class AutomagikAgent(ABC, Generic[T]):
                         input_list.append(image_data)
                     elif isinstance(image_data, dict):
                         data_content = image_data.get("data")
-                        raw_mime_type = image_data.get("mime_type", "")
+                        # Support both mime_type and media_type for backward compatibility
+                        raw_mime_type = image_data.get("media_type") or image_data.get("mime_type", "")
                         
                         # Validate and normalize MIME type with fallback
                         mime_type = self._validate_mime_type(raw_mime_type)
@@ -694,7 +697,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     
                                     input_list.append(BinaryContent(
                                         data=binary_data,
-                                        content_type=mime_type
+                                        media_type=mime_type
                                     ))
                                     logger.debug(f"Converted base64 image to BinaryContent: {len(binary_data)} bytes, MIME: {mime_type}")
                                 except (base64.binascii.Error, ValueError) as decode_error:
@@ -703,7 +706,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     if data_content.lower().startswith('http'):
                                         try:
                                             input_list.append(ImageUrl(url=data_content))
-                                            logger.debug(f"Fallback: Using ImageUrl for URL-like data")
+                                            logger.debug("Fallback: Using ImageUrl for URL-like data")
                                         except Exception as url_error:
                                             logger.error(f"Fallback ImageUrl failed: {url_error}")
                                             input_list.append(image_data)
@@ -711,15 +714,16 @@ class AutomagikAgent(ABC, Generic[T]):
                                         # Final fallback: keep original data
                                         input_list.append(image_data)
                                 except Exception as content_error:
-                                    logger.error(f"Failed to create BinaryContent (Content-Type error): {content_error}")
+                                    logger.error(f"Failed to create BinaryContent: {type(content_error).__name__}: {content_error}")
+                                    logger.debug(f"Error details - mime_type: {mime_type}, data length: {len(data_content) if data_content else 0}")
                                     # Try with default MIME type
                                     try:
                                         binary_data = base64.b64decode(data_content)
                                         input_list.append(BinaryContent(
                                             data=binary_data,
-                                            content_type="image/jpeg"  # Final fallback MIME type
+                                            media_type="image/jpeg"  # Final fallback MIME type
                                         ))
-                                        logger.debug(f"Fallback: Created BinaryContent with default MIME type")
+                                        logger.debug("Fallback: Created BinaryContent with default MIME type")
                                     except Exception as final_error:
                                         logger.error(f"All BinaryContent creation attempts failed: {final_error}")
                                         input_list.append(image_data)
@@ -733,7 +737,7 @@ class AutomagikAgent(ABC, Generic[T]):
                     elif isinstance(audio_data, dict):
                         if "url" in audio_data:
                             input_list.append(AudioUrl(url=audio_data["url"]))
-                        elif "data" in audio_data and "media_type" in audio_data:
+                        elif "data" in audio_data and ("media_type" in audio_data or "mime_type" in audio_data):
                             # Handle base64 data properly
                             data_content = audio_data["data"]
                             if isinstance(data_content, str):
@@ -752,7 +756,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     binary_data = base64.b64decode(data_content)
                                     input_list.append(BinaryContent(
                                         data=binary_data,
-                                        content_type=audio_data["media_type"]
+                                        media_type=audio_data.get("media_type") or audio_data.get("mime_type")
                                     ))
                                     logger.debug(f"Converted base64 audio to BinaryContent: {len(binary_data)} bytes")
                                 except Exception as decode_error:
@@ -761,7 +765,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                 # Assume it's already binary data
                                 input_list.append(BinaryContent(
                                     data=data_content,
-                                    content_type=audio_data["media_type"]
+                                    media_type=audio_data.get("media_type") or audio_data.get("mime_type")
                                 ))
             
             # Process documents
@@ -773,7 +777,7 @@ class AutomagikAgent(ABC, Generic[T]):
                     elif isinstance(doc_data, dict):
                         if "url" in doc_data:
                             input_list.append(DocumentUrl(url=doc_data["url"]))
-                        elif "data" in doc_data and "media_type" in doc_data:
+                        elif "data" in doc_data and ("media_type" in doc_data or "mime_type" in doc_data):
                             # Handle base64 data properly
                             data_content = doc_data["data"]
                             if isinstance(data_content, str):
@@ -792,7 +796,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     binary_data = base64.b64decode(data_content)
                                     input_list.append(BinaryContent(
                                         data=binary_data,
-                                        content_type=doc_data["media_type"]
+                                        media_type=doc_data.get("media_type") or doc_data.get("mime_type")
                                     ))
                                     logger.debug(f"Converted base64 document to BinaryContent: {doc_data.get('name', 'unnamed')} ({len(binary_data)} bytes)")
                                 except Exception as decode_error:
@@ -801,7 +805,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                 # Assume it's already binary data
                                 input_list.append(BinaryContent(
                                     data=data_content,
-                                    content_type=doc_data["media_type"]
+                                    media_type=doc_data.get("media_type") or doc_data.get("mime_type")
                                 ))
                         
             return input_list if len(input_list) > 1 else (input_text or "")
