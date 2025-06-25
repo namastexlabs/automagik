@@ -267,6 +267,7 @@ def create_app() -> FastAPI:
         try:
             logger.info("🏗️ Initializing database for application startup...")
             # Check which database provider we're using
+            from src.db.providers.factory import get_database_provider
             provider = get_database_provider()
             db_type = provider.get_database_type()
             
