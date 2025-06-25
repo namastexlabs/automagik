@@ -694,7 +694,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     
                                     input_list.append(BinaryContent(
                                         data=binary_data,
-                                        media_type=mime_type
+                                        content_type=mime_type
                                     ))
                                     logger.debug(f"Converted base64 image to BinaryContent: {len(binary_data)} bytes, MIME: {mime_type}")
                                 except (base64.binascii.Error, ValueError) as decode_error:
@@ -717,7 +717,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                         binary_data = base64.b64decode(data_content)
                                         input_list.append(BinaryContent(
                                             data=binary_data,
-                                            media_type="image/jpeg"  # Final fallback MIME type
+                                            content_type="image/jpeg"  # Final fallback MIME type
                                         ))
                                         logger.debug(f"Fallback: Created BinaryContent with default MIME type")
                                     except Exception as final_error:
@@ -752,7 +752,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     binary_data = base64.b64decode(data_content)
                                     input_list.append(BinaryContent(
                                         data=binary_data,
-                                        media_type=audio_data["media_type"]
+                                        content_type=audio_data["media_type"]
                                     ))
                                     logger.debug(f"Converted base64 audio to BinaryContent: {len(binary_data)} bytes")
                                 except Exception as decode_error:
@@ -761,7 +761,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                 # Assume it's already binary data
                                 input_list.append(BinaryContent(
                                     data=data_content,
-                                    media_type=audio_data["media_type"]
+                                    content_type=audio_data["media_type"]
                                 ))
             
             # Process documents
@@ -792,7 +792,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     binary_data = base64.b64decode(data_content)
                                     input_list.append(BinaryContent(
                                         data=binary_data,
-                                        media_type=doc_data["media_type"]
+                                        content_type=doc_data["media_type"]
                                     ))
                                     logger.debug(f"Converted base64 document to BinaryContent: {doc_data.get('name', 'unnamed')} ({len(binary_data)} bytes)")
                                 except Exception as decode_error:
@@ -801,7 +801,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                 # Assume it's already binary data
                                 input_list.append(BinaryContent(
                                     data=data_content,
-                                    media_type=doc_data["media_type"]
+                                    content_type=doc_data["media_type"]
                                 ))
                         
             return input_list if len(input_list) > 1 else (input_text or "")
