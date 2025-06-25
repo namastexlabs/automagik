@@ -213,8 +213,8 @@ class MCPManager:
                 if 'command' in config_data:
                     server_type = 'stdio'
                 elif 'url' in config_data or config_data.get('type') == 'sse':
-                    # Map SSE to HTTP for PydanticAI compatibility
-                    server_type = 'http'
+                    # Keep SSE as SSE for proper handling, will be treated as HTTP internally
+                    server_type = config_data.get('type', 'http')
                 else:
                     server_type = 'stdio'  # Default
                 
@@ -351,7 +351,7 @@ class MCPManager:
                     timeout=server_config.get('timeout', 30000) / 1000  # Convert ms to seconds
                 )
                 
-            elif server_type == 'http':
+            elif server_type in ['http', 'sse']:
                 # Use PydanticAI's MCPServerHTTP (supports both HTTP and SSE)
                 url = server_config.get('url', '')
                 
