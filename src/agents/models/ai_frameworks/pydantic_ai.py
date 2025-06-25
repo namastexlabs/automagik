@@ -117,6 +117,8 @@ class PydanticAIFramework(AgentAIFramework):
             
         except Exception as e:
             logger.error(f"Error running PydanticAI agent: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return AgentResponse(
                 text=f"Error running agent: {str(e)}",
                 success=False,
