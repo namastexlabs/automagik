@@ -265,13 +265,13 @@ class StanAgent(AutomagikAgent):
         if not result:
             # If no prompt for this status, try the default (NOT_REGISTERED)
             logger.warning(f"No prompt found for status {status_key}, falling back to NOT_REGISTERED")
-            logger.debug(f"🔍 Attempting fallback to NOT_REGISTERED prompt")
+            logger.debug("🔍 Attempting fallback to NOT_REGISTERED prompt")
             result = await self.load_active_prompt_template(status_key="NOT_REGISTERED")
             logger.debug(f"🔍 Fallback prompt load result: {result}")
             
             if not result:
                 logger.error(f"Failed to load any prompt for contact {contact_id}")
-                logger.debug(f"🔍 Both primary and fallback prompt loading failed")
+                logger.debug("🔍 Both primary and fallback prompt loading failed")
                 return False
                 
         logger.debug(f"🔍 Successfully loaded prompt for status '{status_key}'")
@@ -365,18 +365,18 @@ class StanAgent(AutomagikAgent):
         
         # Process channel payload first to populate context with user information
         if channel_payload:
-            logger.debug(f"🔍 Stan.run() processing channel payload...")
+            logger.debug("🔍 Stan.run() processing channel payload...")
             await self._process_channel_payload(channel_payload)
             logger.debug(f"🔍 Stan.run() context after payload processing: {list(self.context.keys())}")
             logger.debug(f"🔍 Stan.run() WhatsApp user number: {self.context.get('whatsapp_user_number')}")
             logger.debug(f"🔍 Stan.run() WhatsApp user name: {self.context.get('whatsapp_user_name')}")
         
         # Handle BlackPearl contact management after channel payload processing
-        logger.debug(f"🔍 Stan.run() starting BlackPearl contact management...")
+        logger.debug("🔍 Stan.run() starting BlackPearl contact management...")
         await self._handle_blackpearl_contact_management(channel_payload, user_id)
         
         # Use the framework to handle the execution
-        logger.debug(f"🔍 Stan.run() executing framework run...")
+        logger.debug("🔍 Stan.run() executing framework run...")
         return await self._run_agent(
             input_text=input_text,
             system_prompt=system_message,
@@ -392,13 +392,34 @@ class StanAgent(AutomagikAgent):
         This method manages the Stan-specific BlackPearl contact lookup and 
         approval status-based prompt selection.
         """
-        logger.debug(f"🔍 BlackPearl contact management started")
+        logger.debug("🔍 BlackPearl contact management started")
         logger.debug(f"🔍 channel_payload present: {channel_payload is not None}")
         logger.debug(f"🔍 user_id: {user_id}")
         
         if not channel_payload:
-            logger.debug(f"🔍 No channel_payload, skipping BlackPearl contact management")
+            logger.debug("🔍 No channel_payload, skipping BlackPearl contact management")
             return
+            
+        # Validate user exists in database before proceeding
+        if user_id:
+            from src.db.repository.user import get_user
+            import uuid
+            try:
+                user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+                user = get_user(user_uuid)
+                if not user:
+                    logger.warning(f"🔍 User {user_id} not found in database, creating test user for development")
+                    success = await self._ensure_test_user_exists(user_id)
+                    if not success:
+                        logger.error(f"🔍 Failed to create test user {user_id}, using default NOT_REGISTERED prompt")
+                        await self.load_active_prompt_template(status_key="NOT_REGISTERED")
+                        return
+                else:
+                    logger.debug(f"🔍 User {user_id} found in database")
+            except (ValueError, TypeError) as e:
+                logger.error(f"🔍 Invalid user_id format: {user_id}, error: {e}")
+                await self.load_active_prompt_template(status_key="NOT_REGISTERED")
+                return
             
         try:
             # Extract user information from context (already processed by channel handler)
@@ -450,10 +471,17 @@ class StanAgent(AutomagikAgent):
                 
                 # Update user data in database
                 logger.debug(f"🔍 Updating user data for user_id: {user_id}")
-                update_user_data(user_id, {
-                    "blackpearl_contact_id": contato_blackpearl.get("id"), 
-                    "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id")
-                })
+                try:
+                    import uuid
+                    user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+                    success = update_user_data(user_uuid, {
+                        "blackpearl_contact_id": contato_blackpearl.get("id"), 
+                        "blackpearl_cliente_id": self.context.get("blackpearl_cliente_id")
+                    })
+                    if not success:
+                        logger.warning(f"🔍 Failed to update user_data for user {user_id}")
+                except Exception as e:
+                    logger.error(f"🔍 Error updating user_data for user {user_id}: {str(e)}")
                 
                 # Select prompt based on approval status
                 status_aprovacao_str = contato_blackpearl.get("status_aprovacao", "NOT_REGISTERED")
@@ -466,17 +494,17 @@ class StanAgent(AutomagikAgent):
                 await self._store_stan_user_memory(user_id, user_name, user_number)
                 
                 logger.info(f"BlackPearl Contact: {contato_blackpearl.get('id')} - {user_name}")
-                logger.debug(f"🔍 BlackPearl contact management completed successfully")
+                logger.debug("🔍 BlackPearl contact management completed successfully")
             else:
                 # Use default prompt
-                logger.debug(f"🔍 No BlackPearl contact found, using default NOT_REGISTERED prompt")
+                logger.debug("🔍 No BlackPearl contact found, using default NOT_REGISTERED prompt")
                 await self.load_active_prompt_template(status_key="NOT_REGISTERED")
                 
         except Exception as e:
             logger.error(f"🔍 Error in BlackPearl contact management: {str(e)}")
             logger.error(f"🔍 Exception details: {traceback.format_exc()}")
             # Fallback to default prompt
-            logger.debug(f"🔍 Falling back to NOT_REGISTERED prompt due to error")
+            logger.debug("🔍 Falling back to NOT_REGISTERED prompt due to error")
             await self.load_active_prompt_template(status_key="NOT_REGISTERED")
     
     async def _store_stan_user_memory(self, user_id: Optional[str], user_name: Optional[str], user_number: Optional[str]) -> None:
@@ -510,4 +538,63 @@ class StanAgent(AutomagikAgent):
             logger.info(f"Created/Updated user_information memory for user {user_id}")
             
         except Exception as e:
-            logger.error(f"Error storing Stan user memory: {str(e)}") 
+            logger.error(f"Error storing Stan user memory: {str(e)}")
+    
+    async def _ensure_test_user_exists(self, user_id: str) -> bool:
+        """Ensure test user exists in database for development/testing.
+        
+        Args:
+            user_id: The user ID to create
+            
+        Returns:
+            True if user was created or already exists, False on error
+        """
+        try:
+            from src.db.repository.user import create_user
+            from src.db.models import User
+            from src.config import get_settings
+            import uuid
+            from datetime import datetime
+            
+            # Only create test users in development/test environments
+            settings = get_settings()
+            if settings.AM_ENV.value not in ["development", "test"]:
+                logger.warning(f"🔍 Not creating test user {user_id} in {settings.AM_ENV.value} environment")
+                return False
+            
+            # Check if this is a known test UUID
+            known_test_uuids = [
+                "550e8400-e29b-41d4-a716-446655440000",  # Mock test user
+                "123e4567-e89b-12d3-a456-426614174000",  # Another test user
+            ]
+            
+            if user_id not in known_test_uuids:
+                logger.warning(f"🔍 User {user_id} is not a known test UUID, not creating")
+                return False
+            
+            # Create test user
+            user_uuid = uuid.UUID(user_id)
+            test_user = User(
+                id=user_uuid,
+                email=f"test-{user_id[:8]}@automagik.dev",
+                phone_number="+5511999999999",  # Test phone number
+                user_data={
+                    "test_user": True,
+                    "created_by": "stan_agent_auto_creation",
+                    "purpose": "development_testing"
+                },
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            
+            created_id = create_user(test_user)
+            if created_id:
+                logger.info(f"🔍 Successfully created test user {user_id}")
+                return True
+            else:
+                logger.error(f"🔍 Failed to create test user {user_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"🔍 Error creating test user {user_id}: {str(e)}")
+            return False 
