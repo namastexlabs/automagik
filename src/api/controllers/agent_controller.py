@@ -34,25 +34,23 @@ logger = logging.getLogger(__name__)
 
 
 def is_langgraph_agent(agent_name: str) -> bool:
-    """Check if an agent is a LangGraph orchestration agent."""
+    """Check if an agent name follows legacy orchestration naming pattern."""
     return agent_name.startswith("langgraph-")
 
 
 def should_use_orchestration(agent_name: str, request: AgentRunRequest) -> bool:
-    """Determine if a request should use LangGraph orchestration."""
+    """Determine if a request attempts to use orchestration features (deprecated)."""
     return (
         is_langgraph_agent(agent_name)
-        or request.orchestration_config is not None
-        or request.target_agents is not None
     )
 
 
 async def handle_orchestrated_agent_run(
     agent_name: str, request: AgentRunRequest
 ) -> AgentRunResponse:
-    """Handle orchestrated agent execution (DISABLED - LangGraph implementation removed)."""
+    """Handle orchestrated agent execution (DISABLED - orchestration implementation removed)."""
     logger.warning(
-        f"Orchestration requested for {agent_name} but LangGraph implementation has been removed"
+        f"Orchestration requested for {agent_name} but orchestration implementation has been removed"
     )
 
     execution_time = 0.0
@@ -631,12 +629,21 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Run the agent
         response_content = None
         try:
+            # Use user_id from message_history if available and user_id is None
+            effective_user_id = user_id
+            if user_id is None and message_history and hasattr(message_history, 'user_id'):
+                effective_user_id = message_history.user_id
+                logger.debug(f"Using user_id {effective_user_id} from message_history")
+                # Also update context with the user_id
+                if effective_user_id:
+                    context["user_id"] = str(effective_user_id)
+            
             if content:
                 response_content = await agent.process_message(
                     user_message=content,
                     session_id=session_id,
                     agent_id=agent_id,
-                    user_id=user_id,
+                    user_id=effective_user_id,
                     message_history=message_history if message_history else None,
                     channel_payload=request.channel_payload,
                     context=context,
@@ -648,7 +655,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                     user_message="",
                     session_id=session_id,
                     agent_id=agent_id,
-                    user_id=user_id,
+                    user_id=effective_user_id,
                     message_history=message_history if message_history else None,
                     channel_payload=request.channel_payload,
                     context=context,
@@ -754,11 +761,13 @@ async def get_or_create_session(
             # Use existing session
             session_id = str(session.id)
             
-            # If user_id is None (WhatsApp deferred identification), don't pass user_id to MessageHistory
+            # If user_id is None (WhatsApp deferred identification), use the session's existing user_id
             if user_id is None:
-                logger.debug(f"Using existing session {session_id} without user_id for WhatsApp deferred identification")
+                # Use the user_id from the existing session if available
+                existing_user_id = session.user_id if session.user_id else None
+                logger.debug(f"Using existing session {session_id} with user_id {existing_user_id} from session")
                 return session_id, await run_in_threadpool(
-                    lambda: MessageHistory(session_id=session_id, user_id=None, no_auto_create=True)
+                    lambda: MessageHistory(session_id=session_id, user_id=existing_user_id, no_auto_create=True)
                 )
             else:
                 return session_id, await run_in_threadpool(
