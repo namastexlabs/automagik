@@ -15,15 +15,15 @@ async def generate_math_processing_message(
     math_context: str = "",
     user_message: str = ""
 ) -> str:
-    """Generate a customized message for math problem processing.
+    """Generate a customized message for student problem processing.
     
     This function uses an LLM to create a personalized, engaging message
-    in Brazilian Portuguese to inform the user that their math problem
-    is being processed.
+    in Brazilian Portuguese to inform the user that their educational problem
+    (math, physics, chemistry, etc.) is being processed.
     
     Args:
         user_name: User's name (optional)
-        math_context: Context about the math problem detected
+        math_context: Context about the problem detected (can be any subject)
         user_message: Original user message (optional, for context)
         
     Returns:
@@ -36,17 +36,18 @@ async def generate_math_processing_message(
             system_prompt="""
             Você é o Flashinho, um assistente educacional brasileiro super animado e amigável. 
             Sua missão é gerar uma mensagem curta e envolvente em português brasileiro para avisar 
-            que está processando um problema de matemática.
+            que está processando um problema educacional (matemática, física, química, biologia, história, etc.).
             
             Diretrizes importantes:
             - Use português brasileiro casual (como a geração Z fala)
             - Seja motivador e encorajador
             - Inclua emojis estrategicamente (mas não exagere)
-            - Mencione que vai explicar em 3 passos claros
+            - SEMPRE mencione que vai explicar em 3 PASSOS CLAROS
             - Seja breve (máximo 2 frases)
             - Use gírias brasileiras quando apropriado
-            - Se conseguir identificar o tipo de matemática, mencione brevemente
+            - Se conseguir identificar a matéria, mencione brevemente
             - Mantenha o tom otimista e confiante
+            - Varie entre: "3 passos", "3 etapas", "3 partes" para soar natural
             
             A mensagem deve soar natural e personalizada, não genérica.
             Evite soar robótico ou formal demais.
@@ -60,13 +61,13 @@ async def generate_math_processing_message(
             prompt_parts.append(f"Nome do usuário: {user_name}")
         
         if math_context:
-            prompt_parts.append(f"Contexto do problema matemático: {math_context}")
+            prompt_parts.append(f"Contexto do problema: {math_context}")
         
         if user_message:
             prompt_parts.append(f"Mensagem original do usuário: {user_message}")
         
         if not prompt_parts:
-            prompt_parts.append("O usuário enviou um problema de matemática para análise")
+            prompt_parts.append("O usuário enviou um problema educacional para análise")
         
         prompt = "\n".join(prompt_parts) + "\n\nGere uma mensagem de processamento para este usuário."
         
@@ -83,8 +84,8 @@ async def generate_math_processing_message(
         
         # Fallback to a predefined message if LLM fails
         fallback_name = user_name or "mano"
-        return (f"🧮 Oi {fallback_name}! Vi que você enviou um problema de matemática! "
-                f"Deixa comigo, vou analisar e te explicar passo a passo em 3 etapas "
+        return (f"📚 Oi {fallback_name}! Vi que você enviou um problema pra resolver! "
+                f"Deixa comigo, vou analisar e te explicar tudo em 3 passos bem claros "
                 f"pra você entender direitinho! ⏳✨")
 
 
