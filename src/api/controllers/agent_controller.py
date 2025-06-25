@@ -13,7 +13,6 @@ from src.api.models import (
     AgentInfo,
     AgentRunRequest,
     AgentRunResponse,
-    OrchestrationStatus,
     UserCreate,
 )
 from src.db import (
@@ -62,7 +61,6 @@ async def handle_orchestrated_agent_run(
         session_id=request.session_id,
         agent_name=agent_name,
         execution_time=execution_time,
-        orchestration=OrchestrationStatus(is_orchestrated=False, phase="disabled"),
         errors=[
             "Orchestration disabled - awaiting NMSTX-230 PydanticAI implementation"
         ],
