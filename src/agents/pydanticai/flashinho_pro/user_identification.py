@@ -216,7 +216,10 @@ class FlashinhoProUserMatcher:
             User data if found, None otherwise
         """
         try:
-            return await get_user_by_pretty_id(pretty_id)
+            # Create a simple context for the API call
+            # The get_user_by_pretty_id function requires a context parameter for PydanticAI compatibility
+            temp_context = {"pretty_id": pretty_id}
+            return await get_user_by_pretty_id(temp_context, pretty_id)
         except Exception as e:
             logger.error(f"Error in prettyId lookup for {pretty_id}: {str(e)}")
             return None
