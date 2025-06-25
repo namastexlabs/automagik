@@ -262,7 +262,7 @@ async def get_produtos(
     async with provider:
         return await provider.get_produtos(limit, offset, search, ordering, **filters)
 
-async def get_produto(ctx: RunContext[Dict], produto_id: int) -> Dict[str, Any]:
+async def get_produto(ctx: RunContext[Dict], produto_id: int, tabela_preco: Optional[int] = None) -> Dict[str, Any]:
     """Get a specific product from the Blackpearl API.
     
     Args:
@@ -274,7 +274,7 @@ async def get_produto(ctx: RunContext[Dict], produto_id: int) -> Dict[str, Any]:
     """
     provider = BlackpearlProvider()
     async with provider:
-        return await provider.get_produto(produto_id)
+        return await provider.get_produto(produto_id, tabela_preco)
 
 async def get_familias_de_produtos(
     ctx: RunContext[Dict],
