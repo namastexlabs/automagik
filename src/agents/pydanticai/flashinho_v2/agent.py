@@ -18,13 +18,17 @@ from src.tools.flashed.tool import (
 )
 from src.tools.flashed.provider import FlashedProvider
 from .prompts import AGENT_FREE, AGENT_PROMPT
-from .identification import (
-    UserStatusChecker,
+# Import shared authentication utilities from tools/flashed
+from src.tools.flashed.auth_utils import UserStatusChecker
+from src.tools.flashed.user_identification import (
     build_external_key,
     attach_user_by_external_key,
     attach_user_by_flashed_id_lookup,
     find_user_by_whatsapp_id,
     user_has_conversation_code,
+    identify_user_comprehensive,
+    UserIdentificationResult,
+    ensure_user_uuid_matches_flashed_id
 )
 from .memories import FlashinhoMemories
 from .session_utils import (
@@ -34,7 +38,6 @@ from .session_utils import (
     ensure_session_row,
 )
 from .api_client import FlashinhoAPI
-from src.db.repository.user_uuid_migration import ensure_user_uuid_matches_flashed_id
 
 
 logger = logging.getLogger(__name__)
@@ -48,13 +51,7 @@ class ModelConfig:
     system_message: str
 
 
-@dataclass
-class UserIdentificationResult:
-    """Result of user identification process."""
-    user_id: Optional[str]
-    method: Optional[str]
-    requires_conversation_code: bool
-    conversation_code_extracted: bool = False
+# UserIdentificationResult is now imported from shared utilities
 
 
 class FlashinhoV2(AutomagikAgent):
@@ -98,6 +95,9 @@ class FlashinhoV2(AutomagikAgent):
         if self.db_id:
             self.dependencies.set_agent_id(self.db_id)
         self.tool_registry.register_default_tools(self.context)
+        
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
     
     def _initialize_user_status(self) -> None:
         """Initialize user status tracking."""
@@ -736,6 +736,11 @@ class FlashinhoV2(AutomagikAgent):
             await update_message_history_user_id(history, str(user_id))
             await update_session_user_id(history, str(user_id))
         await make_session_persistent(self, history, str(user_id))
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoV2:

@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, List, ClassVar
+from typing import Optional, Dict, Any, List, ClassVar, Literal
 import json
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -89,6 +89,11 @@ class Session(BaseDBModel):
     updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
     run_finished_at: Optional[datetime] = Field(None, description="Run finished at timestamp")
     message_count: Optional[int] = Field(None, description="Number of messages in the session")
+    # Conversation branching fields
+    parent_session_id: Optional[uuid.UUID] = Field(None, description="Parent session ID for branches")
+    branch_point_message_id: Optional[uuid.UUID] = Field(None, description="Message where branch was created")
+    branch_type: Optional[Literal["edit_branch", "manual_branch"]] = Field(None, description="Type of branch")
+    is_main_branch: bool = Field(True, description="Whether this is the main conversation thread")
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Session":
@@ -760,6 +765,7 @@ class WorkflowRunBase(BaseDBModel):
     workspace_auto_merge: bool = Field(False, description="Automatically merge to main branch")
     workspace_cleaned_up: bool = Field(False, description="Workspace cleanup status")
     workspace_path: Optional[str] = Field(None, description="Local filesystem workspace directory")
+    temp_workspace: bool = Field(False, description="Whether using temporary isolated workspace")
     
     # Cost and token tracking
     cost_estimate: Optional[float] = Field(None, description="Estimated API cost in USD")

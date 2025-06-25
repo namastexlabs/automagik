@@ -72,6 +72,9 @@ class GenieAgent(AutomagikAgent):
         # Register tools
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Note: PydanticAI agent and tool registration will be done lazily in run()
         
         # Initialize orchestration components only if LangGraph is available
@@ -139,27 +142,27 @@ class GenieAgent(AutomagikAgent):
         
         # Get workflow sequence
         if self.router:
-            planned_workflows = self.router.select_workflows(epic_analysis)
+            planned_workflows = self.router.select_task_sequence(epic_analysis)
         else:
             # Fallback when router is not available
-            planned_workflows = [WorkflowType.TEST]
+            planned_workflows = ["test"]
         
         # Add required workflows if not present
-        if request.require_tests and WorkflowType.TEST not in planned_workflows:
+        if request.require_tests and "testing" not in planned_workflows:
             # Add test after implementation workflows
             for i, workflow in enumerate(planned_workflows):
-                if workflow in [WorkflowType.IMPLEMENT, WorkflowType.FIX, WorkflowType.REFACTOR]:
-                    planned_workflows.insert(i + 1, WorkflowType.TEST)
+                if workflow in ["implementation", "fixing", "improvement"]:
+                    planned_workflows.insert(i + 1, "testing")
                     break
                     
-        if request.require_pr and WorkflowType.PR not in planned_workflows:
-            planned_workflows.append(WorkflowType.PR)
+        if request.require_pr and "deployment" not in planned_workflows:
+            planned_workflows.append("deployment")
             
         # Estimate costs
         total_cost = 0.0
         for workflow in planned_workflows:
             if self.router:
-                cost = self.router.estimate_workflow_cost(workflow, epic_analysis["complexity"])
+                cost = self.router.estimate_task_cost(workflow, epic_analysis["complexity"])
             else:
                 cost = 10.0  # Fallback cost estimate
             total_cost += cost
@@ -220,7 +223,7 @@ class GenieAgent(AutomagikAgent):
             # Cost management
             cost_accumulated=0.0,
             cost_limit=request.budget_limit,
-            cost_estimates={w.value: (self.router.estimate_workflow_cost(w, plan.complexity_score) 
+            cost_estimates={w: (self.router.estimate_task_cost(w, plan.complexity_score) 
                                     if self.router else 10.0)
                            for w in plan.planned_workflows},
             
@@ -621,3 +624,8 @@ Your epic is now executing! Check the status URL above for progress updates."""
                 "error": str(e),
                 "status": "failed"
             }
+    
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
