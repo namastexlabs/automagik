@@ -8,6 +8,8 @@ import logging
 import time
 from typing import Dict, Any, Optional
 from pathlib import Path
+# from pydantic_ai import Agent as PydanticAgent
+# from src.agents.pydanticai.flashinho_pro.models import StepBreakdown
 
 logger = logging.getLogger(__name__)
 
@@ -254,22 +256,28 @@ async def _mock_workflow_response(
     # Simulate processing time
     await asyncio.sleep(1)
     
-    # Create a mock response for math problem solving
+    # Create a mock response with proper 3-step format
     if image_base64:
-        mock_result = """🧮 **Problema Matemático Analisado!**
+        mock_result = """📚 **Análise Completa do Problema!**
 
-**Passo 1: Identificação do Problema**
-Identifiquei que se trata de um exercício de álgebra/geometria. Vou resolver de forma didática para você entender cada etapa.
+**Passo 1: Identificação e Compreensão** 🔍
+• Identifiquei um problema educacional na imagem enviada
+• O exercício parece envolver conceitos fundamentais da matéria
+• Dados importantes: [análise dos elementos visuais da imagem]
 
-**Passo 2: Método de Resolução**
-Vou aplicar as fórmulas e conceitos apropriados, explicando o raciocínio por trás de cada operação matemática.
+**Passo 2: Desenvolvimento e Resolução** ✏️
+• Aplicando o método apropriado para este tipo de questão
+• Desenvolvendo o raciocínio passo a passo:
+  - Primeiro, organizamos os dados do problema
+  - Em seguida, aplicamos os conceitos necessários
+  - Por fim, realizamos os cálculos ou análises requeridas
 
-**Passo 3: Resposta Final e Verificação**
-Após resolver, vou verificar se a resposta faz sentido e te mostrar como conferir o resultado.
+**Passo 3: Resposta Final e Verificação** ✅
+• Resposta: [resultado do problema]
+• Verificação: Ao substituir os valores, confirmamos que a solução está correta
+• 💡 Dica Extra: Este tipo de problema é comum em provas e vestibulares!
 
-✨ **Dica do Flashinho:** Sempre verifique sua resposta substituindo os valores encontrados na equação original!
-
-*[Resposta simulada - tentando conectar com o workflow flashinho_thinker...]*"""
+*[Resposta simulada - aguardando conexão com workflow flashinho_thinker...]*"""
     else:
         mock_result = """📚 **Problema Matemático Resolvido!**
 
@@ -464,6 +472,64 @@ async def analyze_math_image(image_base64: str) -> str:
         return result["result"]
     else:
         return "Não consegui analisar essa imagem. Pode tentar enviar uma imagem mais clara?"
+
+
+async def analyze_student_problem(image_base64: str, user_message: str = "") -> str:
+    """Analyze any student problem (math, physics, chemistry, etc.) with structured 3-step breakdown.
+    
+    Args:
+        image_base64: Base64 encoded image data
+        user_message: Optional context from the user's message
+        
+    Returns:
+        Analysis and solution in Portuguese with 3-step breakdown
+    """
+    # Use workflow execution directly (structured analysis disabled due to missing dependencies)
+    logger.info("Running workflow execution for student problem analysis")
+    
+    try:
+        
+        # Create a comprehensive prompt that ensures 3-step breakdown
+        prompt = f"""
+        Analise esta imagem educacional e forneça uma explicação COMPLETA em EXATAMENTE 3 PASSOS.
+        
+        {f'Contexto do usuário: {user_message}' if user_message else ''}
+        
+        IMPORTANTE: Sua resposta DEVE seguir EXATAMENTE este formato:
+        
+        **Passo 1: Identificação e Compreensão** 🔍
+        - Identifique o tipo de problema (matemática, física, química, biologia, história, etc.)
+        - Explique o que está sendo pedido
+        - Destaque os dados importantes
+        
+        **Passo 2: Desenvolvimento e Resolução** ✏️
+        - Mostre o processo de resolução passo a passo
+        - Explique cada operação ou raciocínio
+        - Use fórmulas, conceitos ou métodos apropriados
+        
+        **Passo 3: Resposta Final e Verificação** ✅
+        - Apresente a resposta final claramente
+        - Faça a verificação ou prova real quando aplicável
+        - Dê uma dica extra ou aplicação prática
+        
+        Use linguagem clara e acessível para estudantes brasileiros.
+        Inclua emojis para tornar a explicação mais envolvente.
+        Se for um conceito teórico, adapte os 3 passos para: identificação, explicação e exemplos.
+        """
+        
+        result = await run_flashinho_thinker_workflow(
+            message=prompt,
+            image_base64=image_base64
+        )
+        
+        if result["success"]:
+            return result["result"]
+        else:
+            return "📚 Ops! Não consegui analisar bem essa imagem. Que tal enviar ela de novo com mais qualidade? Ou me conta com suas palavras qual é a dúvida!"
+            
+    except Exception as e:
+        logger.error(f"Error in student problem analysis: {str(e)}")
+        return "📚 Ops! Tive um problema técnico. Pode tentar enviar a imagem novamente?"
 
 
 if __name__ == "__main__":
