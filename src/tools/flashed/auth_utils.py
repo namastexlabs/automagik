@@ -1,14 +1,21 @@
 """Shared authentication utilities for Flashinho agents.
 
 This module provides utilities for conversation code handling and user authentication
-that can be shared between flashinho_v2 and flashinho_pro agents.
+that can be shared between flashinho_v2 and flashinho_pro agents. Includes authentication
+context preservation to prevent users from having to re-authenticate after first message.
 """
 import logging
 import re
+import uuid
 from typing import Dict, Any, Optional, Tuple
+from datetime import datetime, timedelta
 from src.tools.flashed.provider import FlashedProvider
 
 logger = logging.getLogger(__name__)
+
+# In-memory cache for authentication context (shared across agent instances)
+_auth_context_cache: Dict[str, Dict[str, Any]] = {}
+_cache_ttl_minutes = 60  # Cache expires after 1 hour
 
 
 class UserStatusChecker:
@@ -320,3 +327,257 @@ async def prepare_flashinho_agent_for_phone(phone: str) -> Tuple[Dict[str, str],
     """
     checker = UserStatusChecker()
     return await checker.prepare_agent_config(phone)
+
+
+# Authentication Context Persistence Functions
+def _build_auth_cache_key(phone_number: str, session_id: Optional[str] = None) -> str:
+    """Build cache key for authentication context.
+    
+    Args:
+        phone_number: User phone number
+        session_id: Optional session ID for more specific caching
+        
+    Returns:
+        Cache key string
+    """
+    if session_id:
+        return f"auth:{phone_number}:{session_id}"
+    return f"auth:{phone_number}"
+
+
+def cache_authentication_context(
+    phone_number: str, 
+    context: Dict[str, Any], 
+    session_id: Optional[str] = None,
+    ttl_minutes: Optional[int] = None
+) -> None:
+    """Cache authentication context to prevent re-authentication.
+    
+    Args:
+        phone_number: User phone number
+        context: Authentication context to cache
+        session_id: Optional session ID for session-specific caching
+        ttl_minutes: Cache TTL in minutes (default: 60)
+    """
+    try:
+        cache_key = _build_auth_cache_key(phone_number, session_id)
+        ttl = ttl_minutes or _cache_ttl_minutes
+        
+        cache_entry = {
+            "context": context.copy(),
+            "cached_at": datetime.now(),
+            "expires_at": datetime.now() + timedelta(minutes=ttl),
+            "phone_number": phone_number,
+            "session_id": session_id
+        }
+        
+        _auth_context_cache[cache_key] = cache_entry
+        
+        logger.debug(f"Cached authentication context for {phone_number} (expires in {ttl}m)")
+        
+    except Exception as e:
+        logger.error(f"Error caching authentication context: {e}")
+
+
+def get_cached_authentication_context(
+    phone_number: str, 
+    session_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Get cached authentication context if valid.
+    
+    Args:
+        phone_number: User phone number
+        session_id: Optional session ID for session-specific lookup
+        
+    Returns:
+        Cached context if valid, None otherwise
+    """
+    try:
+        cache_key = _build_auth_cache_key(phone_number, session_id)
+        
+        if cache_key not in _auth_context_cache:
+            # Try fallback to phone-only cache
+            if session_id:
+                fallback_key = _build_auth_cache_key(phone_number)
+                if fallback_key in _auth_context_cache:
+                    cache_key = fallback_key
+                else:
+                    return None
+            else:
+                return None
+        
+        cache_entry = _auth_context_cache[cache_key]
+        
+        # Check if cache has expired
+        if datetime.now() > cache_entry["expires_at"]:
+            logger.debug(f"Authentication cache expired for {phone_number}")
+            del _auth_context_cache[cache_key]
+            return None
+        
+        logger.debug(f"Retrieved cached authentication context for {phone_number}")
+        return cache_entry["context"].copy()
+        
+    except Exception as e:
+        logger.error(f"Error getting cached authentication context: {e}")
+        return None
+
+
+def clear_authentication_cache(
+    phone_number: Optional[str] = None, 
+    session_id: Optional[str] = None
+) -> None:
+    """Clear authentication cache entries.
+    
+    Args:
+        phone_number: Clear specific phone number (None to clear all)
+        session_id: Clear specific session (requires phone_number)
+    """
+    try:
+        if phone_number and session_id:
+            # Clear specific session
+            cache_key = _build_auth_cache_key(phone_number, session_id)
+            if cache_key in _auth_context_cache:
+                del _auth_context_cache[cache_key]
+                logger.debug(f"Cleared authentication cache for {phone_number}:{session_id}")
+        elif phone_number:
+            # Clear all entries for phone number
+            keys_to_remove = [
+                key for key in _auth_context_cache.keys() 
+                if key.startswith(f"auth:{phone_number}")
+            ]
+            for key in keys_to_remove:
+                del _auth_context_cache[key]
+            logger.debug(f"Cleared {len(keys_to_remove)} authentication cache entries for {phone_number}")
+        else:
+            # Clear all cache
+            _auth_context_cache.clear()
+            logger.debug("Cleared all authentication cache entries")
+            
+    except Exception as e:
+        logger.error(f"Error clearing authentication cache: {e}")
+
+
+def get_authentication_cache_stats() -> Dict[str, Any]:
+    """Get authentication cache statistics.
+    
+    Returns:
+        Dict with cache statistics
+    """
+    try:
+        now = datetime.now()
+        valid_entries = 0
+        expired_entries = 0
+        
+        for cache_entry in _auth_context_cache.values():
+            if now <= cache_entry["expires_at"]:
+                valid_entries += 1
+            else:
+                expired_entries += 1
+        
+        return {
+            "total_entries": len(_auth_context_cache),
+            "valid_entries": valid_entries,
+            "expired_entries": expired_entries,
+            "cache_hit_potential": valid_entries > 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting cache statistics: {e}")
+        return {"error": str(e)}
+
+
+def cleanup_expired_authentication_cache() -> int:
+    """Clean up expired authentication cache entries.
+    
+    Returns:
+        Number of entries removed
+    """
+    try:
+        now = datetime.now()
+        keys_to_remove = []
+        
+        for key, cache_entry in _auth_context_cache.items():
+            if now > cache_entry["expires_at"]:
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            del _auth_context_cache[key]
+        
+        if keys_to_remove:
+            logger.debug(f"Cleaned up {len(keys_to_remove)} expired authentication cache entries")
+        
+        return len(keys_to_remove)
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up authentication cache: {e}")
+        return 0
+
+
+async def preserve_authentication_state(
+    phone_number: str,
+    flashed_user_id: str,
+    conversation_code: str,
+    user_data: Dict[str, Any],
+    session_id: Optional[str] = None,
+    context: Optional[Dict[str, Any]] = None
+) -> None:
+    """Preserve authentication state to prevent re-authentication in subsequent messages.
+    
+    Args:
+        phone_number: User phone number
+        flashed_user_id: Authenticated Flashed user ID
+        conversation_code: Verified conversation code
+        user_data: User data from Flashed API
+        session_id: Optional session ID
+        context: Additional context to preserve
+    """
+    try:
+        auth_context = {
+            "flashed_user_id": flashed_user_id,
+            "flashed_conversation_code": conversation_code,
+            "phone_number": phone_number,
+            "user_data": user_data.copy(),
+            "authenticated_at": datetime.now().isoformat(),
+            "authentication_method": "conversation_code"
+        }
+        
+        # Add additional context if provided
+        if context:
+            auth_context.update(context)
+        
+        # Cache the authentication context
+        cache_authentication_context(phone_number, auth_context, session_id)
+        
+        logger.info(f"Preserved authentication state for {phone_number} (user: {flashed_user_id})")
+        
+    except Exception as e:
+        logger.error(f"Error preserving authentication state: {e}")
+
+
+async def restore_authentication_state(
+    phone_number: str,
+    session_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Restore previously authenticated state to avoid re-authentication.
+    
+    Args:
+        phone_number: User phone number
+        session_id: Optional session ID
+        
+    Returns:
+        Restored authentication context if available
+    """
+    try:
+        cached_context = get_cached_authentication_context(phone_number, session_id)
+        
+        if cached_context:
+            logger.info(f"Restored authentication state for {phone_number} "
+                       f"(authenticated at: {cached_context.get('authenticated_at')})")
+            return cached_context
+        else:
+            logger.debug(f"No cached authentication state found for {phone_number}")
+            return None
+        
+    except Exception as e:
+        logger.error(f"Error restoring authentication state: {e}")
+        return None
