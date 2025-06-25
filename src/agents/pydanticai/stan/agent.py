@@ -430,7 +430,6 @@ class StanAgent(AutomagikAgent):
                 # Ensure user has user_data to prevent None errors later
                 if user.user_data is None:
                     logger.info(f"🔍 User {user_id} has no user_data, initializing empty dict")
-                    from src.db.repository.user import update_user_data
                     update_user_data(user_uuid, {})
         except (ValueError, TypeError) as e:
             logger.error(f"🔍 Invalid user_id format: {user_id}, error: {e}")
