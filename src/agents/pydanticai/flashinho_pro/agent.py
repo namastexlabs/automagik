@@ -58,7 +58,7 @@ class FlashinhoPro(AutomagikAgent):
             config = {}
 
         # default/fallback models
-        self.pro_model = "openai:gpt-4o"
+        self.pro_model = "google-gla:gemini-2.5-pro-preview-05-06"
         self.free_model = "google-gla:gemini-2.5-flash-preview-05-20"
 
         config.setdefault("model", self.pro_model)
@@ -683,59 +683,64 @@ class FlashinhoPro(AutomagikAgent):
             logger.debug(f"Pro user status: {self._is_pro_user}")
             logger.debug(f"Multimodal content present: {bool(multimodal_content)}")
             
-            # 3. Check for student problem in image (Pro users only)
-            if self._is_pro_user and multimodal_content:
-                logger.debug("Pro user with multimodal content - checking for student problems")
-                is_student_problem, problem_context = await self._detect_student_problem_in_image(multimodal_content, input_text)
-                logger.debug(f"Student problem detection result: is_problem={is_student_problem}, context={problem_context}")
-                
-                if is_student_problem:
-                    phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-                    logger.debug(f"Student problem detected, phone number: {phone}")
+            # 3. Handle multimodal content based on user tier
+            if multimodal_content:
+                if not self._is_pro_user:
+                    # Free user trying to use image analysis - show upgrade message
+                    logger.debug("Free user with multimodal content - showing Pro upgrade message")
+                    pro_message = await generate_pro_feature_message(
+                        user_name=self.context.get("flashed_user_name"),
+                        feature_name="análise de imagens educacionais com explicação em 3 passos"
+                    )
                     
-                    if phone:
-                        # Handle student problem flow with workflow
-                        result_text = await self._handle_student_problem_flow(
-                            multimodal_content, user_id, phone, problem_context, input_text
-                        )
+                    return AgentResponse(
+                        text=pro_message,
+                        success=True,
+                        metadata={"feature_restricted": True, "user_type": "free"},
+                        usage={
+                            "model": self.free_model,
+                            "request_tokens": 0,
+                            "response_tokens": 0,
+                            "total_tokens": 0
+                        }
+                    )
+                else:
+                    # Pro user with multimodal content - check for student problems
+                    logger.debug("Pro user with multimodal content - checking for student problems")
+                    is_student_problem, problem_context = await self._detect_student_problem_in_image(multimodal_content, input_text)
+                    logger.debug(f"Student problem detection result: is_problem={is_student_problem}, context={problem_context}")
+                    
+                    if is_student_problem:
+                        phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
+                        logger.debug(f"Student problem detected, phone number: {phone}")
                         
-                        # Add workflow indicator to the result text
-                        workflow_result = result_text
-                        if "[Resposta simulada" in result_text:
-                            # Mark that this used the workflow (even if mock)
-                            workflow_result += "\n\n<!-- workflow:flashinho_thinker -->"
-                        
-                        return AgentResponse(
-                            text=workflow_result,
-                            success=True,
-                            usage={
-                                "model": self.pro_model,
-                                "request_tokens": 0,  # Will be filled by workflow
-                                "response_tokens": 0,
-                                "total_tokens": 0
-                            }
-                        )
-                    else:
-                        logger.error("No phone number available for Evolution message")
-            
-            elif multimodal_content and not self._is_pro_user:
-                # Non-Pro user trying to use educational image analysis
-                pro_message = await generate_pro_feature_message(
-                    user_name=self.context.get("flashed_user_name"),
-                    feature_name="análise de imagens educacionais com explicação em 3 passos"
-                )
-                
-                return AgentResponse(
-                    text=pro_message,
-                    success=True,
-                    metadata={"feature_restricted": True, "user_type": "free"},
-                    usage={
-                        "model": self.free_model,
-                        "request_tokens": 0,
-                        "response_tokens": 0,
-                        "total_tokens": 0
-                    }
-                )
+                        if phone:
+                            # Handle student problem flow with workflow
+                            result_text = await self._handle_student_problem_flow(
+                                multimodal_content, user_id, phone, problem_context, input_text
+                            )
+                            
+                            # Add workflow indicator to the result text
+                            workflow_result = result_text
+                            if "[Resposta simulada" in result_text:
+                                # Mark that this used the workflow (even if mock)
+                                workflow_result += "\n\n<!-- workflow:flashinho_thinker -->"
+                            
+                            return AgentResponse(
+                                text=workflow_result,
+                                success=True,
+                                usage={
+                                    "model": self.pro_model,
+                                    "request_tokens": 0,  # Will be filled by workflow
+                                    "response_tokens": 0,
+                                    "total_tokens": 0
+                                }
+                            )
+                        else:
+                            logger.error("No phone number available for Evolution message")
+                    
+                    # Pro user with non-student-problem image - use regular multimodal chat
+                    logger.debug("Pro user with non-student-problem image - proceeding with regular multimodal chat")
             
             # 4. Regular chat flow
             whatsapp_phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
