@@ -427,8 +427,7 @@ class FlashinhoPro(AutomagikAgent):
                         image_data = first_image
             
             if not image_data:
-                from src.api.controllers.agent_controller import _sanitize_multimodal_content_for_logging
-                logger.error(f"No image data found in multimodal content: {_sanitize_multimodal_content_for_logging(multimodal_content)}")
+                logger.error("No image data found in multimodal content - image extraction failed")
                 return "Desculpa, não consegui acessar a imagem. Pode tentar enviar novamente?"
             
             # Start workflow monitoring
