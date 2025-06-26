@@ -22,13 +22,11 @@ class FlashinhoProDependencies(PydanticAIDependencies):
         super().__init__(config or {})
         
         # Default model is the Pro model
-        self.model_name = "google-gla:gemini-2.5-pro-preview-06-05"
+        self.model_name = "openai:gpt-4o"
         
-        # Initialize LLM client
-        self.llm_client = GoogleLLMClient(
-            model=self.model_name,
-            api_key=os.environ.get("GOOGLE_API_KEY"),
-        )
+        # Initialize LLM client (will be updated dynamically based on model)
+        # For OpenAI models, the framework handles the client automatically
+        self.llm_client = None  # Handled by framework based on model prefix
         
         # Initialize Flashed provider
         self.flashed_provider = FlashedProvider() 

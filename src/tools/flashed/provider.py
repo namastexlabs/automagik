@@ -38,6 +38,12 @@ class FlashedProvider():
             "c0743fb7-7765-4cf0-9ab6-90a196a1559a",  # Cezar - test user
         ]
         
+        # Mock conversation codes for testing
+        self._mock_conversation_codes = {
+            "1bl1UKm0JC": "c0743fb7-7765-4cf0-9ab6-90a196a1559a",  # Pro user code
+            "FreeMock99": "aaaaaaaa-bbbb-cccc-dddd-ffffffffffff",  # Free user mock code (valid UUID format, 10 chars)
+        }
+        
     async def __aenter__(self):
         """Create aiohttp session when entering context."""
         print("Inicializando sessão")
@@ -371,6 +377,44 @@ class FlashedProvider():
               - birthDate: Date of birth
               - metadata: Additional user metadata
         """
+        # Check for mock conversation codes first
+        if pretty_id in self._mock_conversation_codes:
+            user_id = self._mock_conversation_codes[pretty_id]
+            logger.info(f"Using mock conversation code {pretty_id} -> user {user_id}")
+            
+            # Return mock user data based on the conversation code
+            if pretty_id == "FreeMock99":
+                return {
+                    "user": {
+                        "id": user_id,  # aaaaaaaa-bbbb-cccc-dddd-ffffffffffff
+                        "createdAt": "2024-01-15T10:00:00Z",
+                        "name": "Free User Mock",
+                        "phone": "+5511888888888",
+                        "email": "freeuser@mock.test",
+                        "birthDate": "1995-01-01",
+                        "metadata": {
+                            "account_type": "free",
+                            "mock_user": True
+                        }
+                    }
+                }
+            elif pretty_id == "1bl1UKm0JC":
+                return {
+                    "user": {
+                        "id": user_id,
+                        "createdAt": "2024-01-01T10:00:00Z",
+                        "name": "Cezar Test User",
+                        "phone": "+5511999999999",
+                        "email": "cezar@test.com",
+                        "birthDate": "1990-01-01",
+                        "metadata": {
+                            "account_type": "pro",
+                            "mock_user": True
+                        }
+                    }
+                }
+        
+        # Fallback to real API call for non-mock codes
         return await self._request("GET", f"/user/{pretty_id}", header={"Authorization": self.auth_token})
 
     async def get_user_preferences(self, user_id: str) -> Dict[str, Any]:

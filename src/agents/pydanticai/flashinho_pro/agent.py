@@ -58,7 +58,7 @@ class FlashinhoPro(AutomagikAgent):
             config = {}
 
         # default/fallback models
-        self.pro_model = "google-gla:gemini-2.5-pro-preview-05-06"
+        self.pro_model = "openai:gpt-4o"
         self.free_model = "google-gla:gemini-2.5-flash-preview-05-20"
 
         config.setdefault("model", self.pro_model)

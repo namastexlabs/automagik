@@ -10,6 +10,7 @@ import uuid
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from src.tools.flashed.provider import FlashedProvider
+from src.db import get_user_by_identifier, update_user
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,8 @@ class UserStatusChecker:
             r'codigo[:\s]*([A-Za-z0-9]{10})',
             # Pattern for the specific test format: "KixVoBT59N"
             r'\b([A-Z][a-z]{2}[A-Z][a-z]{1}[A-Z][a-z]{1}[0-9]{2}[A-Z])\b',  # KixVoBT59N pattern
+            # Pattern for mock codes like "FreeMock99"
+            r'\b(FreeMock[0-9]{2})\b',  # FreeMock99 pattern
             # Generic pattern but exclude common Portuguese words
             r'(?<![a-záàâãéêíóôõúç])\b([A-Za-z0-9]{10})(?![a-záàâãéêíóôõúç])\b'
         ]
@@ -139,8 +142,8 @@ class UserStatusChecker:
         """
         if is_pro:
             return {
-                "model": "google-gla:gemini-2.5-pro-preview-05-06",
-                "vision_model": "google-gla:gemini-2.5-pro-preview-05-06",
+                "model": "openai:gpt-4o",
+                "vision_model": "openai:gpt-4o",
                 "prompt_type": "pro"
             }
         else:
@@ -345,13 +348,13 @@ def _build_auth_cache_key(phone_number: str, session_id: Optional[str] = None) -
     return f"auth:{phone_number}"
 
 
-def cache_authentication_context(
+async def cache_authentication_context(
     phone_number: str, 
     context: Dict[str, Any], 
     session_id: Optional[str] = None,
     ttl_minutes: Optional[int] = None
 ) -> None:
-    """Cache authentication context to prevent re-authentication.
+    """Cache authentication context to prevent re-authentication using database storage.
     
     Args:
         phone_number: User phone number
@@ -360,30 +363,65 @@ def cache_authentication_context(
         ttl_minutes: Cache TTL in minutes (default: 60)
     """
     try:
-        cache_key = _build_auth_cache_key(phone_number, session_id)
         ttl = ttl_minutes or _cache_ttl_minutes
+        expires_at = datetime.now() + timedelta(minutes=ttl)
         
+        # Store authentication context in user data
+        try:
+            # Find user by phone number
+            user = get_user_by_identifier(phone_number)
+            if user:
+                # Update user data with authentication context
+                auth_data = {
+                    "flashed_conversation_code": context.get("flashed_conversation_code"),
+                    "flashed_user_id": context.get("flashed_user_id"),
+                    "flashed_user_name": context.get("flashed_user_name"),
+                    "auth_cached_at": datetime.now().isoformat(),
+                    "auth_expires_at": expires_at.isoformat(),
+                    "auth_session_id": session_id
+                }
+                
+                # Merge with existing user_data
+                current_data = user.user_data or {}
+                current_data.update(auth_data)
+                
+                # Update user with new authentication data
+                from src.db.models import User
+                updated_user = User(
+                    id=user.id,
+                    email=user.email,
+                    phone_number=user.phone_number,
+                    user_data=current_data,
+                    created_at=user.created_at,
+                    updated_at=datetime.now()
+                )
+                update_user(updated_user)
+                logger.debug(f"Cached authentication context in database for {phone_number} (expires in {ttl}m)")
+            else:
+                logger.warning(f"User not found for phone {phone_number}, cannot cache authentication")
+        except Exception as db_error:
+            logger.warning(f"Database caching failed for {phone_number}: {db_error}, using memory cache only")
+        
+        # Keep fallback in-memory cache for immediate access
+        cache_key = _build_auth_cache_key(phone_number, session_id)
         cache_entry = {
             "context": context.copy(),
             "cached_at": datetime.now(),
-            "expires_at": datetime.now() + timedelta(minutes=ttl),
+            "expires_at": expires_at,
             "phone_number": phone_number,
             "session_id": session_id
         }
-        
         _auth_context_cache[cache_key] = cache_entry
-        
-        logger.debug(f"Cached authentication context for {phone_number} (expires in {ttl}m)")
         
     except Exception as e:
         logger.error(f"Error caching authentication context: {e}")
 
 
-def get_cached_authentication_context(
+async def get_cached_authentication_context(
     phone_number: str, 
     session_id: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    """Get cached authentication context if valid.
+    """Get cached authentication context if valid, checking database first.
     
     Args:
         phone_number: User phone number
@@ -393,29 +431,55 @@ def get_cached_authentication_context(
         Cached context if valid, None otherwise
     """
     try:
+        # First check in-memory cache for immediate access
         cache_key = _build_auth_cache_key(phone_number, session_id)
         
-        if cache_key not in _auth_context_cache:
-            # Try fallback to phone-only cache
-            if session_id:
-                fallback_key = _build_auth_cache_key(phone_number)
-                if fallback_key in _auth_context_cache:
-                    cache_key = fallback_key
-                else:
-                    return None
+        if cache_key in _auth_context_cache:
+            cache_entry = _auth_context_cache[cache_key]
+            if datetime.now() <= cache_entry["expires_at"]:
+                logger.debug(f"Retrieved cached authentication context from memory for {phone_number}")
+                return cache_entry["context"].copy()
             else:
-                return None
+                # Remove expired memory cache
+                del _auth_context_cache[cache_key]
         
-        cache_entry = _auth_context_cache[cache_key]
+        # Check database for persistent authentication
+        try:
+            user = get_user_by_identifier(phone_number)
+            
+            if user and user.user_data:
+                auth_expires_at = user.user_data.get("auth_expires_at")
+                if auth_expires_at:
+                    expires_at = datetime.fromisoformat(auth_expires_at)
+                    if datetime.now() <= expires_at:
+                        # Restore context from database
+                        context = {
+                            "flashed_conversation_code": user.user_data.get("flashed_conversation_code"),
+                            "flashed_user_id": user.user_data.get("flashed_user_id"),
+                            "flashed_user_name": user.user_data.get("flashed_user_name"),
+                            "authenticated_at": user.user_data.get("auth_cached_at"),
+                            "user_identification_method": "database_cache"
+                        }
+                        
+                        # Restore to memory cache for faster access
+                        cache_entry = {
+                            "context": context.copy(),
+                            "cached_at": datetime.fromisoformat(user.user_data.get("auth_cached_at", datetime.now().isoformat())),
+                            "expires_at": expires_at,
+                            "phone_number": phone_number,
+                            "session_id": session_id
+                        }
+                        _auth_context_cache[cache_key] = cache_entry
+                        
+                        logger.debug(f"Retrieved cached authentication context from database for {phone_number}")
+                        return context
+                    else:
+                        logger.debug(f"Database authentication cache expired for {phone_number}")
+        except Exception as db_error:
+            logger.warning(f"Database lookup failed for {phone_number}: {db_error}, using memory cache only")
         
-        # Check if cache has expired
-        if datetime.now() > cache_entry["expires_at"]:
-            logger.debug(f"Authentication cache expired for {phone_number}")
-            del _auth_context_cache[cache_key]
-            return None
-        
-        logger.debug(f"Retrieved cached authentication context for {phone_number}")
-        return cache_entry["context"].copy()
+        logger.debug(f"No cached authentication state found for {phone_number}")
+        return None
         
     except Exception as e:
         logger.error(f"Error getting cached authentication context: {e}")
@@ -546,7 +610,7 @@ async def preserve_authentication_state(
             auth_context.update(context)
         
         # Cache the authentication context
-        cache_authentication_context(phone_number, auth_context, session_id)
+        await cache_authentication_context(phone_number, auth_context, session_id)
         
         logger.info(f"Preserved authentication state for {phone_number} (user: {flashed_user_id})")
         
@@ -568,7 +632,7 @@ async def restore_authentication_state(
         Restored authentication context if available
     """
     try:
-        cached_context = get_cached_authentication_context(phone_number, session_id)
+        cached_context = await get_cached_authentication_context(phone_number, session_id)
         
         if cached_context:
             logger.info(f"Restored authentication state for {phone_number} "
