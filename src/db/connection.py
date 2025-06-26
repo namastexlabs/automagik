@@ -119,10 +119,10 @@ def get_db_config() -> Dict[str, Any]:
     }
 
 
-def get_connection_pool():
+def get_connection_pool(skip_health_check: bool = False):
     """Get or create a database connection pool."""
     provider = get_database_provider()
-    return provider.get_connection_pool()
+    return provider.get_connection_pool(skip_health_check=skip_health_check)
 
 
 @contextmanager
