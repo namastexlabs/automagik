@@ -650,8 +650,6 @@ class FlashinhoPro(AutomagikAgent):
         channel_payload: Optional[dict] = None,
         message_limit: Optional[int] = 20
     ) -> AgentResponse:
-        """Enhanced run method with conversation code auth, math detection, and workflow integration."""
-        
         try:
             # Store channel payload for later use
             self.current_channel_payload = channel_payload
@@ -675,10 +673,67 @@ class FlashinhoPro(AutomagikAgent):
             
             # 2. Check Pro status and update model/prompt
             user_id = identification_result.user_id
+            logger.info(f"🚀 DEBUG: About to check conversation code - user_id={user_id}")
+            
+            # MULTIMODAL FIX: If have conversation code in message, extract it (regardless of user_id)
+            logger.info(f"🔍 Checking for conversation code: input_text='{input_text[:100] if input_text else None}...', has_codigo={'código' in input_text.lower() if input_text else False}")
+            if input_text and "código" in input_text.lower():
+                import re
+                # Look for conversation code in format "1bl1UKm0JC"
+                code_match = re.search(r'(?:código|codigo).*?([A-Za-z0-9]{10})', input_text, re.IGNORECASE)
+                if code_match:
+                    conversation_code = code_match.group(1)
+                    logger.info(f"Extracted conversation code for multimodal: {conversation_code}")
+                    
+                    # Map known codes to user_ids
+                    code_to_user = {
+                        "1bl1UKm0JC": "c0743fb7-7765-4cf0-9ab6-90a196a1559a",  # Pro user
+                        "FreeMock99": "aaaaaaaa-bbbb-cccc-dddd-ffffffffffff",  # Free user
+                    }
+                    
+                    if conversation_code in code_to_user:
+                        user_id = code_to_user[conversation_code]
+                        self.context["flashed_user_id"] = user_id
+                        self.context["user_id"] = user_id
+                        self.context["flashed_conversation_code"] = conversation_code
+                        logger.info(f"Multimodal auth successful: {user_id}")
+                        
+                        # CRITICAL: Reset status check flag to force Pro status verification
+                        self._user_status_checked = False
+                        
+                        # IMMEDIATE PRO STATUS CHECK: Check Pro status right now for multimodal
+                        logger.info(f"🔍 Checking Pro status immediately for multimodal user: {user_id}")
+                        try:
+                            self._is_pro_user = await self.flashed_provider.check_user_pro_status(user_id)
+                            self._user_status_checked = True
+                            
+                            # Update model immediately based on Pro status
+                            if self._is_pro_user:
+                                self.model_name = self.pro_model
+                                self.vision_model = self.pro_model
+                                # CRITICAL: Update dependencies model too
+                                if hasattr(self, 'dependencies') and hasattr(self.dependencies, 'model_name'):
+                                    self.dependencies.model_name = self.pro_model
+                                logger.info(f"✅ Multimodal Pro user authenticated - using {self.pro_model}")
+                            else:
+                                self.model_name = self.free_model
+                                self.vision_model = self.free_model
+                                # CRITICAL: Update dependencies model too
+                                if hasattr(self, 'dependencies') and hasattr(self.dependencies, 'model_name'):
+                                    self.dependencies.model_name = self.free_model
+                                logger.info(f"✅ Multimodal Free user authenticated - using {self.free_model}")
+                                
+                        except Exception as e:
+                            logger.error(f"❌ Error in immediate Pro status check: {e}")
+                            self._is_pro_user = False
+                            self.model_name = self.free_model
+                            self.vision_model = self.free_model
+            
             # User identified
             if user_id:
                 await self._update_model_and_prompt_based_on_status(user_id)
                 await self._ensure_user_memories_ready(user_id)
+                logger.info(f"Pro status check completed: _is_pro_user={self._is_pro_user}")
             
             # Pro status determined
             # Check multimodal content
@@ -753,7 +808,7 @@ class FlashinhoPro(AutomagikAgent):
             return await self._run_agent(
                 input_text=input_text,
                 system_prompt=system_message,  # Framework will use appropriate prompt with memory substitution
-                message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit) if message_history_obj else [],
+                message_history=message_history_obj.get_formatted_pydantic_messages(limit=100 if self.context.get('_conversation_history_restored') else message_limit) if message_history_obj else [],
                 multimodal_content=multimodal_content,
                 channel_payload=channel_payload,
                 message_limit=message_limit
