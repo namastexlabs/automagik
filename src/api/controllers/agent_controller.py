@@ -538,9 +538,16 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         factory = AgentFactory()
         agent_type = agent_name
 
-        # Use get_agent instead of create_agent to reuse existing instances
+        # Determine effective user ID before creating agent
+        effective_user_id = user_id
+        if user_id is None and message_history and hasattr(message_history, 'user_id'):
+            effective_user_id = message_history.user_id
+            logger.debug(f"Using user_id {effective_user_id} from message_history for agent creation")
+
+        # Use get_agent_with_session for conversational agents to maintain memory
+        logger.info(f"🔍 Creating agent with session caching: agent={agent_type}, session_id={session_id}, user_id={effective_user_id}")
         try:
-            agent = factory.get_agent(agent_type)
+            agent = factory.get_agent_with_session(agent_type, session_id=session_id, user_id=effective_user_id)
 
             # Check if agent exists
             if not agent or agent.__class__.__name__ == "PlaceholderAgent":
@@ -737,14 +744,9 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Run the agent
         response_content = None
         try:
-            # Use user_id from message_history if available and user_id is None
-            effective_user_id = user_id
-            if user_id is None and message_history and hasattr(message_history, 'user_id'):
-                effective_user_id = message_history.user_id
-                logger.debug(f"Using user_id {effective_user_id} from message_history")
-                # Also update context with the user_id
-                if effective_user_id:
-                    context["user_id"] = str(effective_user_id)
+            # Update context with the effective user_id if available
+            if effective_user_id:
+                context["user_id"] = str(effective_user_id)
             
             if content:
                 response_content = await agent.process_message(

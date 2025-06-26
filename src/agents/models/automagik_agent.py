@@ -390,10 +390,15 @@ class AutomagikAgent(ABC, Generic[T]):
                     current_model = getattr(self.dependencies, "model_name", "")
                     needs_vision = multimodal_content.get("images") or multimodal_content.get("documents")
 
-                    if needs_vision and current_model and ("vision" not in current_model and "gpt-4o" not in current_model):
+                    logger.info(f"🔍 Vision check: needs_vision={needs_vision}, current_model={current_model}, is_vision_capable={self._is_vision_capable_model(current_model) if current_model else False}")
+                    
+                    if needs_vision and current_model and not self._is_vision_capable_model(current_model):
                         if self.dependencies:
+                            logger.info(f"🔄 Switching from {current_model} to vision model: {self.vision_model}")
                             self.dependencies.model_name = self.vision_model
-                            logger.info(f"Switched to vision model: {self.vision_model}")
+                            logger.info(f"✅ Switched to vision model: {self.vision_model}")
+                    else:
+                        logger.info(f"🚫 No vision model switch needed: needs_vision={needs_vision}, current_model={current_model}, is_vision_capable={self._is_vision_capable_model(current_model) if current_model else False}")
                 except Exception as e:
                     logger.warning(f"Unable to auto-switch vision model: {e}")
 
@@ -1490,6 +1495,30 @@ class AutomagikAgent(ABC, Generic[T]):
         else:
             logger.debug("Legacy initialize_graphiti called - skipping in refactored framework")
             return True
+
+    def _is_vision_capable_model(self, model_name: str) -> bool:
+        """Check if a model is vision-capable.
+        
+        Args:
+            model_name: The model name to check
+            
+        Returns:
+            True if the model can handle vision/multimodal content
+        """
+        if not model_name:
+            return False
+            
+        model_lower = model_name.lower()
+        vision_indicators = [
+            "vision", "gpt-4o", "gpt-4-vision", 
+            "gemini-2.5-pro", "gemini-2.5-flash",  # Gemini models are vision-capable
+            "gemini-pro-vision", "gemini-flash-vision",  # Explicit vision variants
+            "claude-3", "claude-sonnet", "claude-haiku",  # Claude 3 models
+            "claude-3.5-sonnet", "claude-3.5-haiku",  # Claude 3.5 models
+            "multimodal", "vision-preview"  # Generic indicators
+        ]
+        
+        return any(indicator in model_lower for indicator in vision_indicators)
 
     # Helper: append media context information to a system prompt.
     def _enhance_system_prompt(self, prompt: str, mc: Dict) -> str:
