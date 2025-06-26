@@ -484,10 +484,15 @@ async def analyze_student_problem(image_base64: str, user_message: str = "") -> 
     Returns:
         Analysis and solution in Portuguese with 3-step breakdown
     """
-    # Use workflow execution directly (structured analysis disabled due to missing dependencies)
-    logger.info("Running workflow execution for student problem analysis")
+    logger.info("Analyzing student problem with direct multimodal model")
     
     try:
+        # Import OpenAI client for direct multimodal analysis
+        from openai import AsyncOpenAI
+        import os
+        
+        # Initialize OpenAI client
+        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
         # Create a comprehensive prompt that ensures 3-step breakdown
         prompt = f"""
@@ -500,12 +505,12 @@ async def analyze_student_problem(image_base64: str, user_message: str = "") -> 
         **Passo 1: Identificação e Compreensão** 🔍
         - Identifique o tipo de problema (matemática, física, química, biologia, história, etc.)
         - Explique o que está sendo pedido
-        - Destaque os dados importantes
+        - Destaque os dados importantes da imagem
         
         **Passo 2: Desenvolvimento e Resolução** ✏️
         - Mostre o processo de resolução passo a passo
         - Explique cada operação ou raciocínio
-        - Use fórmulas, conceitos ou métodos apropriados
+        - Use fórmulas, conceitos ou métodos apropriados baseados no que vê na imagem
         
         **Passo 3: Resposta Final e Verificação** ✅
         - Apresente a resposta final claramente
@@ -515,10 +520,75 @@ async def analyze_student_problem(image_base64: str, user_message: str = "") -> 
         Use linguagem clara e acessível para estudantes brasileiros.
         Inclua emojis para tornar a explicação mais envolvente.
         Se for um conceito teórico, adapte os 3 passos para: identificação, explicação e exemplos.
+        
+        DESCREVA EXATAMENTE O QUE VOCÊ VÊ NA IMAGEM - não invente conteúdo.
         """
         
+        # Prepare image URL for OpenAI API
+        if image_base64.startswith('data:'):
+            # Already in data URL format
+            image_url = image_base64
+        else:
+            # Convert base64 to data URL - try to detect format from base64 header
+            import base64
+            try:
+                # Decode a small portion to detect image format
+                decoded_header = base64.b64decode(image_base64[:100] + '==')
+                if decoded_header.startswith(b'\xff\xd8\xff'):
+                    mime_type = "image/jpeg"
+                elif decoded_header.startswith(b'\x89PNG'):
+                    mime_type = "image/png"
+                elif decoded_header.startswith(b'GIF'):
+                    mime_type = "image/gif"
+                else:
+                    mime_type = "image/jpeg"  # Default fallback
+            except:
+                mime_type = "image/jpeg"  # Safe fallback
+            
+            image_url = f"data:{mime_type};base64,{image_base64}"
+        
+        # Prepare message for OpenAI
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    {
+                        "type": "image_url", 
+                        "image_url": {
+                            "url": image_url
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        # Call OpenAI GPT-4o with vision
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=1500,
+            temperature=0.3
+        )
+        
+        result = response.choices[0].message.content
+        logger.info("Successfully analyzed image with OpenAI GPT-4o")
+        return result
+        
+    except ImportError:
+        logger.warning("OpenAI client not available, falling back to workflow execution")
+        # Fallback to original workflow execution
         result = await run_flashinho_thinker_workflow(
-            message=prompt,
+            message=f"""
+            Analise esta imagem educacional e forneça uma explicação COMPLETA em EXATAMENTE 3 PASSOS.
+            
+            {f'Contexto do usuário: {user_message}' if user_message else ''}
+            
+            DESCREVA EXATAMENTE O QUE VOCÊ VÊ NA IMAGEM - não invente conteúdo.
+            """,
             image_base64=image_base64
         )
         
@@ -529,6 +599,8 @@ async def analyze_student_problem(image_base64: str, user_message: str = "") -> 
             
     except Exception as e:
         logger.error(f"Error in student problem analysis: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Full exception details: {repr(e)}")
         return "📚 Ops! Tive um problema técnico. Pode tentar enviar a imagem novamente?"
 
 
