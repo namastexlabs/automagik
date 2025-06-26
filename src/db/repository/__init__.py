@@ -63,7 +63,8 @@ from src.db.repository.memory import (
     list_memories,
     create_memory,
     update_memory,
-    delete_memory
+    delete_memory,
+    create_memories_bulk
 )
 
 # Prompt repository functions
@@ -177,6 +178,7 @@ __all__ = [
     "create_memory",
     "update_memory",
     "delete_memory",
+    "create_memories_bulk",
     
     # Prompt functions
     "get_prompt_by_id",
