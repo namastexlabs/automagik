@@ -142,8 +142,8 @@ class UserStatusChecker:
         """
         if is_pro:
             return {
-                "model": "openai:gpt-4o",
-                "vision_model": "openai:gpt-4o",
+                "model": "google-gla:gemini-2.5-pro-preview-05-06",
+                "vision_model": "google-gla:gemini-2.5-pro-preview-05-06",
                 "prompt_type": "pro"
             }
         else:
