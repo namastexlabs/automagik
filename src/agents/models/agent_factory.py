@@ -23,6 +23,7 @@ class AgentFactory:
     _agent_locks: Dict[str, Lock] = {}  # Per-agent creation locks
     _agent_locks_async: Dict[str, asyncio.Lock] = {}  # NEW asyncio-based locks per agent
     _lock_creation_lock = asyncio.Lock()  # NEW global lock to protect _agent_locks_async
+    _session_agents: Dict[str, AutomagikAgent] = {}  # Cache agents by session for conversational continuity
     
 
     
@@ -386,6 +387,115 @@ class AgentFactory:
                 logger.debug(f"Verified agent {agent_name} has required callable methods")
             
             return agent
+    
+    @classmethod
+    def get_agent_with_session(cls, agent_name: str, session_id: str = None, user_id: str = None) -> AutomagikAgent:
+        """Get an agent instance with session-based caching for conversational continuity.
+        
+        For conversational agents like flashinho_pro, this method maintains agent instances
+        across requests within the same session to preserve user memory and context.
+        
+        Args:
+            agent_name: Name of the agent to get
+            session_id: Session identifier for caching
+            user_id: User identifier for additional context
+            
+        Returns:
+            Agent instance (cached for session if applicable)
+        """
+        # For conversational agents, use session-based caching
+        conversational_agents = {'flashinho_pro', 'flashinho_v2'}
+        
+        if agent_name in conversational_agents and session_id:
+            session_key = f"{agent_name}:{session_id}"
+            
+            # Check if we have a cached agent for this session
+            if session_key in cls._session_agents:
+                logger.debug(f"Reusing cached agent instance for session {session_id}")
+                cached_agent = cls._session_agents[session_key]
+                
+                # Update context with current session/user info if available
+                if hasattr(cached_agent, 'context') and user_id:
+                    cached_agent.context['user_id'] = user_id
+                    cached_agent.context['session_id'] = session_id
+                
+                # MEMORY FIX: Restore conversation history for cached agents
+                cls._restore_conversation_history(cached_agent, session_id, user_id)
+                    
+                return cached_agent
+            else:
+                # Create new agent and cache it for this session
+                logger.debug(f"Creating and caching new agent instance for session {session_id}")
+                agent = cls.get_agent(agent_name)
+                
+                # Set session context
+                if hasattr(agent, 'context'):
+                    if user_id:
+                        agent.context['user_id'] = user_id
+                    agent.context['session_id'] = session_id
+                
+                # Cache the agent for future requests in this session
+                cls._session_agents[session_key] = agent
+                
+                return agent
+        else:
+            # For non-conversational agents or when no session, use standard behavior
+            return cls.get_agent(agent_name)
+    
+    @classmethod
+    def _restore_conversation_history(cls, agent: AutomagikAgent, session_id: str, user_id: str = None) -> None:
+        """Restore conversation history for cached agents to maintain conversational continuity.
+        
+        Args:
+            agent: The cached agent instance
+            session_id: Session identifier
+            user_id: User identifier for filtering
+        """
+        try:
+            # Store the complete conversation history in agent context
+            # This ensures the agent has access to the full conversation even
+            # when receiving fresh MessageHistory objects from requests
+            if hasattr(agent, 'context'):
+                # Store session info for history restoration
+                agent.context['_cached_session_id'] = session_id
+                agent.context['_cached_user_id'] = user_id
+                agent.context['_conversation_history_restored'] = True
+                
+                logger.debug(f"Conversation history context restored for session {session_id}")
+        except Exception as e:
+            logger.error(f"Error restoring conversation history: {str(e)}")
+            
+    @classmethod
+    def clear_session_cache(cls, session_id: str = None, agent_name: str = None):
+        """Clear cached agents for sessions.
+        
+        Args:
+            session_id: Clear only this session (if provided)
+            agent_name: Clear only this agent type (if provided)
+        """
+        if session_id and agent_name:
+            # Clear specific agent-session combination
+            session_key = f"{agent_name}:{session_id}"
+            if session_key in cls._session_agents:
+                del cls._session_agents[session_key]
+                logger.debug(f"Cleared cached agent for {session_key}")
+        elif session_id:
+            # Clear all agents for this session
+            to_remove = [key for key in cls._session_agents.keys() if key.endswith(f":{session_id}")]
+            for key in to_remove:
+                del cls._session_agents[key]
+            logger.debug(f"Cleared {len(to_remove)} cached agents for session {session_id}")
+        elif agent_name:
+            # Clear all sessions for this agent type
+            to_remove = [key for key in cls._session_agents.keys() if key.startswith(f"{agent_name}:")]
+            for key in to_remove:
+                del cls._session_agents[key]
+            logger.debug(f"Cleared {len(to_remove)} cached agents for agent {agent_name}")
+        else:
+            # Clear all cached agents
+            count = len(cls._session_agents)
+            cls._session_agents.clear()
+            logger.debug(f"Cleared all {count} cached agents")
     
     @classmethod
     def link_agent_to_session(cls, agent_name: str, session_id_or_name: str) -> bool:
