@@ -7,6 +7,7 @@ and populating the prompt variables with user-specific data.
 import logging
 from typing import Dict, Optional, Any, List
 import re
+import asyncio
 from datetime import datetime
 
 from src.tools.flashed.tool import (
@@ -238,76 +239,128 @@ class FlashinhoProUserMatcher:
             # Create context with user_id for API calls
             api_context = {"user_id": self.flashed_user_id}
             
-            # Parallel API calls for efficiency
-            user_data_response = await get_user_data(api_context)
-            score_response = await get_user_score(api_context)
-            roadmap_response = await get_user_roadmap(api_context)
-            objectives_response = await get_user_objectives(api_context)
-            last_card_response = await get_last_card_round(api_context)
-            energy_response = await get_user_energy(api_context)
+            # Parallel API calls for efficiency - make all calls concurrently
+            logger.debug(f"Starting parallel API calls for user {self.flashed_user_id}")
+            tasks = [
+                get_user_data(api_context),
+                get_user_score(api_context),
+                get_user_roadmap(api_context),
+                get_user_objectives(api_context),
+                get_last_card_round(api_context),
+                get_user_energy(api_context)
+            ]
+            
+            # Execute all API calls in parallel with error handling
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Unpack responses with error handling
+            user_data_response = responses[0] if not isinstance(responses[0], Exception) else None
+            score_response = responses[1] if not isinstance(responses[1], Exception) else None
+            roadmap_response = responses[2] if not isinstance(responses[2], Exception) else None
+            objectives_response = responses[3] if not isinstance(responses[3], Exception) else None
+            last_card_response = responses[4] if not isinstance(responses[4], Exception) else None
+            energy_response = responses[5] if not isinstance(responses[5], Exception) else None
+            
+            # Log any API errors
+            for i, response in enumerate(responses):
+                if isinstance(response, Exception):
+                    api_names = ["user_data", "score", "roadmap", "objectives", "last_card", "energy"]
+                    logger.warning(f"API call {api_names[i]} failed: {str(response)}")
+            
+            logger.debug(f"Completed parallel API calls for user {self.flashed_user_id}")
             
             # Extract and normalize data
             variables = {}
             
             # User profile data
-            if user_data_response and "user" in user_data_response:
+            if user_data_response and isinstance(user_data_response, dict) and "user" in user_data_response:
                 user = user_data_response["user"]
-                variables.update({
-                    "name": user.get("name", "Estudante"),
-                    "createdAt": self._format_date(user.get("createdAt")),
-                    # These would come from user metadata if available
-                    "levelOfEducation": user.get("metadata", {}).get("levelOfEducation", "Ensino Médio"),
-                    "preferredSubject": user.get("metadata", {}).get("preferredSubject", ""),
-                })
+                if isinstance(user, dict):
+                    variables.update({
+                        "name": user.get("name", "Estudante"),
+                        "createdAt": self._format_date(user.get("createdAt")),
+                        # These would come from user metadata if available
+                        "levelOfEducation": user.get("metadata", {}).get("levelOfEducation", "Ensino Médio") if isinstance(user.get("metadata"), dict) else "Ensino Médio",
+                        "preferredSubject": user.get("metadata", {}).get("preferredSubject", "") if isinstance(user.get("metadata"), dict) else "",
+                    })
+                    logger.debug(f"Extracted user profile data: {variables}")
+            else:
+                logger.debug(f"No valid user data response: {user_data_response}")
             
             # Score and progress data
-            if score_response and "score" in score_response:
+            if score_response and isinstance(score_response, dict) and "score" in score_response:
                 score = score_response["score"]
-                variables.update({
-                    "flashinhoEnergy": score.get("flashinhoEnergy", 100),
-                    "sequence": score.get("sequence", 0),
-                    "dailyProgress": score.get("dailyProgress", 0),
-                    "starsBalance": score.get("starsBalance", 0),  # Assuming this field exists
-                })
+                if isinstance(score, dict):
+                    variables.update({
+                        "flashinhoEnergy": score.get("flashinhoEnergy", 100),
+                        "sequence": score.get("sequence", 0),
+                        "dailyProgress": score.get("dailyProgress", 0),
+                        "starsBalance": score.get("starsBalance", 0),  # Assuming this field exists
+                    })
+                    logger.debug(f"Extracted score data: energy={score.get('flashinhoEnergy')}, sequence={score.get('sequence')}")
+            else:
+                logger.debug(f"No valid score response: {score_response}")
             
             # Energy data (might be redundant with score)
-            if energy_response and "energyLeft" in energy_response:
+            if energy_response and isinstance(energy_response, dict) and "energyLeft" in energy_response:
                 variables["flashinhoEnergy"] = energy_response["energyLeft"]
+                logger.debug(f"Updated energy from energy endpoint: {energy_response['energyLeft']}")
             
             # Roadmap data
-            if roadmap_response and "roadmap" in roadmap_response:
-                roadmap = roadmap_response["roadmap"]["roadmap"]
-                next_subject = roadmap.get("nextSubjectToStudy", {})
-                variables["roadmap"] = next_subject.get("name", "Próxima matéria")
+            if roadmap_response and isinstance(roadmap_response, dict) and "roadmap" in roadmap_response:
+                roadmap_data = roadmap_response["roadmap"]
+                if isinstance(roadmap_data, dict) and "roadmap" in roadmap_data:
+                    roadmap = roadmap_data["roadmap"]
+                    if isinstance(roadmap, dict):
+                        next_subject = roadmap.get("nextSubjectToStudy", {})
+                        if isinstance(next_subject, dict):
+                            variables["roadmap"] = next_subject.get("name", "Próxima matéria")
+                        else:
+                            variables["roadmap"] = "Próxima matéria"
+                        logger.debug(f"Extracted roadmap data: {variables.get('roadmap')}")
+            else:
+                logger.debug(f"No valid roadmap response: {roadmap_response}")
             
             # Last card play data
-            if last_card_response and "lastRoundPlayed" in last_card_response:
-                last_round = last_card_response["lastRoundPlayed"]
-                
-                # Determine result from card plays
-                card_plays = last_round.get("cardPlays", [])
-                if card_plays:
-                    last_play = card_plays[-1]  # Get most recent play
-                    variables.update({
-                        "last_cardPlay_result": "certo" if last_play.get("result") else "errado",
-                        "last_cardPlay_category": last_round.get("subcategory", {}).get("name", ""),
-                        "last_cardPlay_topic": last_play.get("card", {}).get("topic", ""),
-                        "last_cardPlay_date": self._format_date(last_round.get("completedAt")),
-                    })
-                
-                variables["lastActivity"] = self._format_date(last_round.get("completedAt"))
+            if last_card_response and isinstance(last_card_response, dict) and "content" in last_card_response:
+                content = last_card_response["content"]
+                if isinstance(content, dict) and "lastRoundPlayed" in content:
+                    last_round = content["lastRoundPlayed"]
+                    if isinstance(last_round, dict):
+                        # Determine result from card plays
+                        card_plays = last_round.get("cardPlays", [])
+                        if card_plays and isinstance(card_plays, list):
+                            last_play = card_plays[-1]  # Get most recent play
+                            if isinstance(last_play, dict):
+                                variables.update({
+                                    "last_cardPlay_result": "certo" if last_play.get("result") else "errado",
+                                    "last_cardPlay_category": last_round.get("subcategory", {}).get("name", "") if isinstance(last_round.get("subcategory"), dict) else "",
+                                    "last_cardPlay_topic": last_play.get("card", {}).get("topic", "") if isinstance(last_play.get("card"), dict) else "",
+                                    "last_cardPlay_date": self._format_date(last_round.get("completedAt")),
+                                })
+                        
+                        variables["lastActivity"] = self._format_date(last_round.get("completedAt"))
+                        logger.debug(f"Extracted last card play data: result={variables.get('last_cardPlay_result')}")
+            else:
+                logger.debug(f"No valid last card response: {last_card_response}")
             
             # Objectives data
-            if objectives_response and "objectives" in objectives_response:
+            if objectives_response and isinstance(objectives_response, dict) and "objectives" in objectives_response:
                 objectives = objectives_response["objectives"]
-                if objectives:
+                if objectives and isinstance(objectives, list):
                     last_objective = objectives[-1]  # Get most recent objective
-                    topics = [topic.get("name", "") for topic in last_objective.get("topics", [])]
-                    variables.update({
-                        "last_objectiveCreated_type": last_objective.get("type", ""),
-                        "last_objectiveCreated_topics": ", ".join(topics),
-                        "last_objectiveCreated_duedate": self._format_date(last_objective.get("dueDate")),
-                    })
+                    if isinstance(last_objective, dict):
+                        topics = []
+                        if "topics" in last_objective and isinstance(last_objective["topics"], list):
+                            topics = [topic.get("name", "") for topic in last_objective["topics"] if isinstance(topic, dict)]
+                        variables.update({
+                            "last_objectiveCreated_type": last_objective.get("type", ""),
+                            "last_objectiveCreated_topics": ", ".join(topics),
+                            "last_objectiveCreated_duedate": self._format_date(last_objective.get("dueDate")),
+                        })
+                        logger.debug(f"Extracted objectives data: type={last_objective.get('type')}")
+            else:
+                logger.debug(f"No valid objectives response: {objectives_response}")
             
             # Default values for missing variables
             default_variables = {
