@@ -94,7 +94,7 @@ class FlashinhoPro(AutomagikAgent):
         # Initialize user status checker for shared authentication
         self.user_status_checker = UserStatusChecker()
         
-        logger.info("Flashinho Pro initialized with dynamic model selection, math detection, and workflow integration")
+        logger.debug("Flashinho Pro initialized with dynamic model selection")
     
     def _register_flashed_tools(self) -> None:
         """Register all Flashed API tools for educational gaming functionality."""
@@ -107,7 +107,7 @@ class FlashinhoPro(AutomagikAgent):
         self.tool_registry.register_tool(get_user_energy)
         self.tool_registry.register_tool(get_user_by_pretty_id)
         
-        logger.debug("Registered 7 Flashed API tools including prettyId lookup")
+        # Tools registered silently
     
     async def _check_user_pro_status(self, user_id: Optional[str] = None) -> bool:
         """Check if user has Pro subscription status.
@@ -139,14 +139,14 @@ class FlashinhoPro(AutomagikAgent):
         """
         # Skip if we've already checked this session
         if self._user_status_checked:
-            logger.debug(f"User status already checked this session, Pro status: {self._is_pro_user}")
+            # Status already checked
             return
             
-        logger.debug(f"Checking Pro status for user: {user_id}")
+        # Checking Pro status
         # Check user Pro status
         self._is_pro_user = await self._check_user_pro_status(user_id)
         self._user_status_checked = True
-        logger.debug(f"Pro status check complete: {self._is_pro_user}")
+        # Pro status checked
         
         # Update model and prompt based on status
         if self._is_pro_user:
@@ -167,7 +167,7 @@ class FlashinhoPro(AutomagikAgent):
                 # Ensure the prompt is set in dependencies if applicable
                 if hasattr(self.dependencies, 'prompt'):
                     self.dependencies.prompt = AGENT_PROMPT
-            logger.info(f"User {user_id} is a Pro user. Using model: {self.pro_model}")
+            logger.info(f"Pro user {user_id} - {self.pro_model}")
         else:
             # Free user - use Free model and prompt
             self.model_name = self.free_model
@@ -186,7 +186,7 @@ class FlashinhoPro(AutomagikAgent):
                 # Ensure the prompt is set in dependencies if applicable
                 if hasattr(self.dependencies, 'prompt'):
                     self.dependencies.prompt = AGENT_FREE
-            logger.info(f"User {user_id} is a Free user. Using model: {self.free_model}")
+            logger.info(f"Free user {user_id} - {self.free_model}")
     
     async def _check_for_prettyid_identification(self, input_text: str) -> Optional[str]:
         """Check if the message contains a prettyId and update context accordingly.
@@ -203,7 +203,7 @@ class FlashinhoPro(AutomagikAgent):
             pretty_id = matcher.extract_pretty_id_from_message(input_text)
             
             if pretty_id:
-                logger.info(f"Detected prettyId in message: {pretty_id}")
+                logger.debug(f"Found prettyId: {pretty_id}")
                 
                 # Fetch user data using the prettyId
                 user_data = await matcher._find_user_by_pretty_id(pretty_id)
@@ -225,7 +225,7 @@ class FlashinhoPro(AutomagikAgent):
                     if user_info.get("email"):
                         self.context["user_email"] = user_info["email"]
                     
-                    logger.info(f"Successfully identified user via prettyId {pretty_id}: {user_id}")
+                    logger.info(f"User identified via prettyId: {user_id}")
                     return user_id
                 else:
                     logger.warning(f"No user found for prettyId: {pretty_id}")
@@ -254,7 +254,7 @@ class FlashinhoPro(AutomagikAgent):
             success = await update_flashinho_pro_memories(self.db_id, user_id, self.context)
             
             if success:
-                logger.info(f"Successfully updated Flashinho Pro memories for user {user_id}")
+                logger.debug(f"Memories updated for user {user_id}")
             else:
                 logger.warning(f"Failed to update some Flashinho Pro memories for user {user_id}")
                 
@@ -273,11 +273,11 @@ class FlashinhoPro(AutomagikAgent):
             Tuple of (is_student_problem_detected, subject_context)
         """
         if not multimodal_content:
-            logger.debug("No multimodal content provided")
+            return False, ""
             return False, ""
             
         try:
-            logger.debug(f"Multimodal content structure: {list(multimodal_content.keys())}")
+            # Check multimodal content structure
             
             # Check if we have image content
             image_data = multimodal_content.get("image_data") or multimodal_content.get("image_url")
@@ -285,7 +285,7 @@ class FlashinhoPro(AutomagikAgent):
             # Also check for 'images' key which might contain a list
             if not image_data and "images" in multimodal_content:
                 images = multimodal_content.get("images", [])
-                logger.debug(f"Found {len(images)} images in multimodal content")
+                # Process images list
                 if images:
                     # Handle the structure where images is a list of dicts
                     if isinstance(images, list) and len(images) > 0:
@@ -293,17 +293,17 @@ class FlashinhoPro(AutomagikAgent):
                         if isinstance(first_image, dict):
                             # Extract image data from dict structure
                             image_data = first_image.get("data") or first_image.get("url") or first_image.get("media_url")
-                            logger.debug(f"Extracted image data from dict: {type(image_data).__name__}")
+                            # Extracted image data from dict
                         else:
                             image_data = first_image
                     else:
                         image_data = images
             
             if not image_data:
-                logger.debug("No image data found in multimodal content")
+                return False, ""
                 return False, ""
             
-            logger.debug("Analyzing user message for educational context")
+            # Analyze for educational context
             
             # Detect educational context from user message
             educational_keywords = {
@@ -325,7 +325,7 @@ class FlashinhoPro(AutomagikAgent):
             for subject, keywords in educational_keywords.items():
                 if any(keyword in user_text for keyword in keywords):
                     detected_subject = subject
-                    logger.debug(f"Detected educational subject: {subject}")
+                    # Detected subject
                     break
             
             # If we have an image and any educational context, consider it a student problem
@@ -338,7 +338,7 @@ class FlashinhoPro(AutomagikAgent):
                 logger.info(f"Student problem detected: {context}")
                 return True, context
             else:
-                logger.debug("No educational context detected")
+                # No educational context
                 return False, ""
             
         except Exception as e:
@@ -381,7 +381,7 @@ class FlashinhoPro(AutomagikAgent):
             )
             
             if success:
-                logger.info(f"Sent processing message to {phone}: {message[:50]}...")
+                logger.debug(f"Processing message sent to {phone}")
             else:
                 logger.error(f"Failed to send processing message: {msg_id}")
                 
@@ -402,27 +402,27 @@ class FlashinhoPro(AutomagikAgent):
             Result text from workflow execution with 3-step breakdown
         """
         try:
-            logger.debug(f"Starting student problem flow for user {user_id} with phone {phone}")
+            # Starting student problem flow
             
             # Send processing message to user
             user_name = self.context.get("flashed_user_name", "")
-            logger.debug(f"Sending processing message to {user_name}")
+            # Send processing message
             await self._send_processing_message(phone, user_name, problem_context, user_message)
             
             # Extract image data
-            logger.debug(f"Extracting image data from multimodal content: {list(multimodal_content.keys())}")
+            # Extract image data
             image_data = multimodal_content.get("image_data") or multimodal_content.get("image_url")
             
             # Also check for 'images' key which might contain a list
             if not image_data and "images" in multimodal_content:
                 images = multimodal_content.get("images", [])
-                logger.debug(f"Found {len(images)} images in multimodal content for workflow")
+                # Process images for workflow
                 if images and isinstance(images, list) and len(images) > 0:
                     first_image = images[0]
                     if isinstance(first_image, dict):
                         # Extract image data from dict structure
                         image_data = first_image.get("data") or first_image.get("url") or first_image.get("media_url")
-                        logger.debug(f"Extracted image data from dict for workflow: {type(image_data).__name__}")
+                        # Extracted image for workflow
                     else:
                         image_data = first_image
             
@@ -505,7 +505,7 @@ class FlashinhoPro(AutomagikAgent):
                         if user_data.get("user", {}).get("email"):
                             self.context["user_email"] = user_data["user"]["email"]
                     
-                    logger.info(f"Restored authentication state for {phone_number} - no conversation code needed")
+                    logger.debug(f"Auth restored for {phone_number}")
                     return UserIdentificationResult(
                         user_id=cached_auth.get("flashed_user_id"),
                         method="cached_authentication",
@@ -559,7 +559,7 @@ class FlashinhoPro(AutomagikAgent):
             if not conversation_code:
                 return False
             
-            logger.info(f"Found conversation code in message: {conversation_code}")
+            logger.debug(f"Conversation code: {conversation_code}")
             
             # Get user data by conversation code
             user_result = await self.user_status_checker.get_user_by_conversation_code(conversation_code)
@@ -633,7 +633,7 @@ class FlashinhoPro(AutomagikAgent):
                 }
             )
             
-            logger.info(f"Successfully processed conversation code for user: {final_user_id} (authentication preserved)")
+            logger.info(f"User authenticated: {final_user_id}")
             return True
             
         except Exception as e:
@@ -675,19 +675,19 @@ class FlashinhoPro(AutomagikAgent):
             
             # 2. Check Pro status and update model/prompt
             user_id = identification_result.user_id
-            logger.debug(f"User ID after identification: {user_id}")
+            # User identified
             if user_id:
                 await self._update_model_and_prompt_based_on_status(user_id)
                 await self._ensure_user_memories_ready(user_id)
             
-            logger.debug(f"Pro user status: {self._is_pro_user}")
-            logger.debug(f"Multimodal content present: {bool(multimodal_content)}")
+            # Pro status determined
+            # Check multimodal content
             
             # 3. Handle multimodal content based on user tier
             if multimodal_content:
                 if not self._is_pro_user:
                     # Free user trying to use image analysis - show upgrade message
-                    logger.debug("Free user with multimodal content - showing Pro upgrade message")
+                    # Show Pro upgrade message
                     pro_message = await generate_pro_feature_message(
                         user_name=self.context.get("flashed_user_name"),
                         feature_name="análise de imagens educacionais com explicação em 3 passos"
@@ -706,13 +706,13 @@ class FlashinhoPro(AutomagikAgent):
                     )
                 else:
                     # Pro user with multimodal content - check for student problems
-                    logger.debug("Pro user with multimodal content - checking for student problems")
+                    # Check for student problems
                     is_student_problem, problem_context = await self._detect_student_problem_in_image(multimodal_content, input_text)
-                    logger.debug(f"Student problem detection result: is_problem={is_student_problem}, context={problem_context}")
+                    # Detection complete
                     
                     if is_student_problem:
                         phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
-                        logger.debug(f"Student problem detected, phone number: {phone}")
+                        # Student problem detected
                         
                         if phone:
                             # Handle student problem flow with workflow
@@ -740,14 +740,14 @@ class FlashinhoPro(AutomagikAgent):
                             logger.error("No phone number available for Evolution message")
                     
                     # Pro user with non-student-problem image - use regular multimodal chat
-                    logger.debug("Pro user with non-student-problem image - proceeding with regular multimodal chat")
+                    # Proceed with regular multimodal chat
             
             # 4. Regular chat flow
             whatsapp_phone = self.context.get("whatsapp_user_number") or self.context.get("user_phone_number")
             whatsapp_name = self.context.get("whatsapp_user_name") or self.context.get("user_name")
             identification_method = self.context.get("user_identification_method", "context")
             
-            logger.info(f"Flashinho Pro regular chat from {whatsapp_name} ({whatsapp_phone}) - User ID: {user_id} via {identification_method}")
+            logger.info(f"Chat: {whatsapp_name} - {user_id}")
             
             # Use the enhanced framework to handle execution
             return await self._run_agent(

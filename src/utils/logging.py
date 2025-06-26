@@ -112,9 +112,19 @@ def configure_module_log_levels(verbose_logging: bool):
         # API requests in non-verbose mode
         logging.getLogger('src.api').setLevel(logging.INFO)
         
-        # Memory system in non-verbose mode 
-        memory_logger = logging.getLogger('src.memory.message_history')
-        memory_logger.setLevel(logging.INFO)
+        # Memory system - very noisy, restrict to WARNING
+        logging.getLogger('src.memory').setLevel(logging.WARNING)
+        logging.getLogger('src.memory.system_prompt_agent_memory_tool').setLevel(logging.WARNING)
+        logging.getLogger('src.memory.agent_memory_tool').setLevel(logging.WARNING)
+        logging.getLogger('src.memory.memory_provider').setLevel(logging.WARNING)
+        
+        # Tool registration noise
+        logging.getLogger('src.agents.common.tool_registry').setLevel(logging.INFO)
+        logging.getLogger('src.tools.registry').setLevel(logging.INFO)
+        
+        # Framework internals
+        logging.getLogger('src.agents.models.automagik_agent').setLevel(logging.INFO)
+        logging.getLogger('src.agents.models.dependencies').setLevel(logging.INFO)
 
 def get_logger(name: str) -> logging.Logger:
     """Get a logger with the specified name.
