@@ -193,46 +193,12 @@ class Settings(BaseSettings):
         description="Default WhatsApp number to use if none is provided in the context"
     )
 
-    # Graphiti / Neo4j (Optional)
-    GRAPHITI_ENABLED: bool = Field(
-        default=True,
-        description="Master switch to enable/disable all Graphiti functionality"
-    )
+    # Graphiti / Neo4j (Optional) - Disabled by default unless env vars are set
     NEO4J_URI: Optional[str] = Field(None, description="Neo4j connection URI (e.g., bolt://localhost:7687 or neo4j://localhost:7687)")
     NEO4J_USERNAME: Optional[str] = Field(None, description="Neo4j username")
     NEO4J_PASSWORD: Optional[str] = Field(None, description="Neo4j password")
     GRAPHITI_NAMESPACE_ID: str = Field("automagik", description="Project namespace ID for Graphiti, used as a prefix for agent IDs")
     GRAPHITI_ENV: str = Field("default", description="Environment for Graphiti, e.g., 'development', 'production'")
-
-    # Graphiti Queue Configuration
-    GRAPHITI_QUEUE_ENABLED: bool = Field(
-        default=True,
-        description="Enable asynchronous Graphiti queue processing"
-    )
-    GRAPHITI_QUEUE_MAX_WORKERS: int = Field(
-        default=10,
-        description="Maximum number of Graphiti background workers"
-    )
-    GRAPHITI_QUEUE_MAX_SIZE: int = Field(
-        default=1000,
-        description="Maximum queue size for pending Graphiti operations"
-    )
-    GRAPHITI_QUEUE_RETRY_ATTEMPTS: int = Field(
-        default=3,
-        description="Maximum retry attempts for failed Graphiti operations"
-    )
-    GRAPHITI_QUEUE_RETRY_DELAY: int = Field(
-        default=5,
-        description="Delay in seconds between retry attempts"
-    )
-    GRAPHITI_BACKGROUND_MODE: bool = Field(
-        default=True,
-        description="Process Graphiti operations in background (non-blocking)"
-    )
-    GRAPHITI_MOCK_ENABLED: bool = Field(
-        default=False,
-        description="Use fast mock processing for Graphiti operations instead of real API calls"
-    )
 
     # LLM Concurrency / Retry
     LLM_MAX_CONCURRENT_REQUESTS: int = Field(
@@ -264,6 +230,45 @@ class Settings(BaseSettings):
         # Dynamic env_file will be set in load_settings()
         case_sensitive=True,
         extra="ignore"  # Allow extra fields in environment variables
+    )
+    
+    @property
+    def GRAPHITI_ENABLED(self) -> bool:
+        """Master switch to enable/disable all Graphiti functionality.
+        Automatically disabled if Neo4j connection details are not provided."""
+        # Only enable if all required Neo4j connection details are provided
+        return bool(self.NEO4J_URI and self.NEO4J_USERNAME and self.NEO4J_PASSWORD)
+    
+    @property
+    def GRAPHITI_QUEUE_ENABLED(self) -> bool:
+        """Enable asynchronous Graphiti queue processing.
+        Automatically disabled if Graphiti is disabled."""
+        return self.GRAPHITI_ENABLED
+    
+    # Graphiti Queue Configuration - these will only be used if GRAPHITI_ENABLED is True
+    GRAPHITI_QUEUE_MAX_WORKERS: int = Field(
+        default=10,
+        description="Maximum number of Graphiti background workers"
+    )
+    GRAPHITI_QUEUE_MAX_SIZE: int = Field(
+        default=1000,
+        description="Maximum queue size for pending Graphiti operations"
+    )
+    GRAPHITI_QUEUE_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Maximum retry attempts for failed Graphiti operations"
+    )
+    GRAPHITI_QUEUE_RETRY_DELAY: int = Field(
+        default=5,
+        description="Delay in seconds between retry attempts"
+    )
+    GRAPHITI_BACKGROUND_MODE: bool = Field(
+        default=True,
+        description="Process Graphiti operations in background (non-blocking)"
+    )
+    GRAPHITI_MOCK_ENABLED: bool = Field(
+        default=False,
+        description="Use fast mock processing for Graphiti operations instead of real API calls"
     )
 
 def load_settings() -> Settings:
