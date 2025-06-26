@@ -325,3 +325,110 @@ def delete_memory(memory_id: uuid.UUID) -> bool:
     except Exception as e:
         logger.error(f"Error deleting memory {memory_id}: {str(e)}")
         return False
+
+
+def create_memories_bulk(memories: List[Memory]) -> int:
+    """Create multiple memories in a single transaction with upsert behavior.
+    
+    Args:
+        memories: List of Memory objects to create
+        
+    Returns:
+        Number of memories successfully created/updated
+    """
+    if not memories:
+        return 0
+        
+    try:
+        # Prepare data for bulk insert
+        values = []
+        for memory in memories:
+            # Generate UUID if not provided
+            if not memory.id:
+                memory.id = uuid.uuid4()
+                
+            metadata_json = json.dumps(memory.metadata) if memory.metadata else None
+            
+            values.append((
+                str(memory.id),
+                memory.name,
+                memory.description,
+                memory.content,
+                str(memory.session_id) if memory.session_id else None,
+                str(memory.user_id) if isinstance(memory.user_id, uuid.UUID) else memory.user_id,
+                memory.agent_id,
+                memory.read_mode,
+                memory.access,
+                metadata_json
+            ))
+        
+        # Since there's no unique constraint, we'll use individual upsert approach
+        # but in a more efficient way by checking existing memories first
+        success_count = 0
+        
+        # First, check which memories already exist
+        existing_memories = {}
+        if values:
+            # Get all existing memories for this user/agent combination
+            user_id = values[0][5]  # user_id from first value tuple
+            agent_id = values[0][6]  # agent_id from first value tuple
+            
+            existing_query = """
+                SELECT name, id FROM memories 
+                WHERE user_id = %s AND agent_id = %s
+            """
+            existing_result = execute_query(existing_query, (user_id, agent_id))
+            
+            if existing_result:
+                existing_memories = {row['name']: row['id'] for row in existing_result}
+        
+        # Process each memory: update if exists, insert if new
+        for memory_data in values:
+            memory_id, name, description, content, session_id, user_id, agent_id, read_mode, access, metadata = memory_data
+            
+            try:
+                if name in existing_memories:
+                    # Update existing memory
+                    update_query = """
+                        UPDATE memories SET 
+                            content = %s,
+                            description = %s,
+                            read_mode = %s,
+                            access = %s,
+                            metadata = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """
+                    execute_query(
+                        update_query, 
+                        (content, description, read_mode, access, metadata, existing_memories[name]),
+                        fetch=False
+                    )
+                    success_count += 1
+                else:
+                    # Insert new memory
+                    insert_query = """
+                        INSERT INTO memories (
+                            id, name, description, content, session_id, user_id, agent_id,
+                            read_mode, access, metadata, created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    """
+                    execute_query(
+                        insert_query, 
+                        (memory_id, name, description, content, session_id, user_id, agent_id, read_mode, access, metadata),
+                        fetch=False
+                    )
+                    success_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error processing memory '{name}': {str(e)}")
+                continue
+        
+        logger.info(f"Bulk created/updated {success_count} memories")
+        return success_count
+        
+    except Exception as e:
+        logger.error(f"Error in bulk memory creation: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return 0
