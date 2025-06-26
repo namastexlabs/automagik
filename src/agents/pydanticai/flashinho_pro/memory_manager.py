@@ -56,11 +56,11 @@ class FlashinhoProMemoryManager:
                 await self._ensure_user_in_db(flashed_user_id)
 
                 variables = await matcher.load_user_variables()
-                logger.info(f"Loaded {len(variables)} variables for user {flashed_user_id}")
+                logger.debug(f"Loaded {len(variables)} variables for user {flashed_user_id}")
             else:
                 # Use default variables for unidentified users
                 variables = matcher._get_default_variables()
-                logger.info("Using default variables for unidentified user")
+                logger.debug("Using default variables")
             
             # Create/update individual memories for each variable
             success_count = 0
@@ -68,7 +68,7 @@ class FlashinhoProMemoryManager:
                 if await self._update_memory(var_name, var_value):
                     success_count += 1
             
-            logger.info(f"Updated {success_count}/{len(variables)} memories successfully")
+            logger.debug(f"Updated {success_count}/{len(variables)} memories")
             return success_count > 0
             
         except Exception as e:
@@ -112,10 +112,10 @@ class FlashinhoProMemoryManager:
             memory_id = create_memory(memory)
             
             if memory_id:
-                logger.debug(f"Updated memory '{memory_name}' with content: {content_str[:50]}...")
+                # Memory updated successfully
                 return True
             else:
-                logger.warning(f"Failed to create/update memory '{memory_name}'")
+                logger.debug(f"Failed to update memory '{memory_name}'")
                 return False
                 
         except Exception as e:
@@ -173,7 +173,7 @@ class FlashinhoProMemoryManager:
                 if await self._update_memory(var_name, default_value):
                     success_count += 1
             
-            logger.info(f"Initialized {success_count}/{len(default_variables)} default memories")
+            logger.debug(f"Initialized {success_count} default memories")
             return success_count == len(default_variables)
             
         except Exception as e:
@@ -216,7 +216,7 @@ class FlashinhoProMemoryManager:
                 if value and await self._update_memory(var_name, value):
                     success_count += 1
             
-            logger.info(f"Updated {success_count} activity memories")
+            logger.debug(f"Updated {success_count} activity memories")
             return success_count > 0
             
         except Exception as e:
@@ -311,9 +311,7 @@ class FlashinhoProMemoryManager:
             if existing_user:
                 # If the existing user's ID differs from the Flashed UUID, migrate data to the new ID
                 if existing_user.id != user_uuid:
-                    logger.info(
-                        f"Migrating internal user {existing_user.id} to Flashed ID {user_uuid} (matched by phone/email)"
-                    )
+                    logger.info(f"Migrating user to Flashed ID {user_uuid}")
                     # 1. Ensure destination user row exists (create minimal row if needed)
                     from datetime import datetime
                     from src.db.repository.user import create_user, delete_user
@@ -349,7 +347,7 @@ class FlashinhoProMemoryManager:
                     # 3. Delete old user row (optional – keep as archive if desired)
                     delete_user(existing_user.id)
 
-                    logger.info(f"User data migrated from {existing_user.id} → {user_uuid}")
+                    logger.debug(f"User migrated to {user_uuid}")
 
                 # Update user_data if flashed_user_id missing on the current (now-correct) row
                 if not (existing_user.user_data or {}).get("flashed_user_id"):

@@ -19,10 +19,6 @@ from src.api.routes import main_router as api_router
 from src.agents.models.agent_factory import AgentFactory
 from src.cli.db import db_init
 
-# Configure Neo4j logging to reduce verbosity
-logging.getLogger("neo4j").setLevel(logging.WARNING)
-logging.getLogger("neo4j.io").setLevel(logging.ERROR)
-logging.getLogger("neo4j.bolt").setLevel(logging.ERROR)
 
 # Configure logging
 configure_logging()
@@ -215,8 +211,8 @@ async def initialize_all_agents():
             prompt_task = asyncio.create_task(agent.initialize_prompts())
             prompt_init_tasks.append((agent_name, prompt_task))
             
-            # Initialize Graphiti
-            if hasattr(agent, 'initialize_graphiti'):
+            # Initialize Graphiti only if enabled
+            if settings.GRAPHITI_ENABLED and hasattr(agent, 'initialize_graphiti'):
                 logger.debug(f"Initializing Graphiti for agent: {agent_name}")
                 graphiti_task = asyncio.create_task(agent.initialize_graphiti())
                 graphiti_init_tasks.append((agent_name, graphiti_task))
@@ -232,16 +228,19 @@ async def initialize_all_agents():
             except Exception as e:
                 logger.error(f"❌ Error initializing prompts for {agent_name}: {str(e)}")
         
-        # Wait for all Graphiti initialization tasks to complete
-        for agent_name, task in graphiti_init_tasks:
-            try:
-                success = await task
-                if success:
-                    logger.debug(f"✅ Graphiti for {agent_name} initialized successfully")
-                else:
-                    logger.debug(f"ℹ️ Graphiti for {agent_name} not enabled or could not be initialized")
-            except Exception as e:
-                logger.error(f"❌ Error initializing Graphiti for {agent_name}: {str(e)}")
+        # Wait for all Graphiti initialization tasks to complete (only if enabled)
+        if settings.GRAPHITI_ENABLED:
+            for agent_name, task in graphiti_init_tasks:
+                try:
+                    success = await task
+                    if success:
+                        logger.debug(f"✅ Graphiti for {agent_name} initialized successfully")
+                    else:
+                        logger.debug(f"ℹ️ Graphiti for {agent_name} could not be initialized")
+                except Exception as e:
+                    logger.error(f"❌ Error initializing Graphiti for {agent_name}: {str(e)}")
+        else:
+            logger.info("ℹ️ Graphiti agent initialization skipped - disabled")
         
         logger.info(f"✅ Agent initialization completed. {len(initialized_agents)} agents initialized.")
     except Exception as e:
@@ -312,30 +311,6 @@ def create_app() -> FastAPI:
             logger.error("❌ Application startup aborted due to database initialization failure")
             raise e
         
-        # Initialize Graphiti indices and constraints if Neo4j is configured
-        if settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
-            try:
-                logger.info("🚀 Initializing Graphiti indices and constraints...")
-                # Import the client asynchronously with retry logic
-                try:
-                    from src.utils.graphiti_queue import get_graphiti_client_async
-                    
-                    # Initialize the shared client with retry logic - faster for development
-                    # Use shorter delays in development to make interruption more responsive
-                    client = await get_graphiti_client_async(max_retries=3, retry_delay=1.0)
-                    
-                    if client:
-                        # The build_indices_and_constraints should have already been called
-                        # during client initialization, but let's log that it's ready
-                        logger.info("✅ Graphiti client initialized and indices built successfully")
-                    else:
-                        logger.warning("⚠️ Failed to initialize shared Graphiti client")
-                        
-                except ImportError:
-                    logger.warning("⚠️ graphiti-core package not found, skipping Graphiti initialization")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize Graphiti indices and constraints: {str(e)}")
-                logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Initialize agents after core services are ready
         await initialize_all_agents()
@@ -360,16 +335,46 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error initializing tool system: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
-        # Start Graphiti queue
-        try:
-            logger.info("🚀 Starting Graphiti queue...")
-            from src.utils.graphiti_queue import get_graphiti_queue
-            queue_manager = get_graphiti_queue()
-            await queue_manager.start()
-            logger.info("✅ Graphiti queue started successfully")
-        except Exception as e:
-            logger.error(f"❌ Error starting Graphiti queue: {str(e)}")
-            logger.error(f"Detailed error: {traceback.format_exc()}")
+        # Initialize Graphiti indices and constraints if enabled
+        if settings.GRAPHITI_ENABLED:
+            try:
+                logger.info("🚀 Initializing Graphiti indices and constraints...")
+                # Import the client asynchronously with retry logic
+                try:
+                    from src.utils.graphiti_queue import get_graphiti_client_async
+                    
+                    # Initialize the shared client with retry logic - faster for development
+                    # Use shorter delays in development to make interruption more responsive
+                    client = await get_graphiti_client_async(max_retries=3, retry_delay=1.0)
+                    
+                    if client:
+                        # The build_indices_and_constraints should have already been called
+                        # during client initialization, but let's log that it's ready
+                        logger.info("✅ Graphiti client initialized and indices built successfully")
+                    else:
+                        logger.warning("⚠️ Failed to initialize shared Graphiti client")
+                        
+                except ImportError:
+                    logger.warning("⚠️ graphiti-core package not found, skipping Graphiti initialization")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize Graphiti indices and constraints: {str(e)}")
+                logger.error(f"Detailed error: {traceback.format_exc()}")
+        else:
+            logger.info("ℹ️ Graphiti disabled - Neo4j connection details not provided")
+        
+        # Start Graphiti queue if enabled
+        if settings.GRAPHITI_QUEUE_ENABLED:
+            try:
+                logger.info("🚀 Starting Graphiti queue...")
+                from src.utils.graphiti_queue import get_graphiti_queue
+                queue_manager = get_graphiti_queue()
+                await queue_manager.start()
+                logger.info("✅ Graphiti queue started successfully")
+            except Exception as e:
+                logger.error(f"❌ Error starting Graphiti queue: {str(e)}")
+                logger.error(f"Detailed error: {traceback.format_exc()}")
+        else:
+            logger.info("ℹ️ Graphiti queue disabled")
         
         # Claude Code workflow services removed - process tracking handled in sdk_executor
         
@@ -388,18 +393,21 @@ def create_app() -> FastAPI:
         
         # Claude Code workflow services removed - process tracking handled in sdk_executor
         
-        try:
-            # Stop Graphiti queue
-            logger.info("🛑 Stopping Graphiti queue...")
-            from src.utils.graphiti_queue import shutdown_graphiti_queue
-            await shutdown_graphiti_queue()
-            logger.info("✅ Graphiti queue stopped successfully")
-        except Exception as e:
-            logger.error(f"❌ Error stopping Graphiti queue: {str(e)}")
-            logger.error(f"Detailed error: {traceback.format_exc()}")
+        # Stop Graphiti queue if it was started
+        if settings.GRAPHITI_QUEUE_ENABLED:
+            try:
+                # Stop Graphiti queue
+                logger.info("🛑 Stopping Graphiti queue...")
+                from src.utils.graphiti_queue import shutdown_graphiti_queue
+                await shutdown_graphiti_queue()
+                logger.info("✅ Graphiti queue stopped successfully")
+            except Exception as e:
+                logger.error(f"❌ Error stopping Graphiti queue: {str(e)}")
+                logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Graphiti client cleanup is handled automatically by the queue shutdown above
-        logger.debug("🛑 Graphiti client cleanup completed via queue shutdown")
+        if settings.GRAPHITI_ENABLED:
+            logger.debug("🛑 Graphiti client cleanup completed via queue shutdown")
     
     # Create the FastAPI app
     app = FastAPI(
@@ -597,7 +605,7 @@ def setup_routes(app: FastAPI):
                 return {
                     "status": "disabled",
                     "enabled": False,
-                    "message": "Graphiti queue is disabled by configuration"
+                    "message": "Graphiti queue is disabled - Neo4j connection details not provided"
                 }
             
             from src.utils.graphiti_queue import get_graphiti_queue
