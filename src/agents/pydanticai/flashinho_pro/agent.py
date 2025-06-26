@@ -139,21 +139,17 @@ class FlashinhoPro(AutomagikAgent):
         """
         # Skip if we've already checked this session
         if self._user_status_checked:
-            # Status already checked
             return
             
-        # Checking Pro status
         # Check user Pro status
         self._is_pro_user = await self._check_user_pro_status(user_id)
         self._user_status_checked = True
-        # Pro status checked
         
         # Update model and prompt based on status
         if self._is_pro_user:
             # Pro user - use Pro model and prompt
             self.model_name = self.pro_model
             self.system_message = AGENT_PROMPT
-            # Update vision model
             self.vision_model = self.pro_model
             # Ensure the model is properly set for the LLM client
             if hasattr(self, 'llm_client') and hasattr(self.llm_client, 'model'):

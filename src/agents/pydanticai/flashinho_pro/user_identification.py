@@ -5,7 +5,7 @@ and populating the prompt variables with user-specific data.
 """
 
 import logging
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any
 import re
 import asyncio
 from datetime import datetime
@@ -283,9 +283,9 @@ class FlashinhoProUserMatcher:
                         "levelOfEducation": user.get("metadata", {}).get("levelOfEducation", "Ensino Médio") if isinstance(user.get("metadata"), dict) else "Ensino Médio",
                         "preferredSubject": user.get("metadata", {}).get("preferredSubject", "") if isinstance(user.get("metadata"), dict) else "",
                     })
-                    logger.debug(f"Extracted user profile data: {variables}")
+                    logger.debug(f"Extracted user profile data: name={user.get('name', 'Estudante')}, education={user.get('metadata', {}).get('levelOfEducation', 'Ensino Médio')}")
             else:
-                logger.debug(f"No valid user data response: {user_data_response}")
+                logger.debug("No valid user data response received")
             
             # Score and progress data
             if score_response and isinstance(score_response, dict) and "score" in score_response:
@@ -299,7 +299,7 @@ class FlashinhoProUserMatcher:
                     })
                     logger.debug(f"Extracted score data: energy={score.get('flashinhoEnergy')}, sequence={score.get('sequence')}")
             else:
-                logger.debug(f"No valid score response: {score_response}")
+                logger.debug("No valid score response received")
             
             # Energy data (might be redundant with score)
             if energy_response and isinstance(energy_response, dict) and "energyLeft" in energy_response:
@@ -342,7 +342,7 @@ class FlashinhoProUserMatcher:
                         variables["lastActivity"] = self._format_date(last_round.get("completedAt"))
                         logger.debug(f"Extracted last card play data: result={variables.get('last_cardPlay_result')}")
             else:
-                logger.debug(f"No valid last card response: {last_card_response}")
+                logger.debug("No valid last card response received")
             
             # Objectives data
             if objectives_response and isinstance(objectives_response, dict) and "objectives" in objectives_response:
@@ -360,7 +360,7 @@ class FlashinhoProUserMatcher:
                         })
                         logger.debug(f"Extracted objectives data: type={last_objective.get('type')}")
             else:
-                logger.debug(f"No valid objectives response: {objectives_response}")
+                logger.debug("No valid objectives response received")
             
             # Default values for missing variables
             default_variables = {
