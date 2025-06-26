@@ -20,9 +20,10 @@ ON workflow_runs(status)
 WHERE status IN ('pending', 'running');
 
 -- Add partial indexes for performance optimization
+-- Note: Cannot use NOW() in index predicate as it's not IMMUTABLE
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_completed_recent 
 ON workflow_runs(completed_at) 
-WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '7 days';
+WHERE status = 'completed';
 
 -- Add index for cleanup operations
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_cleanup_candidates 
