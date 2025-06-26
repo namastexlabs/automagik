@@ -245,7 +245,7 @@ class SQLiteProvider(DatabaseProvider):
             return json.dumps(data)
         return data
     
-    def get_connection_pool(self) -> SQLiteConnectionPool:
+    def get_connection_pool(self, skip_health_check: bool = False) -> SQLiteConnectionPool:
         """Get or create a database connection pool."""
         if self._pool is None:
             logger.info(f"Creating SQLite connection pool for database: {self.database_path}")
@@ -881,10 +881,17 @@ class SQLiteProvider(DatabaseProvider):
             applied_migrations = {row['name'] for row in cursor.fetchall()}
             
             # Get the migrations directory path
-            migrations_dir = Path("src/db/migrations")
-            if not migrations_dir.exists():
+            base_migrations_dir = Path("src/db/migrations")
+            if not base_migrations_dir.exists():
                 logger.warning("No migrations directory found")
                 return True, []
+            
+            # Use database-specific directory if it exists
+            sqlite_migrations_dir = base_migrations_dir / "sqlite"
+            if sqlite_migrations_dir.exists():
+                migrations_dir = sqlite_migrations_dir
+            else:
+                migrations_dir = base_migrations_dir
             
             # Get all SQL files and sort them by name (which includes timestamp)
             migration_files = sorted(migrations_dir.glob("*.sql"))
@@ -896,6 +903,11 @@ class SQLiteProvider(DatabaseProvider):
             pending_migrations = []
             for migration_file in migration_files:
                 migration_name = migration_file.name
+                # Skip PostgreSQL-specific migrations for SQLite (only if in base directory)
+                if migrations_dir == base_migrations_dir and migration_name == "00000000_000000_create_initial_schema.sql":
+                    # Skip PostgreSQL-specific initial schema
+                    continue
+                    
                 if migration_name not in applied_migrations:
                     pending_migrations.append(migration_name)
             
@@ -914,6 +926,9 @@ class SQLiteProvider(DatabaseProvider):
                 return True
             
             with self.get_connection() as conn:
+                # Create a basic migration manager for SQLite
+                # Note: We use a simple approach since MigrationManager is designed for PostgreSQL
+                
                 # Create migrations table if it doesn't exist
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS migrations (
@@ -931,11 +946,26 @@ class SQLiteProvider(DatabaseProvider):
                 cursor.execute("SELECT name FROM migrations WHERE status = 'applied'")
                 applied_migrations = {row['name'] for row in cursor.fetchall()}
                 
+                # Use database-specific directory if it exists
+                base_migrations_dir = migrations_path
+                sqlite_migrations_dir = base_migrations_dir / "sqlite"
+                if sqlite_migrations_dir.exists():
+                    actual_migrations_dir = sqlite_migrations_dir
+                    logger.info(f"Using SQLite-specific migrations directory: {actual_migrations_dir}")
+                else:
+                    actual_migrations_dir = base_migrations_dir
+                    logger.info(f"Using base migrations directory: {actual_migrations_dir}")
+                
                 # Get all migration files
-                migration_files = sorted(migrations_path.glob("*.sql"))
+                migration_files = sorted(actual_migrations_dir.glob("*.sql"))
                 
                 for migration_file in migration_files:
                     migration_name = migration_file.name
+                    
+                    # Skip PostgreSQL-specific migrations for SQLite (only if in base directory)
+                    if actual_migrations_dir == base_migrations_dir and migration_name == "00000000_000000_create_initial_schema.sql":
+                        logger.info(f"Migration '{migration_name}' is PostgreSQL-specific, skipping for SQLite.")
+                        continue
                     
                     if migration_name in applied_migrations:
                         continue
