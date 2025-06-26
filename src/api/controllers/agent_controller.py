@@ -310,7 +310,7 @@ def _recursively_sanitize_base64(data: Any) -> Any:
             for key, value in data.items():
                 if key == "base64" and isinstance(value, str) and len(value) > 100:
                     # This looks like base64 data, truncate it
-                    logger.debug(f"DEBUG: Truncating base64 data in key '{key}', length: {len(value)}")
+                    logger.debug(f"Truncating base64 data in key '{key}', length: {len(value)}")
                     sanitized[key] = value[:50] + "...[TRUNCATED " + str(len(value)-100) + " chars]..." + value[-50:]
                 elif isinstance(value, str) and len(value) > 1000 and (
                     # Check for base64-like patterns
@@ -318,7 +318,7 @@ def _recursively_sanitize_base64(data: Any) -> Any:
                     (len(value) % 4 == 0 and all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in value[:100]))
                 ):
                     # This looks like base64 data (data URL or pure base64), truncate it
-                    logger.debug(f"DEBUG: Truncating potential base64 data in key '{key}', length: {len(value)}")
+                    logger.debug(f"Truncating potential base64 data in key '{key}', length: {len(value)}")
                     sanitized[key] = value[:50] + "...[TRUNCATED " + str(len(value)-100) + " chars]..." + value[-50:]
                 else:
                     # Recursively sanitize nested structures
@@ -357,7 +357,7 @@ def _sanitize_payload_for_logging(request: AgentRunRequest) -> Dict[str, Any]:
         # Truncate base64 content in channel_payload
         if sanitized.get("channel_payload") and isinstance(sanitized["channel_payload"], dict):
             payload = sanitized["channel_payload"]
-            logger.debug(f"DEBUG: Found channel_payload with keys: {list(payload.keys())}")
+            logger.debug(f"Found channel_payload with keys: {list(payload.keys())}")
             
             # Use recursive sanitization to handle any nested base64 content
             sanitized["channel_payload"] = _recursively_sanitize_base64(payload)
@@ -460,7 +460,7 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
         # Create sanitized payload for logging (truncate base64 data) - BEFORE orchestration check
         sanitized_request = _sanitize_payload_for_logging(request)
-        logger.info(f"Request payload: {sanitized_request}")
+        logger.debug(f"Request payload: {sanitized_request}")
 
         # Check if this should use LangGraph orchestration
         if should_use_orchestration(agent_name, request):
