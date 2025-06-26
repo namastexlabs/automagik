@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 
 from src.db.models import Memory
-from src.db import create_memory
+from src.db import create_memory, create_memories_bulk
 from .user_identification import FlashinhoProUserMatcher
 
 logger = logging.getLogger(__name__)
@@ -62,11 +62,8 @@ class FlashinhoProMemoryManager:
                 variables = matcher._get_default_variables()
                 logger.debug("Using default variables")
             
-            # Create/update individual memories for each variable
-            success_count = 0
-            for var_name, var_value in variables.items():
-                if await self._update_memory(var_name, var_value):
-                    success_count += 1
+            # Create/update memories in bulk for better performance
+            success_count = await self._bulk_update_memories(variables)
             
             logger.debug(f"Updated {success_count}/{len(variables)} memories")
             return success_count > 0
@@ -121,6 +118,52 @@ class FlashinhoProMemoryManager:
         except Exception as e:
             logger.error(f"Error updating memory '{memory_name}': {str(e)}")
             return False
+    
+    async def _bulk_update_memories(self, variables: Dict[str, Any]) -> int:
+        """Create or update multiple memories in a single bulk operation.
+        
+        Args:
+            variables: Dictionary of variable names to values
+            
+        Returns:
+            Number of memories successfully created/updated
+        """
+        try:
+            # Prepare list of Memory objects
+            memories = []
+            for var_name, var_value in variables.items():
+                memory = Memory(
+                    id=uuid.uuid4(),
+                    name=var_name,
+                    content=str(var_value) if var_value is not None else "",
+                    description=f"Flashinho Pro variable: {var_name}",
+                    user_id=self.user_id,
+                    agent_id=self.agent_id,
+                    read_mode="system_prompt",  # KEY: This enables automatic prompt substitution
+                    access="read_write",
+                    metadata={
+                        "source": "flashed_api",
+                        "updated_at": datetime.now().isoformat(),
+                        "variable_type": "user_context"
+                    },
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                memories.append(memory)
+            
+            # Use bulk creation for better performance
+            success_count = create_memories_bulk(memories)
+            
+            if success_count > 0:
+                logger.debug(f"Bulk updated {success_count} memories successfully")
+            else:
+                logger.warning("Bulk memory update returned 0 successes")
+                
+            return success_count
+            
+        except Exception as e:
+            logger.error(f"Error in bulk memory update: {str(e)}")
+            return 0
     
     async def initialize_default_memories(self) -> bool:
         """Initialize all Flashinho Pro prompt variables with default values.

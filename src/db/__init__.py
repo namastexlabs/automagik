@@ -78,7 +78,8 @@ from src.db.repository import (
     list_memories,
     create_memory,
     update_memory,
-    delete_memory
+    delete_memory,
+    create_memories_bulk
 )
 
 # Import MCP repository functions
