@@ -378,20 +378,59 @@ def _sanitize_payload_for_logging(request: AgentRunRequest) -> Dict[str, Any]:
 def _sanitize_multimodal_content_for_logging(content: Any) -> Any:
     """Sanitize multimodal content for logging by truncating base64 data."""
     import copy
+    import re
+    
+    def _is_base64_like(value: str) -> bool:
+        """Check if string looks like base64 data."""
+        if len(value) < 50:
+            return False
+        
+        # Check for data URL pattern
+        if value.startswith('data:'):
+            return True
+        
+        # Check for base64 keyword
+        if 'base64' in value[:100].lower():
+            return True
+            
+        # Check for long alphanumeric string (likely base64)
+        if len(value) > 100:
+            # Base64 pattern: mostly alphanumeric with +, /, = padding
+            # Check first 100 chars for base64 pattern
+            sample = value[:100]
+            base64_chars = re.match(r'^[A-Za-z0-9+/]*={0,2}$', sample)
+            if base64_chars:
+                # Additional check: base64 strings are usually long and have limited character set
+                non_base64_chars = len([c for c in sample if c not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='])
+                if non_base64_chars == 0 and len(value) > 150:
+                    return True
+        
+        return False
+    
+    def _truncate_base64(value: str) -> str:
+        """Truncate base64 data for logging."""
+        if value.startswith('data:'):
+            # Handle data URLs
+            if ';base64,' in value:
+                prefix, base64_part = value.split(';base64,', 1)
+                return f"{prefix};base64,[BASE64_DATA_TRUNCATED_{len(base64_part)}_chars]"
+        
+        # Handle raw base64
+        return f"[BASE64_DATA_TRUNCATED_{len(value)}_chars]"
     
     try:
         if isinstance(content, str):
-            # Check if it's a base64 string
-            if len(content) > 100 and ("base64" in content[:100] or len(content) > 200):
-                return content[:50] + "...[TRUNCATED " + str(len(content)-100) + " chars]..." + content[-50:]
+            if _is_base64_like(content):
+                return _truncate_base64(content)
             return content
             
         elif isinstance(content, dict):
             sanitized = copy.deepcopy(content)
             for key, value in sanitized.items():
-                if key in ["data", "base64", "image_data", "content"] and isinstance(value, str):
-                    if len(value) > 100 and ("base64" in value[:100] or len(value) > 200):
-                        sanitized[key] = value[:50] + "...[TRUNCATED " + str(len(value)-100) + " chars]..." + value[-50:]
+                if isinstance(value, str):
+                    # Check known base64 keys and any suspicious string
+                    if key.lower() in ["data", "base64", "image_data", "content", "payload"] or _is_base64_like(value):
+                        sanitized[key] = _truncate_base64(value) if _is_base64_like(value) else value
                 elif isinstance(value, (dict, list)):
                     sanitized[key] = _sanitize_multimodal_content_for_logging(value)
             return sanitized
