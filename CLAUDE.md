@@ -38,7 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Specialized Workflows**: Dynamic workflow orchestration system
 - **Memory System**: Persistent consciousness using MCP agent-memory integration
 - **Multi-Agent System**: PydanticAI + LangGraph for structured interactions
-- **Production Platform**: FastAPI + PostgreSQL/SQLite + Neo4j/Graphiti knowledge graphs (optional)
+- **Production Platform**: FastAPI + PostgreSQL/SQLite
 
 ## Development Commands
 
@@ -173,7 +173,6 @@ Available tools: {tools}"""
 - **Python**: Use `uv` workflow (NOT pip)
 - **Framework**: FastAPI + Pydantic AI + PydanticAI
 - **Database**: SQLite (dev) / PostgreSQL (prod)
-- **Memory**: Neo4j/Graphiti knowledge graphs (optional - requires setup)
 - **LLMs**: OpenAI, Gemini, Claude, Groq, Ollama
 - **Testing**: pytest with 95%+ coverage requirement
 - **Package Manager**: pnpm (NOT npm) for any JavaScript
@@ -232,17 +231,6 @@ AM_PORT=8000
 API_KEY=your-api-key
 ```
 
-### Optional: Neo4j/Graphiti Knowledge Graphs
-
-To enable advanced memory and knowledge graph features, add these to your `.env`:
-```bash
-# Neo4j Configuration (optional)
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your-password
-```
-
-**Note**: Graphiti/Neo4j is **disabled by default**. The system will work perfectly without it using in-memory storage. Only add these environment variables if you want to use advanced knowledge graph features and have Neo4j installed.
 
 ## Quality Standards
 
