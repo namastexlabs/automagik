@@ -68,6 +68,12 @@ class PydanticAIFramework(AgentAIFramework):
             raise RuntimeError("PydanticAI framework not initialized")
             
         try:
+            import time
+            start_time = time.time()
+            
+            # Detect multimodal content from user input
+            multimodal_content = self._detect_multimodal_content(user_input, kwargs)
+            
             # Format message history for PydanticAI
             formatted_history = self.format_message_history(message_history or [])
             
@@ -96,12 +102,19 @@ class PydanticAIFramework(AgentAIFramework):
                 **kwargs
             )
             
+            # Calculate processing time
+            processing_time_ms = (time.time() - start_time) * 1000
+            
             # Extract tool information
             tool_calls = self.extract_tool_calls(result)
             tool_outputs = self.extract_tool_outputs(result)
             
-            # Extract usage information
-            usage_info = self.extract_usage_info(result)
+            # Extract usage information with processing time and multimodal content
+            usage_info = self.extract_usage_info(
+                result, 
+                processing_time_ms=processing_time_ms,
+                multimodal_content=multimodal_content
+            )
             
             # Create response (using updated API)
             response = AgentResponse(
@@ -205,65 +218,116 @@ class PydanticAIFramework(AgentAIFramework):
             
         return tool_outputs
     
-    def extract_usage_info(self, result: Any) -> Optional[Dict[str, Any]]:
-        """Extract usage information from PydanticAI result."""
+    def extract_usage_info(self, result: Any, processing_time_ms: float = 0.0, multimodal_content: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Extract usage information from PydanticAI result using simplified usage calculator."""
         if not result:
             return None
         
         try:
-            usage_info = {
-                "framework": "pydantic_ai",
-                "model": self.config.model,
-                "total_requests": 0,
-                "request_tokens": 0,
-                "response_tokens": 0, 
-                "total_tokens": 0,
-                "cache_creation_tokens": 0,
-                "cache_read_tokens": 0,
-                "per_message_usage": []
-            }
+            # Import our simplified usage calculator
+            from src.utils.usage_calculator import UnifiedUsageCalculator
+            calculator = UnifiedUsageCalculator()
             
-            # Extract usage from all messages in the result
-            if hasattr(result, 'all_messages'):
-                messages = result.all_messages()
-                
-                for message in messages:
-                    if hasattr(message, 'usage') and message.usage:
-                        usage = message.usage
-                        
-                        # Aggregate totals
-                        usage_info["total_requests"] += usage.requests or 0
-                        usage_info["request_tokens"] += usage.request_tokens or 0
-                        usage_info["response_tokens"] += usage.response_tokens or 0
-                        usage_info["total_tokens"] += usage.total_tokens or 0
-                        
-                        # Store per-message usage details
-                        message_usage = {
-                            "requests": usage.requests,
-                            "request_tokens": usage.request_tokens,
-                            "response_tokens": usage.response_tokens,
-                            "total_tokens": usage.total_tokens,
-                            "details": usage.details
-                        }
-                        usage_info["per_message_usage"].append(message_usage)
-                        
-                        # Extract cache-related tokens from details
-                        if usage.details:
-                            for key, value in usage.details.items():
-                                if isinstance(value, int):
-                                    if "cache_creation" in key.lower():
-                                        usage_info["cache_creation_tokens"] += value
-                                    elif "cache_read" in key.lower():
-                                        usage_info["cache_read_tokens"] += value
+            # Extract usage using our new simplified calculator
+            breakdown = calculator.extract_pydantic_ai_usage(
+                result=result,
+                model=self.config.model,
+                processing_time_ms=processing_time_ms
+            )
             
-            # Only return usage info if we found actual usage data
-            if usage_info["total_requests"] > 0 or usage_info["total_tokens"] > 0:
-                return usage_info
+            # Detect content types based on input
+            content_types = ["text"]  # Always include text
+            if multimodal_content:
+                if multimodal_content.get("images"):
+                    content_types.append("image")
+                if multimodal_content.get("audio"):
+                    content_types.append("audio")
+                if multimodal_content.get("videos"):
+                    content_types.append("video")
             
-            return None
+            breakdown.content_types = content_types
+            
+            # Convert to legacy compatible format for API response
+            return calculator.create_legacy_compatible_usage(breakdown)
             
         except Exception as e:
             logger.error(f"Error extracting usage info: {e}")
+            # Fallback to basic extraction
+            try:
+                usage_info = {
+                    "framework": "pydantic_ai",
+                    "model": self.config.model,
+                    "request_tokens": 0,
+                    "response_tokens": 0,
+                    "total_tokens": 0,
+                    "content_types": ["text"],
+                    "processing_time_ms": processing_time_ms
+                }
+                
+                # Extract basic usage from result
+                if hasattr(result, 'all_messages'):
+                    for message in result.all_messages():
+                        if hasattr(message, 'usage') and message.usage:
+                            usage = message.usage
+                            usage_info["request_tokens"] += usage.request_tokens or 0
+                            usage_info["response_tokens"] += usage.response_tokens or 0
+                            usage_info["total_tokens"] += usage.total_tokens or 0
+                
+                return usage_info if usage_info["total_tokens"] > 0 else None
+                
+            except Exception as fallback_error:
+                logger.error(f"Fallback usage extraction failed: {fallback_error}")
+                return None
+    
+    def _detect_multimodal_content(self, user_input: Union[str, List[Any]], kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Detect multimodal content from user input and kwargs."""
+        multimodal_content = {"images": [], "audio": [], "videos": []}
+        has_multimodal = False
+        
+        try:
+            # Check if user_input is a list (multimodal input)
+            if isinstance(user_input, list):
+                for item in user_input:
+                    if isinstance(item, dict):
+                        content_type = item.get("type", "").lower()
+                        if "image" in content_type:
+                            multimodal_content["images"].append(item)
+                            has_multimodal = True
+                        elif "audio" in content_type:
+                            multimodal_content["audio"].append(item)
+                            has_multimodal = True
+                        elif "video" in content_type:
+                            multimodal_content["videos"].append(item)
+                            has_multimodal = True
+            
+            # Check kwargs for media content
+            if "media_contents" in kwargs:
+                media_contents = kwargs["media_contents"]
+                if isinstance(media_contents, list):
+                    for media in media_contents:
+                        if isinstance(media, dict):
+                            mime_type = media.get("mime_type", "").lower()
+                            if "image" in mime_type:
+                                multimodal_content["images"].append(media)
+                                has_multimodal = True
+                            elif "audio" in mime_type:
+                                multimodal_content["audio"].append(media)
+                                has_multimodal = True
+                            elif "video" in mime_type:
+                                multimodal_content["videos"].append(media)
+                                has_multimodal = True
+            
+            # Check for image attachments in user_input string
+            if isinstance(user_input, str):
+                # Look for base64 image data or image URLs
+                if "data:image" in user_input or "base64" in user_input.lower():
+                    multimodal_content["images"].append({"type": "image", "detected": "base64_in_text"})
+                    has_multimodal = True
+            
+            return multimodal_content if has_multimodal else None
+            
+        except Exception as e:
+            logger.error(f"Error detecting multimodal content: {e}")
             return None
     
     def convert_tools(self, tools: List[Any]) -> List[Any]:
