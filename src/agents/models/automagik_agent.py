@@ -640,7 +640,28 @@ class AutomagikAgent(ABC, Generic[T]):
                             if data_content.lower().startswith("http"):
                                 input_list.append(ImageUrl(url=data_content))
                             else:
-                                input_list.append(image_data)  # Keep as-is for base64
+                                # Handle base64 image data properly
+                                import base64
+                                import re
+                                
+                                # Remove data URL prefix if present
+                                if data_content.startswith('data:'):
+                                    data_content = data_content.split(',')[1]
+                                
+                                # Clean base64 string
+                                data_content = re.sub(r'[^A-Za-z0-9+/=]', '', data_content)
+                                
+                                try:
+                                    binary_data = base64.b64decode(data_content)
+                                    input_list.append(BinaryContent(
+                                        data=binary_data,
+                                        media_type=mime_type
+                                    ))
+                                    logger.debug(f"Converted base64 image to BinaryContent: {len(binary_data)} bytes")
+                                except Exception as decode_error:
+                                    logger.error(f"Failed to decode base64 image data: {decode_error}")
+                                    # Fallback: keep as-is
+                                    input_list.append(image_data)
             
             # Process audio
             if isinstance(multimodal_content, dict) and "audio" in multimodal_content:
@@ -652,10 +673,35 @@ class AutomagikAgent(ABC, Generic[T]):
                         if "url" in audio_data:
                             input_list.append(AudioUrl(url=audio_data["url"]))
                         elif "data" in audio_data and "media_type" in audio_data:
-                            input_list.append(BinaryContent(
-                                data=audio_data["data"],
-                                media_type=audio_data["media_type"]
-                            ))
+                            # Handle base64 data properly
+                            data_content = audio_data["data"]
+                            if isinstance(data_content, str):
+                                # Decode base64 data to bytes for BinaryContent
+                                import base64
+                                import re
+                                
+                                # Remove data URL prefix if present
+                                if data_content.startswith('data:'):
+                                    data_content = data_content.split(',')[1]
+                                
+                                # Clean base64 string
+                                data_content = re.sub(r'[^A-Za-z0-9+/=]', '', data_content)
+                                
+                                try:
+                                    binary_data = base64.b64decode(data_content)
+                                    input_list.append(BinaryContent(
+                                        data=binary_data,
+                                        media_type=audio_data["media_type"]
+                                    ))
+                                    logger.debug(f"Converted base64 audio to BinaryContent: {len(binary_data)} bytes")
+                                except Exception as decode_error:
+                                    logger.error(f"Failed to decode base64 audio data: {decode_error}")
+                            else:
+                                # Assume it's already binary data
+                                input_list.append(BinaryContent(
+                                    data=data_content,
+                                    media_type=audio_data["media_type"]
+                                ))
             
             # Process documents
             if isinstance(multimodal_content, dict) and "documents" in multimodal_content:
@@ -667,10 +713,35 @@ class AutomagikAgent(ABC, Generic[T]):
                         if "url" in doc_data:
                             input_list.append(DocumentUrl(url=doc_data["url"]))
                         elif "data" in doc_data and "media_type" in doc_data:
-                            input_list.append(BinaryContent(
-                                data=doc_data["data"],
-                                media_type=doc_data["media_type"]
-                            ))
+                            # Handle base64 data properly
+                            data_content = doc_data["data"]
+                            if isinstance(data_content, str):
+                                # Decode base64 data to bytes for BinaryContent
+                                import base64
+                                import re
+                                
+                                # Remove data URL prefix if present
+                                if data_content.startswith('data:'):
+                                    data_content = data_content.split(',')[1]
+                                
+                                # Clean base64 string
+                                data_content = re.sub(r'[^A-Za-z0-9+/=]', '', data_content)
+                                
+                                try:
+                                    binary_data = base64.b64decode(data_content)
+                                    input_list.append(BinaryContent(
+                                        data=binary_data,
+                                        media_type=doc_data["media_type"]
+                                    ))
+                                    logger.debug(f"Converted base64 document to BinaryContent: {doc_data.get('name', 'unnamed')} ({len(binary_data)} bytes)")
+                                except Exception as decode_error:
+                                    logger.error(f"Failed to decode base64 document data: {decode_error}")
+                            else:
+                                # Assume it's already binary data
+                                input_list.append(BinaryContent(
+                                    data=data_content,
+                                    media_type=doc_data["media_type"]
+                                ))
                         
             return input_list if len(input_list) > 1 else (input_text or "")
             

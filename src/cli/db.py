@@ -38,15 +38,17 @@ def apply_migrations(logger=None):
     
     if not migrations_dir.exists():
         logger.warning("No migrations directory found")
-        return
+        return False
     
     logger.info(f"Applying migrations from {migrations_dir}")
     success = provider.apply_migrations(str(migrations_dir))
     
     if success:
         logger.info("✅ All migrations applied successfully")
+        return True
     else:
         logger.error("❌ Some migrations failed to apply")
+        return False
 
 @db_app.callback()
 def db_callback(
@@ -92,19 +94,65 @@ def db_init(
             # For SQLite, just check if file exists (it will be created automatically)
             logger.info(f"SQLite database will be created automatically if needed")
         elif db_type == "postgresql":
-            # For PostgreSQL, we'd need to handle database creation here
-            # But for now, assume the database already exists
-            logger.info("Using existing PostgreSQL database")
+            # For PostgreSQL, try to create database if it doesn't exist
+            config = provider._get_db_config()
+            database_name = config.get('database', 'automagik_agents')
+            
+            logger.info("Checking PostgreSQL database...")
+            
+            # Try to create database if it doesn't exist
+            if hasattr(provider, 'create_database_if_not_exists'):
+                created = provider.create_database_if_not_exists(database_name)
+                if not created:
+                    logger.warning(f"⚠️ Could not create database '{database_name}' - will try to connect anyway")
+            
+            # Verify connection and that database exists (skip health check - migrations haven't been applied yet)
+            logger.info("Verifying PostgreSQL database connection...")
+            try:
+                pool = provider.get_connection_pool(skip_health_check=True)
+                with pool.getconn() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SELECT version()")
+                        version = cursor.fetchone()[0]
+                        logger.info(f"Connected to: {version}")
+                    pool.putconn(conn)
+            except Exception as conn_error:
+                logger.error(f"❌ Failed to connect to database '{database_name}': {conn_error}")
+                logger.error("This could mean:")
+                logger.error("1. Database doesn't exist and user lacks CREATEDB permissions")
+                logger.error("2. Connection parameters are incorrect")
+                logger.error("3. PostgreSQL server is not running")
+                raise conn_error
         
-        # Apply migrations using the provider
+        # Apply migrations using the provider - this is critical for new databases
         logger.info("Applying database migrations...")
-        apply_migrations(logger)
+        success = apply_migrations(logger)
+        
+        if not success:
+            logger.error("❌ Database migration failed")
+            raise typer.Exit(1)
+        
+        # Verify essential tables exist after migration
+        essential_tables = ['users', 'agents', 'sessions', 'messages', 'memories']
+        missing_tables = []
+        
+        for table in essential_tables:
+            if not provider.table_exists(table):
+                missing_tables.append(table)
+        
+        if missing_tables:
+            logger.error(f"❌ Essential tables missing after migration: {missing_tables}")
+            logger.error("This indicates a migration failure or incomplete initial schema")
+            raise typer.Exit(1)
+        
+        logger.info(f"✅ Verified essential tables exist: {essential_tables}")
         
         # Verify database health
         if provider.verify_health():
             logger.info("✅ Database initialization completed successfully!")
         else:
             logger.error("❌ Database health check failed")
+            raise typer.Exit(1)
             
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")

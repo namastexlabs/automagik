@@ -48,6 +48,9 @@ class SofiaAgent(BaseSimpleAgent):
         # Register Sofia's specialized tools
         self._register_sofia_tools()
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Register Evolution tools for backward compatibility with tests
         self.tool_registry.register_evolution_tools(self.context)
         
@@ -303,6 +306,11 @@ class SofiaAgent(BaseSimpleAgent):
         )
         
         return airtable_agent_wrapper
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> SofiaAgent:

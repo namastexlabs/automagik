@@ -37,6 +37,9 @@ class FlashinhoAgent(BaseSimpleAgent):
         # Register Flashed API tools using the wrapper factory
         self._register_flashed_tools()
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         logger.info("Enhanced Flashinho Agent initialized")
     
     def _register_flashed_tools(self) -> None:
@@ -54,6 +57,11 @@ class FlashinhoAgent(BaseSimpleAgent):
         for tool_name, tool_func in flashed_tools.items():
             wrapper = ToolWrapperFactory.create_context_wrapper(tool_func, self.context)
             self.tool_registry.register_tool(wrapper)
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> FlashinhoAgent:

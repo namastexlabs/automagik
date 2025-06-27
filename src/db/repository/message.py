@@ -206,9 +206,11 @@ def create_message(message: Message) -> Optional[uuid.UUID]:
             
         system_prompt = message.system_prompt
         
-        # Handle usage information
+        # Handle usage information - ensure it's never None due to NOT NULL constraint
         usage = message.usage
-        if usage is not None and not isinstance(usage, str):
+        if usage is None:
+            usage = "{}"  # Default empty JSON object
+        elif not isinstance(usage, str):
             usage = json.dumps(usage)
         
         # Use current time if not provided
@@ -292,9 +294,11 @@ def update_message(message: Message) -> Optional[uuid.UUID]:
             
         system_prompt = message.system_prompt
         
-        # Handle usage information
+        # Handle usage information - ensure it's never None due to NOT NULL constraint
         usage = message.usage
-        if usage is not None and not isinstance(usage, str):
+        if usage is None:
+            usage = "{}"  # Default empty JSON object
+        elif not isinstance(usage, str):
             usage = json.dumps(usage)
         
         # Use current time for updated_at

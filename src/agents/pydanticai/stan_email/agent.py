@@ -78,6 +78,9 @@ class StanEmailAgent(AutomagikAgent):
             self.dependencies.set_agent_id(self.db_id)
         self.tool_registry.register_default_tools(self.context)
         
+        # Register multimodal analysis tools
+        self._register_multimodal_tools()
+        
         # Register specialized email processing tools
         self._register_email_tools()
         
@@ -508,6 +511,11 @@ class StanEmailAgent(AutomagikAgent):
             create_memory(memory=memory)
         except Exception as exc:
             logger.error(f"Error storing StanEmail memory: {exc}")
+
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> StanEmailAgent:

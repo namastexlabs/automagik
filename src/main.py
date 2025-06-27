@@ -263,21 +263,54 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Initialize database if needed
-        # The database needs to be available first
+        # The database needs to be available first before any agent operations
         try:
             logger.info("🏗️ Initializing database for application startup...")
             # Check which database provider we're using
+            from src.db.providers.factory import get_database_provider
             provider = get_database_provider()
             db_type = provider.get_database_type()
             
-            # All database types should use the proper migration system
             logger.info(f"Using {db_type} database provider")
+            
+            # For PostgreSQL, try to create database if it doesn't exist
+            if db_type == "postgresql":
+                config = provider._get_db_config()
+                database_name = config.get('database', 'automagik_agents')
+                
+                logger.info(f"Ensuring PostgreSQL database '{database_name}' exists...")
+                
+                # Try to create database if it doesn't exist
+                if hasattr(provider, 'create_database_if_not_exists'):
+                    created = provider.create_database_if_not_exists(database_name)
+                    if not created:
+                        logger.warning(f"⚠️ Could not create database '{database_name}' - will try to connect anyway")
+            
+            # Apply migrations to ensure all tables exist
             db_init(force=False)
-            logger.info("✅ Database initialization completed")
+            
+            # Critical: Verify essential tables exist before continuing
+            essential_tables = ['users', 'agents', 'sessions', 'messages', 'memories']
+            missing_tables = []
+            
+            for table in essential_tables:
+                if not provider.table_exists(table):
+                    missing_tables.append(table)
+            
+            if missing_tables:
+                logger.error(f"❌ Critical: Essential database tables are missing: {missing_tables}")
+                logger.error("❌ Cannot start application without required database schema")
+                logger.error("❌ Please run 'make db-init' or check database migration logs")
+                raise Exception(f"Missing essential database tables: {missing_tables}")
+            
+            logger.info(f"✅ Database initialization completed - verified essential tables exist")
+            
         except Exception as e:
             logger.error(f"❌ Database initialization failed: {str(e)}")
-            # Continue startup even if database init fails for development
-            logger.error(f"Detailed error: {traceback.format_exc()}")
+            logger.error(f"❌ Detailed error: {traceback.format_exc()}")
+            # For fresh databases, we cannot continue without proper schema
+            logger.error("❌ Application startup aborted due to database initialization failure")
+            raise e
         
         # Initialize Graphiti indices and constraints if Neo4j is configured
         if settings.NEO4J_URI and settings.NEO4J_USERNAME and settings.NEO4J_PASSWORD:
@@ -448,7 +481,8 @@ def create_app() -> FastAPI:
                 conn.execute("SELECT 1")
                 logger.info("✅ SQLite database connection test successful")
                 
-                # Check if required tables exist
+                # Check if required tables exist - but only log, don't fail startup
+                # Tables will be created during initialization phase
                 cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
                 sessions_table_exists = cursor.fetchone() is not None
                 
@@ -458,12 +492,13 @@ def create_app() -> FastAPI:
                 logger.info(f"Database tables check - Sessions: {sessions_table_exists}, Messages: {messages_table_exists}")
                 
                 if not (sessions_table_exists and messages_table_exists):
-                    logger.error("❌ Required database tables are missing - sessions or messages tables not found")
-                    raise ValueError("Required database tables not found")
+                    logger.warning("⚠️ Some database tables are missing - they will be created during initialization")
+                else:
+                    logger.info("✅ Core database tables found")
         else:
-            # PostgreSQL connection test using legacy method
-            from src.db.connection import get_connection_pool
-            pool = get_connection_pool()
+            # PostgreSQL connection test using provider method (with auto-creation, skip health check)
+            # Create connection pool without health check to avoid premature migration error messages
+            pool = provider.get_connection_pool(skip_health_check=True)
             
             # Test the connection with a simple query
             with pool.getconn() as conn:
@@ -472,7 +507,8 @@ def create_app() -> FastAPI:
                     version = cur.fetchone()[0]
                     logger.info(f"✅ Database connection test successful: {version}")
                     
-                    # Check if required tables exist
+                    # Check if required tables exist - but only log, don't fail startup
+                    # Tables will be created during initialization phase
                     cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions')")
                     sessions_table_exists = cur.fetchone()[0]
                     
@@ -482,15 +518,16 @@ def create_app() -> FastAPI:
                     logger.info(f"Database tables check - Sessions: {sessions_table_exists}, Messages: {messages_table_exists}")
                     
                     if not (sessions_table_exists and messages_table_exists):
-                        logger.error("❌ Required database tables are missing - sessions or messages tables not found")
-                        raise ValueError("Required database tables not found")
+                        logger.warning("⚠️ Some database tables are missing - they will be created during initialization")
+                    else:
+                        logger.info("✅ Core database tables found")
                 pool.putconn(conn)
             
         logger.info("✅ Database connection pool initialized successfully")
         
-        # Verify database read/write functionality using the dedicated function
-        from src.db.connection import verify_db_read_write
-        verify_db_read_write()
+        # Skip database read/write verification during early connection setup
+        # This will be properly verified after migrations are applied in the startup lifespan
+        logger.info("⚠️ Skipping database verification during early setup - will be verified after migration")
         
         # Log success
         logger.info("✅ Database message storage initialized successfully")
