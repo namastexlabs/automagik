@@ -706,6 +706,107 @@ class AutomagikAgent(ABC, Generic[T]):
         
         return normalized
     
+    def _process_multimodal_input_for_agno(self, input_text: str, multimodal_content: Optional[Dict]) -> List[Any]:
+        """Process multimodal content specifically for Agno framework format."""
+        # Agno expects a list with text first, then media items as dicts with 'type' key
+        input_list = [input_text] if input_text else []
+        
+        if not multimodal_content:
+            return input_list
+            
+        logger.debug(f"Processing multimodal content for Agno: {multimodal_content.keys()}")
+        
+        # Process images
+        if "images" in multimodal_content:
+            for image_data in multimodal_content["images"]:
+                agno_image = {
+                    "type": "image"
+                }
+                
+                if isinstance(image_data, dict):
+                    # Get the data content
+                    data_content = image_data.get("data", "")
+                    mime_type = image_data.get("media_type") or image_data.get("mime_type", "image/jpeg")
+                    
+                    if data_content.startswith("http"):
+                        agno_image["url"] = data_content
+                    else:
+                        # For base64 data, keep it as data URL or raw base64
+                        if data_content.startswith("data:"):
+                            agno_image["data"] = data_content
+                        else:
+                            # Convert to data URL format
+                            agno_image["data"] = f"data:{mime_type};base64,{data_content}"
+                
+                input_list.append(agno_image)
+                logger.debug(f"Added Agno image: {agno_image.get('type')}")
+        
+        # Process audio
+        if "audio" in multimodal_content:
+            for audio_data in multimodal_content["audio"]:
+                agno_audio = {
+                    "type": "audio"
+                }
+                
+                if isinstance(audio_data, dict):
+                    data_content = audio_data.get("data", "")
+                    mime_type = audio_data.get("media_type") or audio_data.get("mime_type", "audio/wav")
+                    
+                    if data_content:
+                        # For audio, Agno expects base64 data
+                        if data_content.startswith("data:"):
+                            agno_audio["data"] = data_content
+                        else:
+                            agno_audio["data"] = f"data:{mime_type};base64,{data_content}"
+                        
+                        # Set MIME type for format detection
+                        agno_audio["mime_type"] = mime_type
+                
+                input_list.append(agno_audio)
+                logger.debug(f"Added Agno audio: {agno_audio.get('type')}")
+        
+        # Process videos
+        if "videos" in multimodal_content:
+            for video_data in multimodal_content["videos"]:
+                agno_video = {
+                    "type": "video"
+                }
+                
+                if isinstance(video_data, dict):
+                    # Videos typically need filepath or URL
+                    if "filepath" in video_data:
+                        agno_video["filepath"] = video_data["filepath"]
+                    elif "url" in video_data:
+                        agno_video["url"] = video_data["url"]
+                    elif "data" in video_data and video_data["data"].startswith("http"):
+                        agno_video["url"] = video_data["data"]
+                
+                input_list.append(agno_video)
+                logger.debug(f"Added Agno video: {agno_video.get('type')}")
+        
+        # Process documents  
+        if "documents" in multimodal_content:
+            for doc_data in multimodal_content["documents"]:
+                # Agno might not have specific document support, treat as generic data
+                agno_doc = {
+                    "type": "document"
+                }
+                
+                if isinstance(doc_data, dict):
+                    data_content = doc_data.get("data", "")
+                    mime_type = doc_data.get("media_type") or doc_data.get("mime_type", "application/pdf")
+                    
+                    if data_content:
+                        if data_content.startswith("http"):
+                            agno_doc["url"] = data_content
+                        else:
+                            agno_doc["data"] = f"data:{mime_type};base64,{data_content}"
+                
+                input_list.append(agno_doc)
+                logger.debug(f"Added Agno document: {agno_doc.get('type')}")
+        
+        return input_list
+    
     async def _download_whatsapp_image(self, image_url: str, mime_type: str) -> Optional[str]:
         """Download WhatsApp encrypted image and return as base64.
         
@@ -771,8 +872,12 @@ class AutomagikAgent(ABC, Generic[T]):
         if not multimodal_content:
             return input_text
             
+        # Check if we're using Agno framework - it needs different format
+        if self.framework_type == "agno":
+            return self._process_multimodal_input_for_agno(input_text, multimodal_content)
+            
         try:
-            # Import multimodal types
+            # Import multimodal types for PydanticAI
             from pydantic_ai import ImageUrl, AudioUrl, DocumentUrl, BinaryContent
             
             # Build multimodal input list

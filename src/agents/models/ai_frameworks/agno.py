@@ -95,20 +95,42 @@ class AgnoFramework(AgentAIFramework):
         
         provider = provider.lower()
         
+        # Map GEMINI_API_KEY to GOOGLE_API_KEY for Agno compatibility
+        if provider in ["gemini", "google"]:
+            import os
+            
+            # Try to get GEMINI_API_KEY from settings or environment
+            if not os.environ.get("GOOGLE_API_KEY"):
+                try:
+                    from src.config import settings
+                    gemini_key = settings.GEMINI_API_KEY
+                except Exception:
+                    gemini_key = None
+                
+                # Fall back to environment variable if settings not available
+                if not gemini_key:
+                    gemini_key = os.environ.get("GEMINI_API_KEY")
+                
+                if gemini_key:
+                    os.environ["GOOGLE_API_KEY"] = gemini_key
+                    logger.debug("Mapped GEMINI_API_KEY to GOOGLE_API_KEY for Agno Gemini model")
+        
         # Create appropriate model instance
         if provider == "openai":
             # Handle audio-preview models for multimodal
             if "audio-preview" in model_name:
+                # Audio models need special configuration
+                # For now, use the standard vision model which can handle audio transcription
+                logger.info(f"Audio model {model_name} requested, using gpt-4o for audio transcription")
                 return OpenAIChat(
-                    id=model_name,
-                    modalities=["text", "audio"],
+                    id="gpt-4o",  # Use the vision model which supports audio
                     temperature=self.config.temperature
                 )
             return OpenAIChat(
                 id=model_name,
                 temperature=self.config.temperature
             )
-        elif provider == "gemini":
+        elif provider == "gemini" or provider == "google":
             return Gemini(
                 id=model_name,
                 temperature=self.config.temperature
@@ -159,9 +181,13 @@ class AgnoFramework(AgentAIFramework):
         if not self.is_ready:
             raise RuntimeError("Agno framework not initialized")
             
+        import time
+        start_time = time.time()
+        
         try:
-            # Handle multimodal inputs
+            # Handle multimodal inputs and track for cost calculation
             run_kwargs = {}
+            multimodal_content = {"images": [], "audio": [], "videos": []}
             
             # Extract media contents if present
             if isinstance(user_input, list):
@@ -177,11 +203,20 @@ class AgnoFramework(AgentAIFramework):
                     elif isinstance(item, dict):
                         media_type = item.get("type", "")
                         if media_type == "image":
-                            images.append(self._create_agno_image(item))
+                            agno_image = self._create_agno_image(item)
+                            if agno_image:
+                                images.append(agno_image)
+                                multimodal_content["images"].append(item)
                         elif media_type == "audio":
-                            audio_contents.append(self._create_agno_audio(item))
+                            agno_audio = self._create_agno_audio(item)
+                            if agno_audio:
+                                audio_contents.append(agno_audio)
+                                multimodal_content["audio"].append(item)
                         elif media_type == "video":
-                            videos.append(self._create_agno_video(item))
+                            agno_video = self._create_agno_video(item)
+                            if agno_video:
+                                videos.append(agno_video)
+                                multimodal_content["videos"].append(item)
                 
                 # Set multimodal parameters
                 if images:
@@ -204,11 +239,20 @@ class AgnoFramework(AgentAIFramework):
                 **run_kwargs
             )
             
-            # Extract response data
+            # Calculate processing time
+            processing_time_ms = (time.time() - start_time) * 1000
+            
+            # Extract response data with comprehensive usage tracking
             response_text = self._extract_response_text(run_response)
             tool_calls = self._extract_tool_calls(run_response)
             tool_outputs = self._extract_tool_outputs(run_response)
-            usage_info = self._extract_usage_info(run_response)
+            
+            # 🎯 ENHANCED USAGE TRACKING: Pass multimodal content and timing
+            usage_info = self._extract_usage_info(
+                run_response, 
+                processing_time_ms=processing_time_ms,
+                multimodal_content=multimodal_content if any(multimodal_content.values()) else None
+            )
             
             # Create standardized response
             return AgentResponse(
@@ -352,8 +396,30 @@ class AgnoFramework(AgentAIFramework):
         
         return tool_outputs
     
-    def _extract_usage_info(self, run_response) -> Dict[str, Any]:
-        """Extract usage information from Agno RunResponse."""
+    def _extract_usage_info(self, run_response, processing_time_ms: float = 0.0, multimodal_content: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Extract comprehensive usage information from Agno RunResponse with multimodal cost tracking."""
+        try:
+            # Use the new unified usage calculator for comprehensive tracking
+            from src.utils.usage_calculator import UnifiedUsageCalculator
+            
+            calculator = UnifiedUsageCalculator()
+            breakdown = calculator.extract_agno_usage(
+                result=run_response,
+                model=str(self.config.model),
+                processing_time_ms=processing_time_ms,
+                multimodal_content=multimodal_content
+            )
+            
+            # Return comprehensive usage data
+            return calculator.create_legacy_compatible_usage(breakdown)
+            
+        except Exception as e:
+            logger.warning(f"Could not use UnifiedUsageCalculator, falling back to basic usage: {e}")
+            # Fallback to basic usage tracking
+            return self._extract_basic_usage_info(run_response)
+    
+    def _extract_basic_usage_info(self, run_response) -> Dict[str, Any]:
+        """Fallback basic usage extraction for backward compatibility."""
         usage = {
             "request_tokens": 0,
             "response_tokens": 0,
