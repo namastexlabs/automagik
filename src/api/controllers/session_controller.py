@@ -3,6 +3,14 @@ import math
 from fastapi import HTTPException
 from src.db import list_sessions, get_session as db_get_session, get_session_by_name
 from src.db.connection import safe_uuid
+
+def _is_valid_uuid_string(value: str) -> bool:
+    """Check if a string can be parsed as a valid UUID."""
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, TypeError):
+        return False
 from src.memory.message_history import MessageHistory
 from src.api.models import SessionListResponse, SessionInfo, BranchInfo
 from src.db.repository.session import get_system_prompt, get_session_branches, get_session_branch_tree
@@ -135,7 +143,7 @@ async def get_session(session_id_or_name: str, page: int, page_size: int, sort_d
             session_id = str(session.id)
             logger.info(f"Found session with name '{session_id_or_name}', id: {session_id}")
         # If not found by name, try as UUID if it looks like one
-        elif safe_uuid(session_id_or_name):
+        elif _is_valid_uuid_string(session_id_or_name):
             try:
                 session = await run_in_threadpool(db_get_session, uuid.UUID(session_id_or_name))
                 if session:
@@ -241,7 +249,7 @@ async def delete_session(session_id_or_name: str) -> bool:
             session_id = str(session.id)
             logger.info(f"Found session with name '{session_id_or_name}', id: {session_id}")
         # If not found by name, try as UUID if it looks like one
-        elif safe_uuid(session_id_or_name):
+        elif _is_valid_uuid_string(session_id_or_name):
             try:
                 session = await run_in_threadpool(db_get_session, uuid.UUID(session_id_or_name))
                 if session:
