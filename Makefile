@@ -570,8 +570,102 @@ define check_health
 endef
 
 # ===========================================
+# 📦 Build & Publish
+# ===========================================
+.PHONY: build publish-test publish check-dist check-release clean-build
+
+build: clean-build ## 📦 Build package
+	$(call print_status,Building package...)
+	@$(UV) build
+	$(call print_success,Package built!)
+
+check-dist: ## 🔍 Check package quality
+	$(call print_status,Checking package quality...)
+	@$(UV) run twine check dist/*
+
+check-release: ## 🔍 Check if ready for release (clean working directory)
+	$(call print_status,Checking release readiness...)
+	@# Check for uncommitted changes
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before publishing.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git status$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Check if on main branch
+	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$CURRENT_BRANCH" != "main" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Not on main branch (current: $$CURRENT_BRANCH)$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)It's recommended to publish from the main branch.$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	@# Check if main branch is up to date with origin
+	@git fetch origin main --quiet; \
+	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Local main branch differs from origin/main$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Consider pulling latest changes or pushing your commits.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git pull origin main$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	$(call print_success,Ready for release!)
+
+publish-test: build check-dist ## 🧪 Upload to TestPyPI
+	$(call print_status,Publishing to TestPyPI...)
+	@if [ -z "$(TESTPYPI_TOKEN)" ]; then \
+		$(call print_error,TESTPYPI_TOKEN not set); \
+		echo -e "$(FONT_YELLOW)💡 Get your TestPyPI token at: https://test.pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export TESTPYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@$(UV) run twine upload --repository testpypi dist/* -u __token__ -p "$(TESTPYPI_TOKEN)"
+	$(call print_success,Published to TestPyPI!)
+
+publish: check-release build check-dist ## 🚀 Upload to PyPI and create GitHub release
+	$(call print_status,Publishing to PyPI and GitHub...)
+	@if [ -z "$(PYPI_TOKEN)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) PYPI_TOKEN environment variable not set$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Get version from pyproject.toml
+	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)$(INFO) Publishing version: v$$VERSION$(FONT_RESET)"; \
+	$(UV) run twine upload dist/* -u __token__ -p "$(PYPI_TOKEN)"; \
+	if ! git tag | grep -q "^v$$VERSION$$"; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating git tag v$$VERSION$(FONT_RESET)"; \
+		git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	fi; \
+	echo -e "$(FONT_CYAN)$(INFO) Pushing tag to GitHub$(FONT_RESET)"; \
+	git push origin "v$$VERSION"; \
+	if command -v gh >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating GitHub release$(FONT_RESET)"; \
+		gh release create "v$$VERSION" \
+			--title "v$$VERSION" \
+			--notes "Release v$$VERSION - See CHANGELOG for details" \
+			dist/* || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - skipping release creation$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) Install with: brew install gh$(FONT_RESET)"; \
+	fi
+	$(call print_success,Published to PyPI and GitHub!)
+
+clean-build: ## 🧹 Clean build artifacts
+	$(call print_status,Cleaning build artifacts...)
+	@rm -rf build dist *.egg-info
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	$(call print_success,Build artifacts cleaned!)
+
+# ===========================================
 # 🧹 Phony Targets
 # ===========================================
 .PHONY: help print-test install install-service install-deps install-docker install-prod
 .PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service status logs health
-.PHONY: update clean test
+.PHONY: update clean test build publish-test publish check-dist check-release clean-build
