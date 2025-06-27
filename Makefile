@@ -123,11 +123,7 @@ define check_env_file
 endef
 
 define detect_graphiti_profile
-	if [ -f ".env" ] && grep -q "NEO4J_URI" .env && grep -q "NEO4J_USERNAME" .env; then \
-		echo "--profile graphiti"; \
-	else \
-		echo ""; \
-	fi
+	echo ""
 endef
 
 define detect_database_type
@@ -161,7 +157,7 @@ help: ## 🪄 Show this help message
 	@echo -e "$(FONT_CYAN)🚀 Installation:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)install$(FONT_RESET)         Install development environment (uv sync) - uses SQLite by default"
 	@echo -e "  $(FONT_PURPLE)install-service$(FONT_RESET) Install as systemd service with optional dependencies"
-	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install optional database dependencies (PostgreSQL, Neo4j, Graphiti)"
+	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install optional database dependencies (PostgreSQL)"
 	@echo -e "  $(FONT_PURPLE)install-docker$(FONT_RESET)  Install Docker development stack"
 	@echo -e "  $(FONT_PURPLE)install-prod$(FONT_RESET)    Install production Docker stack"
 	@echo ""
@@ -174,7 +170,7 @@ help: ## 🪄 Show this help message
 	@echo -e "  $(FONT_PURPLE)stop$(FONT_RESET)            Stop development automagik-agents container only"
 	@echo -e "  $(FONT_PURPLE)stop-service$(FONT_RESET)    Stop systemd service"
 	@echo -e "  $(FONT_PURPLE)stop-prod$(FONT_RESET)       Stop production automagik-agents container only"
-	@echo -e "  $(FONT_PURPLE)stop-all$(FONT_RESET)        Stop all services (DB, Neo4j, Graphiti, etc.)"
+	@echo -e "  $(FONT_PURPLE)stop-all$(FONT_RESET)        Stop all services (DB, etc.)"
 	@echo -e "  $(FONT_PURPLE)status$(FONT_RESET)          Show service status"
 	@echo ""
 	@echo -e "$(FONT_CYAN)📋 Logs & Monitoring:$(FONT_RESET)"
@@ -188,7 +184,7 @@ help: ## 🪄 Show this help message
 	@echo -e "  $(FONT_PURPLE)clean$(FONT_RESET)           Clean temporary files"
 	@echo -e "  $(FONT_PURPLE)test$(FONT_RESET)            Run test suite"
 	@echo ""
-	@echo -e "$(FONT_YELLOW)💡 SQLite is used by default. PostgreSQL/Neo4j/Graphiti are optional$(FONT_RESET)"
+	@echo -e "$(FONT_YELLOW)💡 SQLite is used by default. PostgreSQL is optional$(FONT_RESET)"
 	@echo ""
 
 print-test: ## 🎨 Test color system
@@ -220,7 +216,6 @@ install-service: ## ⚙️ Install as systemd service with optional dependencies
 		$(MAKE) install; \
 	fi
 	@$(call check_env_file)
-	@$(call show_dependency_prompt)
 	@$(call create_systemd_service)
 	@$(call print_status,Reloading systemd and enabling service...)
 	@sudo systemctl daemon-reload
@@ -228,7 +223,7 @@ install-service: ## ⚙️ Install as systemd service with optional dependencies
 	@$(call print_success_with_logo,Systemd service installed!)
 	@echo -e "$(FONT_CYAN)💡 Start with: sudo systemctl start automagik-agents$(FONT_RESET)"
 
-install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graphiti - optional for SQLite)
+install-deps: ## 🗄️ Install database dependencies (PostgreSQL - optional for SQLite)
 	@$(call print_status,Installing database dependencies...)
 	@$(call check_docker)
 	@$(call check_env_file)
@@ -236,7 +231,7 @@ install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graph
 	if [ "$$db_type" = "postgresql" ]; then \
 		$(call print_status,Database type: PostgreSQL - starting container...); \
 		$(call print_status,Stopping any existing containers...); \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true; \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env stop 2>/dev/null || true; \
 		$(call print_status,Starting PostgreSQL container...); \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d --force-recreate automagik-agents-db; \
 		$(call print_status,Waiting for PostgreSQL to be ready...); \
@@ -247,23 +242,6 @@ install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graph
 		$(call print_status,Database type: SQLite - no container needed); \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite configured - database will be created automatically$(FONT_RESET)"; \
 	fi
-	@echo ""
-	@read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
-	if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
-		$(call print_status,Starting Neo4j container...); \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-neo4j; \
-		$(call print_status,Waiting for Neo4j to be ready...); \
-		sleep 10; \
-		$(call print_status,Starting Graphiti service...); \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-graphiti; \
-		$(call print_status,Waiting for Graphiti to be ready...); \
-		sleep 5; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
-	fi
 	@$(call print_success_with_logo,Database dependencies setup complete!)
 
 install-docker: ## 🐳 Install Docker development stack
@@ -272,8 +250,7 @@ install-docker: ## 🐳 Install Docker development stack
 	@$(call check_env_file)
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env build
 	@$(call print_status,Starting Docker development stack...)
-	@profile=$$($(call detect_graphiti_profile)); \
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d
 	@$(call print_success_with_logo,Docker development stack ready!)
 
 install-prod: ## 🏭 Install production Docker stack
@@ -326,8 +303,9 @@ prod: ## 🏭 Start production Docker stack
 
 stop: ## 🛑 Stop development automagik-agents container only
 	$(call print_status,Stopping development automagik-agents container...)
-	@sudo systemctl stop automagik-agents 2>/dev/null || echo "Systemd service stop failed or not running"
+	@sudo systemctl stop automagik-agents 2>/dev/null || true
 	@docker stop automagik-agents-dev 2>/dev/null || true
+	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,Development automagik-agents stopped!)
 
 stop-prod: ## 🛑 Stop production automagik-agents container only
@@ -344,9 +322,7 @@ stop-all: ## 🛑 Stop all services (preserves containers)
 	else \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) --env-file .env stop 2>/dev/null || true; \
 	fi
-	@pkill -TERM -f "python.*-m src" 2>/dev/null || true
-	@sleep 2
-	@pkill -KILL -f "python.*-m src" 2>/dev/null || true
+	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
 run: ## 🚀 Run development server with hot reload
@@ -466,93 +442,6 @@ test: ## 🧪 Run test suite
 # ===========================================
 # 🔧 Helper Functions
 # ===========================================
-define show_dependency_prompt
-	echo ""; \
-	db_type=$$($(call detect_database_type)); \
-	if [ "$$db_type" = "postgresql" ]; then \
-		echo -e "$(FONT_CYAN)🗄️ Database Dependencies$(FONT_RESET)"; \
-		echo "PostgreSQL is configured. Install Docker containers for database services?"; \
-		echo ""; \
-		echo -e "$(FONT_YELLOW)Available dependencies:$(FONT_RESET)"; \
-		echo "• 🐘 PostgreSQL (database container)"; \
-		echo "• 🔗 Neo4j (knowledge graph)"; \
-		echo "• 🧠 Graphiti (AI memory service)"; \
-		echo ""; \
-		bash -c ' \
-			read -p "Install PostgreSQL container? [Y/n]: " install_deps; \
-			if [ "$$install_deps" != "n" ] && [ "$$install_deps" != "N" ]; then \
-				echo ""; \
-				echo -e "$(FONT_PURPLE)🪄 Installing PostgreSQL container...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d automagik-agents-db; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for PostgreSQL to be ready...$(FONT_RESET)"; \
-				sleep 5; \
-				max_attempts=12; attempt=1; \
-				while [ $$attempt -le $$max_attempts ]; do \
-					if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
-						echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL is ready!$(FONT_RESET)"; \
-						break; \
-					else \
-						echo -n "$(FONT_YELLOW).$(FONT_RESET)"; \
-						sleep 5; \
-						attempt=$$((attempt + 1)); \
-					fi; \
-				done; \
-				if [ $$attempt -gt $$max_attempts ]; then \
-					echo -e "$(FONT_RED)$(ERROR) PostgreSQL failed to start within 60 seconds$(FONT_RESET)"; \
-					exit 1; \
-				fi; \
-				echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL container installed!$(FONT_RESET)"; \
-			else \
-				echo -e "$(FONT_YELLOW)$(WARNING) Skipping PostgreSQL container - using external database$(FONT_RESET)"; \
-			fi; \
-			echo ""; \
-			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
-			if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
-				echo -e "$(FONT_PURPLE)🪄 Starting Neo4j container...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-neo4j; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Neo4j to be ready...$(FONT_RESET)"; \
-				sleep 10; \
-				echo -e "$(FONT_PURPLE)🪄 Starting Graphiti service...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-graphiti; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Graphiti to be ready...$(FONT_RESET)"; \
-				sleep 5; \
-				echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
-			else \
-				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
-			fi; \
-		'; \
-	else \
-		echo -e "$(FONT_CYAN)🗄️ Optional Database Dependencies$(FONT_RESET)"; \
-		echo "SQLite is configured as the default database (no container needed)."; \
-		echo ""; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database will be created automatically$(FONT_RESET)"; \
-		echo ""; \
-		echo -e "$(FONT_YELLOW)Optional AI memory services:$(FONT_RESET)"; \
-		echo "• 🔗 Neo4j (knowledge graph)"; \
-		echo "• 🧠 Graphiti (AI memory service)"; \
-		echo ""; \
-		bash -c ' \
-			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
-			if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
-				echo -e "$(FONT_PURPLE)🪄 Starting Neo4j container...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-neo4j; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Neo4j to be ready...$(FONT_RESET)"; \
-				sleep 10; \
-				echo -e "$(FONT_PURPLE)🪄 Starting Graphiti service...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-graphiti; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Graphiti to be ready...$(FONT_RESET)"; \
-				sleep 5; \
-				echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
-			else \
-				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
-			fi; \
-		'; \
-	fi
-endef
 
 define check_postgres_ready
 	@max_attempts=12; \
@@ -645,7 +534,7 @@ define show_local_status
 endef
 
 define check_health
-	healthy=0; \
+	@healthy=0; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service: running$(FONT_RESET)"; \
 		healthy=1; \
@@ -677,12 +566,6 @@ define check_health
 		fi; \
 	else \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database: configured$(FONT_RESET)"; \
-	fi; \
-	if docker ps --filter "name=automagik-agents-neo4j" --format "{{.Names}}" | grep -q automagik-agents-neo4j; then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j: running$(FONT_RESET)"; \
-	fi; \
-	if docker ps --filter "name=automagik-agents-graphiti" --format "{{.Names}}" | grep -q automagik-agents-graphiti; then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Graphiti: running$(FONT_RESET)"; \
 	fi
 endef
 
