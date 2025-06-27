@@ -27,12 +27,9 @@ from src.agents.common.multi_prompt_manager import MultiPromptManager
 # Import functions that tests expect to mock at module level
 try:
     from src.db.repository.prompt import get_active_prompt
-    from src.utils.graphiti_queue import get_graphiti_client, get_graphiti_client_async
 except ImportError:
     # Handle cases where these modules don't exist in test environments
     get_active_prompt = None
-    get_graphiti_client = None
-    get_graphiti_client_async = None
 
 logger = logging.getLogger(__name__)
 
@@ -1449,53 +1446,6 @@ class AutomagikAgent(ABC, Generic[T]):
         if hasattr(self, '_mock_agent_instance'):
             delattr(self, '_mock_agent_instance')
 
-    # Graphiti compatibility (legacy)
-    @property 
-    def graphiti_agent_id(self):
-        """Legacy property for backward compatibility."""
-        if hasattr(self, '_graphiti_agent_id'):
-            return self._graphiti_agent_id
-        return None
-        
-    @graphiti_agent_id.setter
-    def graphiti_agent_id(self, value):
-        """Legacy property setter for backward compatibility."""
-        self._graphiti_agent_id = value
-    
-    @property
-    def graphiti_client(self):
-        """Legacy property for backward compatibility."""
-        if hasattr(self, '_graphiti_client'):
-            return self._graphiti_client
-        return None
-        
-    @graphiti_client.setter
-    def graphiti_client(self, value):
-        """Legacy property setter for backward compatibility."""
-        self._graphiti_client = value
-    
-    async def initialize_graphiti(self, _max_retries: int = 5, _retry_delay: float = 1.0) -> bool:
-        """Initialize Graphiti (legacy compatibility)."""
-        # For backward compatibility, return False if no agent ID (matching old behavior)
-        if not hasattr(self, 'db_id') or not self.db_id or (hasattr(self, 'graphiti_agent_id') and not self.graphiti_agent_id):
-            logger.debug("Legacy initialize_graphiti called - no agent ID, returning False")
-            return False
-            
-        # Try to initialize graphiti client if available
-        if get_graphiti_client:
-            try:
-                self.graphiti_client = get_graphiti_client()
-                if self.graphiti_client is None and get_graphiti_client_async:
-                    # Try async version if sync returns None
-                    self.graphiti_client = await get_graphiti_client_async()
-                logger.debug("Legacy initialize_graphiti called - initialized client")
-                return True
-            except Exception as e:
-                logger.debug(f"Legacy initialize_graphiti failed: {e}")
-                return False
-        else:
-            logger.debug("Legacy initialize_graphiti called - skipping in refactored framework")
-            return True
 
     def _is_vision_capable_model(self, model_name: str) -> bool:
         """Check if a model is vision-capable.
