@@ -47,19 +47,13 @@ class SimpleAgent(AutomagikAgent):
         # Register Evolution WhatsApp helpers for parity with Sofia
         self.tool_registry.register_evolution_tools(self.context)
 
-        # simple helper: analyze_image tool for compatibility
-        self._register_helper_tools()
+        # Register multimodal tools using common helper
+        self._register_multimodal_tools()
 
-    def _register_helper_tools(self):
-        deps = self.dependencies
-
-        async def analyze_image(ctx, question: str = "What do you see in this image?") -> str:
-            if not deps or not deps.has_media('image'):
-                return "No images are attached to analyze."
-            return f"Image analysis requested: {question}"
-
-        analyze_image.__name__ = "analyze_image"
-        self.tool_registry.register_tool(analyze_image)
+    def _register_multimodal_tools(self):
+        """Register multimodal analysis tools using common helper."""
+        from src.agents.common.multimodal_helper import register_multimodal_tools
+        register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
 def create_agent(config: Dict[str, str]) -> SimpleAgent:

@@ -63,6 +63,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0.21",
     "aiofiles>=24.1.0",
     # "claude-code-sdk>=0.0.11",  # Using local patched version from src/vendors/claude-code-sdk
+    "claude-code-sdk>=0.0.11",
 ]
 
 [project.urls]

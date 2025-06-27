@@ -20,5 +20,5 @@ CREATE INDEX IF NOT EXISTS idx_messages_usage_jsonb ON messages USING GIN(usage)
 
 -- Create additional performance indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_messages_usage_framework ON messages((usage->>'framework'));
-CREATE INDEX IF NOT EXISTS idx_messages_usage_request_tokens ON messages((usage->>'request_tokens')::INTEGER);
-CREATE INDEX IF NOT EXISTS idx_messages_usage_response_tokens ON messages((usage->>'response_tokens')::INTEGER);
+CREATE INDEX IF NOT EXISTS idx_messages_usage_request_tokens ON messages(CAST(usage->>'request_tokens' AS INTEGER));
+CREATE INDEX IF NOT EXISTS idx_messages_usage_response_tokens ON messages(CAST(usage->>'response_tokens' AS INTEGER));

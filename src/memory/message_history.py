@@ -74,7 +74,7 @@ class MessageHistory:
     for database operations without intermediate abstractions.
     """
     
-    def __init__(self, session_id: str, system_prompt: Optional[str] = None, user_id: Union[int, str, uuid.UUID] = 1, no_auto_create: bool = False):
+    def __init__(self, session_id: str, system_prompt: Optional[str] = None, user_id: Union[int, str, uuid.UUID, None] = 1, no_auto_create: bool = False):
         """Initialize a new message history.
         
         Args:
@@ -89,7 +89,11 @@ class MessageHistory:
         self._local_only: bool = False
 
         # Convert user_id to UUID for database compatibility
-        self.user_id = self._ensure_user_id_uuid(user_id)
+        # Handle None explicitly to avoid converting it to a UUID
+        if user_id is None:
+            self.user_id = None
+        else:
+            self.user_id = self._ensure_user_id_uuid(user_id)
         self.session_id, self._local_only = self._ensure_session_id(session_id, self.user_id, no_auto_create)
         
         # Local in-memory message list – used during unit tests when DB is
@@ -125,7 +129,7 @@ class MessageHistory:
             # Fallback for any other type
             return uuid.uuid5(uuid.NAMESPACE_OID, str(user_id))
     
-    def _ensure_session_id(self, session_id: str, user_id: uuid.UUID, no_auto_create: bool = False) -> Tuple[str, bool]:
+    def _ensure_session_id(self, session_id: str, user_id: Optional[uuid.UUID], no_auto_create: bool = False) -> Tuple[str, bool]:
         """Ensure the session exists, creating it if necessary.
         
         Args:
@@ -241,7 +245,7 @@ class MessageHistory:
                     message = Message(
                         id=uuid.uuid4(),
                         session_id=session_uuid,
-                        user_id=self.user_id,
+                        user_id=self.user_id if self.user_id else None,
                         agent_id=agent_id,
                         role="system",
                         text_content=content,
@@ -287,7 +291,7 @@ class MessageHistory:
                     message = Message(
                         id=uuid.uuid4(),
                         session_id=uuid.UUID(self.session_id),
-                        user_id=self.user_id,
+                        user_id=self.user_id if self.user_id else None,
                         agent_id=agent_id,
                         role="user",
                         text_content=content,
@@ -452,7 +456,7 @@ class MessageHistory:
                     message = Message(
                         id=uuid.uuid4(),
                         session_id=uuid.UUID(self.session_id),
-                        user_id=self.user_id,
+                        user_id=self.user_id if self.user_id else None,
                         agent_id=agent_id,
                         role="assistant",
                         text_content=content,

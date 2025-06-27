@@ -63,7 +63,7 @@ def get_user_by_phone(phone: str) -> Optional[User]:
     """
     try:
         result = execute_query(
-            "SELECT * FROM users WHERE phone = %s",
+            "SELECT * FROM users WHERE phone_number = %s",
             (phone,)
         )
         return User.from_db_row(result[0]) if result else None
