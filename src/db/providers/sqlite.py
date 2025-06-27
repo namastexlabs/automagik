@@ -886,14 +886,20 @@ class SQLiteProvider(DatabaseProvider):
                 logger.warning("No migrations directory found")
                 return True, []
             
-            # Use database-specific directory if it exists
-            sqlite_migrations_dir = base_migrations_dir / "sqlite"
-            if sqlite_migrations_dir.exists():
-                migrations_dir = sqlite_migrations_dir
+            # Check if we're already in a SQLite-specific directory
+            migrations_dir = base_migrations_dir
+            if base_migrations_dir.name == "sqlite":
+                # Already in SQLite-specific directory
                 logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
+                base_migrations_dir = base_migrations_dir.parent  # Update base_migrations_dir to actual base
             else:
-                migrations_dir = base_migrations_dir
-                logger.info(f"Using base migrations directory: {migrations_dir}")
+                # Check if SQLite-specific directory exists within the provided path
+                sqlite_migrations_dir = base_migrations_dir / "sqlite"
+                if sqlite_migrations_dir.exists():
+                    migrations_dir = sqlite_migrations_dir
+                    logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
+                else:
+                    logger.info(f"Using base migrations directory: {migrations_dir}")
             
             # Get all SQL files and sort them by name (which includes timestamp)
             migration_files = sorted(migrations_dir.glob("*.sql"))
@@ -906,8 +912,11 @@ class SQLiteProvider(DatabaseProvider):
             for migration_file in migration_files:
                 migration_name = migration_file.name
                 # Skip PostgreSQL-specific migrations for SQLite (only if in base directory)
-                if migrations_dir == base_migrations_dir and migration_name == "00000000_000000_create_initial_schema.sql":
+                # If we're using SQLite-specific directory, don't skip any migrations
+                if (migrations_dir == base_migrations_dir and 
+                    migration_name == "00000000_000000_create_initial_schema.sql"):
                     # Skip PostgreSQL-specific initial schema
+                    logger.info(f"Skipping PostgreSQL-specific migration: {migration_name}")
                     continue
                     
                 if migration_name not in applied_migrations:
@@ -948,15 +957,23 @@ class SQLiteProvider(DatabaseProvider):
                 cursor.execute("SELECT name FROM migrations WHERE status = 'applied'")
                 applied_migrations = {row['name'] for row in cursor.fetchall()}
                 
-                # Use database-specific directory if it exists
-                base_migrations_dir = migrations_path
-                sqlite_migrations_dir = base_migrations_dir / "sqlite"
-                if sqlite_migrations_dir.exists():
-                    actual_migrations_dir = sqlite_migrations_dir
+                # Check if we're already in a SQLite-specific directory
+                actual_migrations_dir = migrations_path
+                if migrations_path.name == "sqlite":
+                    # Already in SQLite-specific directory
                     logger.info(f"Using SQLite-specific migrations directory: {actual_migrations_dir}")
+                    base_migrations_dir = migrations_path.parent  # This is the actual base directory
                 else:
-                    actual_migrations_dir = base_migrations_dir
-                    logger.info(f"Using base migrations directory: {actual_migrations_dir}")
+                    # Check if SQLite-specific directory exists within the provided path
+                    sqlite_migrations_dir = migrations_path / "sqlite"
+                    if sqlite_migrations_dir.exists():
+                        actual_migrations_dir = sqlite_migrations_dir
+                        logger.info(f"Using SQLite-specific migrations directory: {actual_migrations_dir}")
+                        base_migrations_dir = migrations_path  # This is the base directory
+                    else:
+                        # Use the provided directory as-is
+                        logger.info(f"Using base migrations directory: {actual_migrations_dir}")
+                        base_migrations_dir = migrations_path
                 
                 # Get all migration files
                 migration_files = sorted(actual_migrations_dir.glob("*.sql"))
@@ -965,7 +982,10 @@ class SQLiteProvider(DatabaseProvider):
                     migration_name = migration_file.name
                     
                     # Skip PostgreSQL-specific migrations for SQLite (only if in base directory)
-                    if actual_migrations_dir == base_migrations_dir and migration_name == "00000000_000000_create_initial_schema.sql":
+                    # If we're using SQLite-specific directory, don't skip any migrations
+                    logger.debug(f"Checking migration {migration_name}: actual_dir={actual_migrations_dir}, base_dir={base_migrations_dir}, equal={actual_migrations_dir == base_migrations_dir}")
+                    if (actual_migrations_dir == base_migrations_dir and 
+                        migration_name == "00000000_000000_create_initial_schema.sql"):
                         logger.info(f"Migration '{migration_name}' is PostgreSQL-specific, skipping for SQLite.")
                         continue
                     
