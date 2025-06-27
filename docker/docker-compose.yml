@@ -31,13 +31,6 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-automagik}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@automagik-agents-db:5432/${POSTGRES_DB:-automagik}
-      
-      # Override Neo4j to use Docker service name
-      - NEO4J_URI=bolt://automagik-agents-neo4j:7687
-      - NEO4J_HOST=automagik-agents-neo4j
-      - NEO4J_PORT=7687
-      - NEO4J_USERNAME=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
     depends_on:
       automagik-agents-db:
         condition: service_healthy
@@ -73,48 +66,9 @@ services:
       timeout: 5s
       retries: 5
 
-  automagik-agents-neo4j:
-    image: neo4j:5
-    container_name: automagik-agents-neo4j
-    ports:
-      - "7474:7474"  # HTTP interface
-      - "${NEO4J_PORT:-7687}:7687"  # Bolt interface
-    volumes:
-      - neo4j_data:/data
-    environment:
-      - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-automagik123}
-    restart: unless-stopped
-    networks:
-      - automagik_network
-    profiles:
-      - graphiti
-
-  automagik-agents-graphiti:
-    image: zepai/graphiti:latest
-    container_name: automagik-agents-graphiti
-    ports:
-      - "8000:8000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - NEO4J_URI=bolt://automagik-agents-neo4j:7687
-      - NEO4J_USER=${NEO4J_USERNAME:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-automagik123}
-      - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
-      - GRAPHITI_ENV=${GRAPHITI_ENV:-development}
-      - GRAPHITI_MAX_CHUNK_SIZE=4000
-      - GRAPHITI_CHUNK_OVERLAP=200
-      - GRAPHITI_TEXT_SPLITTER_TYPE=recursive_character
-    depends_on:
-      - automagik-agents-neo4j
-    restart: unless-stopped
-    networks:
-      - automagik_network
-    profiles:
-      - graphiti
 
 volumes:
   automagik_postgres_data:
-  neo4j_data:
 
 networks:
   automagik_network:
