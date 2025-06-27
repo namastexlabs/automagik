@@ -390,7 +390,9 @@ class AutomagikAgent(ABC, Generic[T]):
                     current_model = getattr(self.dependencies, "model_name", "")
                     needs_vision = multimodal_content.get("images") or multimodal_content.get("documents")
 
-                    logger.info(f"🔍 Vision check: needs_vision={needs_vision}, current_model={current_model}, is_vision_capable={self._is_vision_capable_model(current_model) if current_model else False}")
+                    has_images = bool(multimodal_content.get("images"))
+                    has_documents = bool(multimodal_content.get("documents"))
+                    logger.info(f"🔍 Vision check: needs_vision=images:{has_images},docs:{has_documents}, current_model={current_model}, is_vision_capable={self._is_vision_capable_model(current_model) if current_model else False}")
                     
                     if needs_vision and current_model and not self._is_vision_capable_model(current_model):
                         if self.dependencies:
@@ -665,7 +667,6 @@ class AutomagikAgent(ABC, Generic[T]):
             import httpx
             import base64
             import hashlib
-            import os
             from pathlib import Path
             
             # Create user-specific tmp directory
@@ -750,7 +751,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                         if downloaded_base64:
                                             # Use the downloaded base64 instead of the URL
                                             data_content = downloaded_base64
-                                            logger.debug(f"Successfully downloaded WhatsApp image, using base64 data")
+                                            logger.debug("Successfully downloaded WhatsApp image, using base64 data")
                                         else:
                                             # Fallback to URL if download fails
                                             input_list.append(ImageUrl(url=data_content))
