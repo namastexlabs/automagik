@@ -26,10 +26,18 @@ class SimpleAgnoAgent(AutomagikAgent):
         config["framework_type"] = "agno"
         
         # Enable multimodal by default
-        config.setdefault("model", "openai:gpt-4o")  # Multimodal model
+        config.setdefault("model", "openai:gpt-4o")  # Multimodal model (supports images and audio transcription)
         config.setdefault("supported_media", ["image", "audio", "document", "video"])
         
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"SimpleAgnoAgent initializing with framework_type: {config.get('framework_type')}")
+        
         super().__init__(config)
+        
+        # Verify framework type after initialization
+        logger.info(f"SimpleAgnoAgent initialized with actual framework_type: {self.framework_type}")
         
         # Set the prompt
         self._code_prompt_text = """You are a helpful AI assistant powered by Agno framework.
