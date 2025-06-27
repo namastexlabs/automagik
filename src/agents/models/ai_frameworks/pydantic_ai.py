@@ -254,9 +254,9 @@ class PydanticAIFramework(AgentAIFramework):
             logger.error(f"Error extracting usage info: {e}")
             # Fallback to basic extraction
             try:
-                # Detect content types for fallback usage
+                # Detect content types for fallback usage (safely handle multimodal_content)
                 content_types = ["text"]
-                if multimodal_content:
+                if multimodal_content and isinstance(multimodal_content, dict):
                     if multimodal_content.get("images"):
                         content_types.append("image")
                     if multimodal_content.get("audio"):
