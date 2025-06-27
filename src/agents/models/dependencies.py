@@ -284,7 +284,6 @@ class AutomagikAgentsDependencies(BaseDependencies):
         self._user_context: Optional[Dict[str, Any]] = None
         self._template_vars: Optional[Dict[str, Any]] = None
         self._usage_limits: Optional[UsageLimits] = None
-        self._graphiti_client: Optional[Any] = None
         self._user_id: Optional[int] = None
         self._agent_id: Optional[int] = None
         self._http_client: Optional[httpx.AsyncClient] = None
