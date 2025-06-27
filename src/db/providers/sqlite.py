@@ -983,27 +983,6 @@ class SQLiteProvider(DatabaseProvider):
                     checksum = hashlib.sha256(migration_sql.encode()).hexdigest()
                     
                     try:
-<<<<<<< HEAD
-                        # Execute migration in a transaction
-                        conn.execute("BEGIN")
-                        
-                        # Execute migration SQL
-                        for statement in migration_sql.split(';'):
-                            statement = statement.strip()
-                            if statement and not statement.startswith('--'):
-                                try:
-                                    conn.execute(statement)
-                                except Exception as stmt_error:
-                                    # Log but continue for some SQLite-specific errors
-                                    if "duplicate column name" in str(stmt_error).lower():
-                                        logger.info(f"Column already exists, skipping: {stmt_error}")
-                                        continue
-                                    elif "no such table" in str(stmt_error).lower() and "ALTER TABLE" in statement.upper():
-                                        logger.info(f"Table doesn't exist for ALTER, skipping: {stmt_error}")
-                                        continue
-                                    else:
-                                        raise stmt_error
-                        
                         # Execute migration using executescript for better transaction handling
                         # This ensures all statements are executed within a single transaction
                         conn.executescript(migration_sql)
