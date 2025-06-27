@@ -15,6 +15,7 @@ from src.config import settings
 
 # Import framework implementations
 from src.agents.models.ai_frameworks.pydantic_ai import PydanticAIFramework
+from src.agents.models.ai_frameworks.agno import AgnoFramework
 
 # Import common utilities
 from src.agents.common.prompt_builder import PromptBuilder
@@ -178,8 +179,8 @@ class AutomagikAgent(ABC, Generic[T]):
         # Framework registry
         self._framework_registry = {
             FrameworkType.PYDANTIC_AI.value: PydanticAIFramework,
+            FrameworkType.AGNO.value: AgnoFramework,
             # Add more frameworks here as they're implemented
-            # FrameworkType.AGNO.value: AgnoFramework,
             # FrameworkType.LANGGRAPH.value: LangGraphFramework,
         }
         
