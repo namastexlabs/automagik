@@ -48,7 +48,7 @@ def create_workflow(workflow: WorkflowCreate) -> int:
             name, display_name, description, category, prompt_template,
             allowed_tools, mcp_config, active, is_system_workflow, config,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     
     params = (
@@ -59,8 +59,8 @@ def create_workflow(workflow: WorkflowCreate) -> int:
         workflow.prompt_template,
         json.dumps(workflow.allowed_tools),
         json.dumps(workflow.mcp_config),
-        1 if workflow.active else 0,
-        1 if workflow.is_system_workflow else 0,
+        workflow.active,
+        workflow.is_system_workflow,
         json.dumps(workflow.config),
         datetime.utcnow().isoformat(),
         datetime.utcnow().isoformat()
@@ -88,7 +88,7 @@ def get_workflow(workflow_id: int) -> Optional[Workflow]:
                allowed_tools, mcp_config, active, is_system_workflow, config,
                created_at, updated_at
         FROM workflows 
-        WHERE id = ?
+        WHERE id = %s
     """
     
     result = execute_query(query, (workflow_id,), fetch=True)
@@ -112,7 +112,7 @@ def get_workflow_by_name(name: str) -> Optional[Workflow]:
                allowed_tools, mcp_config, active, is_system_workflow, config,
                created_at, updated_at
         FROM workflows 
-        WHERE name = ?
+        WHERE name = %s
     """
     
     result = execute_query(query, (name,), fetch=True)
@@ -141,16 +141,16 @@ def list_workflows(
     params = []
     
     if active_only:
-        where_conditions.append("active = ?")
-        params.append(1)
+        where_conditions.append("active = %s")
+        params.append(True)
     
     if category:
-        where_conditions.append("category = ?")
+        where_conditions.append("category = %s")
         params.append(category)
     
     if is_system_workflow is not None:
-        where_conditions.append("is_system_workflow = ?")
-        params.append(1 if is_system_workflow else 0)
+        where_conditions.append("is_system_workflow = %s")
+        params.append(is_system_workflow)
     
     where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
     
@@ -191,42 +191,42 @@ def update_workflow(workflow_id: int, update_data: WorkflowUpdate) -> bool:
     params = []
     
     if update_data.display_name is not None:
-        update_fields.append("display_name = ?")
+        update_fields.append("display_name = %s")
         params.append(update_data.display_name)
     
     if update_data.description is not None:
-        update_fields.append("description = ?")
+        update_fields.append("description = %s")
         params.append(update_data.description)
     
     if update_data.category is not None:
-        update_fields.append("category = ?")
+        update_fields.append("category = %s")
         params.append(update_data.category)
     
     if update_data.prompt_template is not None:
-        update_fields.append("prompt_template = ?")
+        update_fields.append("prompt_template = %s")
         params.append(update_data.prompt_template)
     
     if update_data.allowed_tools is not None:
-        update_fields.append("allowed_tools = ?")
+        update_fields.append("allowed_tools = %s")
         params.append(json.dumps(update_data.allowed_tools))
     
     if update_data.mcp_config is not None:
-        update_fields.append("mcp_config = ?")
+        update_fields.append("mcp_config = %s")
         params.append(json.dumps(update_data.mcp_config))
     
     if update_data.active is not None:
-        update_fields.append("active = ?")
-        params.append(1 if update_data.active else 0)
+        update_fields.append("active = %s")
+        params.append(update_data.active)
     
     if update_data.config is not None:
-        update_fields.append("config = ?")
+        update_fields.append("config = %s")
         params.append(json.dumps(update_data.config))
     
     if not update_fields:
         return True  # No fields to update
     
     # Add updated timestamp
-    update_fields.append("updated_at = ?")
+    update_fields.append("updated_at = %s")
     params.append(datetime.utcnow().isoformat())
     
     # Add WHERE clause
@@ -235,7 +235,7 @@ def update_workflow(workflow_id: int, update_data: WorkflowUpdate) -> bool:
     query = f"""
         UPDATE workflows 
         SET {', '.join(update_fields)}
-        WHERE id = ?
+        WHERE id = %s
     """
     
     try:
@@ -264,7 +264,7 @@ def delete_workflow(workflow_id: int) -> bool:
         logger.warning(f"Attempted to delete system workflow: {workflow.name}")
         return False
     
-    query = "DELETE FROM workflows WHERE id = ?"
+    query = "DELETE FROM workflows WHERE id = %s"
     try:
         execute_query(query, (workflow_id,), commit=True)
         return True
