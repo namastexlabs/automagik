@@ -197,26 +197,43 @@ class AgnoFramework(AgentAIFramework):
                 audio_contents = []
                 videos = []
                 
-                for item in user_input:
+                for i, item in enumerate(user_input):
+                    logger.debug(f"🔍 Processing user_input item {i}: type={type(item)}")
+                    
                     if isinstance(item, str):
                         text_input = item
+                        logger.debug(f"  Found text: '{item[:50]}...'")
                     elif isinstance(item, dict):
                         media_type = item.get("type", "")
+                        logger.debug(f"  Found dict with media_type: '{media_type}'")
+                        logger.debug(f"  Dict keys: {list(item.keys())}")
+                        
                         if media_type == "image":
+                            logger.debug(f"  Processing image...")
                             agno_image = self._create_agno_image(item)
+                            logger.debug(f"  Created agno_image: {agno_image is not None}")
                             if agno_image:
                                 images.append(agno_image)
                                 multimodal_content["images"].append(item)
+                                logger.debug(f"  ✅ Added image to lists, images count: {len(images)}")
+                            else:
+                                logger.warning(f"  ❌ Failed to create agno_image")
                         elif media_type == "audio":
+                            logger.debug(f"  Processing audio...")
                             agno_audio = self._create_agno_audio(item)
                             if agno_audio:
                                 audio_contents.append(agno_audio)
                                 multimodal_content["audio"].append(item)
+                                logger.debug(f"  ✅ Added audio, count: {len(audio_contents)}")
                         elif media_type == "video":
+                            logger.debug(f"  Processing video...")
                             agno_video = self._create_agno_video(item)
                             if agno_video:
                                 videos.append(agno_video)
                                 multimodal_content["videos"].append(item)
+                                logger.debug(f"  ✅ Added video, count: {len(videos)}")
+                        else:
+                            logger.warning(f"  ❌ Unknown media_type: '{media_type}'")
                 
                 # Set multimodal parameters
                 if images:
@@ -231,6 +248,14 @@ class AgnoFramework(AgentAIFramework):
             # Set system prompt as instructions
             if system_prompt:
                 self._agent_instance.instructions = system_prompt
+            
+            # Debug: Log what we're passing to Agno
+            logger.debug(f"🔍 Agno arun parameters:")
+            logger.debug(f"  user_input: {user_input}")
+            logger.debug(f"  run_kwargs keys: {list(run_kwargs.keys())}")
+            if "images" in run_kwargs:
+                logger.debug(f"  images count: {len(run_kwargs['images'])}")
+                logger.debug(f"  image types: {[type(img) for img in run_kwargs['images']]}")
             
             # Run the agent
             run_response = await self._agent_instance.arun(

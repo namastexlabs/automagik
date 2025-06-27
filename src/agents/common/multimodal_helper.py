@@ -17,7 +17,7 @@ def register_multimodal_tools(tool_registry, dependencies):
         dependencies: The agent's dependencies object
     """
     
-    async def analyze_image(ctx, question: str = "What do you see in this image?") -> str:
+    async def analyze_image(ctx=None, question: str = "What do you see in this image?") -> str:
         """Analyze attached images."""
         if not dependencies or not dependencies.has_media('image'):
             return "No images are attached to analyze."
@@ -32,7 +32,7 @@ def register_multimodal_tools(tool_registry, dependencies):
         
         return f"Image analysis requested for '{image_name}': {question}"
 
-    async def analyze_document(ctx, question: str = "What is this document about?") -> str:
+    async def analyze_document(ctx=None, question: str = "What is this document about?") -> str:
         """Analyze attached documents."""
         if not dependencies or not dependencies.has_media('document'):
             return "No documents are attached to analyze."
@@ -48,7 +48,7 @@ def register_multimodal_tools(tool_registry, dependencies):
         
         return f"Document analysis requested for '{doc_name}' ({doc_size} bytes): {question}"
 
-    async def analyze_audio(ctx, question: str = "What is in this audio?") -> str:
+    async def analyze_audio(ctx=None, question: str = "What is in this audio?") -> str:
         """Analyze attached audio files."""
         if not dependencies or not dependencies.has_media('audio'):
             return "No audio files are attached to analyze."
@@ -63,7 +63,7 @@ def register_multimodal_tools(tool_registry, dependencies):
         
         return f"Audio analysis requested for '{audio_name}': {question}"
 
-    async def analyze_attached_media(ctx, media_type: str = "any") -> str:
+    async def analyze_attached_media(ctx=None, media_type: str = "any") -> str:
         """Analyze any attached media (images, documents, audio)."""
         if not dependencies:
             return "No media context available."
@@ -95,14 +95,14 @@ def register_multimodal_tools(tool_registry, dependencies):
         else:
             return "No supported media types found for analysis."
 
-    async def describe_media(ctx) -> str:
+    async def describe_media(ctx=None) -> str:
         """Get a description of all attached media."""
         if not dependencies:
             return "No media context available."
         
         return dependencies.describe_media()
 
-    async def get_media_count(ctx) -> Dict[str, int]:
+    async def get_media_count(ctx=None) -> Dict[str, int]:
         """Get count of each media type."""
         if not dependencies:
             return {"images": 0, "audio": 0, "documents": 0}
