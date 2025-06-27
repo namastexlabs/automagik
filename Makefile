@@ -38,6 +38,9 @@ DOCKER_COMPOSE_PROD := docker/docker-compose-prod.yml
 # Docker Compose command detection
 DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
 
+# UV command
+UV := uv
+
 # Enable Docker Compose bake for better build performance
 export COMPOSE_BAKE := true
 
