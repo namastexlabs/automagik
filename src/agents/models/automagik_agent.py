@@ -417,9 +417,6 @@ class AutomagikAgent(ABC, Generic[T]):
                     context['multimodal_content'] = multimodal_content
                     self.dependencies.update_context(context)
             
-            # Process multimodal input
-            processed_input = await self._process_multimodal_input(input_text, multimodal_content)
-            
             # 🎯 INTELLIGENT FRAMEWORK SELECTION: Auto-select Agno for multimodal, PydanticAI for text
             # Check for message_type in kwargs first, then context, then default to "text"
             message_type = kwargs.get("message_type")
@@ -431,7 +428,7 @@ class AutomagikAgent(ABC, Generic[T]):
             logger.info(f"🔍 Framework selection: message_type={message_type}, multimodal_content={bool(multimodal_content)}")
             
             optimal_framework = self._select_optimal_framework(
-                processed_input, 
+                input_text,  # Use input_text for framework selection instead of processed_input
                 message_type=message_type
             )
             
@@ -445,6 +442,9 @@ class AutomagikAgent(ABC, Generic[T]):
                     dependencies_type=type(self.dependencies) if self.dependencies else None
                 ):
                     raise RuntimeError(f"Could not initialize {optimal_framework} framework")
+            
+            # Process multimodal input AFTER framework selection
+            processed_input = await self._process_multimodal_input(input_text, multimodal_content)
             
             # Multimodal: auto-switch to a vision-capable model when media is present.
             if multimodal_content and any(multimodal_content.values()):
