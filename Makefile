@@ -122,13 +122,6 @@ define check_env_file
 	fi
 endef
 
-define detect_graphiti_profile
-	if [ -f ".env" ] && grep -q "NEO4J_URI" .env && grep -q "NEO4J_USERNAME" .env; then \
-		echo "--profile graphiti"; \
-	else \
-		echo ""; \
-	fi
-endef
 
 define detect_database_type
 	if [ -f ".env" ]; then \
@@ -161,7 +154,7 @@ help: ## 🪄 Show this help message
 	@echo -e "$(FONT_CYAN)🚀 Installation:$(FONT_RESET)"
 	@echo -e "  $(FONT_PURPLE)install$(FONT_RESET)         Install development environment (uv sync) - uses SQLite by default"
 	@echo -e "  $(FONT_PURPLE)install-service$(FONT_RESET) Install as systemd service with optional dependencies"
-	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install optional database dependencies (PostgreSQL, Neo4j, Graphiti)"
+	@echo -e "  $(FONT_PURPLE)install-deps$(FONT_RESET)    Install optional database dependencies (PostgreSQL)"
 	@echo -e "  $(FONT_PURPLE)install-docker$(FONT_RESET)  Install Docker development stack"
 	@echo -e "  $(FONT_PURPLE)install-prod$(FONT_RESET)    Install production Docker stack"
 	@echo ""
@@ -174,7 +167,7 @@ help: ## 🪄 Show this help message
 	@echo -e "  $(FONT_PURPLE)stop$(FONT_RESET)            Stop development automagik-agents container only"
 	@echo -e "  $(FONT_PURPLE)stop-service$(FONT_RESET)    Stop systemd service"
 	@echo -e "  $(FONT_PURPLE)stop-prod$(FONT_RESET)       Stop production automagik-agents container only"
-	@echo -e "  $(FONT_PURPLE)stop-all$(FONT_RESET)        Stop all services (DB, Neo4j, Graphiti, etc.)"
+	@echo -e "  $(FONT_PURPLE)stop-all$(FONT_RESET)        Stop all services (DB, etc.)"
 	@echo -e "  $(FONT_PURPLE)status$(FONT_RESET)          Show service status"
 	@echo ""
 	@echo -e "$(FONT_CYAN)📋 Logs & Monitoring:$(FONT_RESET)"
@@ -188,7 +181,7 @@ help: ## 🪄 Show this help message
 	@echo -e "  $(FONT_PURPLE)clean$(FONT_RESET)           Clean temporary files"
 	@echo -e "  $(FONT_PURPLE)test$(FONT_RESET)            Run test suite"
 	@echo ""
-	@echo -e "$(FONT_YELLOW)💡 SQLite is used by default. PostgreSQL/Neo4j/Graphiti are optional$(FONT_RESET)"
+	@echo -e "$(FONT_YELLOW)💡 SQLite is used by default. PostgreSQL is optional$(FONT_RESET)"
 	@echo ""
 
 print-test: ## 🎨 Test color system
@@ -220,7 +213,6 @@ install-service: ## ⚙️ Install as systemd service with optional dependencies
 		$(MAKE) install; \
 	fi
 	@$(call check_env_file)
-	@$(call show_dependency_prompt)
 	@$(call create_systemd_service)
 	@$(call print_status,Reloading systemd and enabling service...)
 	@sudo systemctl daemon-reload
@@ -228,7 +220,7 @@ install-service: ## ⚙️ Install as systemd service with optional dependencies
 	@$(call print_success_with_logo,Systemd service installed!)
 	@echo -e "$(FONT_CYAN)💡 Start with: sudo systemctl start automagik-agents$(FONT_RESET)"
 
-install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graphiti - optional for SQLite)
+install-deps: ## 🗄️ Install database dependencies (PostgreSQL - optional for SQLite)
 	@$(call print_status,Installing database dependencies...)
 	@$(call check_docker)
 	@$(call check_env_file)
@@ -236,7 +228,7 @@ install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graph
 	if [ "$$db_type" = "postgresql" ]; then \
 		$(call print_status,Database type: PostgreSQL - starting container...); \
 		$(call print_status,Stopping any existing containers...); \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true; \
+		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env stop 2>/dev/null || true; \
 		$(call print_status,Starting PostgreSQL container...); \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d --force-recreate automagik-agents-db; \
 		$(call print_status,Waiting for PostgreSQL to be ready...); \
@@ -247,23 +239,6 @@ install-deps: ## 🗄️ Install database dependencies (PostgreSQL, Neo4j, Graph
 		$(call print_status,Database type: SQLite - no container needed); \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite configured - database will be created automatically$(FONT_RESET)"; \
 	fi
-	@echo ""
-	@read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
-	if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
-		$(call print_status,Starting Neo4j container...); \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-neo4j; \
-		$(call print_status,Waiting for Neo4j to be ready...); \
-		sleep 10; \
-		$(call print_status,Starting Graphiti service...); \
-		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d --force-recreate automagik-agents-graphiti; \
-		$(call print_status,Waiting for Graphiti to be ready...); \
-		sleep 5; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
-	fi
 	@$(call print_success_with_logo,Database dependencies setup complete!)
 
 install-docker: ## 🐳 Install Docker development stack
@@ -272,8 +247,7 @@ install-docker: ## 🐳 Install Docker development stack
 	@$(call check_env_file)
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env build
 	@$(call print_status,Starting Docker development stack...)
-	@profile=$$($(call detect_graphiti_profile)); \
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d
 	@$(call print_success_with_logo,Docker development stack ready!)
 
 install-prod: ## 🏭 Install production Docker stack
@@ -309,9 +283,8 @@ docker: ## 🐳 Start Docker development stack
 	@$(call print_status,Starting Docker development stack...)
 	@$(call check_docker)
 	@$(call check_env_file)
-	@profile=$$($(call detect_graphiti_profile)); \
-	$(call print_status,Starting services$$profile...); \
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
+	$(call print_status,Starting services...); \
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d
 	@$(call print_success,Docker stack started!)
 
 prod: ## 🏭 Start production Docker stack
@@ -326,8 +299,9 @@ prod: ## 🏭 Start production Docker stack
 
 stop: ## 🛑 Stop development automagik-agents container only
 	$(call print_status,Stopping development automagik-agents container...)
-	@sudo systemctl stop automagik-agents 2>/dev/null || echo "Systemd service stop failed or not running"
+	@sudo systemctl stop automagik-agents 2>/dev/null || true
 	@docker stop automagik-agents-dev 2>/dev/null || true
+	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,Development automagik-agents stopped!)
 
 stop-prod: ## 🛑 Stop production automagik-agents container only
@@ -338,15 +312,13 @@ stop-prod: ## 🛑 Stop production automagik-agents container only
 stop-all: ## 🛑 Stop all services (preserves containers)
 	$(call print_status,Stopping all services...)
 	@sudo systemctl stop automagik-agents 2>/dev/null || true
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env stop 2>/dev/null || true
 	@if [ -f ".env.prod" ]; then \
 		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
 	else \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) --env-file .env stop 2>/dev/null || true; \
 	fi
-	@pkill -TERM -f "python.*-m src" 2>/dev/null || true
-	@sleep 2
-	@pkill -KILL -f "python.*-m src" 2>/dev/null || true
+	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
 run: ## 🚀 Run development server with hot reload
@@ -466,93 +438,6 @@ test: ## 🧪 Run test suite
 # ===========================================
 # 🔧 Helper Functions
 # ===========================================
-define show_dependency_prompt
-	echo ""; \
-	db_type=$$($(call detect_database_type)); \
-	if [ "$$db_type" = "postgresql" ]; then \
-		echo -e "$(FONT_CYAN)🗄️ Database Dependencies$(FONT_RESET)"; \
-		echo "PostgreSQL is configured. Install Docker containers for database services?"; \
-		echo ""; \
-		echo -e "$(FONT_YELLOW)Available dependencies:$(FONT_RESET)"; \
-		echo "• 🐘 PostgreSQL (database container)"; \
-		echo "• 🔗 Neo4j (knowledge graph)"; \
-		echo "• 🧠 Graphiti (AI memory service)"; \
-		echo ""; \
-		bash -c ' \
-			read -p "Install PostgreSQL container? [Y/n]: " install_deps; \
-			if [ "$$install_deps" != "n" ] && [ "$$install_deps" != "N" ]; then \
-				echo ""; \
-				echo -e "$(FONT_PURPLE)🪄 Installing PostgreSQL container...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d automagik-agents-db; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for PostgreSQL to be ready...$(FONT_RESET)"; \
-				sleep 5; \
-				max_attempts=12; attempt=1; \
-				while [ $$attempt -le $$max_attempts ]; do \
-					if docker exec automagik-agents-db pg_isready -U postgres >/dev/null 2>&1; then \
-						echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL is ready!$(FONT_RESET)"; \
-						break; \
-					else \
-						echo -n "$(FONT_YELLOW).$(FONT_RESET)"; \
-						sleep 5; \
-						attempt=$$((attempt + 1)); \
-					fi; \
-				done; \
-				if [ $$attempt -gt $$max_attempts ]; then \
-					echo -e "$(FONT_RED)$(ERROR) PostgreSQL failed to start within 60 seconds$(FONT_RESET)"; \
-					exit 1; \
-				fi; \
-				echo -e "$(FONT_GREEN)$(CHECKMARK) PostgreSQL container installed!$(FONT_RESET)"; \
-			else \
-				echo -e "$(FONT_YELLOW)$(WARNING) Skipping PostgreSQL container - using external database$(FONT_RESET)"; \
-			fi; \
-			echo ""; \
-			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
-			if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
-				echo -e "$(FONT_PURPLE)🪄 Starting Neo4j container...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-neo4j; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Neo4j to be ready...$(FONT_RESET)"; \
-				sleep 10; \
-				echo -e "$(FONT_PURPLE)🪄 Starting Graphiti service...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-graphiti; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Graphiti to be ready...$(FONT_RESET)"; \
-				sleep 5; \
-				echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
-			else \
-				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
-			fi; \
-		'; \
-	else \
-		echo -e "$(FONT_CYAN)🗄️ Optional Database Dependencies$(FONT_RESET)"; \
-		echo "SQLite is configured as the default database (no container needed)."; \
-		echo ""; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database will be created automatically$(FONT_RESET)"; \
-		echo ""; \
-		echo -e "$(FONT_YELLOW)Optional AI memory services:$(FONT_RESET)"; \
-		echo "• 🔗 Neo4j (knowledge graph)"; \
-		echo "• 🧠 Graphiti (AI memory service)"; \
-		echo ""; \
-		bash -c ' \
-			read -p "Install Neo4j and Graphiti for AI memory? [Y/n]: " install_graphiti; \
-			if [ "$$install_graphiti" != "n" ] && [ "$$install_graphiti" != "N" ]; then \
-				echo -e "$(FONT_PURPLE)🪄 Starting Neo4j container...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-neo4j; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Neo4j to be ready...$(FONT_RESET)"; \
-				sleep 10; \
-				echo -e "$(FONT_PURPLE)🪄 Starting Graphiti service...$(FONT_RESET)"; \
-				$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti up -d automagik-agents-graphiti; \
-				echo -e "$(FONT_PURPLE)🪄 Waiting for Graphiti to be ready...$(FONT_RESET)"; \
-				sleep 5; \
-				echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j and Graphiti started successfully!$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Neo4j Browser: http://localhost:7474$(FONT_RESET)"; \
-				echo -e "$(FONT_CYAN)💡 Graphiti API: http://localhost:8000$(FONT_RESET)"; \
-			else \
-				echo -e "$(FONT_YELLOW)$(WARNING) Skipping Neo4j/Graphiti - AI memory features will be limited$(FONT_RESET)"; \
-			fi; \
-		'; \
-	fi
-endef
 
 define check_postgres_ready
 	@max_attempts=12; \
@@ -645,7 +530,7 @@ define show_local_status
 endef
 
 define check_health
-	healthy=0; \
+	@healthy=0; \
 	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service: running$(FONT_RESET)"; \
 		healthy=1; \
@@ -677,18 +562,180 @@ define check_health
 		fi; \
 	else \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) SQLite database: configured$(FONT_RESET)"; \
-	fi; \
-	if docker ps --filter "name=automagik-agents-neo4j" --format "{{.Names}}" | grep -q automagik-agents-neo4j; then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Neo4j: running$(FONT_RESET)"; \
-	fi; \
-	if docker ps --filter "name=automagik-agents-graphiti" --format "{{.Names}}" | grep -q automagik-agents-graphiti; then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Graphiti: running$(FONT_RESET)"; \
 	fi
 endef
+
+# ===========================================
+# 📦 Build & Publish
+# ===========================================
+.PHONY: build publish-test publish check-dist check-release clean-build
+.PHONY: bump-patch bump-minor bump-major bump-dev publish-dev finalize-version
+
+build: clean-build ## 📦 Build package
+	$(call print_status,Building package...)
+	@$(UV) build
+	$(call print_success,Package built!)
+
+check-dist: ## 🔍 Check package quality
+	$(call print_status,Checking package quality...)
+	@$(UV) run twine check dist/*
+
+check-release: ## 🔍 Check if ready for release (clean working directory)
+	$(call print_status,Checking release readiness...)
+	@# Check for uncommitted changes
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Please commit or stash your changes before publishing.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git status$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Check if on main branch
+	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$CURRENT_BRANCH" != "main" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Not on main branch (current: $$CURRENT_BRANCH)$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)It's recommended to publish from the main branch.$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	@# Check if main branch is up to date with origin
+	@git fetch origin main --quiet; \
+	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ]; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Local main branch differs from origin/main$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)Consider pulling latest changes or pushing your commits.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Run: git pull origin main$(FONT_RESET)"; \
+		read -p "Continue anyway? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+			exit 1; \
+		fi; \
+	fi
+	$(call print_success,Ready for release!)
+
+publish-test: build check-dist ## 🧪 Upload to TestPyPI
+	$(call print_status,Publishing to TestPyPI...)
+	@if [ -z "$(TESTPYPI_TOKEN)" ]; then \
+		$(call print_error,TESTPYPI_TOKEN not set); \
+		echo -e "$(FONT_YELLOW)💡 Get your TestPyPI token at: https://test.pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export TESTPYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@$(UV) run twine upload --repository testpypi dist/* -u __token__ -p "$(TESTPYPI_TOKEN)"
+	$(call print_success,Published to TestPyPI!)
+
+publish: check-release build check-dist ## 🚀 Upload to PyPI and create GitHub release
+	$(call print_status,Publishing to PyPI and GitHub...)
+	@if [ -z "$(PYPI_TOKEN)" ]; then \
+		echo -e "$(FONT_RED)$(ERROR) PYPI_TOKEN environment variable not set$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@# Get version from pyproject.toml
+	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)$(INFO) Publishing version: v$$VERSION$(FONT_RESET)"; \
+	$(UV) run twine upload dist/* -u __token__ -p "$(PYPI_TOKEN)"; \
+	if ! git tag | grep -q "^v$$VERSION$$"; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating git tag v$$VERSION$(FONT_RESET)"; \
+		git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	fi; \
+	echo -e "$(FONT_CYAN)$(INFO) Pushing tag to GitHub$(FONT_RESET)"; \
+	git push origin "v$$VERSION"; \
+	if command -v gh >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)$(INFO) Creating GitHub release$(FONT_RESET)"; \
+		gh release create "v$$VERSION" \
+			--title "v$$VERSION" \
+			--notes "Release v$$VERSION - See CHANGELOG for details" \
+			dist/* || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - skipping release creation$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)$(INFO) Install with: brew install gh$(FONT_RESET)"; \
+	fi
+	$(call print_success,Published to PyPI and GitHub!)
+
+clean-build: ## 🧹 Clean build artifacts
+	$(call print_status,Cleaning build artifacts...)
+	@rm -rf build dist *.egg-info
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	$(call print_success,Build artifacts cleaned!)
+
+# ===========================================
+# 📈 Version Management
+# ===========================================
+bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
+	$(call print_status,Bumping patch version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$NF = $$NF + 1;} 1' | sed 's/ /./g'); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
+	$(call print_status,Bumping minor version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
+	$(call print_status,Bumping major version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+
+bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
+	$(call print_status,Creating dev pre-release version...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		BASE_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
+		PRE_NUM=$$(echo "$$CURRENT_VERSION" | sed 's/.*pre\([0-9]*\)/\1/'); \
+		NEW_PRE_NUM=$$((PRE_NUM + 1)); \
+		NEW_VERSION="$${BASE_VERSION}pre$${NEW_PRE_NUM}"; \
+	else \
+		NEW_VERSION="$${CURRENT_VERSION}pre1"; \
+	fi; \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Dev version created: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make publish-dev$(FONT_RESET)"
+
+publish-dev: build check-dist ## 🚀 Build and publish dev version to PyPI
+	$(call print_status,Publishing dev version to PyPI...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if ! echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		$(call print_error,Not a dev version! Use 'make bump-dev' first); \
+		echo -e "$(FONT_GRAY)Current version: $$CURRENT_VERSION$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@if [ -z "$(PYPI_TOKEN)" ]; then \
+		$(call print_error,PYPI_TOKEN not set); \
+		echo -e "$(FONT_YELLOW)💡 Get your PyPI token at: https://pypi.org/manage/account/token/$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)💡 Set with: export PYPI_TOKEN=pypi-xxxxx$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@echo -e "$(FONT_CYAN)🚀 Publishing $$CURRENT_VERSION to PyPI for beta testing...$(FONT_RESET)"
+	@$(UV) run twine upload dist/* -u __token__ -p "$(PYPI_TOKEN)"
+	@echo -e "$(FONT_GREEN)✅ Dev version published to PyPI!$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Users can install with: pip install automagik==$$CURRENT_VERSION$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Or latest pre-release: pip install --pre automagik$(FONT_RESET)"
+
+finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
+	$(call print_status,Finalizing version for release...)
+	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	if ! echo "$$CURRENT_VERSION" | grep -q "pre"; then \
+		$(call print_error,Not a pre-release version!); \
+		echo -e "$(FONT_GRAY)Current version: $$CURRENT_VERSION$(FONT_RESET)"; \
+		exit 1; \
+	fi; \
+	FINAL_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
+	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$FINAL_VERSION\"/" pyproject.toml; \
+	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
 
 # ===========================================
 # 🧹 Phony Targets
 # ===========================================
 .PHONY: help print-test install install-service install-deps install-docker install-prod
 .PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service status logs health
-.PHONY: update clean test
+.PHONY: update clean test build publish-test publish check-dist check-release clean-build
+.PHONY: bump-patch bump-minor bump-major bump-dev publish-dev finalize-version
