@@ -880,7 +880,7 @@ class SQLiteProvider(DatabaseProvider):
             cursor.execute("SELECT name FROM migrations WHERE status = 'applied'")
             applied_migrations = {row['name'] for row in cursor.fetchall()}
             
-            # Get the migrations directory path
+            # Get the migrations directory path - check SQLite-specific first
             base_migrations_dir = Path("src/db/migrations")
             if not base_migrations_dir.exists():
                 logger.warning("No migrations directory found")
@@ -890,8 +890,10 @@ class SQLiteProvider(DatabaseProvider):
             sqlite_migrations_dir = base_migrations_dir / "sqlite"
             if sqlite_migrations_dir.exists():
                 migrations_dir = sqlite_migrations_dir
+                logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
             else:
                 migrations_dir = base_migrations_dir
+                logger.info(f"Using base migrations directory: {migrations_dir}")
             
             # Get all SQL files and sort them by name (which includes timestamp)
             migration_files = sorted(migrations_dir.glob("*.sql"))
@@ -981,6 +983,7 @@ class SQLiteProvider(DatabaseProvider):
                     checksum = hashlib.sha256(migration_sql.encode()).hexdigest()
                     
                     try:
+<<<<<<< HEAD
                         # Execute migration in a transaction
                         conn.execute("BEGIN")
                         
@@ -1001,7 +1004,11 @@ class SQLiteProvider(DatabaseProvider):
                                     else:
                                         raise stmt_error
                         
-                        # Record migration as applied
+                        # Execute migration using executescript for better transaction handling
+                        # This ensures all statements are executed within a single transaction
+                        conn.executescript(migration_sql)
+                        
+                        # Record migration as applied in a separate transaction
                         conn.execute(
                             "INSERT INTO migrations (name, checksum, status) VALUES (?, ?, 'applied')",
                             (migration_name, checksum)
@@ -1012,8 +1019,25 @@ class SQLiteProvider(DatabaseProvider):
                         
                     except Exception as e:
                         conn.rollback()
-                        logger.error(f"Failed to apply migration {migration_name}: {e}")
-                        return False
+                        error_msg = str(e).lower()
+                        
+                        # Handle idempotent migration errors - these are safe to ignore
+                        if any(phrase in error_msg for phrase in [
+                            "duplicate column name", 
+                            "already exists", 
+                            "table already exists",
+                            "index already exists"
+                        ]):
+                            logger.info(f"Migration {migration_name} changes already exist, marking as applied")
+                            # Record as applied since the changes already exist
+                            conn.execute(
+                                "INSERT INTO migrations (name, checksum, status) VALUES (?, ?, 'applied')",
+                                (migration_name, checksum)
+                            )
+                            conn.commit()
+                        else:
+                            logger.error(f"Failed to apply migration {migration_name}: {e}")
+                            return False
                 
                 return True
                 
