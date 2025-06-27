@@ -586,7 +586,28 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Use get_agent_with_session for conversational agents to maintain memory
         logger.info(f"🔍 Creating agent with session caching: agent={agent_type}, session_id={session_id}, user_id={effective_user_id}")
         try:
-            agent = factory.get_agent_with_session(agent_type, session_id=session_id, user_id=effective_user_id)
+            # IMPORTANT: Pass session_name to agent so it respects API naming rules
+            agent = factory.get_agent_with_session(
+                agent_type, 
+                session_id=session_id, 
+                user_id=effective_user_id,
+                session_name=session_name  # Pass API-determined session name to agent
+            )
+            
+            # MEMORY FIX: For cached agents, update the agent's MessageHistory to use the current session
+            if (agent and hasattr(agent, 'context') and 
+                agent.context.get('_conversation_history_restored')):
+                logger.debug(f"💾 Updating MessageHistory for cached agent session {session_id}")
+                # Replace the cached agent's old MessageHistory with the current session's MessageHistory
+                try:
+                    # Set the agent's dependencies to use the new MessageHistory
+                    if hasattr(agent, 'dependencies') and hasattr(agent.dependencies, 'message_history'):
+                        logger.debug(f"💾 Replacing cached agent's MessageHistory with current session {session_id}")
+                        agent.dependencies.message_history = message_history
+                        logger.debug(f"💾 Updated agent MessageHistory for session continuity")
+                except Exception as e:
+                    logger.warning(f"Failed to update MessageHistory for cached agent: {str(e)}")
+                    # Continue with standard behavior if update fails
 
             # Check if agent exists
             if not agent or agent.__class__.__name__ == "PlaceholderAgent":

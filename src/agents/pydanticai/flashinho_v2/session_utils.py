@@ -214,7 +214,8 @@ def _build_session_name(agent, session_uuid: uuid.UUID) -> str:
             agent.context.get("whatsapp_session_name")
         )
         
-        # If no session name, build it from phone number (flashinho pattern)
+        # If no session name, only then build it from phone number as fallback
+        # IMPORTANT: Agents should respect session names from API, not override them
         if not session_name:
             phone = (
                 agent.context.get("whatsapp_user_number") or 
@@ -223,7 +224,9 @@ def _build_session_name(agent, session_uuid: uuid.UUID) -> str:
             if phone:
                 # Clean phone number (remove + and other chars)
                 clean_phone = phone.replace("+", "").replace("-", "").replace(" ", "")
-                session_name = f"flashinho-v2-{clean_phone}"
+                # FALLBACK ONLY: Create session name only if API didn't provide one
+                # This should match the API controller pattern for consistency
+                session_name = f"whatsapp-fallback-{clean_phone}"
     
     # Fallback to UUID-based name if no session name found
     return session_name or f"Session-{session_uuid}"
