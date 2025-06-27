@@ -70,7 +70,7 @@ class UnifiedUsageCalculator:
     def __init__(self):
         self.media_config = MediaTokenConfig()
     
-    def extract_pydantic_ai_usage(self, result: Any, model: str, processing_time_ms: float) -> UsageBreakdown:
+    def extract_pydantic_ai_usage(self, result: Any, model: str, processing_time_ms: float, multimodal_content: Optional[Dict[str, Any]] = None) -> UsageBreakdown:
         """Extract usage from PydanticAI result."""
         breakdown = UsageBreakdown(
             framework="pydantic_ai",
