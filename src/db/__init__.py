@@ -25,7 +25,10 @@ from src.db.models import (
     ToolDB,
     ToolExecutionDB,
     ToolCreate,
-    ToolUpdate
+    ToolUpdate,
+    Workflow,
+    WorkflowCreate,
+    WorkflowUpdate
 )
 
 # Export connection utilities
@@ -171,4 +174,15 @@ from src.db.repository.workflow_run import (
     delete_workflow_run,
     get_workflow_runs_by_session,
     get_recent_workflow_runs
+)
+
+# Import workflow repository functions
+from src.db.repository.workflow import (
+    create_workflow,
+    get_workflow,
+    get_workflow_by_name,
+    list_workflows,
+    update_workflow,
+    delete_workflow,
+    register_workflow
 )
