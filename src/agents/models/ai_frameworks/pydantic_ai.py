@@ -232,7 +232,8 @@ class PydanticAIFramework(AgentAIFramework):
             breakdown = calculator.extract_pydantic_ai_usage(
                 result=result,
                 model=self.config.model,
-                processing_time_ms=processing_time_ms
+                processing_time_ms=processing_time_ms,
+                multimodal_content=multimodal_content
             )
             
             # Detect content types based on input
