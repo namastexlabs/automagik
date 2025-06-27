@@ -122,9 +122,6 @@ define check_env_file
 	fi
 endef
 
-define detect_graphiti_profile
-	echo ""
-endef
 
 define detect_database_type
 	if [ -f ".env" ]; then \
@@ -286,9 +283,8 @@ docker: ## 🐳 Start Docker development stack
 	@$(call print_status,Starting Docker development stack...)
 	@$(call check_docker)
 	@$(call check_env_file)
-	@profile=$$($(call detect_graphiti_profile)); \
-	$(call print_status,Starting services$$profile...); \
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env $$profile up -d
+	$(call print_status,Starting services...); \
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env up -d
 	@$(call print_success,Docker stack started!)
 
 prod: ## 🏭 Start production Docker stack
@@ -316,7 +312,7 @@ stop-prod: ## 🛑 Stop production automagik-agents container only
 stop-all: ## 🛑 Stop all services (preserves containers)
 	$(call print_status,Stopping all services...)
 	@sudo systemctl stop automagik-agents 2>/dev/null || true
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env --profile graphiti stop 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env stop 2>/dev/null || true
 	@if [ -f ".env.prod" ]; then \
 		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
 	else \
