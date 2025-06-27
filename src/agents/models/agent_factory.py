@@ -389,7 +389,7 @@ class AgentFactory:
             return agent
     
     @classmethod
-    def get_agent_with_session(cls, agent_name: str, session_id: str = None, user_id: str = None) -> AutomagikAgent:
+    def get_agent_with_session(cls, agent_name: str, session_id: str = None, user_id: str = None, session_name: str = None) -> AutomagikAgent:
         """Get an agent instance with session-based caching for conversational continuity.
         
         For conversational agents like flashinho_pro, this method maintains agent instances
@@ -415,9 +415,13 @@ class AgentFactory:
                 cached_agent = cls._session_agents[session_key]
                 
                 # Update context with current session/user info if available
-                if hasattr(cached_agent, 'context') and user_id:
-                    cached_agent.context['user_id'] = user_id
+                if hasattr(cached_agent, 'context'):
+                    if user_id:
+                        cached_agent.context['user_id'] = user_id
                     cached_agent.context['session_id'] = session_id
+                    # IMPORTANT: Update session_name in cached agent context
+                    if session_name:
+                        cached_agent.context['session_name'] = session_name
                 
                 # MEMORY FIX: Restore conversation history for cached agents
                 cls._restore_conversation_history(cached_agent, session_id, user_id)
@@ -433,6 +437,9 @@ class AgentFactory:
                     if user_id:
                         agent.context['user_id'] = user_id
                     agent.context['session_id'] = session_id
+                    # IMPORTANT: Pass session_name to agent so it respects API naming rules
+                    if session_name:
+                        agent.context['session_name'] = session_name
                 
                 # Cache the agent for future requests in this session
                 cls._session_agents[session_key] = agent
