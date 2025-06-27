@@ -7,9 +7,10 @@ name = "automagik"
 dynamic = ["version"]
 description = "Automagik agents templates"
 readme = "README.md"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.12, <3.13"
 license = {text = "MIT"}
 authors = [
+    {name = "Felipe Rosa", email = "felipe@namastex.ai"},
     {name = "Cezar Vasconcelos", email = "cezar@namastex.ai"}
 ]
 keywords = ["ai", "agents", "pydantic", "fastapi", "agno","generative-ai", "langgraph","memory"]
