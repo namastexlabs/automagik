@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Automagik agents templates"
 readme = "README.md"
 requires-python = ">=3.12, <3.13"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Felipe Rosa", email = "felipe@namastex.ai"},
     {name = "Cezar Vasconcelos", email = "cezar@namastex.ai"}
@@ -17,10 +17,7 @@ keywords = ["ai", "agents", "pydantic", "fastapi", "agno","generative-ai", "lang
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
