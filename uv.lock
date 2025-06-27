@@ -176,7 +176,7 @@ wheels = [
 ]
 
 [[package]]
-name = "automagik-agents"
+name = "automagik"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
