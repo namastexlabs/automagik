@@ -463,7 +463,10 @@ class ToolRegistry:
             self.register_tool(store_memory_wrapper)
             self.register_tool(get_memory_wrapper)
             self.register_tool(list_memories_wrapper)
-            logger.info(f"Updated memory tools with new context: {new_context}")
+            # Sanitize context for logging
+            from src.api.controllers.agent_controller import _sanitize_multimodal_content_for_logging
+            sanitized_context = _sanitize_multimodal_content_for_logging(new_context)
+            logger.info(f"Updated memory tools with new context: {sanitized_context}")
         else:
             logger.warning("Could not update memory tools: not imported")
         
