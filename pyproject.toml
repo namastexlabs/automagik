@@ -64,6 +64,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     # "claude-code-sdk>=0.0.11",  # Using local patched version from src/vendors/claude-code-sdk
     "claude-code-sdk>=0.0.11",
+    "agno>=1.7.0",
 ]
 
 [project.urls]
