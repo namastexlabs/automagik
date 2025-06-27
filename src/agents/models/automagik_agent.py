@@ -184,6 +184,10 @@ class AutomagikAgent(ABC, Generic[T]):
             # FrameworkType.LANGGRAPH.value: LangGraphFramework,
         }
         
+        # Multimodal framework preferences
+        self._multimodal_framework = FrameworkType.AGNO.value  # Agno handles multimodal best
+        self._text_framework = FrameworkType.PYDANTIC_AI.value  # PydanticAI for text-only
+        
         # Multimodal configuration defaults (overridable via `config` or `update_config`).
         self.vision_model: str = self.config.get("vision_model", "openai:gpt-4o")
         # List of supported media types – kept for possible future gating
@@ -295,6 +299,34 @@ class AutomagikAgent(ABC, Generic[T]):
                 self.ai_framework is not None and 
                 self.ai_framework.is_ready)
     
+    def _detect_multimodal_request(self, user_input: Union[str, List[Any]], message_type: str = "text") -> bool:
+        """Detect if the request contains multimodal content."""
+        # Check message type
+        if message_type in ["audio", "video", "image"]:
+            return True
+            
+        # Check for multimodal input format
+        if isinstance(user_input, list):
+            for item in user_input:
+                if isinstance(item, dict) and item.get("type") in ["image", "audio", "video"]:
+                    return True
+                    
+        return False
+    
+    def _select_optimal_framework(self, user_input: Union[str, List[Any]], message_type: str = "text") -> str:
+        """Automatically select the best framework for the request type."""
+        # If framework is explicitly set, respect that choice
+        if hasattr(self, 'framework_type') and self.framework_type and self.framework_type != "auto":
+            return self.framework_type
+            
+        # Auto-select based on content type
+        if self._detect_multimodal_request(user_input, message_type):
+            logger.info(f"🎯 Multimodal content detected, using {self._multimodal_framework} framework")
+            return self._multimodal_framework
+        else:
+            logger.info(f"📝 Text-only content, using {self._text_framework} framework")
+            return self._text_framework
+    
     async def _run_agent(self,
                                 input_text: str,
                                 system_prompt: Optional[str] = None,
@@ -380,6 +412,26 @@ class AutomagikAgent(ABC, Generic[T]):
             
             # Process multimodal input
             processed_input = await self._process_multimodal_input(input_text, multimodal_content)
+            
+            # 🎯 INTELLIGENT FRAMEWORK SELECTION: Auto-select Agno for multimodal, PydanticAI for text
+            message_type = kwargs.get("message_type", "text")
+            logger.info(f"🔍 Framework selection: message_type={message_type}, multimodal_content={bool(multimodal_content)}")
+            
+            optimal_framework = self._select_optimal_framework(
+                processed_input, 
+                message_type=message_type
+            )
+            
+            # Re-initialize framework if we need to switch
+            if optimal_framework != self.framework_type:
+                logger.info(f"🔄 Switching from {self.framework_type} to {optimal_framework} framework")
+                self.framework_type = optimal_framework
+                # Force re-initialization with new framework
+                self._framework_initialized = False
+                if not await self.initialize_framework(
+                    dependencies_type=type(self.dependencies) if self.dependencies else None
+                ):
+                    raise RuntimeError(f"Could not initialize {optimal_framework} framework")
             
             # Multimodal: auto-switch to a vision-capable model when media is present.
             if multimodal_content and any(multimodal_content.values()):
