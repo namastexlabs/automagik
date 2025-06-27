@@ -257,9 +257,14 @@ class AutomagikAgent(ABC, Generic[T]):
             True if initialization was successful
         """
         try:
+            # Handle auto framework selection - default to PydanticAI for initialization
+            actual_framework_type = self.framework_type
+            if self.framework_type in ["auto", FrameworkType.AUTO.value]:
+                actual_framework_type = FrameworkType.PYDANTIC_AI.value
+            
             # Check if framework is supported
-            if self.framework_type not in self._framework_registry:
-                raise ValueError(f"Unsupported framework: {self.framework_type}")
+            if actual_framework_type not in self._framework_registry:
+                raise ValueError(f"Unsupported framework: {actual_framework_type}")
                 
             # Create framework config
             from src.agents.models.ai_frameworks.base import AgentConfig as FrameworkConfig
@@ -272,7 +277,7 @@ class AutomagikAgent(ABC, Generic[T]):
             )
             
             # Initialize framework
-            framework_class = self._framework_registry[self.framework_type]
+            framework_class = self._framework_registry[actual_framework_type]
             self.ai_framework = framework_class(framework_config)
             
             # Initialize with tools and dependencies
@@ -284,7 +289,7 @@ class AutomagikAgent(ABC, Generic[T]):
             )
             
             self._framework_initialized = True
-            logger.info(f"Successfully initialized {self.framework_type} framework for {self.name}")
+            logger.info(f"Successfully initialized {actual_framework_type} framework for {self.name}")
             return True
             
         except Exception as e:
@@ -315,8 +320,10 @@ class AutomagikAgent(ABC, Generic[T]):
     
     def _select_optimal_framework(self, user_input: Union[str, List[Any]], message_type: str = "text") -> str:
         """Automatically select the best framework for the request type."""
-        # If framework is explicitly set, respect that choice
-        if hasattr(self, 'framework_type') and self.framework_type and self.framework_type != "auto":
+        # If framework is explicitly set and not "auto", respect that choice
+        if (hasattr(self, 'framework_type') and 
+            self.framework_type and 
+            self.framework_type not in ["auto", FrameworkType.AUTO.value]):
             return self.framework_type
             
         # Auto-select based on content type
@@ -414,7 +421,13 @@ class AutomagikAgent(ABC, Generic[T]):
             processed_input = await self._process_multimodal_input(input_text, multimodal_content)
             
             # 🎯 INTELLIGENT FRAMEWORK SELECTION: Auto-select Agno for multimodal, PydanticAI for text
-            message_type = kwargs.get("message_type", "text")
+            # Check for message_type in kwargs first, then context, then default to "text"
+            message_type = kwargs.get("message_type")
+            if not message_type and self.context:
+                message_type = self.context.get("message_type", "text")
+            if not message_type:
+                message_type = "text"
+                
             logger.info(f"🔍 Framework selection: message_type={message_type}, multimodal_content={bool(multimodal_content)}")
             
             optimal_framework = self._select_optimal_framework(

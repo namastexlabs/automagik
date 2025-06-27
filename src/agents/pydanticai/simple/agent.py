@@ -35,8 +35,8 @@ class SimpleAgent(AutomagikAgent):
         config.setdefault("supported_media", ["image", "audio", "video", "document"])
         config.setdefault("auto_enhance_prompts", True)
         config.setdefault("enable_agno_for_multimodal", True)  # Use Agno for multimodal content
-        # Use PydanticAI by default, but AutomagikAgent will auto-switch to Agno for multimodal
-        config.setdefault("framework_type", "pydanticai")
+        # Use "auto" to enable framework switching based on content type
+        config.setdefault("framework_type", "auto")
 
         super().__init__(config)
 
