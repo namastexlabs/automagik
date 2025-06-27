@@ -206,7 +206,8 @@ class MigrationManager:
         migration_name = migration_path.name
         
         # Skip SQLite-specific migrations when using PostgreSQL
-        if migration_name == "00000000_000000_create_initial_schema.sql":
+        # Only skip if this is the SQLite initial schema migration from SQLite directory
+        if migration_name == "00000000_000000_create_initial_schema.sql" and "sqlite" in str(migration_path):
             return True, f"Migration '{migration_name}' is SQLite-specific, skipping for PostgreSQL."
         
         # Check if already applied
@@ -239,11 +240,22 @@ class MigrationManager:
             # Apply migration
             start_time = datetime.now()
             
-            # Use a savepoint for this specific migration
+            # Ensure we're not in a transaction by committing any existing work
+            try:
+                self.connection.commit()
+            except:
+                pass  # Ignore if there's nothing to commit
+            
+            # Reset connection state
+            try:
+                self.connection.rollback()
+            except:
+                pass  # Ignore if there's nothing to rollback
+            
+            # Use a fresh cursor for each migration
             with self.connection.cursor() as cursor:
-                cursor.execute("SAVEPOINT migration_savepoint")
-                
                 try:
+                    # Execute the migration content
                     cursor.execute(migration_content)
                     
                     # Record successful migration
@@ -253,25 +265,34 @@ class MigrationManager:
                         (migration_name, checksum, execution_time_ms)
                     )
                     
-                    cursor.execute("RELEASE SAVEPOINT migration_savepoint")
+                    # Commit this migration
                     self.connection.commit()
                     
                     self.applied_migrations.add(migration_name)
                     return True, f"✅ Migration '{migration_name}' applied successfully in {execution_time_ms}ms"
                     
                 except Exception as e:
-                    cursor.execute("ROLLBACK TO SAVEPOINT migration_savepoint")
+                    # Rollback this migration
+                    try:
+                        self.connection.rollback()
+                    except:
+                        pass
                     
                     # Check if it's a "already exists" error that we can safely ignore
                     error_msg = str(e).lower()
-                    if any(phrase in error_msg for phrase in ["already exists", "duplicate key", "already added"]):
+                    if any(phrase in error_msg for phrase in ["already exists", "duplicate key", "already added", "relation already exists"]):
                         # Record as applied since the objects already exist
-                        cursor.execute(
-                            "INSERT INTO migrations (name, checksum, status) VALUES (%s, %s, 'applied') ON CONFLICT (name) DO NOTHING",
-                            (migration_name, checksum)
-                        )
-                        self.connection.commit()
-                        return True, f"⚠️ Migration '{migration_name}' objects already exist. Marked as applied."
+                        try:
+                            cursor.execute(
+                                "INSERT INTO migrations (name, checksum, status) VALUES (%s, %s, 'applied') ON CONFLICT (name) DO NOTHING",
+                                (migration_name, checksum)
+                            )
+                            self.connection.commit()
+                            self.applied_migrations.add(migration_name)
+                            return True, f"⚠️ Migration '{migration_name}' objects already exist. Marked as applied."
+                        except Exception as record_error:
+                            logger.warning(f"Could not record migration as applied: {record_error}")
+                            return True, f"⚠️ Migration '{migration_name}' objects already exist (could not record)."
                     
                     raise e
                     

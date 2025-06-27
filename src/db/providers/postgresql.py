@@ -103,6 +103,54 @@ class PostgreSQLProvider(DatabaseProvider):
             return json.dumps(data)
         return data
     
+    def create_database_if_not_exists(self, database_name: str) -> bool:
+        """Create database if it doesn't exist. Returns True if created or already exists."""
+        try:
+            config = self._get_db_config()
+            
+            # Connect to 'postgres' database to create the target database
+            admin_config = config.copy()
+            admin_config['database'] = 'postgres'  # Default admin database
+            
+            logger.info(f"Checking if database '{database_name}' exists...")
+            
+            # First check if database exists
+            admin_conn = psycopg2.connect(**admin_config)
+            admin_conn.autocommit = True
+            
+            with admin_conn.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database_name,))
+                exists = cursor.fetchone() is not None
+                
+                if exists:
+                    logger.info(f"✅ Database '{database_name}' already exists")
+                    admin_conn.close()
+                    return True
+                
+                # Create the database
+                logger.info(f"Creating database '{database_name}'...")
+                # Use identifier to safely quote the database name
+                cursor.execute(f"CREATE DATABASE {psycopg2.extensions.quote_ident(database_name, cursor)}")
+                logger.info(f"✅ Database '{database_name}' created successfully")
+                
+            admin_conn.close()
+            return True
+            
+        except psycopg2.Error as e:
+            error_msg = str(e).lower()
+            if "already exists" in error_msg:
+                logger.info(f"✅ Database '{database_name}' already exists")
+                return True
+            elif "permission denied" in error_msg or "must be owner" in error_msg:
+                logger.warning(f"⚠️ No permission to create database '{database_name}'. Please create it manually or use a user with CREATEDB privileges.")
+                return False
+            else:
+                logger.error(f"❌ Failed to create database '{database_name}': {e}")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Unexpected error creating database '{database_name}': {e}")
+            return False
+    
     def _is_shutdown_requested(self) -> bool:
         """Check if shutdown has been requested from main.py signal handler."""
         try:
@@ -165,111 +213,129 @@ class PostgreSQLProvider(DatabaseProvider):
             "client_encoding": "UTF8",
         }
     
-    def get_connection_pool(self) -> ThreadedConnectionPool:
-        """Get or create a database connection pool."""
-        if self._pool is None:
-            config = self._get_db_config()
-            max_retries = 5
-            retry_delay = 2  # seconds
+    def _try_connect_with_auto_create(self) -> ThreadedConnectionPool:
+        """Try to connect to database, auto-creating if needed. Fail fast on permission errors."""
+        config = self._get_db_config()
+        database_name = config.get('database', 'automagik_agents')
+        min_conn = getattr(settings, "POSTGRES_POOL_MIN", 1)
+        max_conn = getattr(settings, "POSTGRES_POOL_MAX", 10)
 
-            for attempt in range(max_retries):
-                if self._is_shutdown_requested():
-                    logger.info("Database connection pool initialization interrupted by shutdown signal")
-                    raise KeyboardInterrupt("Shutdown requested")
-                    
-                try:
-                    min_conn = getattr(settings, "POSTGRES_POOL_MIN", 1)
-                    max_conn = getattr(settings, "POSTGRES_POOL_MAX", 10)
+        logger.info(f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{database_name} with UTF8 encoding...")
 
-                    logger.info(
-                        f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{config['database']} with UTF8 encoding..."
-                    )
-
-                    if self._is_shutdown_requested():
-                        logger.info("Database connection attempt aborted due to shutdown signal")
-                        raise KeyboardInterrupt("Shutdown requested during connection attempt")
-
-                    # Try with DATABASE_URL first
-                    if settings.DATABASE_URL and attempt == 0:
-                        try:
-                            dsn = settings.DATABASE_URL
-                            if "client_encoding" not in dsn.lower():
-                                if "?" in dsn:
-                                    dsn += "&client_encoding=UTF8"
-                                else:
-                                    dsn += "?client_encoding=UTF8"
-
-                            self._pool = ThreadedConnectionPool(
-                                minconn=min_conn, maxconn=max_conn, dsn=dsn
-                            )
-                            logger.info("Successfully connected to PostgreSQL using DATABASE_URL with UTF8 encoding")
-                            
-                            # Set encoding correctly
-                            with self._pool.getconn() as conn:
-                                with conn.cursor() as cursor:
-                                    cursor.execute("SET client_encoding = 'UTF8';")
-                                    conn.commit()
-                                self._pool.putconn(conn)
-                            break
-                        except Exception as e:
-                            logger.warning(f"Failed to connect using DATABASE_URL: {str(e)}. Will try with individual params.")
-
-                    # Try with individual params
-                    self._pool = ThreadedConnectionPool(
-                        minconn=min_conn,
-                        maxconn=max_conn,
-                        host=config["host"],
-                        port=config["port"],
-                        user=config["user"],
-                        password=config["password"],
-                        database=config["database"],
-                        client_encoding="UTF8",
-                    )
-                    
-                    # Set encoding correctly
-                    with self._pool.getconn() as conn:
-                        with conn.cursor() as cursor:
-                            cursor.execute("SET client_encoding = 'UTF8';")
-                            conn.commit()
-                        self._pool.putconn(conn)
-                    
-                    logger.info("Successfully connected to PostgreSQL database with UTF8 encoding")
-                    
-                    # Verify database health after successful connection
-                    if not self.verify_health():
-                        logger.error("Database health check failed. Please run 'automagik agents db init' to apply pending migrations.")
-                        raise Exception("Database migrations are not up to date")
-                    
-                    break
-                    
-                except KeyboardInterrupt:
-                    logger.info("Database connection attempt interrupted by user - exiting immediately")
-                    raise
-                    
-                except psycopg2.Error as e:
-                    if self._is_shutdown_requested():
-                        logger.info("Shutdown requested during database error handling - exiting immediately")
-                        raise KeyboardInterrupt("Shutdown requested during error handling")
-                        
-                    if attempt < max_retries - 1:
-                        logger.warning(f"Failed to connect to database (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                        
-                        if self._is_shutdown_requested():
-                            logger.info("Shutdown requested before retry delay - exiting immediately")
-                            raise KeyboardInterrupt("Shutdown requested before retry")
-                        
-                        try:
-                            self._interruptible_sleep(retry_delay)
-                        except KeyboardInterrupt:
-                            logger.info("Database connection retry interrupted by user - exiting immediately")
-                            raise
-                            
-                        if self._is_shutdown_requested():
-                            logger.info("Shutdown requested after retry delay - exiting immediately")
-                            raise KeyboardInterrupt("Shutdown requested after retry delay")
+        # First attempt: try to connect directly
+        try:
+            if settings.DATABASE_URL:
+                dsn = settings.DATABASE_URL
+                if "client_encoding" not in dsn.lower():
+                    if "?" in dsn:
+                        dsn += "&client_encoding=UTF8"
                     else:
-                        logger.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}")
-                        raise
+                        dsn += "?client_encoding=UTF8"
+
+                pool = ThreadedConnectionPool(minconn=min_conn, maxconn=max_conn, dsn=dsn)
+                logger.info("✅ Successfully connected to PostgreSQL using DATABASE_URL with UTF8 encoding")
+                return pool
+            else:
+                pool = ThreadedConnectionPool(
+                    minconn=min_conn,
+                    maxconn=max_conn,
+                    host=config["host"],
+                    port=config["port"],
+                    user=config["user"],
+                    password=config["password"],
+                    database=config["database"],
+                    client_encoding="UTF8",
+                )
+                logger.info("✅ Successfully connected to PostgreSQL database with UTF8 encoding")
+                return pool
+
+        except psycopg2.OperationalError as e:
+            error_msg = str(e).lower()
+            
+            if "does not exist" in error_msg:
+                logger.info(f"📝 Database '{database_name}' does not exist, attempting auto-creation...")
+                
+                # Try to create the database
+                created = self.create_database_if_not_exists(database_name)
+                
+                if not created:
+                    logger.error(f"❌ Failed to create database '{database_name}' and user lacks CREATEDB permissions")
+                    logger.error("❌ Please create the database manually or use a user with CREATEDB privileges")
+                    logger.error(f"❌ Manual command: CREATE DATABASE {database_name};")
+                    raise Exception(f"Database '{database_name}' does not exist and cannot be auto-created due to insufficient permissions")
+                
+                # Database was created, now try to connect again
+                logger.info(f"🔄 Attempting connection to newly created database '{database_name}'...")
+                try:
+                    if settings.DATABASE_URL:
+                        dsn = settings.DATABASE_URL
+                        if "client_encoding" not in dsn.lower():
+                            if "?" in dsn:
+                                dsn += "&client_encoding=UTF8"
+                            else:
+                                dsn += "?client_encoding=UTF8"
+
+                        pool = ThreadedConnectionPool(minconn=min_conn, maxconn=max_conn, dsn=dsn)
+                        logger.info("✅ Successfully connected to auto-created PostgreSQL database")
+                        return pool
+                    else:
+                        pool = ThreadedConnectionPool(
+                            minconn=min_conn,
+                            maxconn=max_conn,
+                            host=config["host"],
+                            port=config["port"],
+                            user=config["user"],
+                            password=config["password"],
+                            database=config["database"],
+                            client_encoding="UTF8",
+                        )
+                        logger.info("✅ Successfully connected to auto-created PostgreSQL database")
+                        return pool
+                
+                except psycopg2.Error as retry_error:
+                    logger.error(f"❌ Failed to connect even after creating database: {retry_error}")
+                    raise Exception(f"Database '{database_name}' was created but connection still failed: {retry_error}")
+            
+            elif "permission denied" in error_msg or "authentication failed" in error_msg:
+                logger.error(f"❌ Authentication failed for PostgreSQL: {e}")
+                logger.error("❌ Please check username, password, and host configuration")
+                raise Exception(f"PostgreSQL authentication failed: {e}")
+            
+            elif "could not connect" in error_msg or "connection refused" in error_msg:
+                logger.error(f"❌ Cannot connect to PostgreSQL server: {e}")
+                logger.error(f"❌ Please verify PostgreSQL is running on {config['host']}:{config['port']}")
+                raise Exception(f"PostgreSQL server unreachable: {e}")
+            
+            else:
+                logger.error(f"❌ Unexpected PostgreSQL connection error: {e}")
+                raise Exception(f"PostgreSQL connection failed: {e}")
+
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during PostgreSQL connection: {e}")
+            raise
+
+    def get_connection_pool(self, skip_health_check: bool = False) -> ThreadedConnectionPool:
+        """Get or create a database connection pool with intelligent auto-creation."""
+        if self._pool is None:
+            if self._is_shutdown_requested():
+                logger.info("Database connection pool initialization interrupted by shutdown signal")
+                raise KeyboardInterrupt("Shutdown requested")
+            
+            # Try to connect with auto-creation - fail fast on errors
+            self._pool = self._try_connect_with_auto_create()
+            
+            # Set encoding correctly for the pool
+            with self._pool.getconn() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SET client_encoding = 'UTF8';")
+                    conn.commit()
+                self._pool.putconn(conn)
+            
+            # Only verify database health if explicitly requested (not during early message storage setup)
+            if not skip_health_check:
+                if not self.verify_health():
+                    logger.error("❌ Database health check failed. Please run 'automagik agents db init' to apply pending migrations.")
+                    raise Exception("Database migrations are not up to date")
 
         return self._pool
     
