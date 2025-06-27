@@ -786,7 +786,7 @@ async def get_claude_code_run_status(run_id: str, debug: bool = False):
 
 
 
-@claude_code_router.get("/workflows", response_model=List[WorkflowInfo])
+@claude_code_router.get("/manage", response_model=List[WorkflowInfo])
 async def list_claude_code_workflows() -> List[WorkflowInfo]:
     """
     List all available Claude-Code workflows.
@@ -796,7 +796,7 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
 
     **Example:**
     ```bash
-    GET /api/v1/workflows/claude-code/workflows
+    GET /api/v1/workflows/claude-code/manage
     ```
     """
     try:
@@ -1042,3 +1042,208 @@ async def claude_code_health() -> Dict[str, Any]:
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
+
+
+# Simple Workflow Management Endpoints (following agent pattern)
+class WorkflowManageRequest(BaseModel):
+    """Request model for workflow management operations."""
+    name: str = Field(..., description="Workflow name")
+    display_name: Optional[str] = Field(None, description="Human-readable display name")
+    description: Optional[str] = Field(None, description="Workflow description")
+    category: str = Field(default="custom", description="Workflow category")
+    prompt_template: str = Field(..., description="Main workflow prompt template")
+    allowed_tools: List[str] = Field(default_factory=list, description="List of allowed tool names")
+    mcp_config: Dict[str, Any] = Field(default_factory=dict, description="MCP server configuration")
+    active: bool = Field(default=True, description="Whether workflow is active")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
+
+
+class WorkflowManageResponse(BaseModel):
+    """Response model for workflow management operations."""
+    success: bool = Field(..., description="Whether operation succeeded")
+    message: str = Field(..., description="Response message")
+    workflow: Optional[Dict[str, Any]] = Field(None, description="Workflow data")
+
+
+@claude_code_router.post("/manage", response_model=WorkflowManageResponse)
+async def create_workflow(request: WorkflowManageRequest) -> WorkflowManageResponse:
+    """
+    Create a new custom workflow.
+    
+    **Example:**
+    ```bash
+    POST /api/v1/workflows/claude-code/manage
+    {
+        "name": "my-custom-workflow",
+        "display_name": "My Custom Workflow",
+        "description": "A custom workflow for my specific needs",
+        "category": "custom",
+        "prompt_template": "You are a custom workflow agent...",
+        "allowed_tools": ["git", "sqlite"],
+        "mcp_config": {},
+        "active": true
+    }
+    ```
+    """
+    try:
+        from src.db import create_workflow, WorkflowCreate
+        
+        # No category validation - allow any category
+        
+        # Create workflow
+        workflow_create = WorkflowCreate(
+            name=request.name,
+            display_name=request.display_name,
+            description=request.description,
+            category=request.category,
+            prompt_template=request.prompt_template,
+            allowed_tools=request.allowed_tools,
+            mcp_config=request.mcp_config,
+            active=request.active,
+            is_system_workflow=False,  # Custom workflows are never system workflows
+            config=request.config
+        )
+        
+        workflow_id = create_workflow(workflow_create)
+        
+        if workflow_id:
+            # Get the created workflow
+            from src.db import get_workflow
+            workflow = get_workflow(workflow_id)
+            
+            return WorkflowManageResponse(
+                success=True,
+                message=f"Workflow '{request.name}' created successfully",
+                workflow={
+                    "id": workflow.id,
+                    "name": workflow.name,
+                    "display_name": workflow.display_name,
+                    "description": workflow.description,
+                    "category": workflow.category,
+                    "active": workflow.active,
+                    "is_system_workflow": workflow.is_system_workflow,
+                    "created_at": workflow.created_at.isoformat() if hasattr(workflow.created_at, 'isoformat') else str(workflow.created_at)
+                }
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create workflow")
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating workflow: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@claude_code_router.put("/manage", response_model=WorkflowManageResponse)
+async def update_workflow(request: WorkflowManageRequest) -> WorkflowManageResponse:
+    """
+    Update an existing custom workflow.
+    
+    **Example:**
+    ```bash
+    PUT /api/v1/workflows/claude-code/manage
+    {
+        "name": "my-custom-workflow",
+        "display_name": "Updated Custom Workflow",
+        "description": "Updated description",
+        "prompt_template": "Updated prompt...",
+        "allowed_tools": ["git", "sqlite", "linear"]
+    }
+    ```
+    """
+    try:
+        from src.db import get_workflow_by_name, update_workflow, WorkflowUpdate
+        
+        # Check if workflow exists
+        existing_workflow = get_workflow_by_name(request.name)
+        if not existing_workflow:
+            raise HTTPException(status_code=404, detail=f"Workflow '{request.name}' not found")
+        
+        # Prevent updating system workflows
+        if existing_workflow.is_system_workflow:
+            raise HTTPException(status_code=400, detail="Cannot update system workflows")
+        
+        # No category validation - allow any category
+        
+        # Update workflow
+        workflow_update = WorkflowUpdate(
+            display_name=request.display_name,
+            description=request.description,
+            category=request.category,
+            prompt_template=request.prompt_template,
+            allowed_tools=request.allowed_tools,
+            mcp_config=request.mcp_config,
+            active=request.active,
+            config=request.config
+        )
+        
+        success = update_workflow(existing_workflow.id, workflow_update)
+        
+        if success:
+            # Get the updated workflow
+            from src.db import get_workflow
+            workflow = get_workflow(existing_workflow.id)
+            
+            return WorkflowManageResponse(
+                success=True,
+                message=f"Workflow '{request.name}' updated successfully",
+                workflow={
+                    "id": workflow.id,
+                    "name": workflow.name,
+                    "display_name": workflow.display_name,
+                    "description": workflow.description,
+                    "category": workflow.category,
+                    "active": workflow.active,
+                    "is_system_workflow": workflow.is_system_workflow,
+                    "updated_at": workflow.updated_at.isoformat() if hasattr(workflow.updated_at, 'isoformat') else str(workflow.updated_at)
+                }
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update workflow")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating workflow: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@claude_code_router.delete("/manage")
+async def delete_workflow(name: str = Query(..., description="Workflow name to delete")) -> WorkflowManageResponse:
+    """
+    Delete a custom workflow.
+    
+    **Example:**
+    ```bash
+    DELETE /api/v1/workflows/claude-code/manage?name=my-custom-workflow
+    ```
+    """
+    try:
+        from src.db import get_workflow_by_name, delete_workflow
+        
+        # Check if workflow exists
+        workflow = get_workflow_by_name(name)
+        if not workflow:
+            raise HTTPException(status_code=404, detail=f"Workflow '{name}' not found")
+        
+        # Prevent deleting system workflows
+        if workflow.is_system_workflow:
+            raise HTTPException(status_code=400, detail="Cannot delete system workflows")
+        
+        # Delete workflow
+        success = delete_workflow(workflow.id)
+        
+        if success:
+            return WorkflowManageResponse(
+                success=True,
+                message=f"Workflow '{name}' deleted successfully"
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete workflow")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting workflow: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

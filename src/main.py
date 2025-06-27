@@ -362,6 +362,19 @@ def create_app() -> FastAPI:
         else:
             logger.info("ℹ️ Graphiti disabled - Neo4j connection details not provided")
         
+        # Initialize workflows (discover and sync to database like agents)
+        try:
+            logger.info("⚙️ Initializing workflow discovery and management...")
+            from src.agents.claude_code.workflow_discovery import WorkflowDiscovery
+            success = WorkflowDiscovery.initialize_workflows()
+            if success:
+                logger.info("✅ Workflow system initialized successfully")
+            else:
+                logger.warning("⚠️ Workflow system initialized with some errors")
+        except Exception as e:
+            logger.error(f"❌ Error initializing workflow system: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
         # Start Graphiti queue if enabled
         if settings.GRAPHITI_QUEUE_ENABLED:
             try:
