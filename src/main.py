@@ -327,6 +327,19 @@ def create_app() -> FastAPI:
             logger.error(f"❌ Error initializing tool system: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
+        # Initialize workflows (discover and sync to database like agents)
+        try:
+            logger.info("⚙️ Initializing workflow discovery and management...")
+            from src.agents.claude_code.workflow_discovery import WorkflowDiscovery
+            success = WorkflowDiscovery.initialize_workflows()
+            if success:
+                logger.info("✅ Workflow system initialized successfully")
+            else:
+                logger.warning("⚠️ Workflow system initialized with some errors")
+        except Exception as e:
+            logger.error(f"❌ Error initializing workflow system: {str(e)}")
+            logger.error(f"Detailed error: {traceback.format_exc()}")
+        
         # Start Graphiti queue
         try:
             logger.info("🚀 Starting Graphiti queue...")
