@@ -21,8 +21,21 @@ def apply_migrations(logger=None):
     provider = get_database_provider()
     logger.info(f"Using {provider.get_database_type()} database provider")
     
-    # Apply file-based migrations
-    migrations_dir = Path("src/db/migrations")
+    # Apply file-based migrations - check for database-specific directory first
+    db_type = provider.get_database_type()
+    if db_type == "sqlite":
+        sqlite_migrations_dir = Path("src/db/migrations/sqlite")
+        if sqlite_migrations_dir.exists():
+            migrations_dir = sqlite_migrations_dir
+            logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
+        else:
+            migrations_dir = Path("src/db/migrations")
+            logger.info(f"Using base migrations directory: {migrations_dir}")
+    else:
+        # For other databases, use base directory
+        migrations_dir = Path("src/db/migrations")
+        logger.info(f"Using base migrations directory: {migrations_dir}")
+    
     if not migrations_dir.exists():
         logger.warning("No migrations directory found")
         return False
