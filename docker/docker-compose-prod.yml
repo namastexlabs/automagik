@@ -32,9 +32,6 @@ services:
       - ../src:/app/src
     networks:
       - automagik_network
-    depends_on:
-      automagik-agents-graphiti-prod:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${AM_PORT:-18881}/health"]
       interval: 30s
@@ -42,31 +39,9 @@ services:
       retries: 3
       start_period: 20s
 
-  automagik-agents-graphiti-prod:
-    image: zepai/graphiti:latest
-    container_name: automagik-agents-graphiti-prod
-    ports:
-      - "18000:8000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - GRAPHITI_NAMESPACE_ID=${GRAPHITI_NAMESPACE_ID:-automagik}
-      - GRAPHITI_ENV=${GRAPHITI_ENV:-production}
-    restart: unless-stopped
-    networks:
-      - automagik_network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthcheck')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
 
 volumes:
   automagik_postgres_data:
-  neo4j_data:
 
 networks:
   automagik_network:
