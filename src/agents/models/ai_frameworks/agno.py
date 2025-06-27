@@ -156,11 +156,24 @@ class AgnoFramework(AgentAIFramework):
         # Our tools might have different signatures, so we wrap them
         async def wrapped_tool(*args, **kwargs):
             try:
-                # Handle both sync and async tools
-                if asyncio.iscoroutinefunction(tool):
-                    return await tool(*args, **kwargs)
+                # Handle the specific parameter format used by Agno tool calling
+                # Agno sends tools with 'args' and 'kwargs' as parameters
+                if 'args' in kwargs and 'kwargs' in kwargs:
+                    # Extract the actual arguments from the nested structure
+                    actual_args = kwargs.get('args', {})
+                    actual_kwargs = kwargs.get('kwargs', {})
+                    
+                    # Handle both sync and async tools
+                    if asyncio.iscoroutinefunction(tool):
+                        return await tool(**actual_kwargs)
+                    else:
+                        return tool(**actual_kwargs)
                 else:
-                    return tool(*args, **kwargs)
+                    # Handle direct parameter calling (fallback)
+                    if asyncio.iscoroutinefunction(tool):
+                        return await tool(*args, **kwargs)
+                    else:
+                        return tool(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Error executing tool {tool.__name__}: {e}")
                 raise
