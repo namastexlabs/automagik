@@ -104,8 +104,19 @@ class UnifiedUsageCalculator:
         except Exception as e:
             logger.warning(f"Error extracting PydanticAI usage: {e}")
         
-        # Set content types
-        breakdown.content_types = ["text"]
+        # Set content types dynamically based on multimodal content
+        content_types = ["text"]
+        if multimodal_content:
+            if multimodal_content.get('images'):
+                content_types.append("image")
+            if multimodal_content.get('audio'):
+                content_types.append("audio")
+            if multimodal_content.get('videos'):
+                content_types.append("video")
+            if multimodal_content.get('documents'):
+                content_types.append("document")
+        
+        breakdown.content_types = content_types
         
         return breakdown
     

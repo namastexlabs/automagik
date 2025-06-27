@@ -15,6 +15,7 @@ class FrameworkType(str, Enum):
     CLAUDE_CODE = "claude_code"
     LANGCHAIN = "langchain"
     LANGGRAPH = "langgraph"
+    AUTO = "auto"  # Allow auto-selection based on content type
     
     @classmethod
     def default(cls) -> "FrameworkType":

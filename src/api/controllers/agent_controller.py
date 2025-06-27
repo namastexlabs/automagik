@@ -797,9 +797,13 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         if request.system_prompt:
             context["system_prompt"] = request.system_prompt
 
-        # Attach multimodal content so downstream agent can detect it
+        # Attach multimodal content and message type so downstream agent can detect it
         if multimodal_content:
             context["multimodal_content"] = multimodal_content
+        
+        # Pass message_type for framework selection
+        if request.message_type:
+            context["message_type"] = request.message_type
 
         # Run the agent
         response_content = None

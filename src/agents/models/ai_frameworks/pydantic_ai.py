@@ -254,13 +254,23 @@ class PydanticAIFramework(AgentAIFramework):
             logger.error(f"Error extracting usage info: {e}")
             # Fallback to basic extraction
             try:
+                # Detect content types for fallback usage
+                content_types = ["text"]
+                if multimodal_content:
+                    if multimodal_content.get("images"):
+                        content_types.append("image")
+                    if multimodal_content.get("audio"):
+                        content_types.append("audio")
+                    if multimodal_content.get("videos"):
+                        content_types.append("video")
+                
                 usage_info = {
                     "framework": "pydantic_ai",
                     "model": self.config.model,
                     "request_tokens": 0,
                     "response_tokens": 0,
                     "total_tokens": 0,
-                    "content_types": ["text"],
+                    "content_types": content_types,
                     "processing_time_ms": processing_time_ms
                 }
                 
@@ -269,9 +279,9 @@ class PydanticAIFramework(AgentAIFramework):
                     for message in result.all_messages():
                         if hasattr(message, 'usage') and message.usage:
                             usage = message.usage
-                            usage_info["request_tokens"] += usage.request_tokens or 0
-                            usage_info["response_tokens"] += usage.response_tokens or 0
-                            usage_info["total_tokens"] += usage.total_tokens or 0
+                            usage_info["request_tokens"] = (usage_info.get("request_tokens", 0) or 0) + (usage.request_tokens or 0)
+                            usage_info["response_tokens"] = (usage_info.get("response_tokens", 0) or 0) + (usage.response_tokens or 0)
+                            usage_info["total_tokens"] = (usage_info.get("total_tokens", 0) or 0) + (usage.total_tokens or 0)
                 
                 return usage_info if usage_info["total_tokens"] > 0 else None
                 
