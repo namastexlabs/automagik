@@ -1,11 +1,14 @@
 """Pydantic models representing database tables."""
 
 import uuid
+import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List, ClassVar, Literal
 import json
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDBModel(BaseModel):
@@ -913,3 +916,95 @@ class WorkflowRun(WorkflowRunBase):
             cost_str += f" ({self.total_tokens:,} tokens)"
         
         return cost_str
+
+
+# Workflow Models (Simple single-table design like Agents)
+class WorkflowBase(BaseDBModel):
+    """Base class for Workflow models."""
+    
+    name: str = Field(..., description="Unique workflow name")
+    display_name: Optional[str] = Field(None, description="Human-readable display name")
+    description: Optional[str] = Field(None, description="Workflow description")
+    category: str = Field(default="custom", description="Workflow category")
+    prompt_template: str = Field(..., description="Main workflow prompt template")
+    allowed_tools: List[str] = Field(default_factory=list, description="List of allowed tool names")
+    mcp_config: Dict[str, Any] = Field(default_factory=dict, description="MCP server configuration")
+    active: bool = Field(default=True, description="Whether workflow is active")
+    is_system_workflow: bool = Field(default=False, description="Whether this is a system workflow")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
+
+
+class WorkflowCreate(WorkflowBase):
+    """Data needed to create a new Workflow."""
+    pass
+
+
+class WorkflowUpdate(BaseModel):
+    """Data for updating an existing Workflow."""
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        validate_assignment=True,
+    )
+    
+    display_name: Optional[str] = Field(None, description="Updated display name")
+    description: Optional[str] = Field(None, description="Updated description")
+    category: Optional[str] = Field(None, description="Updated category")
+    prompt_template: Optional[str] = Field(None, description="Updated prompt template")
+    allowed_tools: Optional[List[str]] = Field(None, description="Updated allowed tools")
+    mcp_config: Optional[Dict[str, Any]] = Field(None, description="Updated MCP configuration")
+    active: Optional[bool] = Field(None, description="Updated active status")
+    config: Optional[Dict[str, Any]] = Field(None, description="Updated configuration")
+
+
+class Workflow(WorkflowBase):
+    """Complete Workflow model, including database fields."""
+    
+    id: int = Field(..., description="Unique identifier")
+    created_at: datetime = Field(..., description="Timestamp when workflow was created")
+    updated_at: datetime = Field(..., description="Timestamp when workflow was last updated")
+    
+    DB_TABLE: ClassVar[str] = "workflows"
+    
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "Workflow":
+        """Create a Workflow instance from a database row."""
+        if not row:
+            return None
+        
+        # Handle JSON fields - deserialize if they're strings
+        json_fields = ["allowed_tools", "mcp_config", "config"]
+        for field in json_fields:
+            if field in row and isinstance(row[field], str):
+                try:
+                    row[field] = json.loads(row[field])
+                except (json.JSONDecodeError, TypeError):
+                    if field == "allowed_tools":
+                        row[field] = []
+                    else:
+                        row[field] = {}
+        
+        # Handle datetime fields - parse if they're strings
+        datetime_fields = ["created_at", "updated_at"]
+        for field in datetime_fields:
+            if field in row and isinstance(row[field], str):
+                # Special handling for database default placeholders
+                if row[field] in ['CURRENT_TEXT', 'CURRENT_TIMESTAMP', 'CURRENT_TIME']:
+                    row[field] = datetime.utcnow()
+                    continue
+                    
+                try:
+                    # Handle ISO format datetime strings
+                    if 'T' in row[field]:
+                        row[field] = datetime.fromisoformat(row[field].replace('Z', '+00:00'))
+                    else:
+                        # Handle database datetime format
+                        row[field] = datetime.strptime(row[field], '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError) as e:
+                    # If parsing fails, use current time as fallback
+                    logger.warning(f"Failed to parse {field}: {row[field]}, using current time")
+                    row[field] = datetime.utcnow()
+        
+        return cls(**row)
+    
+    # No category validation - allow any category string
