@@ -209,19 +209,19 @@ install: ## 🛠️ Install development environment
 	@$(call check_env_file)
 	@$(call print_success_with_logo,Development environment ready!)
 
-install-service: ## ⚙️ Install as systemd service with optional dependencies
-	@$(call print_status,Installing Automagik Agents systemd service...)
+install-service: ## ⚙️ Install as PM2 service
+	@$(call print_status,Installing Automagik Agents as PM2 service...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_warning,Virtual environment not found - creating it now...); \
 		$(MAKE) install; \
 	fi
 	@$(call check_env_file)
-	@$(call create_systemd_service)
-	@$(call print_status,Reloading systemd and enabling service...)
-	@sudo systemctl daemon-reload
-	@sudo systemctl enable automagik-agents
-	@$(call print_success_with_logo,Systemd service installed!)
-	@echo -e "$(FONT_CYAN)💡 Start with: sudo systemctl start automagik-agents$(FONT_RESET)"
+	@$(call check_pm2)
+	@$(call print_status,Starting service with PM2...)
+	@cd $(PROJECT_ROOT)/.. && pm2 start ecosystem.config.js --only am-agents-labs
+	@pm2 save
+	@$(call print_success_with_logo,PM2 service installed!)
+	@echo -e "$(FONT_CYAN)💡 Service is now managed by PM2$(FONT_RESET)"
 
 install-deps: ## 🗄️ Install database dependencies (PostgreSQL - optional for SQLite)
 	@$(call print_status,Installing database dependencies...)
@@ -270,7 +270,7 @@ install-prod: ## 🏭 Install production Docker stack
 # ===========================================
 # 🎛️ Service Management
 # ===========================================
-.PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service status
+.PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service restart-service uninstall-service status
 dev: ## 🛠️ Start development mode
 	$(call print_status,Starting development mode...)
 	@$(call check_env_file)
@@ -302,7 +302,7 @@ prod: ## 🏭 Start production Docker stack
 
 stop: ## 🛑 Stop development automagik-agents container only
 	$(call print_status,Stopping development automagik-agents container...)
-	@sudo systemctl stop automagik-agents 2>/dev/null || true
+	@pm2 stop am-agents-labs 2>/dev/null || true
 	@docker stop automagik-agents-dev 2>/dev/null || true
 	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,Development automagik-agents stopped!)
@@ -314,7 +314,7 @@ stop-prod: ## 🛑 Stop production automagik-agents container only
 
 stop-all: ## 🛑 Stop all services (preserves containers)
 	$(call print_status,Stopping all services...)
-	@sudo systemctl stop automagik-agents 2>/dev/null || true
+	@pm2 stop am-agents-labs 2>/dev/null || true
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env stop 2>/dev/null || true
 	@if [ -f ".env.prod" ]; then \
 		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
@@ -334,26 +334,32 @@ run: ## 🚀 Run development server with hot reload
 	@echo -e "$(FONT_PURPLE)🚀 Starting server...$(FONT_RESET)"
 	@AM_FORCE_DEV_ENV=1 uv run python -m src --reload
 
-start-service: ## 🔧 Start systemd service and show recent logs
-	$(call print_status,Starting systemd service...)
-	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
-		sudo systemctl start automagik-agents; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service started!$(FONT_RESET)"; \
-		echo -e "$(FONT_PURPLE)🪄 Recent logs:$(FONT_RESET)"; \
-		journalctl -u automagik-agents -n 20 --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Systemd service not installed$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)💡 Run 'make install-service' first$(FONT_RESET)"; \
-	fi
+start-service: ## 🔧 Start PM2 service
+	$(call print_status,Starting PM2 service...)
+	@$(call check_pm2)
+	@cd $(PROJECT_ROOT)/.. && pm2 restart am-agents-labs 2>/dev/null || pm2 start ecosystem.config.js --only am-agents-labs
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service started!$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)🪄 Recent logs:$(FONT_RESET)"
+	@pm2 logs am-agents-labs --lines 20 --nostream
 
-stop-service: ## 🛑 Stop systemd service
-	$(call print_status,Stopping systemd service...)
-	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
-		sudo systemctl stop automagik-agents; \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service stopped!$(FONT_RESET)"; \
-	else \
-		echo -e "$(FONT_YELLOW)$(WARNING) Systemd service not installed$(FONT_RESET)"; \
-	fi
+stop-service: ## 🛑 Stop PM2 service
+	$(call print_status,Stopping PM2 service...)
+	@$(call check_pm2)
+	@pm2 stop am-agents-labs 2>/dev/null || true
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service stopped!$(FONT_RESET)"
+
+restart-service: ## 🔄 Restart PM2 service
+	$(call print_status,Restarting PM2 service...)
+	@$(call check_pm2)
+	@cd $(PROJECT_ROOT)/.. && pm2 restart am-agents-labs 2>/dev/null || pm2 start ecosystem.config.js --only am-agents-labs
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service restarted!$(FONT_RESET)"
+
+uninstall-service: ## 🗑️ Uninstall PM2 service
+	$(call print_status,Uninstalling PM2 service...)
+	@$(call check_pm2)
+	@pm2 delete am-agents-labs 2>/dev/null || true
+	@pm2 save --force
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service uninstalled!$(FONT_RESET)"
 
 status: ## 📊 Show service status
 	$(call print_status,Service Status)
@@ -361,7 +367,7 @@ status: ## 📊 Show service status
 	@echo -e "$(FONT_PURPLE)┌─────────────────────────┬──────────┬─────────┬──────────┐$(FONT_RESET)"
 	@echo -e "$(FONT_PURPLE)│ Service                 │ Status   │ Port    │ PID      │$(FONT_RESET)"
 	@echo -e "$(FONT_PURPLE)├─────────────────────────┼──────────┼─────────┼──────────┤$(FONT_RESET)"
-	@$(call show_systemd_status)
+	@$(call show_pm2_status)
 	@$(call show_docker_status)
 	@$(call show_local_status)
 	@echo -e "$(FONT_PURPLE)└─────────────────────────┴──────────┴─────────┴──────────┘$(FONT_RESET)"
@@ -369,33 +375,14 @@ status: ## 📊 Show service status
 # ===========================================
 # 📋 Logs & Monitoring
 # ===========================================
-.PHONY: logs health
-logs: ## 📄 View logs (use N=lines, FOLLOW=1 for tail -f)
-	@if [ "$(FOLLOW)" = "1" ]; then \
-		echo -e "$(FONT_PURPLE)🪄 Following logs - Press Ctrl+C to stop$(FONT_RESET)"; \
-		if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-			journalctl -u automagik-agents -f --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
-			container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
-			docker logs -f $$container 2>&1 | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-		elif [ -f "logs/automagik.log" ]; then \
-			tail -f logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-		else \
-			echo -e "$(FONT_YELLOW)⚠️ No log sources found to follow$(FONT_RESET)"; \
-		fi; \
-	else \
-		echo -e "$(FONT_PURPLE)🪄 Showing last $(N) log lines$(FONT_RESET)"; \
-		if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-			journalctl -u automagik-agents -n $(N) --no-pager | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-		elif docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1 | grep -q automagik; then \
-			container=$$(docker ps --filter "name=automagik-agents" --format "{{.Names}}" | head -1); \
-			docker logs --tail $(N) $$container 2>&1 | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-		elif [ -f "logs/automagik.log" ]; then \
-			tail -n $(N) logs/automagik.log | sed -e 's/ERROR/\x1b[31mERROR\x1b[0m/g' -e 's/WARN/\x1b[33mWARN\x1b[0m/g' -e 's/INFO/\x1b[32mINFO\x1b[0m/g' -e 's/DEBUG/\x1b[36mDEBUG\x1b[0m/g' -e 's/📝/\x1b[35m📝\x1b[0m/g' -e 's/✅/\x1b[32m✅\x1b[0m/g' -e 's/❌/\x1b[31m❌\x1b[0m/g' -e 's/⚠️/\x1b[33m⚠️\x1b[0m/g'; \
-		else \
-			echo -e "$(FONT_YELLOW)⚠️ No log sources found$(FONT_RESET)"; \
-		fi; \
-	fi
+.PHONY: logs health logs-follow
+logs: ## 📄 View logs (use N=lines)
+	@echo -e "$(FONT_PURPLE)🪄 Showing last $(N) log lines$(FONT_RESET)"
+	@pm2 logs am-agents-labs --lines $(N) --nostream 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
+
+logs-follow: ## 📄 Follow logs in real-time
+	@echo -e "$(FONT_PURPLE)🪄 Following logs - Press Ctrl+C to stop$(FONT_RESET)"
+	@pm2 logs am-agents-labs 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
 health: ## 💊 Check service health
 	$(call print_status,Health Check)
@@ -409,8 +396,8 @@ update: ## 🔄 Update and restart services
 	$(call print_status,Updating Automagik Agents...)
 	@$(MAKE) stop-all
 	@git pull
-	@if systemctl is-enabled automagik-agents >/dev/null 2>&1; then \
-		$(MAKE) install && sudo systemctl start automagik-agents; \
+	@if pm2 list 2>/dev/null | grep -q am-agents-labs; then \
+		$(MAKE) install && pm2 restart am-agents-labs; \
 	elif docker ps -a --filter "name=automagik-agents-prod" --format "{{.Names}}" | grep -q prod; then \
 		$(MAKE) install-prod; \
 	elif docker ps -a --filter "name=automagik-agents-dev" --format "{{.Names}}" | grep -q dev; then \
@@ -501,21 +488,25 @@ define setup_python_env
 	fi
 endef
 
-define create_systemd_service
-	$(call print_status,Creating systemd service...); \
-	printf '[Unit]\nDescription=Automagik Agents Service\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nEnvironment=PATH=%s/bin:%s/.local/bin:/usr/local/bin:/usr/bin:/bin\nExecStart=%s/bin/python -m src\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n' \
-		"$(shell whoami)" "$(PROJECT_ROOT)" "$(VENV_PATH)" "$(HOME)" "$(VENV_PATH)" | sudo tee /etc/systemd/system/automagik-agents.service > /dev/null
+define check_pm2
+	@if ! command -v pm2 >/dev/null 2>&1; then \
+		$(call print_error,PM2 not found. Install with: npm install -g pm2); \
+		exit 1; \
+	fi
 endef
 
-define show_systemd_status
-	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		pid=$$(systemctl show automagik-agents --property=MainPID --value 2>/dev/null); \
-		port=$$(ss -tlnp | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
+define show_pm2_status
+	if pm2 list 2>/dev/null | grep -q "am-agents-labs.*online"; then \
+		pid=$$(pm2 list --no-color 2>/dev/null | awk "/am-agents-labs.*online/ {print \$$10}"); \
+		port="8881"; \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
-			"systemd-service" "running" "$${port:-8881}" "$$pid"; \
-	else \
+			"pm2-service" "running" "$$port" "$$pid"; \
+	elif pm2 list 2>/dev/null | grep -q "am-agents-labs"; then \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_YELLOW)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
-			"systemd-service" "stopped" "-" "-"; \
+			"pm2-service" "stopped" "-" "-"; \
+	else \
+		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_RED)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
+			"pm2-service" "not installed" "-" "-"; \
 	fi
 endef
 
@@ -542,8 +533,8 @@ endef
 
 define check_health
 	@healthy=0; \
-	if systemctl is-active automagik-agents >/dev/null 2>&1; then \
-		echo -e "$(FONT_GREEN)$(CHECKMARK) Systemd service: running$(FONT_RESET)"; \
+	if pm2 list 2>/dev/null | grep -q "am-agents-labs.*online"; then \
+		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service: running$(FONT_RESET)"; \
 		healthy=1; \
 	fi; \
 	if docker ps --filter "name=automagik-agents" --format "{{.Names}}" | grep -q automagik; then \
