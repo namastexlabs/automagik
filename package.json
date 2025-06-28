@@ -1,0 +1,9 @@
+{
+  "name": "am-agents-labs",
+  "version": "0.1.4",
+  "description": "AM Agents Labs - Automagik orchestrator",
+  "private": true,
+  "scripts": {
+    "start": "echo 'This is a Python service managed by PM2'"
+  }
+}
