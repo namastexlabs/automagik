@@ -1,7 +1,7 @@
 FROM python:3.11-alpine
 
 # Add build arg for port
-ARG AM_PORT=18881
+ARG AUTOMAGIK_AGENTS_API_PORT=18881
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
@@ -23,10 +23,10 @@ RUN uv pip install --no-deps -e .
 # Cleanup
 RUN apk del .build-deps
 
-ENV AM_ENV=production
-EXPOSE ${AM_PORT}
+ENV AUTOMAGIK_AGENTS_ENV=production
+EXPOSE ${AUTOMAGIK_AGENTS_API_PORT}
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:${AM_PORT}/health || exit 1
+  CMD curl -f http://localhost:${AUTOMAGIK_AGENTS_API_PORT}/health || exit 1
 
 CMD ["uv", "run", "python", "-m", "src"]
