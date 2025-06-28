@@ -379,6 +379,9 @@ class PostgreSQLProvider(DatabaseProvider):
         commit: bool = True
     ) -> List[Dict[str, Any]]:
         """Execute a database query and return the results."""
+        # Convert SQLite-style parameter placeholders to PostgreSQL style
+        query = self._convert_query_to_postgresql(query)
+        
         with self.get_cursor(commit=commit) as cursor:
             cursor.execute(query, params)
             
@@ -393,8 +396,21 @@ class PostgreSQLProvider(DatabaseProvider):
         commit: bool = True
     ) -> None:
         """Execute a batch query with multiple parameter sets."""
+        # Convert SQLite-style parameter placeholders to PostgreSQL style
+        query = self._convert_query_to_postgresql(query)
+        
         with self.get_cursor(commit=commit) as cursor:
             execute_values(cursor, query, params_list)
+    
+    def _convert_query_to_postgresql(self, query: str) -> str:
+        """Convert SQLite-style query syntax to PostgreSQL."""
+        # Convert parameter placeholders from SQLite (?) to PostgreSQL (%s)
+        converted_query = query.replace('?', '%s')
+        
+        # Additional conversions can be added here if needed for other SQLite->PostgreSQL conversions
+        # For now, the main issue is just the parameter placeholders
+        
+        return converted_query
     
     def close_connection_pool(self) -> None:
         """Close the database connection pool."""
