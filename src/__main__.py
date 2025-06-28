@@ -38,22 +38,22 @@ def create_argument_parser():
     parser.add_argument(
         "--host", 
         type=str, 
-        default=settings.AM_HOST,
-        help=f"Host to bind the server to (default: {settings.AM_HOST})"
+        default=settings.AUTOMAGIK_AGENTS_API_HOST,
+        help=f"Host to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_HOST})"
     )
     parser.add_argument(
         "--port", 
         type=int, 
-        default=int(settings.AM_PORT),
-        help=f"Port to bind the server to (default: {settings.AM_PORT})"
+        default=int(settings.AUTOMAGIK_AGENTS_API_PORT),
+        help=f"Port to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_PORT})"
     )
     return parser
 
 def get_server_config(args=None):
     """Get server configuration from args or default settings."""
     if args is None:
-        host = settings.AM_HOST
-        port = int(settings.AM_PORT)
+        host = settings.AUTOMAGIK_AGENTS_API_HOST
+        port = int(settings.AUTOMAGIK_AGENTS_API_PORT)
         reload_flag = None
     else:
         host = args.host
@@ -68,7 +68,7 @@ def get_server_config(args=None):
     elif os.environ.get('INVOCATION_ID'):  # Running under systemd
         should_reload = False  # Disable reload for systemd to fix signal handling
     else:
-        should_reload = settings.AM_ENV == Environment.DEVELOPMENT
+        should_reload = settings.AUTOMAGIK_AGENTS_ENV == Environment.DEVELOPMENT
     
     return host, port, should_reload
 

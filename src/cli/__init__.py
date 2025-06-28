@@ -10,8 +10,8 @@ from typing import Optional
 # Handle --debug flag immediately before any other imports
 debug_mode = "--debug" in sys.argv
 if debug_mode:
-    os.environ["AM_LOG_LEVEL"] = "DEBUG"
-    print("Debug mode enabled. Environment variable AM_LOG_LEVEL set to DEBUG")
+    os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
+    print("Debug mode enabled. Environment variable AUTOMAGIK_AGENTS_LOG_LEVEL set to DEBUG")
 
 # Now import config after setting environment variables
 from src.config import LogLevel, Settings, mask_connection_string
@@ -60,16 +60,16 @@ def uninstall_alias():
 def global_callback(ctx: typer.Context, debug: bool = False):
     """Global callback for all commands to process common options."""
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
         # Print configuration info
         try:
             from src.config import settings
             print("🔧 Configuration loaded:")
-            print(f"├── Environment: {settings.AM_ENV}")
-            print(f"├── Log Level: {settings.AM_LOG_LEVEL}")
-            print(f"├── Server: {settings.AM_HOST}:{settings.AM_PORT}")
+            print(f"├── Environment: {settings.AUTOMAGIK_AGENTS_ENV}")
+            print(f"├── Log Level: {settings.AUTOMAGIK_AGENTS_LOG_LEVEL}")
+            print(f"├── Server: {settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}")
             print(f"├── OpenAI API Key: {settings.OPENAI_API_KEY[:5]}...{settings.OPENAI_API_KEY[-5:]}")
-            print(f"├── API Key: {settings.AM_API_KEY[:5]}...{settings.AM_API_KEY[-5:]}")
+            print(f"├── API Key: {settings.AUTOMAGIK_AGENTS_API_KEY[:5]}...{settings.AUTOMAGIK_AGENTS_API_KEY[-5:]}")
             print(f"├── Discord Bot Token: {settings.DISCORD_BOT_TOKEN[:5]}...{settings.DISCORD_BOT_TOKEN[-5:]}")
             print(f"├── Database URL: {mask_connection_string(settings.DATABASE_URL)}")
 

@@ -26,7 +26,7 @@ def detect_environment_file() -> str:
     prod_env_file = ".env.prod"
     
     # Check if development mode is forced (e.g., from make dev)
-    if os.environ.get('AM_FORCE_DEV_ENV') == '1':
+    if os.environ.get('AUTOMAGIK_AGENTS_FORCE_DEV_ENV') == '1':
         return env_file
     
     # Check if .env.prod exists
@@ -38,14 +38,14 @@ def detect_environment_file() -> str:
         try:
             with open(file_path, 'r') as f:
                 for line in f:
-                    if line.strip().startswith('AM_ENV='):
+                    if line.strip().startswith('AUTOMAGIK_AGENTS_ENV='):
                         value = line.split('=', 1)[1].strip().strip('"').strip("'")
                         return value.lower()
         except (FileNotFoundError, IOError):
             pass
         return ""
     
-    # Get AM_ENV from both files
+    # Get AUTOMAGIK_AGENTS_ENV from both files
     current_env = get_am_env_from_file(env_file)
     prod_env = get_am_env_from_file(prod_env_file)
     
@@ -54,7 +54,7 @@ def detect_environment_file() -> str:
         try:
             with open(file_path, 'r') as f:
                 for line in f:
-                    if line.strip().startswith('AM_PORT='):
+                    if line.strip().startswith('AUTOMAGIK_AGENTS_API_PORT='):
                         value = line.split('=', 1)[1].strip().strip('"').strip("'")
                         return value
         except (FileNotFoundError, IOError):
@@ -101,7 +101,7 @@ class Environment(str, Enum):
 
 class Settings(BaseSettings):
     # Authentication
-    AM_API_KEY: str = Field(..., description="API key for authenticating requests")
+    AUTOMAGIK_AGENTS_API_KEY: str = Field(..., description="API key for authenticating requests")
 
     # OpenAI
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key for agent operations")
@@ -136,41 +136,41 @@ class Settings(BaseSettings):
     MEETING_BOT_URL: Optional[str] = Field(None, description="Meeting bot webhook service URL for creating bots")
 
     # Database Configuration
-    DATABASE_TYPE: str = Field("sqlite", description="Database type (sqlite or postgresql)")
+    AUTOMAGIK_AGENTS_DATABASE_TYPE: str = Field("sqlite", description="Database type (sqlite or postgresql)")
     
     # SQLite Configuration  
-    SQLITE_DATABASE_PATH: Optional[str] = Field(None, description="Path to SQLite database file (defaults to data/automagik.db)")
+    AUTOMAGIK_AGENTS_SQLITE_DATABASE_PATH: Optional[str] = Field(None, description="Path to SQLite database file (defaults to data/automagik.db)")
     
     # PostgreSQL Configuration
-    DATABASE_URL: str = Field("postgresql://postgres:postgres@localhost:5432/automagik", 
+    AUTOMAGIK_AGENTS_DATABASE_URL: str = Field("postgresql://postgres:postgres@localhost:5432/automagik", 
                           description="PostgreSQL connection string")
-    POSTGRES_HOST: str = Field("localhost", description="PostgreSQL host")
-    POSTGRES_PORT: int = Field(5432, description="PostgreSQL port")
-    POSTGRES_USER: str = Field("postgres", description="PostgreSQL username")
-    POSTGRES_PASSWORD: str = Field("postgres", description="PostgreSQL password")
-    POSTGRES_DB: str = Field("automagik", description="PostgreSQL database name")
-    POSTGRES_POOL_MIN: int = Field(10, description="Minimum connections in the pool")
-    POSTGRES_POOL_MAX: int = Field(25, description="Maximum connections in the pool")
+    AUTOMAGIK_AGENTS_POSTGRES_HOST: str = Field("localhost", description="PostgreSQL host")
+    AUTOMAGIK_AGENTS_POSTGRES_PORT: int = Field(5432, description="PostgreSQL port")
+    AUTOMAGIK_AGENTS_POSTGRES_USER: str = Field("postgres", description="PostgreSQL username")
+    AUTOMAGIK_AGENTS_POSTGRES_PASSWORD: str = Field("postgres", description="PostgreSQL password")
+    AUTOMAGIK_AGENTS_POSTGRES_DB: str = Field("automagik", description="PostgreSQL database name")
+    AUTOMAGIK_AGENTS_POSTGRES_POOL_MIN: int = Field(10, description="Minimum connections in the pool")
+    AUTOMAGIK_AGENTS_POSTGRES_POOL_MAX: int = Field(25, description="Maximum connections in the pool")
 
     # Server
-    AM_PORT: int = Field(8881, description="Port to run the server on")
-    AM_HOST: str = Field("0.0.0.0", description="Host to bind the server to")
-    AM_ENV: Environment = Field(Environment.DEVELOPMENT, description="Environment (development, production, testing)")
+    AUTOMAGIK_AGENTS_API_PORT: int = Field(8881, description="Port to run the server on")
+    AUTOMAGIK_AGENTS_API_HOST: str = Field("0.0.0.0", description="Host to bind the server to")
+    AUTOMAGIK_AGENTS_ENV: Environment = Field(Environment.DEVELOPMENT, description="Environment (development, production, testing)")
 
     # Logging
-    AM_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
-    AM_VERBOSE_LOGGING: bool = Field(False, description="Enable verbose logging with additional details")
-    AM_LOG_TO_FILE: bool = Field(False, description="Enable logging to file for debugging")
-    AM_LOG_FILE_PATH: str = Field("debug.log", description="Path to log file when file logging is enabled")
+    AUTOMAGIK_AGENTS_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
+    AUTOMAGIK_AGENTS_VERBOSE_LOGGING: bool = Field(False, description="Enable verbose logging with additional details")
+    AUTOMAGIK_AGENTS_LOG_TO_FILE: bool = Field(False, description="Enable logging to file for debugging")
+    AUTOMAGIK_AGENTS_LOG_FILE_PATH: str = Field("debug.log", description="Path to log file when file logging is enabled")
     LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
     LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
 
     # Agent Settings
-    AM_TIMEZONE: str = Field(
+    AUTOMAGIK_TIMEZONE: str = Field(
         default="America/Sao_Paulo", 
         description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York', 'America/Sao_Paulo')"
     )
-    AM_AGENTS_NAMES: Optional[str] = Field(
+    AUTOMAGIK_AGENT_NAMES: Optional[str] = Field(
         default=None,
         description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple,stan')"
     )
@@ -232,8 +232,8 @@ def load_settings() -> Settings:
     # Detect which environment file to use
     env_file = detect_environment_file()
     
-    # Check if we're in debug mode (AM_LOG_LEVEL set to DEBUG)
-    debug_mode = os.environ.get('AM_LOG_LEVEL', '').upper() == 'DEBUG'
+    # Check if we're in debug mode (AUTOMAGIK_AGENTS_LOG_LEVEL set to DEBUG)
+    debug_mode = os.environ.get('AUTOMAGIK_AGENTS_LOG_LEVEL', '').upper() == 'DEBUG'
     
     # Load environment variables from the detected env file
     try:
@@ -244,7 +244,7 @@ def load_settings() -> Settings:
 
     # Debug DATABASE_URL only if in debug mode
     if debug_mode:
-        print(f"🔍 DATABASE_URL from environment after dotenv: {os.environ.get('DATABASE_URL', 'Not set')}")
+        print(f"🔍 AUTOMAGIK_AGENTS_DATABASE_URL from environment after dotenv: {os.environ.get('AUTOMAGIK_AGENTS_DATABASE_URL', 'Not set')}")
 
     # Strip comments from environment variables
     for key in os.environ:
@@ -259,17 +259,17 @@ def load_settings() -> Settings:
         
         # Debug DATABASE_URL after loading settings - only in debug mode
         if debug_mode:
-            print(f"🔍 DATABASE_URL after loading settings: {settings.DATABASE_URL}")
+            print(f"🔍 AUTOMAGIK_AGENTS_DATABASE_URL after loading settings: {settings.AUTOMAGIK_AGENTS_DATABASE_URL}")
         
         # Final check - if there's a mismatch, use the environment value
-        env_db_url = os.environ.get('DATABASE_URL')
-        if env_db_url and env_db_url != settings.DATABASE_URL:
+        env_db_url = os.environ.get('AUTOMAGIK_AGENTS_DATABASE_URL')
+        if env_db_url and env_db_url != settings.AUTOMAGIK_AGENTS_DATABASE_URL:
             if debug_mode:
-                print("⚠️ Overriding settings.DATABASE_URL with environment value")
+                print("⚠️ Overriding settings.AUTOMAGIK_AGENTS_DATABASE_URL with environment value")
             # This is a bit hacky but necessary to fix mismatches
-            settings.DATABASE_URL = env_db_url
+            settings.AUTOMAGIK_AGENTS_DATABASE_URL = env_db_url
             if debug_mode:
-                print(f"📝 Final DATABASE_URL: {settings.DATABASE_URL}")
+                print(f"📝 Final AUTOMAGIK_AGENTS_DATABASE_URL: {settings.AUTOMAGIK_AGENTS_DATABASE_URL}")
                 
         # We no longer print the detailed configuration here
         # This is now handled by the CLI's debug flag handler in src/cli/__init__.py

@@ -49,7 +49,7 @@ def run_callback(
     """
     # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
 
 
 def get_api_endpoint(path: str) -> str:
@@ -64,7 +64,7 @@ def get_api_endpoint(path: str) -> str:
 
     # Build the full URL with server from settings
     # The host and port values are stored in AM_HOST and AM_PORT
-    server = f"http://{settings.AM_HOST}:{settings.AM_PORT}"
+    server = f"http://{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}"
     if not server.endswith('/'):
         server = f"{server}/"
     url = f"{server}{path}"
@@ -75,8 +75,8 @@ def get_api_endpoint(path: str) -> str:
 def get_available_agents() -> List[Dict[str, Any]]:
     """Get a list of available agents using the API."""
     # Check if debug mode is enabled either via settings or directly from environment variable
-    debug_mode = (settings.AM_LOG_LEVEL == "DEBUG") or (
-        os.environ.get("AM_LOG_LEVEL") == "DEBUG"
+    debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (
+        os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG"
     )
 
     try:
@@ -87,8 +87,8 @@ def get_available_agents() -> List[Dict[str, Any]]:
 
         # Prepare headers with API key if available
         headers = {}
-        if settings.AM_API_KEY:
-            headers["x-api-key"] = settings.AM_API_KEY
+        if settings.AUTOMAGIK_AGENTS_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
 
         # Make the API request
         try:
@@ -138,8 +138,8 @@ def get_available_agents() -> List[Dict[str, Any]]:
 async def get_user_by_id(user_id: int) -> Dict[str, Any]:
     """Get user data from the API by ID."""
     # Check if debug mode is enabled either via settings or directly from environment variable
-    debug_mode = (settings.AM_LOG_LEVEL == "DEBUG") or (
-        os.environ.get("AM_LOG_LEVEL") == "DEBUG"
+    debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (
+        os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG"
     )
 
     try:
@@ -150,8 +150,8 @@ async def get_user_by_id(user_id: int) -> Dict[str, Any]:
 
         # Prepare headers with API key if available
         headers = {}
-        if settings.AM_API_KEY:
-            headers["x-api-key"] = settings.AM_API_KEY
+        if settings.AUTOMAGIK_AGENTS_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
 
         # Make the API request
         response = requests.get(endpoint, headers=headers, timeout=10)
@@ -193,8 +193,8 @@ async def run_agent(
     """Run the agent with the given message using the API."""
     try:
         # Check if debug mode is enabled either via settings or directly from environment variable
-        debug_mode = (settings.AM_LOG_LEVEL == "DEBUG") or (
-            os.environ.get("AM_LOG_LEVEL") == "DEBUG"
+        debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (
+            os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG"
         )
 
         # Define the API endpoint with the correct prefix
@@ -229,7 +229,7 @@ async def run_agent(
                 session_endpoint = get_api_endpoint(f"sessions/{session_name}")
                 requests.get(
                     session_endpoint, 
-                    headers={"x-api-key": settings.AM_API_KEY} if settings.AM_API_KEY else {},
+                    headers={"x-api-key": settings.AUTOMAGIK_AGENTS_API_KEY} if settings.AUTOMAGIK_AGENTS_API_KEY else {},
                     timeout=10
                 )
                
@@ -244,13 +244,13 @@ async def run_agent(
         headers = {"Content-Type": "application/json"}
 
         # Add API key to headers if available
-        if settings.AM_API_KEY:
-            headers["x-api-key"] = settings.AM_API_KEY
+        if settings.AUTOMAGIK_AGENTS_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
 
             if debug_mode:
                 masked_key = (
-                    f"{settings.AM_API_KEY[:4]}...{settings.AM_API_KEY[-4:]}"
-                    if len(settings.AM_API_KEY) > 8
+                    f"{settings.AUTOMAGIK_AGENTS_API_KEY[:4]}...{settings.AUTOMAGIK_AGENTS_API_KEY[-4:]}"
+                    if len(settings.AUTOMAGIK_AGENTS_API_KEY) > 8
                     else "****"
                 )
                 typer.echo(f"Using API key: {masked_key}")
@@ -354,8 +354,8 @@ async def process_single_message(
         multimodal_content: Optional multimodal content dictionary
     """
     # Check if debug mode is enabled
-    debug_mode = (settings.AM_LOG_LEVEL == "DEBUG") or (
-        os.environ.get("AM_LOG_LEVEL") == "DEBUG"
+    debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (
+        os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG"
     )
 
     if debug_mode:
@@ -375,7 +375,7 @@ async def process_single_message(
     # Use API to run the agent
     try:
         if debug_mode:
-            typer.echo(f"Using API at {settings.AM_HOST}:{settings.AM_PORT}")
+            typer.echo(f"Using API at {settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}")
         
         response = await run_agent(
             agent_name, message, session_name, user_id,
@@ -438,8 +438,8 @@ def message(
     """
     # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
-        typer.echo(f"Debug mode enabled. Using endpoint: {settings.AM_HOST}:{settings.AM_PORT}")
+        os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
+        typer.echo(f"Debug mode enabled. Using endpoint: {settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}")
 
     # If message is not provided, read from stdin
     if not message:
@@ -493,7 +493,7 @@ def list_available_agents() -> None:
         typer.echo("1. The server might not be running. Start it with:")
         typer.echo("     automagik-agents api start")
         typer.echo("2. Your API server could be running on a different host/port.")
-        typer.echo(f"   Current server setting: {settings.AM_HOST}:{settings.AM_PORT}")
+        typer.echo(f"   Current server setting: {settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}")
         typer.echo("3. You might not have added any agents yet.")
 
         typer.echo("\nTry creating an agent first:")
@@ -503,7 +503,7 @@ def list_available_agents() -> None:
 
         typer.echo("\nOr check if you can access the API directly:")
         typer.echo(
-            f"  curl http://{settings.AM_HOST}:{settings.AM_PORT}/api/v1/agent/list -H 'x-api-key: {settings.AM_API_KEY}'"
+            f"  curl http://{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}/api/v1/agent/list -H 'x-api-key: {settings.AUTOMAGIK_AGENTS_API_KEY}'"
         )
         return
 

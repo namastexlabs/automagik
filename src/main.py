@@ -72,7 +72,7 @@ def register_signal_handlers():
 async def initialize_all_agents():
     """Initialize agents at startup.
     
-    If AM_AGENTS_NAMES environment variable is set, activate only those specific agents
+    If AUTOMAGIK_AGENT_NAMES environment variable is set, activate only those specific agents
     and deactivate all others. Otherwise, all agents remain in their current active state.
     
     This ensures that agents are created and registered in the database
@@ -121,11 +121,11 @@ async def initialize_all_agents():
         if registered_count > 0:
             logger.info(f"✅ Registered {registered_count} new agents in database")
         
-        # Handle AM_AGENTS_NAMES to update active status in database
-        if settings.AM_AGENTS_NAMES:
+        # Handle AUTOMAGIK_AGENT_NAMES to update active status in database
+        if settings.AUTOMAGIK_AGENT_NAMES:
             # Parse comma-separated list of agent names
-            specified_agents = [name.strip() for name in settings.AM_AGENTS_NAMES.split(',')]
-            logger.info(f"🔧 AM_AGENTS_NAMES environment variable specified: {', '.join(specified_agents)}")
+            specified_agents = [name.strip() for name in settings.AUTOMAGIK_AGENT_NAMES.split(',')]
+            logger.info(f"🔧 AUTOMAGIK_AGENT_NAMES environment variable specified: {', '.join(specified_agents)}")
             
             
             # First, deactivate all agents
@@ -160,10 +160,10 @@ async def initialize_all_agents():
                 else:
                     logger.warning(f"⚠️ Agent '{agent_name}' not found in database")
             
-            logger.info(f"✅ Activated {activated_count} agents based on AM_AGENTS_NAMES")
+            logger.info(f"✅ Activated {activated_count} agents based on AUTOMAGIK_AGENT_NAMES")
         else:
-            # AM_AGENTS_NAMES is not set - activate all available agents
-            logger.info("🔧 AM_AGENTS_NAMES not specified - activating all available agents")
+            # AUTOMAGIK_AGENT_NAMES is not set - activate all available agents
+            logger.info("🔧 AUTOMAGIK_AGENT_NAMES not specified - activating all available agents")
             
             all_db_agents = list_agents(active_only=False)
             activated_count = 0
@@ -521,7 +521,7 @@ def setup_routes(app: FastAPI):
     @app.get("/", tags=["System"], summary="Root Endpoint", description="Returns service information and status")
     async def root():
         # Get base URL from settings
-        base_url = f"http://{settings.AM_HOST}:{settings.AM_PORT}"
+        base_url = f"http://{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}"
         return {
             "status": "online",
             "docs": f"{base_url}/api/v1/docs",
@@ -534,7 +534,7 @@ def setup_routes(app: FastAPI):
             status="healthy",
             timestamp=datetime.now(),
             version=SERVICE_INFO["version"],
-            environment=settings.AM_ENV
+            environment=settings.AUTOMAGIK_AGENTS_ENV
         )
 
     
@@ -576,14 +576,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--host", 
         type=str, 
-        default=settings.AM_HOST,
-        help=f"Host to bind the server to (default: {settings.AM_HOST})"
+        default=settings.AUTOMAGIK_AGENTS_API_HOST,
+        help=f"Host to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_HOST})"
     )
     parser.add_argument(
         "--port", 
         type=int, 
-        default=int(settings.AM_PORT),
-        help=f"Port to bind the server to (default: {settings.AM_PORT})"
+        default=int(settings.AUTOMAGIK_AGENTS_API_PORT),
+        help=f"Port to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_PORT})"
     )
     
     # Parse arguments

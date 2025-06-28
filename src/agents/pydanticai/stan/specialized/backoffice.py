@@ -35,7 +35,7 @@ from src.tools.omie.schema import ClientSearchInput
 
 logger = logging.getLogger(__name__)
 
-ENVIRIONMENT_MODE = settings.AM_ENV
+ENVIRIONMENT_MODE = settings.AUTOMAGIK_AGENTS_ENV
 
 async def make_conversation_summary(message_history) -> str:
     """Make a summary of the conversation."""

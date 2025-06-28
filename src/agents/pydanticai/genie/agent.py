@@ -83,7 +83,7 @@ class GenieAgent(AutomagikAgent):
             self.workflow_graph = self._create_orchestration_graph()
             self.router = WorkflowRouter()
             self.claude_client = ClaudeCodeClient(
-                base_url=getattr(settings, 'CLAUDE_CODE_API_URL', "http://localhost:8000")
+                base_url=getattr(settings, 'AUTOMAGIK_AGENTS_CLAUDE_CODE_API_URL', "http://localhost:8000")
             )
             self.approval_manager = ApprovalManager()
             
@@ -112,10 +112,10 @@ class GenieAgent(AutomagikAgent):
             return None
             
         try:
-            database_url = settings.DATABASE_URL
+            database_url = settings.AUTOMAGIK_AGENTS_DATABASE_URL
             return create_orchestration_graph(
                 database_url=database_url,
-                claude_code_base_url=getattr(settings, 'CLAUDE_CODE_API_URL', "http://localhost:8000")
+                claude_code_base_url=getattr(settings, 'AUTOMAGIK_AGENTS_CLAUDE_CODE_API_URL', "http://localhost:8000")
             )
         except Exception as e:
             logger.error(f"Failed to create orchestration graph: {e}")
