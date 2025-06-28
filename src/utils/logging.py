@@ -48,10 +48,10 @@ def get_log_level(level: LogLevel) -> int:
 def configure_logging():
     """Configure logging with pretty formatting and proper log level."""
     # Get log level from settings
-    log_level = get_log_level(settings.AM_LOG_LEVEL)
-    verbose_logging = settings.AM_VERBOSE_LOGGING
-    log_to_file = getattr(settings, 'AM_LOG_TO_FILE', False)
-    log_file_path = getattr(settings, 'AM_LOG_FILE_PATH', 'debug.log')
+    log_level = get_log_level(settings.AUTOMAGIK_AGENTS_LOG_LEVEL)
+    verbose_logging = settings.AUTOMAGIK_AGENTS_VERBOSE_LOGGING
+    log_to_file = getattr(settings, 'AUTOMAGIK_AGENTS_LOG_TO_FILE', False)
+    log_file_path = getattr(settings, 'AUTOMAGIK_AGENTS_LOG_FILE_PATH', 'debug.log')
     
     # Configure root logger
     root_logger = logging.getLogger()
