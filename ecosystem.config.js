@@ -69,9 +69,10 @@ module.exports = {
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
-        AM_PORT: envVars.AUTOMAGIK_AGENTS_API_PORT || '8881',
-        AM_HOST: envVars.AUTOMAGIK_AGENTS_API_HOST || '0.0.0.0',
-        AM_ENV: envVars.AUTOMAGIK_AGENTS_ENV || 'production',
+        AUTOMAGIK_AGENTS_API_PORT: envVars.AUTOMAGIK_AGENTS_API_PORT || '8881',
+        AUTOMAGIK_AGENTS_API_HOST: envVars.AUTOMAGIK_AGENTS_API_HOST || '0.0.0.0',
+        AUTOMAGIK_AGENTS_API_KEY: envVars.AUTOMAGIK_AGENTS_API_KEY || "namastex888",
+	AUTOMAGIK_AGENTS_ENV: envVars.AUTOMAGIK_AGENTS_ENV || 'production',
         NODE_ENV: 'production'
       },
       instances: 1,

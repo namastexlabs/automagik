@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     FLASHED_API_URL: Optional[str] = Field(None, description="Flashed API URL")
 
     # Discord
-    DISCORD_BOT_TOKEN: str = Field(..., description="Discord bot token for authentication")
+    DISCORD_BOT_TOKEN: Optional[str] = Field(None, description="Discord bot token for authentication")
 
     # Meeting Bot
     MEETING_BOT_URL: Optional[str] = Field(None, description="Meeting bot webhook service URL for creating bots")
