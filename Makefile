@@ -484,9 +484,17 @@ endef
 define setup_python_env
 	$(call print_status,Installing dependencies with uv...); \
 	if command -v uv >/dev/null 2>&1; then \
-		uv sync; \
+		if ! uv sync 2>/dev/null; then \
+			$(call print_warning,Installation failed - clearing UV cache and retrying...); \
+			uv cache clean; \
+			uv sync; \
+		fi; \
 	elif [ -f "$$HOME/.local/bin/uv" ]; then \
-		$$HOME/.local/bin/uv sync; \
+		if ! $$HOME/.local/bin/uv sync 2>/dev/null; then \
+			$(call print_warning,Installation failed - clearing UV cache and retrying...); \
+			$$HOME/.local/bin/uv cache clean; \
+			$$HOME/.local/bin/uv sync; \
+		fi; \
 	else \
 		$(call print_error,uv not found - please run 'make install' without sudo first); \
 		exit 1; \
