@@ -209,19 +209,17 @@ install: ## 🛠️ Install development environment
 	@$(call check_env_file)
 	@$(call print_success_with_logo,Development environment ready!)
 
-install-service: ## ⚙️ Install as PM2 service
-	@$(call print_status,Installing Automagik Agents as PM2 service...)
+install-service: ## ⚙️ Install as local PM2 service
+	@$(call print_status,Installing Automagik Agents as local PM2 service...)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_warning,Virtual environment not found - creating it now...); \
 		$(MAKE) install; \
 	fi
 	@$(call check_env_file)
-	@$(call check_pm2)
-	@$(call print_status,Starting service with PM2...)
-	@cd $(PROJECT_ROOT)/.. && pm2 start ecosystem.config.js --only am-agents-labs
-	@pm2 save
-	@$(call print_success_with_logo,PM2 service installed!)
-	@echo -e "$(FONT_CYAN)💡 Service is now managed by PM2$(FONT_RESET)"
+	@$(MAKE) setup-pm2
+	@$(MAKE) start-local
+	@$(call print_success_with_logo,Local PM2 service installed!)
+	@echo -e "$(FONT_CYAN)💡 Service is now managed by local PM2$(FONT_RESET)"
 
 install-deps: ## 🗄️ Install database dependencies (PostgreSQL - optional for SQLite)
 	@$(call print_status,Installing database dependencies...)
@@ -334,32 +332,21 @@ run: ## 🚀 Run development server with hot reload
 	@echo -e "$(FONT_PURPLE)🚀 Starting server...$(FONT_RESET)"
 	@AM_FORCE_DEV_ENV=1 uv run python -m src --reload
 
-start-service: ## 🔧 Start PM2 service
-	$(call print_status,Starting PM2 service...)
-	@$(call check_pm2)
-	@cd $(PROJECT_ROOT)/.. && pm2 restart am-agents-labs 2>/dev/null || pm2 start ecosystem.config.js --only am-agents-labs
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service started!$(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)🪄 Recent logs:$(FONT_RESET)"
-	@pm2 logs am-agents-labs --lines 20 --nostream
+start-service: ## 🔧 Start local PM2 service
+	@$(MAKE) start-local
 
-stop-service: ## 🛑 Stop PM2 service
-	$(call print_status,Stopping PM2 service...)
-	@$(call check_pm2)
-	@pm2 stop am-agents-labs 2>/dev/null || true
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service stopped!$(FONT_RESET)"
+stop-service: ## 🛑 Stop local PM2 service
+	@$(MAKE) stop-local
 
-restart-service: ## 🔄 Restart PM2 service
-	$(call print_status,Restarting PM2 service...)
-	@$(call check_pm2)
-	@cd $(PROJECT_ROOT)/.. && pm2 restart am-agents-labs 2>/dev/null || pm2 start ecosystem.config.js --only am-agents-labs
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service restarted!$(FONT_RESET)"
+restart-service: ## 🔄 Restart local PM2 service
+	@$(MAKE) restart-local
 
-uninstall-service: ## 🗑️ Uninstall PM2 service
-	$(call print_status,Uninstalling PM2 service...)
+uninstall-service: ## 🗑️ Uninstall local PM2 service
+	$(call print_status,Uninstalling local PM2 service...)
 	@$(call check_pm2)
 	@pm2 delete am-agents-labs 2>/dev/null || true
 	@pm2 save --force
-	@echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service uninstalled!$(FONT_RESET)"
+	@echo -e "$(FONT_GREEN)$(CHECKMARK) Local PM2 service uninstalled!$(FONT_RESET)"
 
 status: ## 📊 Show service status
 	$(call print_status,Service Status)
@@ -371,6 +358,51 @@ status: ## 📊 Show service status
 	@$(call show_docker_status)
 	@$(call show_local_status)
 	@echo -e "$(FONT_PURPLE)└─────────────────────────┴──────────┴─────────┴──────────┘$(FONT_RESET)"
+
+# ===========================================
+# 🔧 Local PM2 Management (Standalone Mode)
+# ===========================================
+.PHONY: setup-pm2 start-local stop-local restart-local
+setup-pm2: ## 📦 Setup local PM2 ecosystem
+	$(call print_status,Setting up local PM2 ecosystem...)
+	@$(call check_pm2)
+	@echo -e "$(FONT_CYAN)$(INFO) Installing PM2 log rotation...$(FONT_RESET)"
+	@if ! pm2 list | grep -q pm2-logrotate; then \
+		pm2 install pm2-logrotate; \
+	else \
+		echo -e "$(FONT_GREEN)✓ PM2 logrotate already installed$(FONT_RESET)"; \
+	fi
+	@pm2 set pm2-logrotate:max_size 100M
+	@pm2 set pm2-logrotate:retain 7
+	@echo -e "$(FONT_CYAN)$(INFO) Setting up PM2 startup...$(FONT_RESET)"
+	@if ! pm2 startup -s 2>/dev/null; then \
+		echo -e "$(FONT_YELLOW)Warning: PM2 startup may already be configured$(FONT_RESET)"; \
+	fi
+	@$(call print_success,Local PM2 ecosystem configured!)
+
+start-local: ## 🚀 Start service using local PM2 ecosystem
+	$(call print_status,Starting am-agents-labs with local PM2...)
+	@$(call check_pm2)
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(call print_error,Virtual environment not found); \
+		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@$(call check_env_file)
+	@pm2 start ecosystem.config.js
+	@$(call print_success,Service started with local PM2!)
+
+stop-local: ## 🛑 Stop service using local PM2 ecosystem
+	$(call print_status,Stopping am-agents-labs with local PM2...)
+	@$(call check_pm2)
+	@pm2 stop am-agents-labs 2>/dev/null || true
+	@$(call print_success,Service stopped!)
+
+restart-local: ## 🔄 Restart service using local PM2 ecosystem
+	$(call print_status,Restarting am-agents-labs with local PM2...)
+	@$(call check_pm2)
+	@pm2 restart am-agents-labs 2>/dev/null || pm2 start ecosystem.config.js
+	@$(call print_success,Service restarted!)
 
 # ===========================================
 # 📋 Logs & Monitoring
