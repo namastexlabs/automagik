@@ -14,11 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_usage_from_messages(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Helper function to extract and aggregate usage data from messages."""
+    """Helper function to extract and aggregate enhanced usage data from messages."""
     total_tokens = 0
     total_requests = 0
     models = {}
     message_count = 0
+    total_estimated_cost = 0.0
+    global_content_types = set()
+    total_processing_time = 0.0
     
     for message in messages:
         usage = message.get('usage')
@@ -52,9 +55,20 @@ def _extract_usage_from_messages(messages: List[Dict[str, Any]]) -> Dict[str, An
                 "response_tokens": 0,
                 "total_tokens": 0,
                 "cache_creation_tokens": 0,
-                "cache_read_tokens": 0
+                "cache_read_tokens": 0,
+                # Enhanced usage tracking fields
+                "content_types": set(),
+                "processing_time_ms": 0.0,
+                "estimated_cost_usd": 0.0,
+                "cost_breakdown": {},
+                "media_costs": {},
+                "framework_events": [],
+                "image_tokens": 0,
+                "audio_tokens": 0,
+                "video_tokens": 0
             }
         
+        # Aggregate basic usage data
         models[key]["message_count"] += 1
         models[key]["total_requests"] += usage.get('total_requests', 0)
         models[key]["request_tokens"] += usage.get('request_tokens', 0)
@@ -63,15 +77,68 @@ def _extract_usage_from_messages(messages: List[Dict[str, Any]]) -> Dict[str, An
         models[key]["cache_creation_tokens"] += usage.get('cache_creation_tokens', 0)
         models[key]["cache_read_tokens"] += usage.get('cache_read_tokens', 0)
         
+        # Aggregate enhanced usage fields
+        if 'content_types' in usage and usage['content_types']:
+            content_types = usage['content_types']
+            if isinstance(content_types, list):
+                models[key]["content_types"].update(content_types)
+                global_content_types.update(content_types)
+        
+        if 'processing_time_ms' in usage:
+            models[key]["processing_time_ms"] += usage.get('processing_time_ms', 0.0)
+            total_processing_time += usage.get('processing_time_ms', 0.0)
+        
+        if 'estimated_cost_usd' in usage:
+            models[key]["estimated_cost_usd"] += usage.get('estimated_cost_usd', 0.0)
+            total_estimated_cost += usage.get('estimated_cost_usd', 0.0)
+        
+        if 'cost_breakdown' in usage and usage['cost_breakdown']:
+            breakdown = usage['cost_breakdown']
+            for cost_type, cost_value in breakdown.items():
+                if cost_type not in models[key]["cost_breakdown"]:
+                    models[key]["cost_breakdown"][cost_type] = 0.0
+                models[key]["cost_breakdown"][cost_type] += cost_value
+        
+        if 'media_costs' in usage and usage['media_costs']:
+            media_costs = usage['media_costs']
+            for media_type, cost_data in media_costs.items():
+                if media_type not in models[key]["media_costs"]:
+                    models[key]["media_costs"][media_type] = {"cost": 0.0, "tokens": 0}
+                if isinstance(cost_data, dict):
+                    models[key]["media_costs"][media_type]["cost"] += cost_data.get("cost", 0.0)
+                    models[key]["media_costs"][media_type]["tokens"] += cost_data.get("tokens", 0)
+        
+        if 'framework_events' in usage and usage['framework_events']:
+            events = usage['framework_events']
+            if isinstance(events, list):
+                models[key]["framework_events"].extend(events)
+        
+        # Aggregate media token usage
+        models[key]["image_tokens"] += usage.get('image_tokens', 0)
+        models[key]["audio_tokens"] += usage.get('audio_tokens', 0) 
+        models[key]["video_tokens"] += usage.get('video_tokens', 0)
+        
         total_tokens += usage.get('total_tokens', 0)
         total_requests += usage.get('total_requests', 0)
+    
+    # Convert sets to lists for JSON serialization
+    for model in models.values():
+        model["content_types"] = list(model["content_types"])
     
     return {
         "total_tokens": total_tokens,
         "total_requests": total_requests,
         "message_count": message_count,
         "models": list(models.values()),
-        "unique_models": len(models)
+        "unique_models": len(models),
+        # Enhanced aggregated data
+        "total_estimated_cost_usd": total_estimated_cost,
+        "global_content_types": list(global_content_types),
+        "total_processing_time_ms": total_processing_time,
+        "has_multimodal_content": bool(global_content_types - {'text'}),
+        "total_image_tokens": sum(m.get("image_tokens", 0) for m in models.values()),
+        "total_audio_tokens": sum(m.get("audio_tokens", 0) for m in models.values()),
+        "total_video_tokens": sum(m.get("video_tokens", 0) for m in models.values())
     }
 
 
@@ -105,7 +172,17 @@ async def get_session_usage(session_id: str):
                     "unique_models": 0,
                     "total_request_tokens": 0,
                     "total_response_tokens": 0,
-                    "total_cache_tokens": 0
+                    "total_cache_tokens": 0,
+                    "analysis_timestamp": datetime.utcnow().isoformat()
+                },
+                "enhanced_analytics": {
+                    "total_estimated_cost_usd": 0.0,
+                    "global_content_types": [],
+                    "total_processing_time_ms": 0.0,
+                    "has_multimodal_content": False,
+                    "total_image_tokens": 0,
+                    "total_audio_tokens": 0,
+                    "total_video_tokens": 0
                 }
             }
         
@@ -129,6 +206,16 @@ async def get_session_usage(session_id: str):
                 "total_response_tokens": total_response_tokens,
                 "total_cache_tokens": total_cache_tokens,
                 "analysis_timestamp": datetime.utcnow().isoformat()
+            },
+            # Enhanced usage analytics
+            "enhanced_analytics": {
+                "total_estimated_cost_usd": usage_data.get("total_estimated_cost_usd", 0.0),
+                "global_content_types": usage_data.get("global_content_types", []),
+                "total_processing_time_ms": usage_data.get("total_processing_time_ms", 0.0),
+                "has_multimodal_content": usage_data.get("has_multimodal_content", False),
+                "total_image_tokens": usage_data.get("total_image_tokens", 0),
+                "total_audio_tokens": usage_data.get("total_audio_tokens", 0),
+                "total_video_tokens": usage_data.get("total_video_tokens", 0)
             }
         }
         
