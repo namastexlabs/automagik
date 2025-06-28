@@ -90,10 +90,10 @@ def get_db_config() -> Dict[str, Any]:
         return {}
         
     # PostgreSQL configuration parsing
-    if settings.DATABASE_URL:
+    if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
         try:
-            env_db_url = os.environ.get("DATABASE_URL")
-            actual_db_url = env_db_url if env_db_url else settings.DATABASE_URL
+            env_db_url = os.environ.get("AUTOMAGIK_AGENTS_DATABASE_URL")
+            actual_db_url = env_db_url if env_db_url else settings.AUTOMAGIK_AGENTS_DATABASE_URL
             parsed = urllib.parse.urlparse(actual_db_url)
 
             dbname = parsed.path.lstrip("/")
@@ -107,14 +107,14 @@ def get_db_config() -> Dict[str, Any]:
                 "client_encoding": "UTF8",
             }
         except Exception as e:
-            logger.warning(f"Failed to parse DATABASE_URL: {str(e)}. Falling back to individual settings.")
+            logger.warning(f"Failed to parse AUTOMAGIK_AGENTS_DATABASE_URL: {str(e)}. Falling back to individual settings.")
 
     return {
-        "host": settings.POSTGRES_HOST,
-        "port": settings.POSTGRES_PORT,
-        "user": settings.POSTGRES_USER,
-        "password": settings.POSTGRES_PASSWORD,
-        "database": settings.POSTGRES_DB,
+        "host": settings.AUTOMAGIK_AGENTS_POSTGRES_HOST,
+        "port": settings.AUTOMAGIK_AGENTS_POSTGRES_PORT,
+        "user": settings.AUTOMAGIK_AGENTS_POSTGRES_USER,
+        "password": settings.AUTOMAGIK_AGENTS_POSTGRES_PASSWORD,
+        "database": settings.AUTOMAGIK_AGENTS_POSTGRES_DB,
         "client_encoding": "UTF8",
     }
 

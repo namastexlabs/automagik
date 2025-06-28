@@ -572,8 +572,8 @@ class StanAgent(AutomagikAgent):
             from datetime import datetime
             
             # Only create test users in development/test environments
-            if settings.AM_ENV.value not in ["development", "test"]:
-                logger.warning(f"🔍 Not creating test user {user_id} in {settings.AM_ENV.value} environment")
+            if settings.AUTOMAGIK_AGENTS_ENV.value not in ["development", "test"]:
+                logger.warning(f"🔍 Not creating test user {user_id} in {settings.AUTOMAGIK_AGENTS_ENV.value} environment")
                 return False
             
             # Check if this is a known test UUID
@@ -659,7 +659,7 @@ class StanAgent(AutomagikAgent):
                 return new_user_id
         
         # 4. Fallback to test user creation for development (only for known test UUIDs)
-        if initial_user_id and settings.AM_ENV.value in ["development", "test"]:
+        if initial_user_id and settings.AUTOMAGIK_AGENTS_ENV.value in ["development", "test"]:
             logger.info(f"🔍 🧪 Attempting test user creation for development: {initial_user_id}")
             success = await self._ensure_test_user_exists(initial_user_id)
             if success:

@@ -181,11 +181,11 @@ class PostgreSQLProvider(DatabaseProvider):
     
     def _get_db_config(self) -> Dict[str, Any]:
         """Get database configuration from connection string or individual settings."""
-        # Try to use DATABASE_URL first
-        if settings.DATABASE_URL:
+        # Try to use AUTOMAGIK_AGENTS_DATABASE_URL first
+        if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
             try:
-                env_db_url = os.environ.get("DATABASE_URL")
-                actual_db_url = env_db_url if env_db_url else settings.DATABASE_URL
+                env_db_url = os.environ.get("AUTOMAGIK_AGENTS_DATABASE_URL")
+                actual_db_url = env_db_url if env_db_url else settings.AUTOMAGIK_AGENTS_DATABASE_URL
                 parsed = urllib.parse.urlparse(actual_db_url)
 
                 dbname = parsed.path.lstrip("/")
@@ -200,16 +200,16 @@ class PostgreSQLProvider(DatabaseProvider):
                 }
             except Exception as e:
                 logger.warning(
-                    f"Failed to parse DATABASE_URL: {str(e)}. Falling back to individual settings."
+                    f"Failed to parse AUTOMAGIK_AGENTS_DATABASE_URL: {str(e)}. Falling back to individual settings."
                 )
 
         # Fallback to individual settings
         return {
-            "host": settings.POSTGRES_HOST,
-            "port": settings.POSTGRES_PORT,
-            "user": settings.POSTGRES_USER,
-            "password": settings.POSTGRES_PASSWORD,
-            "database": settings.POSTGRES_DB,
+            "host": settings.AUTOMAGIK_AGENTS_POSTGRES_HOST,
+            "port": settings.AUTOMAGIK_AGENTS_POSTGRES_PORT,
+            "user": settings.AUTOMAGIK_AGENTS_POSTGRES_USER,
+            "password": settings.AUTOMAGIK_AGENTS_POSTGRES_PASSWORD,
+            "database": settings.AUTOMAGIK_AGENTS_POSTGRES_DB,
             "client_encoding": "UTF8",
         }
     
@@ -217,15 +217,15 @@ class PostgreSQLProvider(DatabaseProvider):
         """Try to connect to database, auto-creating if needed. Fail fast on permission errors."""
         config = self._get_db_config()
         database_name = config.get('database', 'automagik_agents')
-        min_conn = getattr(settings, "POSTGRES_POOL_MIN", 1)
-        max_conn = getattr(settings, "POSTGRES_POOL_MAX", 10)
+        min_conn = getattr(settings, "AUTOMAGIK_AGENTS_POSTGRES_POOL_MIN", 1)
+        max_conn = getattr(settings, "AUTOMAGIK_AGENTS_POSTGRES_POOL_MAX", 10)
 
         logger.info(f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{database_name} with UTF8 encoding...")
 
         # First attempt: try to connect directly
         try:
-            if settings.DATABASE_URL:
-                dsn = settings.DATABASE_URL
+            if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
+                dsn = settings.AUTOMAGIK_AGENTS_DATABASE_URL
                 if "client_encoding" not in dsn.lower():
                     if "?" in dsn:
                         dsn += "&client_encoding=UTF8"
@@ -267,8 +267,8 @@ class PostgreSQLProvider(DatabaseProvider):
                 # Database was created, now try to connect again
                 logger.info(f"🔄 Attempting connection to newly created database '{database_name}'...")
                 try:
-                    if settings.DATABASE_URL:
-                        dsn = settings.DATABASE_URL
+                    if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
+                        dsn = settings.AUTOMAGIK_AGENTS_DATABASE_URL
                         if "client_encoding" not in dsn.lower():
                             if "?" in dsn:
                                 dsn += "&client_encoding=UTF8"

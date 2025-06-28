@@ -162,7 +162,7 @@ class SQLiteProvider(DatabaseProvider):
     def _get_default_database_path(self) -> str:
         """Get the default SQLite database path."""
         # Use environment variable if set, otherwise default to data directory
-        db_path = os.environ.get("SQLITE_DATABASE_PATH")
+        db_path = os.environ.get("AUTOMAGIK_AGENTS_SQLITE_DATABASE_PATH")
         if db_path:
             return db_path
         
