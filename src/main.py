@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 
 from src.config import settings
 from src.utils.logging import configure_logging
-from src.version import SERVICE_INFO
+from src.utils.version import SERVICE_INFO
 from src.auth import APIKeyMiddleware
 from src.api.models import HealthResponse
 from src.api.routes import main_router as api_router
