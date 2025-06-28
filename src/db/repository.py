@@ -7,7 +7,7 @@ from typing import List, Optional, Union, Tuple
 
 from src.db.connection import execute_query
 from src.db.models import Agent, User, Session, Message, Memory
-from src.version import SERVICE_INFO
+from src.utils.version import SERVICE_INFO
 
 # Configure logger
 logger = logging.getLogger(__name__)
