@@ -89,17 +89,19 @@ define show_nmstx_logo
 endef
 
 define show_automagik_logo
-	echo ""; \
-	echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"; \
-	echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"; \
-	echo ""
+	[ -z "$$AUTOMAGIK_QUIET_LOGO" ] && { \
+		echo ""; \
+		echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)                                                                                            $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)     -+*         -=@%*@@@@@@*  -#@@@%*  =@@*      -%@#+   -*       +%@@@@*-%@*-@@*  -+@@*   $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)     =@#*  -@@*  -=@%+@@@@@@*-%@@#%*%@@+=@@@*    -+@@#+  -@@*   -#@@%%@@@*-%@+-@@* -@@#*    $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)    -%@@#* -@@*  -=@@* -@%* -@@**   --@@=@@@@*  -+@@@#+ -#@@%* -*@%*-@@@@*-%@+:@@+#@@*      $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)   -#@+%@* -@@*  -=@@* -@%* -@@*-+@#*-%@+@@=@@* +@%#@#+ =@##@* -%@#*-@@@@*-%@+-@@@@@*       $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)  -*@#==@@*-@@*  -+@%* -@%* -%@#*   -+@@=@@++@%-@@=*@#=-@@*-@@*:+@@*  -%@*-%@+-@@#*@@**     $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE)  -@@* -+@%-+@@@@@@@*  -@%*  -#@@@@%@@%+=@@+-=@@@*    -%@*  -@@*-*@@@@%@@*#@@#=%*  -%@@*    $(FONT_RESET)"; \
+		echo -e "$(FONT_PURPLE) -@@*+  -%@*  -#@%+    -@%+     =#@@*   =@@+          +@%+  -#@#   -*%@@@*@@@@%+     =@@+   $(FONT_RESET)"; \
+		echo ""; \
+	} || true
 endef
 
 define check_docker
@@ -216,7 +218,6 @@ install-service: ## ⚙️ Install as local PM2 service
 		$(MAKE) install; \
 	fi
 	@$(call check_env_file)
-	@$(MAKE) setup-pm2
 	@$(MAKE) start-local
 	@$(call print_success_with_logo,Local PM2 service installed!)
 	@echo -e "$(FONT_CYAN)💡 Service is now managed by local PM2$(FONT_RESET)"
@@ -362,23 +363,7 @@ status: ## 📊 Show service status
 # ===========================================
 # 🔧 Local PM2 Management (Standalone Mode)
 # ===========================================
-.PHONY: setup-pm2 start-local stop-local restart-local
-setup-pm2: ## 📦 Setup local PM2 ecosystem
-	$(call print_status,Setting up local PM2 ecosystem...)
-	@$(call check_pm2)
-	@echo -e "$(FONT_CYAN)$(INFO) Installing PM2 log rotation...$(FONT_RESET)"
-	@if ! pm2 list | grep -q pm2-logrotate; then \
-		pm2 install pm2-logrotate; \
-	else \
-		echo -e "$(FONT_GREEN)✓ PM2 logrotate already installed$(FONT_RESET)"; \
-	fi
-	@pm2 set pm2-logrotate:max_size 100M
-	@pm2 set pm2-logrotate:retain 7
-	@echo -e "$(FONT_CYAN)$(INFO) Setting up PM2 startup...$(FONT_RESET)"
-	@if ! pm2 startup -s 2>/dev/null; then \
-		echo -e "$(FONT_YELLOW)Warning: PM2 startup may already be configured$(FONT_RESET)"; \
-	fi
-	@$(call print_success,Local PM2 ecosystem configured!)
+.PHONY: start-local stop-local restart-local
 
 start-local: ## 🚀 Start service using local PM2 ecosystem
 	$(call print_status,Starting am-agents-labs with local PM2...)
