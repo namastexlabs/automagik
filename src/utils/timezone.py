@@ -1,7 +1,7 @@
 """
 Timezone Utility Module - Consistent DateTime Handling
 
-Provides timezone-aware datetime functions that respect the AM_TIMEZONE configuration
+Provides timezone-aware datetime functions that respect the AUTOMAGIK_TIMEZONE configuration
 to ensure consistent timestamps across all workflow operations.
 """
 
@@ -19,7 +19,7 @@ def get_current_time() -> datetime:
     Returns:
         datetime: Current time with timezone info
     """
-    tz = pytz.timezone(settings.AM_TIMEZONE)
+    tz = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
     return datetime.now(tz)
 
 
@@ -43,7 +43,7 @@ def convert_to_local(utc_time: datetime) -> datetime:
     Returns:
         datetime: Time converted to local timezone
     """
-    tz = pytz.timezone(settings.AM_TIMEZONE)
+    tz = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
     return utc_time.replace(tzinfo=pytz.UTC).astimezone(tz)
 
 
@@ -59,7 +59,7 @@ def convert_to_utc(local_time: datetime) -> datetime:
     """
     if local_time.tzinfo is None:
         # Assume it's in the configured timezone
-        tz = pytz.timezone(settings.AM_TIMEZONE)
+        tz = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
         local_time = tz.localize(local_time)
     
     return local_time.astimezone(pytz.UTC).replace(tzinfo=None)
@@ -76,11 +76,11 @@ def get_timezone_aware_now() -> datetime:
         datetime: Current time adjusted for timezone but without timezone info
                  (for compatibility with existing timezone-naive database columns)
     """
-    if settings.AM_TIMEZONE == "UTC":
+    if settings.AUTOMAGIK_TIMEZONE == "UTC":
         return datetime.utcnow()
     
     # Get current time in configured timezone
-    tz = pytz.timezone(settings.AM_TIMEZONE)
+    tz = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
     local_time = datetime.now(tz)
     
     # Return as timezone-naive for database compatibility
@@ -101,7 +101,7 @@ def format_timestamp_for_api(dt: Optional[datetime] = None) -> str:
         dt = get_current_time()
     elif dt.tzinfo is None:
         # Assume it's in the configured timezone
-        tz = pytz.timezone(settings.AM_TIMEZONE)
+        tz = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
         dt = tz.localize(dt)
     
     return dt.isoformat()

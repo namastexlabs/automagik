@@ -39,10 +39,10 @@ async def get_current_date(ctx: RunContext[Dict], format: Optional[str] = None) 
         logger.info("Getting current date")
         # Get timezone from settings
         try:
-            timezone = pytz.timezone(settings.AM_TIMEZONE)
-            logger.debug(f"Using timezone: {settings.AM_TIMEZONE}")
+            timezone = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
+            logger.debug(f"Using timezone: {settings.AUTOMAGIK_TIMEZONE}")
         except pytz.UnknownTimeZoneError:
-            logger.warning(f"Unknown timezone '{settings.AM_TIMEZONE}', falling back to UTC.")
+            logger.warning(f"Unknown timezone '{settings.AUTOMAGIK_TIMEZONE}', falling back to UTC.")
             timezone = pytz.utc
         
         # Get timezone-aware datetime
@@ -83,10 +83,10 @@ async def get_current_time(ctx: RunContext[Dict], format: Optional[str] = None) 
         logger.info("Getting current time")
         # Get timezone from settings
         try:
-            timezone = pytz.timezone(settings.AM_TIMEZONE)
-            logger.debug(f"Using timezone: {settings.AM_TIMEZONE}")
+            timezone = pytz.timezone(settings.AUTOMAGIK_TIMEZONE)
+            logger.debug(f"Using timezone: {settings.AUTOMAGIK_TIMEZONE}")
         except pytz.UnknownTimeZoneError:
-            logger.warning(f"Unknown timezone '{settings.AM_TIMEZONE}', falling back to UTC.")
+            logger.warning(f"Unknown timezone '{settings.AUTOMAGIK_TIMEZONE}', falling back to UTC.")
             timezone = pytz.utc
             
         # Get timezone-aware datetime
