@@ -267,8 +267,8 @@ docs/qa/
 # Dependencies
 ####################
 
-# UV lock file
-uv.lock
+# UV lock file - removed, applications should commit lock files for reproducibility
+# uv.lock
 
 # Backup files
 *.bak
