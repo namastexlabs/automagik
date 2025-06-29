@@ -16,6 +16,7 @@ import json
 import logging
 import asyncio
 import time
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -32,13 +33,19 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
 
 try:
-    from pydantic_ai.mcp import MCPServerStdio, MCPServerHTTP
+    from pydantic_ai.models.mcp import MCPServerStdio, MCPServerHTTP
     from pydantic_ai.tools import Tool as PydanticTool
 except ImportError:
-    # Fallback for older versions or if MCP is not available
-    MCPServerStdio = None
-    MCPServerHTTP = None
-    PydanticTool = None
+    try:
+        # Try original import path
+        from pydantic_ai.mcp import MCPServerStdio, MCPServerHTTP
+        from pydantic_ai.tools import Tool as PydanticTool
+    except ImportError:
+        # Fallback for older versions or if MCP is not available
+        logger.warning("PydanticAI MCP support not available")
+        MCPServerStdio = None
+        MCPServerHTTP = None
+        PydanticTool = None
 
 from .exceptions import MCPError
 from src.db.models import MCPConfig
@@ -333,7 +340,18 @@ class MCPManager:
             
             if server_type == 'stdio':
                 # Use PydanticAI's MCPServerStdio
-                command = server_config.get('command', [])
+                # Handle command differently based on whether it's from database or file
+                raw_command = server_config.get('command')
+                args = server_config.get('args', [])
+                
+                # If command is a string (from database), combine with args
+                if isinstance(raw_command, str):
+                    command = [raw_command] + args
+                # If command is already a list (from file config), use as is
+                elif isinstance(raw_command, list):
+                    command = raw_command
+                else:
+                    command = []
                 env = server_config.get('environment', {})
                 
                 # FIX: MCPServerStdio requires separate command and args parameters
@@ -341,15 +359,69 @@ class MCPManager:
                 if not command:
                     raise MCPError(f"Server {config.name}: 'command' is required for stdio servers")
                 
+                # Ensure command is a list, not a string
+                if isinstance(command, str):
+                    command = [command]
+                
                 main_command = command[0]  # First element is the executable
                 args = command[1:] if len(command) > 1 else []  # Rest are arguments
                 
-                server = MCPServerStdio(
-                    command=main_command,  # Required: main command as string
-                    args=args,             # Required: arguments as list  
-                    env=env or None,
-                    timeout=server_config.get('timeout', 30000) / 1000  # Convert ms to seconds
-                )
+                # Debug logging
+                logger.debug(f"Creating MCPServerStdio for {config.name}:")
+                logger.debug(f"  Command: {main_command}")
+                logger.debug(f"  Args: {args}")
+                logger.debug(f"  Full command: {[main_command] + args}")
+                
+                # Create environment with proper handling
+                # Start with current process environment to include .env variables
+                process_env = os.environ.copy()
+                
+                # Update with any specific env vars from config
+                if env:
+                    process_env.update(env)
+                
+                # Ensure PATH is set if not present
+                if 'PATH' not in process_env:
+                    process_env['PATH'] = os.environ.get('PATH', '/usr/bin:/bin')
+                
+                try:
+                    server = MCPServerStdio(
+                        command=main_command,  # Required: main command as string
+                        args=args,             # Required: arguments as list  
+                        env=process_env,
+                        timeout=server_config.get('timeout', 30000) / 1000  # Convert ms to seconds
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create MCPServerStdio for {config.name}: {e}")
+                    logger.error(f"Command was: {main_command} with args: {args}")
+                    
+                    # Try our custom wrapper as fallback
+                    try:
+                        logger.info(f"Attempting to use custom MCPServerStdioWrapper for {config.name}")
+                        from .server_wrapper import MCPServerStdioWrapper
+                        server = MCPServerStdioWrapper(
+                            command=main_command,
+                            args=args,
+                            env=process_env,
+                            timeout=server_config.get('timeout', 30000) / 1000
+                        )
+                        logger.info(f"Successfully created custom wrapper for {config.name}")
+                    except Exception as wrapper_error:
+                        logger.error(f"Custom wrapper also failed: {wrapper_error}")
+                        
+                        # Final fallback - try with full command path
+                        import shutil
+                        full_command_path = shutil.which(main_command)
+                        if full_command_path:
+                            logger.info(f"Final attempt with full path: {full_command_path}")
+                            server = MCPServerStdio(
+                                command=full_command_path,
+                                args=args,
+                                env=process_env,
+                                timeout=server_config.get('timeout', 30000) / 1000
+                            )
+                        else:
+                            raise MCPError(f"Command not found: {main_command}")
                 
             elif server_type in ['http', 'sse']:
                 # Use PydanticAI's MCPServerHTTP (supports both HTTP and SSE)
@@ -377,7 +449,7 @@ class MCPManager:
             logger.error(f"Failed to create/start server {config.name}: {str(e)}")
             raise MCPError(f"Server startup failed: {str(e)}")
     
-    def get_tools_for_agent(self, agent_name: str) -> List[PydanticTool]:
+    async def get_tools_for_agent(self, agent_name: str) -> List[PydanticTool]:
         """Get all MCP tools available to a specific agent.
         
         Args:
@@ -404,14 +476,31 @@ class MCPManager:
             
             # Get tools from the server
             try:
-                server_tools = server.get_tools()
-                
-                # Filter tools based on configuration
-                for tool in server_tools:
-                    if config.should_include_tool(tool.name):
-                        # Prefix tool name with server name for uniqueness
-                        prefixed_tool = self._create_prefixed_tool(tool, config.name)
-                        tools.append(prefixed_tool)
+                # Check if this is our custom wrapper
+                if hasattr(server, '_process') or hasattr(server, '_original_server'):
+                    # Using our custom wrapper
+                    async with server as connected_server:
+                        server_tools = await connected_server.list_tools()
+                        
+                        # Filter tools based on configuration
+                        for tool in server_tools:
+                            # Get tool name from the tool object
+                            tool_name = getattr(tool, 'name', None)
+                            if tool_name and config.should_include_tool(tool_name):
+                                # Prefix tool name with server name for uniqueness
+                                prefixed_tool = self._create_prefixed_tool(tool, config.name)
+                                tools.append(prefixed_tool)
+                else:
+                    # PydanticAI MCP servers require an active connection to get tools
+                    async with server as connected_server:
+                        server_tools = await connected_server.list_tools()
+                        
+                        # Filter tools based on configuration
+                        for tool in server_tools:
+                            if config.should_include_tool(tool.name):
+                                # Prefix tool name with server name for uniqueness
+                                prefixed_tool = self._create_prefixed_tool(tool, config.name)
+                                tools.append(prefixed_tool)
                         
             except Exception as e:
                 logger.warning(f"Failed to get tools from server {config.name}: {str(e)}")
@@ -507,10 +596,38 @@ class MCPManager:
             return []
         
         try:
-            # Note: PydanticAI MCP servers don't expose tools until connected
-            # For now, return empty list - tools will be discovered during actual connections
-            logger.debug(f"Listing tools for server {server_name} (placeholder)")
-            return []
+            # PydanticAI MCP servers require an active connection to discover tools
+            # Connect temporarily to discover available tools
+            logger.debug(f"Attempting to connect to MCP server: {server_name}")
+            logger.debug(f"Server type: {type(server)}")
+            
+            async with server as connected_server:
+                logger.debug(f"Connected to server {server_name}, listing tools...")
+                
+                try:
+                    tools = await connected_server.list_tools()
+                except Exception as e:
+                    logger.error(f"Error listing tools from {server_name}: {e}")
+                    # Check if this is the shell execution error
+                    if "not found" in str(e) and "{method:" in str(e):
+                        logger.error(f"JSON-RPC protocol error - server {server_name} may not be starting correctly")
+                        logger.error("This usually means the MCP server command is not being executed properly")
+                    raise
+                
+                # Convert to dictionary format for API response
+                tool_list = []
+                for tool in tools:
+                    tool_dict = {
+                        'name': tool.name,
+                        'description': getattr(tool, 'description', ''),
+                        'server_name': server_name,
+                        'input_schema': getattr(tool, 'input_schema', {}),
+                        'output_schema': getattr(tool, 'output_schema', {})
+                    }
+                    tool_list.append(tool_dict)
+                
+                logger.debug(f"Discovered {len(tool_list)} tools from server {server_name}")
+                return tool_list
             
         except Exception as e:
             logger.error(f"Failed to list tools from server {server_name}: {str(e)}")
@@ -765,8 +882,6 @@ class MCPManager:
             logger.info("⏸️ Hot reload disabled")
 
 
-# Compatibility alias for existing code that expects MCPClientManager
-MCPClientManager = MCPManager
 
 # Global MCP manager instance
 _mcp_manager: Optional[MCPManager] = None
@@ -787,14 +902,6 @@ async def get_mcp_manager() -> MCPManager:
     return _mcp_manager
 
 
-# Compatibility function for existing code
-async def get_mcp_client_manager() -> MCPManager:
-    """Legacy function name - redirects to get_mcp_manager().
-    
-    Returns:
-        Initialized MCP manager
-    """
-    return await get_mcp_manager()
 
 
 async def shutdown_mcp_manager() -> None:
@@ -806,20 +913,5 @@ async def shutdown_mcp_manager() -> None:
         _mcp_manager = None
 
 
-# Compatibility function for existing code
-async def shutdown_mcp_client_manager() -> None:
-    """Legacy function name - redirects to shutdown_mcp_manager()."""
-    await shutdown_mcp_manager()
 
 
-# Compatibility function for legacy Sofia agent
-async def refresh_mcp_client_manager() -> None:
-    """Compatibility function for legacy agents like Sofia.
-    
-    This function was removed during MCP refactor (NMSTX-253) but Sofia agent
-    still imports it. Provides backward compatibility by delegating to the new
-    manager's reload functionality.
-    """
-    global _mcp_manager
-    if _mcp_manager is not None:
-        await _mcp_manager.reload_configurations()

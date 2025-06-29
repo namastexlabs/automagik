@@ -11,8 +11,6 @@ from src.db.models import (
     Session,
     Memory,
     Message,
-    MCPServerDB,
-    AgentMCPServerDB,
     MCPConfig,
     MCPConfigCreate,
     MCPConfigUpdate,
@@ -85,26 +83,8 @@ from src.db.repository import (
     create_memories_bulk
 )
 
-# Import MCP repository functions
+# Import MCP repository functions (simplified architecture - NMSTX-253)
 from src.db.repository.mcp import (
-    # Legacy MCP server functions
-    get_mcp_server,
-    get_mcp_server_by_name,
-    list_mcp_servers,
-    create_mcp_server,
-    update_mcp_server,
-    delete_mcp_server,
-    update_mcp_server_status,
-    update_mcp_server_discovery,
-    increment_connection_attempts,
-    assign_agent_to_server,
-    remove_agent_from_server,
-    get_agent_servers,
-    get_server_agents,
-    get_agent_server_assignments,
-    get_servers_with_agents_optimized,
-    
-    # New simplified MCP config functions (NMSTX-253)
     get_mcp_config,
     get_mcp_config_by_name,
     list_mcp_configs,

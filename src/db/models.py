@@ -306,70 +306,7 @@ class PreferenceHistory(BaseDBModel):
     DB_TABLE: ClassVar[str] = "preference_history"
 
 
-# MCP Models
-class MCPServerDB(BaseDBModel):
-    """MCP Server model corresponding to the mcp_servers table."""
-    id: Optional[int] = Field(None, description="MCP Server ID")
-    name: str = Field(..., description="Unique server name")
-    server_type: str = Field(..., description="Server type (stdio or http)")
-    description: Optional[str] = Field(None, description="Server description")
-    
-    # Connection configuration
-    command: Optional[List[str]] = Field(None, description="Command array for stdio servers")
-    env: Optional[Dict[str, str]] = Field(None, description="Environment variables")
-    http_url: Optional[str] = Field(None, description="HTTP URL for http servers")
-    
-    # Behavior configuration
-    auto_start: bool = Field(True, description="Whether to auto-start the server")
-    max_retries: int = Field(3, description="Maximum connection retries")
-    timeout_seconds: int = Field(30, description="Connection timeout in seconds")
-    tags: Optional[List[str]] = Field(None, description="Tags for categorization")
-    priority: int = Field(0, description="Server priority")
-    
-    # State tracking
-    status: str = Field("stopped", description="Current server status")
-    enabled: bool = Field(True, description="Whether server is enabled")
-    started_at: Optional[datetime] = Field(None, description="When server was started")
-    last_error: Optional[str] = Field(None, description="Last error message")
-    error_count: int = Field(0, description="Number of errors")
-    connection_attempts: int = Field(0, description="Number of connection attempts")
-    last_ping: Optional[datetime] = Field(None, description="Last successful ping")
-    
-    # Discovery results
-    tools_discovered: Optional[List[str]] = Field(None, description="Discovered tool names")
-    resources_discovered: Optional[List[str]] = Field(None, description="Discovered resource URIs")
-    
-    # Audit trail
-    created_at: Optional[datetime] = Field(None, description="Created timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Updated timestamp")
-    last_started: Optional[datetime] = Field(None, description="Last started timestamp")
-    last_stopped: Optional[datetime] = Field(None, description="Last stopped timestamp")
-
-    @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "MCPServerDB":
-        """Create an MCPServerDB instance from a database row dictionary."""
-        if not row:
-            return None
-        return cls(**row)
-
-
-class AgentMCPServerDB(BaseDBModel):
-    """Agent MCP Server assignment model corresponding to the agent_mcp_servers table."""
-    id: Optional[int] = Field(None, description="Assignment ID")
-    agent_id: int = Field(..., description="Agent ID")
-    mcp_server_id: int = Field(..., description="MCP Server ID")
-    created_at: Optional[datetime] = Field(None, description="Created timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Updated timestamp")
-
-    @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "AgentMCPServerDB":
-        """Create an AgentMCPServerDB instance from a database row dictionary."""
-        if not row:
-            return None
-        return cls(**row)
-
-
-# New Simplified MCP Config Models
+# MCP Config Models (NMSTX-253 Refactor - Simplified Single-Table Architecture)
 class MCPConfigBase(BaseDBModel):
     """Base class for MCP Config models."""
     

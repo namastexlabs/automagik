@@ -9,11 +9,19 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable, Union
 from datetime import datetime
+from contextlib import AsyncExitStack
 
 from src.db.repository.tool import create_tool, get_tool_by_name, list_tools
 from src.db.repository.mcp import list_mcp_configs
 from src.db.models import ToolCreate
-from src.mcp.client import get_mcp_client_manager
+from src.mcp.client import get_mcp_manager
+
+# Import PydanticAI MCP for proper AsyncExitStack pattern
+try:
+    from pydantic_ai.mcp import MCPServerStdio
+except ImportError:
+    logger.warning("PydanticAI MCP not available - MCP tool discovery will be disabled")
+    MCPServerStdio = None
 
 logger = logging.getLogger(__name__)
 
@@ -277,34 +285,133 @@ class ToolDiscoveryService:
         return list(set(capabilities))  # Remove duplicates
     
     async def _discover_mcp_tools(self) -> List[Dict[str, Any]]:
-        """Discover all MCP tools from connected servers."""
+        """Discover all MCP tools using proper PydanticAI AsyncExitStack patterns."""
         tools = []
         
+        # Check if PydanticAI MCP is available
+        if MCPServerStdio is None:
+            logger.warning("PydanticAI MCP not available - skipping MCP tool discovery")
+            return tools
+        
         try:
-            # Get MCP client manager
-            mcp_manager = await get_mcp_client_manager()
-            if not mcp_manager:
-                logger.warning("MCP client manager not available")
-                return tools
-            
+            import asyncio
             # Get list of MCP servers from database
             mcp_configs = list_mcp_configs()
+            if not mcp_configs:
+                logger.debug("No MCP configurations found")
+                return tools
             
+            # Prepare server instances for AsyncExitStack management
+            server_instances = []
             for config in mcp_configs:
                 try:
-                    # Get tools from the server
-                    server_tools = await mcp_manager.list_tools(config.name)
+                    # Extract configuration data for MCPServerStdio
+                    server_config = config.config
+                    server_type = server_config.get("type", "stdio")
                     
-                    for tool_data in server_tools:
-                        tool_info = self._process_mcp_tool(tool_data, config.name)
-                        if tool_info:
-                            tools.append(tool_info)
-                            
+                    # Only handle stdio servers for now (SSE servers need different handling)
+                    if server_type != "stdio":
+                        logger.debug(f"Skipping non-stdio server {config.name} (type: {server_type})")
+                        continue
+                    
+                    # Get command and args from config
+                    command = server_config.get("command")
+                    args = server_config.get("args", [])
+                    env = server_config.get("env", {})
+                    
+                    if not command:
+                        logger.warning(f"No command specified for MCP server {config.name}")
+                        continue
+                    
+                    # Create MCPServerStdio instance with proper configuration
+                    server = MCPServerStdio(
+                        command=command,
+                        args=args if isinstance(args, list) else [],
+                        env=env if isinstance(env, dict) else {},
+                        tool_prefix=config.name  # Use server name as tool prefix
+                    )
+                    
+                    server_instances.append((config.name, server))
+                    logger.debug(f"Prepared MCP server {config.name} for discovery")
+                    
                 except Exception as e:
-                    logger.warning(f"Failed to get tools from MCP server {config.name}: {e}")
+                    logger.warning(f"Failed to prepare MCP server {config.name}: {e}")
+                    continue
             
+            if not server_instances:
+                logger.debug("No valid stdio MCP servers to discover")
+                return tools
+            
+            # Use AsyncExitStack to manage all servers properly - PydanticAI official pattern
+            # Add timeout to prevent hanging during CTRL+C
+            try:
+                async with asyncio.timeout(30.0):  # 30 second timeout
+                    async with AsyncExitStack() as exit_stack:
+                        entered_servers = []
+                        
+                        # Enter each server's async context (starts subprocesses)
+                        for name, server in server_instances:
+                            try:
+                                logger.debug(f"Starting MCP server {name}...")
+                                # This starts the subprocess and enters async context
+                                entered_server = await exit_stack.enter_async_context(server)
+                                entered_servers.append((name, entered_server))
+                                logger.debug(f"Successfully started MCP server {name}")
+                                
+                            except Exception as e:
+                                logger.warning(f"Failed to start MCP server {name}: {e}")
+                                continue
+                        
+                        # Now we can safely list tools from all running servers
+                        logger.info(f"Discovering tools from {len(entered_servers)} MCP servers")
+                        
+                        for name, server in entered_servers:
+                            try:
+                                logger.debug(f"Listing tools from server {name}...")
+                                server_tools = await server.list_tools()
+                                
+                                logger.debug(f"Found {len(server_tools)} tools from server {name}")
+                                
+                                for tool in server_tools:
+                                    try:
+                                        # Convert PydanticAI ToolDefinition to our internal tool format
+                                        tool_info = {
+                                            'name': tool.name,
+                                            'description': tool.description,
+                                            'server_name': name,
+                                            'type': 'mcp',
+                                            'tool_data': {
+                                                'name': tool.name,
+                                                'description': tool.description,
+                                                'parameters_json_schema': tool.parameters_json_schema,
+                                                'outer_typed_dict_key': getattr(tool, 'outer_typed_dict_key', None),
+                                                'strict': getattr(tool, 'strict', None)
+                                            },
+                                            'input_schema': tool.parameters_json_schema,
+                                            'capabilities': self._infer_capabilities(tool.name, tool.description)
+                                        }
+                                        tools.append(tool_info)
+                                        
+                                    except Exception as e:
+                                        logger.warning(f"Failed to process tool {tool.name} from {name}: {e}")
+                                        continue
+                                    
+                            except Exception as e:
+                                logger.error(f"Failed to list tools from {name}: {e}")
+                                continue
+                        
+                        logger.info(f"Successfully discovered {len(tools)} MCP tools from {len(entered_servers)} servers")
+                        
+                        # AsyncExitStack automatically calls __aexit__ on all servers when we exit this block
+                        # This ensures proper cleanup of all subprocess connections
+            except asyncio.TimeoutError:
+                logger.warning("MCP tool discovery timed out after 30 seconds")
+            except KeyboardInterrupt:
+                logger.info("MCP tool discovery interrupted by user")
+            except Exception as e:
+                logger.error(f"Error during MCP tool discovery: {e}")
         except Exception as e:
-            logger.error(f"Error discovering MCP tools: {e}")
+            logger.error(f"Error during MCP tool discovery: {e}")
         
         return tools
     

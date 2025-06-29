@@ -84,8 +84,8 @@ class ClaudeCodeAgent(AutomagikAgent):
         try:
             self.executor = ExecutorFactory.create_executor(
                 mode="local",
-                workspace_base=os.environ.get("AUTOMAGIK_AGENTS_CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"),
-                cleanup_on_complete=os.environ.get("AUTOMAGIK_AGENTS_CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
+                workspace_base=os.environ.get("AUTOMAGIK_CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"),
+                cleanup_on_complete=os.environ.get("AUTOMAGIK_CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
             )
         except ValueError as e:
             logger.error(f"Failed to create executor: {e}")

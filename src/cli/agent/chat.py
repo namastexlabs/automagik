@@ -33,9 +33,9 @@ def chat_callback(
     Or list available agents first:
       automagik-agents agent chat list
     """
-    # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
+    # If debug flag is set, ensure AUTOMAGIK_LOG_LEVEL is set to DEBUG
     if debug:
-        os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
 
 def get_api_endpoint(path: str) -> str:
     """Build a consistent API endpoint URL with the correct prefix."""
@@ -48,8 +48,8 @@ def get_api_endpoint(path: str) -> str:
         path = f"api/v1/{path}"
     
     # Build the full URL with server from settings
-    # The host and port values are stored in AM_HOST and AM_PORT
-    server = f"http://{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}"
+    # The host and port values are stored in AUTOMAGIK_API_HOST and AUTOMAGIK_API_PORT
+    server = f"http://{settings.AUTOMAGIK_API_HOST}:{settings.AUTOMAGIK_API_PORT}"
     if not server.endswith('/'):
         server = f"{server}/"
     url = f"{server}{path}"
@@ -61,13 +61,13 @@ def get_available_agents() -> List[Dict[str, Any]]:
     try:
         # Define the API endpoint for listing agents
         endpoint = get_api_endpoint("agent/list")
-        if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             console.print(f"Getting agents from: {endpoint}")
         
         # Prepare headers with API key if available
         headers = {}
-        if settings.AUTOMAGIK_AGENTS_API_KEY:
-            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
+        if settings.AUTOMAGIK_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
         
         # Make the API request
         try:
@@ -76,7 +76,7 @@ def get_available_agents() -> List[Dict[str, Any]]:
             # Check if the request was successful
             if response.status_code == 200:
                 agents = response.json()
-                if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+                if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
                     console.print(f"Successfully retrieved {len(agents)} agents")
                 
                 # Convert the API response to a format compatible with the rest of the code
@@ -96,7 +96,7 @@ def get_available_agents() -> List[Dict[str, Any]]:
                 return agents
             else:
                 console.print(f"Error getting agents: HTTP {response.status_code}", style="bold red")
-                if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+                if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
                     console.print(f"Response: {response.text}", style="red")
                 return []
         except requests.exceptions.ConnectionError:
@@ -116,14 +116,14 @@ def list_available_agents() -> None:
         console.print("1. The server might not be running. Start it with:")
         console.print("   [cyan]automagik-agents api start[/]")
         console.print("2. Your API server could be running on a different host/port.")
-        console.print(f"   Current server setting: [cyan]{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}[/]")
+        console.print(f"   Current server setting: [cyan]{settings.AUTOMAGIK_API_HOST}:{settings.AUTOMAGIK_API_PORT}[/]")
         console.print("3. You might not have added any agents yet.")
         
         console.print("\n[green]Try creating an agent first:[/]")
         console.print("  automagik-agents agent create agent --name my_agent --template simple")
         
         console.print("\n[green]Or check if you can access the API directly:[/]")
-        console.print(f"  curl http://{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}/api/v1/agent/list -H 'x-api-key: {settings.AUTOMAGIK_AGENTS_API_KEY}'")
+        console.print(f"  curl http://{settings.AUTOMAGIK_API_HOST}:{settings.AUTOMAGIK_API_PORT}/api/v1/agent/list -H 'x-api-key: {settings.AUTOMAGIK_API_KEY}'")
         return
     
     console.print("\nAvailable Agents:", style="bold green")
@@ -142,13 +142,13 @@ async def get_user_by_id(user_id: Optional[str] = None) -> Dict[str, Any]:
     try:
         # Define the API endpoint
         endpoint = get_api_endpoint(f"users/{user_id}")
-        if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             console.print(f"Getting user data from: {endpoint}")
         
         # Prepare headers with API key if available
         headers = {}
-        if settings.AUTOMAGIK_AGENTS_API_KEY:
-            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
+        if settings.AUTOMAGIK_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
         
         # Make the API request
         response = requests.get(endpoint, headers=headers, timeout=10)
@@ -156,17 +156,17 @@ async def get_user_by_id(user_id: Optional[str] = None) -> Dict[str, Any]:
         # Check if the request was successful
         if response.status_code == 200:
             user_data = response.json()
-            if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+            if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
                 console.print(f"Successfully retrieved user {user_id} from API")
             return user_data
         else:
-            if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+            if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
                 console.print(f"Error getting user by ID {user_id}: HTTP {response.status_code}", style="red")
                 console.print("Using fallback user data", style="yellow")
             # Return fallback data with UUID-like user_id if needed
             return {"id": user_id, "email": "user@example.com", "name": "User"}
     except Exception as e:
-        if settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             console.print(f"Error getting user from API: {str(e)}", style="red")
             console.print("Using fallback user data", style="yellow")
         # Return fallback data with UUID-like user_id if needed
@@ -176,7 +176,7 @@ async def run_agent(agent_name: str, input_message: str, session_name: str = Non
     """Run the agent with the given message using the API."""
     try:
         # Check if debug mode is enabled either via settings or directly from environment variable
-        debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG")
+        debug_mode = (settings.AUTOMAGIK_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_LOG_LEVEL") == "DEBUG")
         
         # Define the API endpoint with the correct prefix
         endpoint = get_api_endpoint(f"agent/{agent_name}/run")
@@ -212,11 +212,11 @@ async def run_agent(agent_name: str, input_message: str, session_name: str = Non
         }
         
         # Add API key to headers if available
-        if settings.AUTOMAGIK_AGENTS_API_KEY:
-            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
+        if settings.AUTOMAGIK_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
             
             if debug_mode:
-                masked_key = f"{settings.AUTOMAGIK_AGENTS_API_KEY[:4]}...{settings.AUTOMAGIK_AGENTS_API_KEY[-4:]}" if len(settings.AUTOMAGIK_AGENTS_API_KEY) > 8 else "****"
+                masked_key = f"{settings.AUTOMAGIK_API_KEY[:4]}...{settings.AUTOMAGIK_API_KEY[-4:]}" if len(settings.AUTOMAGIK_API_KEY) > 8 else "****"
                 console.print(f"Using API key: {masked_key}")
         
         # Make the API request
@@ -374,7 +374,7 @@ def print_help() -> None:
 async def chat_loop(agent_name: str, session_name: str = None, user_id: Optional[str] = None) -> None:
     """Run an interactive chat loop with the specified agent."""
     # Check if debug mode is enabled either via settings or directly from environment variable
-    debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG")
+    debug_mode = (settings.AUTOMAGIK_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_LOG_LEVEL") == "DEBUG")
     
     current_session_name = session_name
     current_session_id = None
@@ -586,9 +586,9 @@ def start(
     and receive responses. The conversation history is preserved within
     the session.
     """
-    # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
+    # If debug flag is set, ensure AUTOMAGIK_LOG_LEVEL is set to DEBUG
     if debug:
-        os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
         
     try:
         import asyncio
@@ -612,7 +612,7 @@ def get_chats(agent_name: str = None) -> list:
     """Get all chats from the API."""
     try:
         # Check if debug mode is enabled either via settings or directly from environment variable
-        debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG")
+        debug_mode = (settings.AUTOMAGIK_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_LOG_LEVEL") == "DEBUG")
         
         # Define the API endpoint with the correct prefix
         endpoint = get_api_endpoint("chats")
@@ -625,11 +625,11 @@ def get_chats(agent_name: str = None) -> list:
         
         # Prepare headers with API key
         headers = {}
-        if settings.AUTOMAGIK_AGENTS_API_KEY:
-            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
+        if settings.AUTOMAGIK_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
             
             if debug_mode:
-                masked_key = f"{settings.AUTOMAGIK_AGENTS_API_KEY[:4]}...{settings.AUTOMAGIK_AGENTS_API_KEY[-4:]}" if len(settings.AUTOMAGIK_AGENTS_API_KEY) > 8 else "****"
+                masked_key = f"{settings.AUTOMAGIK_API_KEY[:4]}...{settings.AUTOMAGIK_API_KEY[-4:]}" if len(settings.AUTOMAGIK_API_KEY) > 8 else "****"
                 console.print(f"Using API key: {masked_key}")
         
         # Make the API request
@@ -668,7 +668,7 @@ def get_chat(session_id: str) -> dict:
     """Get a specific chat by ID from the API."""
     try:
         # Check if debug mode is enabled either via settings or directly from environment variable
-        debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG")
+        debug_mode = (settings.AUTOMAGIK_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_LOG_LEVEL") == "DEBUG")
         
         # Define the API endpoint with the correct prefix
         endpoint = get_api_endpoint(f"chats/{session_id}")
@@ -679,11 +679,11 @@ def get_chat(session_id: str) -> dict:
         
         # Prepare headers with API key
         headers = {}
-        if settings.AUTOMAGIK_AGENTS_API_KEY:
-            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
+        if settings.AUTOMAGIK_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
             
             if debug_mode:
-                masked_key = f"{settings.AUTOMAGIK_AGENTS_API_KEY[:4]}...{settings.AUTOMAGIK_AGENTS_API_KEY[-4:]}" if len(settings.AUTOMAGIK_AGENTS_API_KEY) > 8 else "****"
+                masked_key = f"{settings.AUTOMAGIK_API_KEY[:4]}...{settings.AUTOMAGIK_API_KEY[-4:]}" if len(settings.AUTOMAGIK_API_KEY) > 8 else "****"
                 console.print(f"Using API key: {masked_key}")
         
         # Make the API request
@@ -722,7 +722,7 @@ def delete_chat(session_id: str) -> bool:
     """Delete a specific chat by ID using the API."""
     try:
         # Check if debug mode is enabled either via settings or directly from environment variable
-        debug_mode = (settings.AUTOMAGIK_AGENTS_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_AGENTS_LOG_LEVEL") == "DEBUG")
+        debug_mode = (settings.AUTOMAGIK_LOG_LEVEL == "DEBUG") or (os.environ.get("AUTOMAGIK_LOG_LEVEL") == "DEBUG")
         
         # Define the API endpoint with the correct prefix
         endpoint = get_api_endpoint(f"chats/{session_id}")
@@ -733,11 +733,11 @@ def delete_chat(session_id: str) -> bool:
         
         # Prepare headers with API key
         headers = {}
-        if settings.AUTOMAGIK_AGENTS_API_KEY:
-            headers["x-api-key"] = settings.AUTOMAGIK_AGENTS_API_KEY
+        if settings.AUTOMAGIK_API_KEY:
+            headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
             
             if debug_mode:
-                masked_key = f"{settings.AUTOMAGIK_AGENTS_API_KEY[:4]}...{settings.AUTOMAGIK_AGENTS_API_KEY[-4:]}" if len(settings.AUTOMAGIK_AGENTS_API_KEY) > 8 else "****"
+                masked_key = f"{settings.AUTOMAGIK_API_KEY[:4]}...{settings.AUTOMAGIK_API_KEY[-4:]}" if len(settings.AUTOMAGIK_API_KEY) > 8 else "****"
                 console.print(f"Using API key: {masked_key}")
         
         # Make the API request

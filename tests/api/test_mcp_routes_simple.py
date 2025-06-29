@@ -30,7 +30,7 @@ class TestStreamlinedMCPRoutesSimple:
             "name": "test-server",
             "server_type": "stdio",
             "command": ["python", "-m", "test_server"],
-            "agents": ["simple", "genie"],
+            "agents": ["simple"],
             "tools": {"include": ["*"]},
             "environment": {"DEBUG": "true"},
             "timeout": 30000,

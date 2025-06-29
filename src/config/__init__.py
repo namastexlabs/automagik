@@ -22,19 +22,14 @@ Environment = _config_module.Environment
 Settings = _config_module.Settings
 settings = _config_module.settings
 load_settings = _config_module.load_settings
+get_settings = _config_module.load_settings  # Alias for compatibility
 mask_connection_string = _config_module.mask_connection_string
 get_model_settings = _config_module.get_model_settings
 
 from .feature_flags import (
     MCPFeatureFlags,
-    MigrationMode,
     get_feature_flags,
     reload_feature_flags,
-    use_new_mcp_system,
-    is_migration_enabled,
-    is_auto_rollback_enabled,
-    is_monitoring_enabled,
-    get_migration_mode,
     is_hot_reload_enabled
 )
 
@@ -45,17 +40,12 @@ __all__ = [
     "Settings",
     "settings",
     "load_settings",
+    "get_settings",
     "mask_connection_string",
     "get_model_settings",
     # Feature flags
     "MCPFeatureFlags",
-    "MigrationMode", 
     "get_feature_flags",
     "reload_feature_flags",
-    "use_new_mcp_system",
-    "is_migration_enabled",
-    "is_auto_rollback_enabled",
-    "is_monitoring_enabled",
-    "get_migration_mode",
     "is_hot_reload_enabled"
 ]

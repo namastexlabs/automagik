@@ -454,8 +454,6 @@ Create parallel workflow task breakdown for maximum parallelization:
    - Enable concurrent workflow execution
    - Each subtask assigned to separate workflow instance
    - Example for workspace optimization:
-     * BUILDER-LINA: Implement LINA current_workspace flag
-     * BUILDER-BRAIN: Implement BRAIN current_workspace flag
      * BUILDER-REPO: Update repository_utils workspace logic
      * GUARDIAN-API: Test workspace API integration
      * GUARDIAN-PERFORMANCE: Validate performance improvements

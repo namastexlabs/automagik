@@ -69,11 +69,12 @@ module.exports = {
       env: {
         ...envVars,
         PYTHONPATH: PROJECT_ROOT,
-        AUTOMAGIK_AGENTS_API_PORT: envVars.AUTOMAGIK_AGENTS_API_PORT || '8881',
-        AUTOMAGIK_AGENTS_API_HOST: envVars.AUTOMAGIK_AGENTS_API_HOST || '0.0.0.0',
-        AUTOMAGIK_AGENTS_API_KEY: envVars.AUTOMAGIK_AGENTS_API_KEY || "namastex888",
-	AUTOMAGIK_AGENTS_ENV: envVars.AUTOMAGIK_AGENTS_ENV || 'production',
-        NODE_ENV: 'production'
+        AUTOMAGIK_API_PORT: envVars.AUTOMAGIK_API_PORT || '8881',
+        AUTOMAGIK_API_HOST: envVars.AUTOMAGIK_API_HOST || '0.0.0.0',
+        AUTOMAGIK_API_KEY: envVars.AUTOMAGIK_API_KEY || "namastex888",
+	AUTOMAGIK_ENV: envVars.AUTOMAGIK_ENV || 'production',
+        NODE_ENV: 'production',
+        PYTHONUNBUFFERED: '1' // Ensure Python logs are flushed immediately
       },
       instances: 1,
       exec_mode: 'fork',

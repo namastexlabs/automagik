@@ -23,7 +23,6 @@ def test_core_imports() -> List[Tuple[str, str, bool, str]]:
         ('src.agents.pydanticai.simple', 'Simple agent'),
         ('src.agents.pydanticai.stan', 'Stan agent'),
         ('src.agents.pydanticai.sofia', 'Sofia agent'),
-        ('src.agents.pydanticai.genie', 'Genie agent'),
         ('src.api', 'API framework'),
         ('src.db', 'Database layer'),
         ('src.mcp', 'MCP integration'),

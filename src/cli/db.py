@@ -61,7 +61,7 @@ def db_callback(
     """
     # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
     if debug:
-        os.environ["AUTOMAGIK_AGENTS_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
 
 @db_app.command("init")
 def db_init(

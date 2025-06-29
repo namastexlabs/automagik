@@ -58,11 +58,8 @@ class FlashinhoPro(AutomagikAgent):
             config = {}
 
         # default/fallback models
-        self.pro_model = "google-gla:gemini-2.5-pro-preview-05-06"
-        self.free_model = "google-gla:gemini-2.5-flash-preview-05-20"
-
-        config.setdefault("model", self.pro_model)
-        config.setdefault("vision_model", self.pro_model)
+        self.pro_model = "google:gemini-2.5-pro"
+        self.free_model = "google:gemini-2.5-flash"
         config.setdefault("supported_media", ["image", "audio", "document"])
         config.setdefault("auto_enhance_prompts", True)
         config.setdefault("enable_multi_prompt", True)

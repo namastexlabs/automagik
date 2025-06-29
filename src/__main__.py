@@ -38,22 +38,22 @@ def create_argument_parser():
     parser.add_argument(
         "--host", 
         type=str, 
-        default=settings.AUTOMAGIK_AGENTS_API_HOST,
-        help=f"Host to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_HOST})"
+        default=settings.AUTOMAGIK_API_HOST,
+        help=f"Host to bind the server to (default: {settings.AUTOMAGIK_API_HOST})"
     )
     parser.add_argument(
         "--port", 
         type=int, 
-        default=int(settings.AUTOMAGIK_AGENTS_API_PORT),
-        help=f"Port to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_PORT})"
+        default=int(settings.AUTOMAGIK_API_PORT),
+        help=f"Port to bind the server to (default: {settings.AUTOMAGIK_API_PORT})"
     )
     return parser
 
 def get_server_config(args=None):
     """Get server configuration from args or default settings."""
     if args is None:
-        host = settings.AUTOMAGIK_AGENTS_API_HOST
-        port = int(settings.AUTOMAGIK_AGENTS_API_PORT)
+        host = settings.AUTOMAGIK_API_HOST
+        port = int(settings.AUTOMAGIK_API_PORT)
         reload_flag = None
     else:
         host = args.host
@@ -68,7 +68,7 @@ def get_server_config(args=None):
     elif os.environ.get('INVOCATION_ID'):  # Running under systemd
         should_reload = False  # Disable reload for systemd to fix signal handling
     else:
-        should_reload = settings.AUTOMAGIK_AGENTS_ENV == Environment.DEVELOPMENT
+        should_reload = settings.AUTOMAGIK_ENV == Environment.DEVELOPMENT
     
     return host, port, should_reload
 
@@ -80,27 +80,13 @@ def log_server_config(host, port, should_reload):
     logger.info(f"├── Port: {port}")
     logger.info(f"└── Auto-reload: {reload_status}")
 
-def setup_signal_forwarding():
-    """Setup signal forwarding to ensure proper shutdown."""
-    def signal_handler(signum, frame):
-        logger.info(f"📝 __main__ received signal {signum}, triggering application shutdown...")
-        
-        # Trigger immediate shutdown of critical services
-        # Note: execution_isolator has been deprecated and removed
-        
-        # Exit immediately - uvicorn will handle the rest
-        logger.info("📝 Exiting from __main__ signal handler")
-        os._exit(0)
-    
-    # Install our signal handlers
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+# Signal handling removed - let uvicorn handle signals natively
+# This prevents conflicts with uvicorn's reloader process
 
 def main():
     """Run the Automagik Agents API."""
     try:
-        # Setup signal handling early
-        setup_signal_forwarding()
+        # Let uvicorn handle signals natively for proper shutdown
         
         # Log startup message
         logger.info("Starting Automagik Agents API")
@@ -127,7 +113,9 @@ def main():
             # Add signal handlers for graceful shutdown
             access_log=False,  # Reduce log noise
             # Force uvicorn to handle signals properly
-            use_colors=False
+            use_colors=False,
+            # Add graceful shutdown timeout
+            timeout_graceful_shutdown=5
         )
     except Exception as e:
         logger.error(f"Error running application: {str(e)}")

@@ -5,12 +5,13 @@ including model settings, usage limits, and HTTP clients.
 """
 
 import logging
+import os
 from typing import Dict, Any, Optional, List
 from pydantic_ai.usage import UsageLimits
 from pydantic_ai.settings import ModelSettings
 
 from src.constants import (
-    DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS
+    DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS
 )
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ def get_model_name(config: Dict[str, Any]) -> str:
     Returns:
         Model name
     """
-    return config.get("model", DEFAULT_MODEL)
+    return config.get("model", os.environ.get("AUTOMAGIK_DEFAULT_MODEL", "gpt-4.1-mini"))
 
 async def close_http_client(http_client) -> None:
     """Close an HTTP client safely.

@@ -117,14 +117,14 @@ def get_effective_port() -> int:
     """Get the effective port from settings or environment."""
     try:
         from src.config import settings
-        return settings.AM_PORT
+        return settings.AUTOMAGIK_API_PORT
     except Exception:
         # Fallback: try to read from .env file
         env_file = get_project_root() / ".env"
         if env_file.exists():
             with open(env_file, 'r') as f:
                 for line in f:
-                    if line.startswith('AM_PORT='):
+                    if line.startswith('AUTOMAGIK_API_PORT='):
                         try:
                             return int(line.split('=')[1].strip().strip('"\''))
                         except ValueError:
@@ -293,7 +293,7 @@ def start_server(
     typer.echo(f"🚀 Starting automagik agents (mode: {mode})...")
     
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
     
     if mode == "service":
         # Service mode: use systemctl start
@@ -641,7 +641,7 @@ def dev_server(
 ):
     """Start server in development mode with auto-reload (python -m src --reload)."""
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
         
     # Get port from settings
     port = get_effective_port()
@@ -711,4 +711,4 @@ def agents_callback(
       automagik agents chat --agent simple     # Start chat session
     """
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG" 
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG" 

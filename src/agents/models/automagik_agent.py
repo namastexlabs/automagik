@@ -43,7 +43,7 @@ def get_llm_semaphore() -> asyncio.BoundedSemaphore:
     """
     global _llm_semaphore
     if _llm_semaphore is None:
-        _llm_semaphore = asyncio.BoundedSemaphore(settings.LLM_MAX_CONCURRENT_REQUESTS)
+        _llm_semaphore = asyncio.BoundedSemaphore(settings.AUTOMAGIK_LLM_MAX_CONCURRENT_REQUESTS)
     return _llm_semaphore
 
 # Define a generic type variable for dependencies
@@ -56,7 +56,9 @@ class AgentConfig:
     def __init__(self, config: Dict[str, str] = None):
         """Initialize the agent configuration."""
         self.config = config or {}
-        self.model = self.config.get("model", "openai:gpt-4.1-mini")
+        # Use environment variable for default model, fallback to gpt-4.1-mini
+        default_model = os.environ.get("AUTOMAGIK_DEFAULT_MODEL", "gpt-4.1-mini")
+        self.model = self.config.get("model", default_model)
         self.temperature = float(self.config.get("temperature", "0.7"))
         self.retries = int(self.config.get("retries", "1"))
         self.framework_type = self.config.get("framework_type", FrameworkType.default().value)
@@ -137,6 +139,10 @@ class AutomagikAgent(ABC, Generic[T]):
         
         # Initialize agent ID 
         self.db_id = validate_agent_id(self.config.get("agent_id"))
+        
+        # Model resolution: config > database > default
+        if not self.config.config.get("model"):  # If model not in config, check DB
+            self._resolve_model_from_db()
         
         # Backward compatibility: Auto-register agent if no ID provided
         if not self.db_id and self.name != self.__class__.__name__.lower():
@@ -300,6 +306,18 @@ class AutomagikAgent(ABC, Generic[T]):
         return (self._framework_initialized and 
                 self.ai_framework is not None and 
                 self.ai_framework.is_ready)
+    
+    def _resolve_model_from_db(self) -> None:
+        """Resolve model from database if not specified in config."""
+        try:
+            from src.db import get_agent_by_name
+            agent = get_agent_by_name(self.name)
+            if agent and agent.model:
+                self.config.model = agent.model
+                self.config.model_name = agent.model
+                logger.debug(f"Resolved model from DB for {self.name}: {agent.model}")
+        except Exception as e:
+            logger.debug(f"Could not resolve model from DB for {self.name}: {e}")
     
     def _detect_multimodal_request(self, user_input: Union[str, List[Any]], message_type: str = "text") -> bool:
         """Detect if the request contains multimodal content."""

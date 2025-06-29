@@ -26,48 +26,6 @@ configure_logging()
 # Get our module's logger
 logger = logging.getLogger(__name__)
 
-# Global shutdown flag for graceful shutdown handling
-_shutdown_requested = False
-
-def signal_handler(signum, frame):
-    """Handle shutdown signals gracefully."""
-    global _shutdown_requested
-    if _shutdown_requested:
-        logger.info("📝 Shutdown already in progress, ignoring duplicate signal")
-        return
-        
-    _shutdown_requested = True
-    
-    # Log with signal name for better debugging
-    signal_names = {2: "SIGINT (Ctrl+C)", 15: "SIGTERM"}
-    signal_name = signal_names.get(signum, f"Signal {signum}")
-    logger.info(f"📝 Received {signal_name}, initiating graceful shutdown...")
-    
-    # Let uvicorn handle the signal naturally for graceful shutdown
-    # Don't force exit - let the lifespan context handle cleanup
-    logger.info("📝 Allowing uvicorn to handle graceful shutdown...")
-    
-    # Set a backup timer only as last resort
-    import threading
-    def backup_exit():
-        import time
-        time.sleep(10.0)  # Give 10 seconds for normal shutdown
-        if _shutdown_requested:
-            logger.error("📝 Graceful shutdown failed, forcing exit...")
-            os._exit(1)
-    
-    # Start backup timer
-    backup_thread = threading.Thread(target=backup_exit, daemon=True)
-    backup_thread.start()
-
-def register_signal_handlers():
-    """Register signal handlers for graceful shutdown.
-    
-    This function should only be called when running as the main application,
-    not during imports or tests.
-    """
-    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
-    signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
 
 async def initialize_all_agents():
     """Initialize agents at startup.
@@ -297,14 +255,14 @@ def create_app() -> FastAPI:
         # Initialize agents after core services are ready
         await initialize_all_agents()
         
-        # Initialize MCP client manager after database and agents are ready
+        # Initialize MCP manager after database and agents are ready
         try:
-            logger.info("🚀 Initializing MCP client manager...")
-            from src.mcp.client import get_mcp_client_manager
-            await get_mcp_client_manager()
-            logger.info("✅ MCP client manager initialized successfully")
+            logger.info("🚀 Initializing MCP manager...")
+            from src.mcp.client import get_mcp_manager
+            await get_mcp_manager()
+            logger.info("✅ MCP manager initialized successfully")
         except Exception as e:
-            logger.error(f"❌ Error initializing MCP client manager: {str(e)}")
+            logger.error(f"❌ Error initializing MCP manager: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Initialize tools (discover and sync to database)
@@ -338,13 +296,13 @@ def create_app() -> FastAPI:
         
         # Cleanup shared resources
         try:
-            # Shutdown MCP client manager
-            logger.info("🛑 Shutting down MCP client manager...")
-            from src.mcp.client import shutdown_mcp_client_manager
-            await shutdown_mcp_client_manager()
-            logger.info("✅ MCP client manager shutdown successfully")
+            # Shutdown MCP manager
+            logger.info("🛑 Shutting down MCP manager...")
+            from src.mcp.client import shutdown_mcp_manager
+            await shutdown_mcp_manager()
+            logger.info("✅ MCP manager shutdown successfully")
         except Exception as e:
-            logger.error(f"❌ Error shutting down MCP client manager: {str(e)}")
+            logger.error(f"❌ Error shutting down MCP manager: {str(e)}")
             logger.error(f"Detailed error: {traceback.format_exc()}")
         
         # Claude Code workflow services removed - process tracking handled in sdk_executor
@@ -501,7 +459,7 @@ def create_app() -> FastAPI:
 
     # Bounded semaphore to limit the number of concurrent in-process requests
     _request_semaphore = asyncio.BoundedSemaphore(
-        getattr(settings, "UVICORN_LIMIT_CONCURRENCY", 10)
+        getattr(settings, "AUTOMAGIK_UVICORN_LIMIT_CONCURRENCY", 10)
     )
 
     @app.middleware("http")
@@ -521,7 +479,7 @@ def setup_routes(app: FastAPI):
     @app.get("/", tags=["System"], summary="Root Endpoint", description="Returns service information and status")
     async def root():
         # Get base URL from settings
-        base_url = f"http://{settings.AUTOMAGIK_AGENTS_API_HOST}:{settings.AUTOMAGIK_AGENTS_API_PORT}"
+        base_url = f"http://{settings.AUTOMAGIK_API_HOST}:{settings.AUTOMAGIK_API_PORT}"
         return {
             "status": "online",
             "docs": f"{base_url}/api/v1/docs",
@@ -534,7 +492,7 @@ def setup_routes(app: FastAPI):
             status="healthy",
             timestamp=datetime.now(),
             version=SERVICE_INFO["version"],
-            environment=settings.AUTOMAGIK_AGENTS_ENV
+            environment=settings.AUTOMAGIK_ENV
         )
 
     
@@ -576,21 +534,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--host", 
         type=str, 
-        default=settings.AUTOMAGIK_AGENTS_API_HOST,
-        help=f"Host to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_HOST})"
+        default=settings.AUTOMAGIK_API_HOST,
+        help=f"Host to bind the server to (default: {settings.AUTOMAGIK_API_HOST})"
     )
     parser.add_argument(
         "--port", 
         type=int, 
-        default=int(settings.AUTOMAGIK_AGENTS_API_PORT),
-        help=f"Port to bind the server to (default: {settings.AUTOMAGIK_AGENTS_API_PORT})"
+        default=int(settings.AUTOMAGIK_API_PORT),
+        help=f"Port to bind the server to (default: {settings.AUTOMAGIK_API_PORT})"
     )
     
     # Parse arguments
     args = parser.parse_args()
     
-    # Register signal handlers only when running as main application
-    register_signal_handlers()
+    # Signal handlers removed - uvicorn handles signals natively
     
     # Log the configuration
     logger.info("Starting server with configuration:")
@@ -603,5 +560,6 @@ if __name__ == "__main__":
         "src.main:app",
         host=args.host,
         port=args.port,
-        reload=args.reload
+        reload=args.reload,
+        timeout_graceful_shutdown=5
     )

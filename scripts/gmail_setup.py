@@ -21,6 +21,9 @@ from dotenv import load_dotenv
 # Carregar variáveis do .env
 load_dotenv()
 
+# OAuth configuration for Gmail setup
+OAUTH_BASE_URL = "http://localhost:8080"
+
 # Configuração de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -54,9 +57,9 @@ def show_google_project_setup_instructions():
     print("1. Vá para 'APIs e Serviços' > 'Credenciais'")
     print("2. Edite o cliente OAuth criado")
     print("3. Na seção 'URIs de redirecionamento autorizados', adicione:")
-    print("   - http://localhost:8080/")
+    print(f"   - {OAUTH_BASE_URL}/")
+    print(f"   - {OAUTH_BASE_URL.replace('localhost', '127.0.0.1')}/")
     print("   - http://localhost/")
-    print("   - http://127.0.0.1:8080/")
     print("   - http://127.0.0.1/")
     print("4. Clique em 'Salvar'")
     print("5. Faça o download do arquivo JSON atualizado")

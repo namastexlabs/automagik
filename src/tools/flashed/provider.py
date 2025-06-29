@@ -86,7 +86,7 @@ class FlashedProvider():
         # Check if we're in development mode and debug log level
         is_dev_debug = (
             settings.AM_ENV.value == "development" and
-            settings.AM_LOG_LEVEL.value == "DEBUG"
+            settings.AUTOMAGIK_LOG_LEVEL == "DEBUG"
         )
         
         logger.info(f"Flashed - API Request: {method} {url}")

@@ -17,75 +17,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-def detect_environment_file() -> str:
-    """
-    Detect which environment file to use based on the same logic as env_loader.sh
-    Returns the path to the appropriate .env file.
-    """
-    env_file = ".env"
-    prod_env_file = ".env.prod"
-    
-    # Check if development mode is forced (e.g., from make dev)
-    if os.environ.get('AUTOMAGIK_AGENTS_FORCE_DEV_ENV') == '1':
-        return env_file
-    
-    # Check if .env.prod exists
-    if not Path(prod_env_file).exists():
-        return env_file
-    
-    # Check AM_ENV in both files
-    def get_am_env_from_file(file_path: str) -> str:
-        try:
-            with open(file_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('AUTOMAGIK_AGENTS_ENV='):
-                        value = line.split('=', 1)[1].strip().strip('"').strip("'")
-                        return value.lower()
-        except (FileNotFoundError, IOError):
-            pass
-        return ""
-    
-    # Get AUTOMAGIK_AGENTS_ENV from both files
-    current_env = get_am_env_from_file(env_file)
-    prod_env = get_am_env_from_file(prod_env_file)
-    
-    # Get production port for container detection
-    def get_port_from_file(file_path: str) -> str:
-        try:
-            with open(file_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('AUTOMAGIK_AGENTS_API_PORT='):
-                        value = line.split('=', 1)[1].strip().strip('"').strip("'")
-                        return value
-        except (FileNotFoundError, IOError):
-            pass
-        return ""
-    
-    prod_port = get_port_from_file(prod_env_file) or "18881"
-    
-    # Check if production containers are running
-    try:
-        result = subprocess.run(
-            ["docker", "ps"], 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
-        if result.returncode == 0:
-            docker_output = result.stdout
-            if ("automagik-agents-prod" in docker_output or 
-                "automagik_agent" in docker_output and prod_port in docker_output):
-                return prod_env_file
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-        # Docker not available or error - continue with file-based detection
-        pass
-    
-    # Check if environment is explicitly set to production
-    if current_env == "production" or prod_env == "production":
-        return prod_env_file
-    
-    # Default to development
-    return env_file
+# REMOVED: .env.prod detection logic - using single .env file only
 
 class LogLevel(str, Enum):
     DEBUG = "DEBUG"
@@ -101,7 +33,7 @@ class Environment(str, Enum):
 
 class Settings(BaseSettings):
     # Authentication
-    AUTOMAGIK_AGENTS_API_KEY: str = Field(..., description="API key for authenticating requests")
+    AUTOMAGIK_API_KEY: str = Field(..., description="API key for authenticating requests")
 
     # OpenAI
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key for agent operations")
@@ -114,7 +46,6 @@ class Settings(BaseSettings):
 
     # BlackPearl, Omie, Google Drive, Evolution (Optional)
     BLACKPEARL_TOKEN: Optional[str] = Field(None, description="BlackPearl API token")
-    OMIE_TOKEN: Optional[str] = Field(None, description="Omie API token")
     GOOGLE_DRIVE_TOKEN: Optional[str] = Field(None, description="Google Drive API token")
     
     # Evolution
@@ -136,38 +67,34 @@ class Settings(BaseSettings):
     MEETING_BOT_URL: Optional[str] = Field(None, description="Meeting bot webhook service URL for creating bots")
 
     # Database Configuration
-    AUTOMAGIK_AGENTS_DATABASE_TYPE: str = Field("sqlite", description="Database type (sqlite or postgresql)")
+    AUTOMAGIK_DATABASE_TYPE: str = Field("sqlite", description="Database type (sqlite or postgresql)")
     
     # SQLite Configuration  
-    AUTOMAGIK_AGENTS_SQLITE_DATABASE_PATH: Optional[str] = Field(None, description="Path to SQLite database file (defaults to data/automagik.db)")
+    AUTOMAGIK_SQLITE_DATABASE_PATH: Optional[str] = Field(None, description="Path to SQLite database file (defaults to data/automagik.db)")
     
     # PostgreSQL Configuration
-    AUTOMAGIK_AGENTS_DATABASE_URL: str = Field("postgresql://postgres:postgres@localhost:5432/automagik", 
-                          description="PostgreSQL connection string")
-    AUTOMAGIK_AGENTS_POSTGRES_HOST: str = Field("localhost", description="PostgreSQL host")
-    AUTOMAGIK_AGENTS_POSTGRES_PORT: int = Field(5432, description="PostgreSQL port")
-    AUTOMAGIK_AGENTS_POSTGRES_USER: str = Field("postgres", description="PostgreSQL username")
-    AUTOMAGIK_AGENTS_POSTGRES_PASSWORD: str = Field("postgres", description="PostgreSQL password")
-    AUTOMAGIK_AGENTS_POSTGRES_DB: str = Field("automagik", description="PostgreSQL database name")
-    AUTOMAGIK_AGENTS_POSTGRES_POOL_MIN: int = Field(10, description="Minimum connections in the pool")
-    AUTOMAGIK_AGENTS_POSTGRES_POOL_MAX: int = Field(25, description="Maximum connections in the pool")
+    AUTOMAGIK_DATABASE_URL: Optional[str] = Field(None, description="Database connection string (PostgreSQL or SQLite)")
+    
+    # PostgreSQL Connection Pool Settings
+    AUTOMAGIK_POSTGRES_POOL_MIN: int = Field(10, description="Minimum connections in the pool")
+    AUTOMAGIK_POSTGRES_POOL_MAX: int = Field(25, description="Maximum connections in the pool")
 
     # Server
-    AUTOMAGIK_AGENTS_API_PORT: int = Field(8881, description="Port to run the server on")
-    AUTOMAGIK_AGENTS_API_HOST: str = Field("0.0.0.0", description="Host to bind the server to")
-    AUTOMAGIK_AGENTS_ENV: Environment = Field(Environment.DEVELOPMENT, description="Environment (development, production, testing)")
+    AUTOMAGIK_API_PORT: int = Field(8881, description="Port to run the server on")
+    AUTOMAGIK_API_HOST: str = Field("0.0.0.0", description="Host to bind the server to")
+    AUTOMAGIK_ENV: Environment = Field(Environment.DEVELOPMENT, description="Environment (development, production, testing)")
 
     # Logging
-    AUTOMAGIK_AGENTS_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
-    AUTOMAGIK_AGENTS_VERBOSE_LOGGING: bool = Field(False, description="Enable verbose logging with additional details")
-    AUTOMAGIK_AGENTS_LOG_TO_FILE: bool = Field(False, description="Enable logging to file for debugging")
-    AUTOMAGIK_AGENTS_LOG_FILE_PATH: str = Field("debug.log", description="Path to log file when file logging is enabled")
-    LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
-    LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
+    AUTOMAGIK_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
+    AUTOMAGIK_VERBOSE_LOGGING: bool = Field(False, description="Enable verbose logging with additional details")
+    AUTOMAGIK_LOG_TO_FILE: bool = Field(False, description="Enable logging to file for debugging")
+    AUTOMAGIK_LOG_FILE_PATH: str = Field("debug.log", description="Path to log file when file logging is enabled")
+    AUTOMAGIK_LOGFIRE_TOKEN: Optional[str] = Field(None, description="Logfire token for logging service")
+    AUTOMAGIK_LOGFIRE_IGNORE_NO_CONFIG: bool = Field(True, description="Suppress Logfire warning if no token")
 
     # Agent Settings
     AUTOMAGIK_TIMEZONE: str = Field(
-        default="America/Sao_Paulo", 
+        default="UTC", 
         description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York', 'America/Sao_Paulo')"
     )
     AUTOMAGIK_AGENT_NAMES: Optional[str] = Field(
@@ -175,12 +102,23 @@ class Settings(BaseSettings):
         description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple,stan')"
     )
 
-    # Supabase
-    SUPABASE_URL: Optional[str] = Field(None, description="Supabase project URL")
-    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(None, description="Supabase service role key for authentication")
+    # Claude Code Integration
+    AUTOMAGIK_CLAUDE_LOCAL_WORKSPACE: str = Field(
+        default="/tmp/claude-workspace",
+        description="Local workspace directory for Claude Code operations"
+    )
+    AUTOMAGIK_CLAUDE_LOCAL_CLEANUP: bool = Field(
+        default=True,
+        description="Whether to cleanup Claude Code workspace after operations"
+    )
 
-    # Suppress warnings from dependency conflict resolution (Poetry related)
-    PYTHONWARNINGS: Optional[str] = Field(None, description="Python warnings configuration")
+    # Logging and File Storage
+    AUTOMAGIK_LOG_DIRECTORY: str = Field(
+        default="./logs",
+        description="Directory for storing log files and workflow outputs"
+    )
+
+
 
     # Fallback settings for WhatsApp
     DEFAULT_EVOLUTION_INSTANCE: str = Field(
@@ -195,11 +133,11 @@ class Settings(BaseSettings):
 
 
     # LLM Concurrency / Retry
-    LLM_MAX_CONCURRENT_REQUESTS: int = Field(
+    AUTOMAGIK_LLM_MAX_CONCURRENT_REQUESTS: int = Field(
         default=15,
         description="Maximum number of concurrent requests to the LLM provider (OpenAI) per API instance"
     )
-    LLM_RETRY_ATTEMPTS: int = Field(
+    AUTOMAGIK_LLM_RETRY_ATTEMPTS: int = Field(
         default=3,
         description="Number of retry attempts for LLM calls on transient errors (rate limits, 5xx)"
     )
@@ -211,11 +149,11 @@ class Settings(BaseSettings):
     AIRTABLE_TEST_TABLE: Optional[str] = Field(None, description="Airtable table ID/name for integration testing")
 
     # Uvicorn request handling limits
-    UVICORN_LIMIT_CONCURRENCY: int = Field(
+    AUTOMAGIK_UVICORN_LIMIT_CONCURRENCY: int = Field(
         default=100,
         description="Maximum number of concurrent in-process requests Uvicorn should allow before back-pressure kicks in"
     )
-    UVICORN_LIMIT_MAX_REQUESTS: int = Field(
+    AUTOMAGIK_UVICORN_LIMIT_MAX_REQUESTS: int = Field(
         default=1000,
         description="Maximum number of requests to handle before the worker is recycled (helps avoid memory bloat)"
     )
@@ -226,25 +164,39 @@ class Settings(BaseSettings):
         extra="ignore"  # Allow extra fields in environment variables
     )
     
+    # Backward compatibility properties for legacy variable names
+    @property
+    def AM_LOG_LEVEL(self):
+        """Backward compatibility for AM_LOG_LEVEL -> AUTOMAGIK_LOG_LEVEL"""
+        return self.AUTOMAGIK_LOG_LEVEL
+    
+    @property
+    def AM_PORT(self):
+        """Backward compatibility for AM_PORT -> AUTOMAGIK_API_PORT"""
+        return self.AUTOMAGIK_API_PORT
+    
 
 def load_settings() -> Settings:
     """Load and validate settings from environment variables and .env file."""
-    # Detect which environment file to use
-    env_file = detect_environment_file()
+    # Use single .env file only (simplified approach)
+    env_file = ".env"
     
-    # Check if we're in debug mode (AUTOMAGIK_AGENTS_LOG_LEVEL set to DEBUG)
-    debug_mode = os.environ.get('AUTOMAGIK_AGENTS_LOG_LEVEL', '').upper() == 'DEBUG'
+    # Check if we're in debug mode
+    debug_mode = os.environ.get('AUTOMAGIK_LOG_LEVEL', '').upper() == 'DEBUG'
     
-    # Load environment variables from the detected env file
+    # Load environment variables from .env file
     try:
         load_dotenv(dotenv_path=env_file, override=True)
         print(f"📝 Environment file loaded from: {Path(env_file).absolute()}")
     except Exception as e:
         print(f"⚠️ Error loading {env_file} file: {str(e)}")
 
-    # Debug DATABASE_URL only if in debug mode
+    # Debug database configuration
     if debug_mode:
-        print(f"🔍 AUTOMAGIK_AGENTS_DATABASE_URL from environment after dotenv: {os.environ.get('AUTOMAGIK_AGENTS_DATABASE_URL', 'Not set')}")
+        db_type = os.environ.get('AUTOMAGIK_DATABASE_TYPE', 'sqlite').lower()
+        if db_type == 'postgresql':
+            db_url = os.environ.get('AUTOMAGIK_DATABASE_URL', 'Not set')
+            print(f"🔍 PostgreSQL mode - DATABASE_URL: {db_url}")
 
     # Strip comments from environment variables
     for key in os.environ:
@@ -254,26 +206,27 @@ def load_settings() -> Settings:
                 print(f"📝 Stripped comments from environment variable: {key}")
 
     try:
-        # Create settings with the detected env file
+        # Create settings with the .env file
         settings = Settings(_env_file=env_file, _env_file_encoding='utf-8')
         
-        # Debug DATABASE_URL after loading settings - only in debug mode
+        # Debug database configuration after loading settings
         if debug_mode:
-            print(f"🔍 AUTOMAGIK_AGENTS_DATABASE_URL after loading settings: {settings.AUTOMAGIK_AGENTS_DATABASE_URL}")
+            if settings.AUTOMAGIK_DATABASE_TYPE.lower() == 'postgresql':
+                print(f"✅ PostgreSQL configured - URL: {settings.AUTOMAGIK_DATABASE_URL}")
+            else:
+                sqlite_path = settings.AUTOMAGIK_SQLITE_DATABASE_PATH or './data/automagik.db'
+                print(f"✅ SQLite configured - Path: {sqlite_path}")
         
         # Final check - if there's a mismatch, use the environment value
-        env_db_url = os.environ.get('AUTOMAGIK_AGENTS_DATABASE_URL')
-        if env_db_url and env_db_url != settings.AUTOMAGIK_AGENTS_DATABASE_URL:
+        env_db_url = os.environ.get('AUTOMAGIK_DATABASE_URL')
+        if env_db_url and env_db_url != settings.AUTOMAGIK_DATABASE_URL:
             if debug_mode:
-                print("⚠️ Overriding settings.AUTOMAGIK_AGENTS_DATABASE_URL with environment value")
+                print("⚠️ Overriding settings.AUTOMAGIK_DATABASE_URL with environment value")
             # This is a bit hacky but necessary to fix mismatches
-            settings.AUTOMAGIK_AGENTS_DATABASE_URL = env_db_url
+            settings.AUTOMAGIK_DATABASE_URL = env_db_url
             if debug_mode:
-                print(f"📝 Final AUTOMAGIK_AGENTS_DATABASE_URL: {settings.AUTOMAGIK_AGENTS_DATABASE_URL}")
+                print(f"📝 Final AUTOMAGIK_DATABASE_URL: {settings.AUTOMAGIK_DATABASE_URL}")
                 
-        # We no longer print the detailed configuration here
-        # This is now handled by the CLI's debug flag handler in src/cli/__init__.py
-        
         return settings
     except Exception as e:
         print("❌ Error loading configuration:")
