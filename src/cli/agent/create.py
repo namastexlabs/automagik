@@ -16,7 +16,7 @@ def get_available_categories() -> List[str]:
     try:
         agents_dir = Path("src/agents")
         if not agents_dir.exists() or not agents_dir.is_dir():
-            if settings.AM_LOG_LEVEL == "DEBUG":
+            if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
                 typer.echo(f"Agents directory not found: {agents_dir}")
             return []
         
@@ -24,12 +24,12 @@ def get_available_categories() -> List[str]:
         categories = [d.name for d in agents_dir.iterdir() 
                      if d.is_dir() and d.name not in ["models", "__pycache__"]]
         
-        if settings.AM_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             typer.echo(f"Found agent categories: {categories}")
         
         return categories
     except Exception as e:
-        if settings.AM_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             typer.echo(f"Error getting available categories: {str(e)}")
         return []
 
@@ -38,7 +38,7 @@ def get_available_templates(category: str) -> List[str]:
     try:
         category_dir = Path(f"src/agents/{category}")
         if not category_dir.exists() or not category_dir.is_dir():
-            if settings.AM_LOG_LEVEL == "DEBUG":
+            if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
                 typer.echo(f"Category directory not found: {category_dir}")
             return []
         
@@ -46,12 +46,12 @@ def get_available_templates(category: str) -> List[str]:
         templates = [d.name for d in category_dir.iterdir() 
                     if d.is_dir() and d.name != "__pycache__"]
         
-        if settings.AM_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             typer.echo(f"Found templates for category '{category}': {templates}")
         
         return templates
     except Exception as e:
-        if settings.AM_LOG_LEVEL == "DEBUG":
+        if settings.AUTOMAGIK_LOG_LEVEL == "DEBUG":
             typer.echo(f"Error getting available templates for category '{category}': {str(e)}")
         return []
 
@@ -67,7 +67,7 @@ def create_callback(
     """
     # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
     if debug:
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
 
 @create_app.command("agent")
 def create_agent(

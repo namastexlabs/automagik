@@ -2,86 +2,80 @@
 """Database tests for MCP tables and repository - NAM-15"""
 
 from src.db.repository.mcp import (
-    list_mcp_servers, get_mcp_server_by_name, create_mcp_server, 
-    update_mcp_server, delete_mcp_server
+    list_mcp_configs, get_mcp_config_by_name, create_mcp_config, 
+    update_mcp_config_by_name, delete_mcp_config_by_name
 )
-from src.db.models import MCPServerDB
+from src.db.models import MCPConfig, MCPConfigCreate
 
 def test_database_tables():
     """Test that MCP database tables exist."""
     # Use SQLite-compatible table existence check
-    # For SQLite: SELECT name FROM sqlite_master WHERE type='table' AND name='table_name'
-    # For PostgreSQL: SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'table_name')
+    # New architecture uses single mcp_configs table (NMSTX-253)
     
-    # Check mcp_servers table exists using database-agnostic method
+    # Check mcp_configs table exists using database-agnostic method
     from src.db.connection import table_exists
-    mcp_servers_exists = table_exists('mcp_servers')
+    mcp_configs_exists = table_exists('mcp_configs')
     
-    # Check agent_mcp_servers table exists using database-agnostic method
-    agent_mcp_servers_exists = table_exists('agent_mcp_servers')
-    
-    print(f"✅ MCP Tables exist - mcp_servers: {mcp_servers_exists}, agent_mcp_servers: {agent_mcp_servers_exists}")
+    print(f"✅ MCP Table exists - mcp_configs: {mcp_configs_exists}")
             
-    assert mcp_servers_exists and agent_mcp_servers_exists, "MCP tables are missing"
+    assert mcp_configs_exists, "MCP configs table is missing"
     
     # Check table structure using database-agnostic method
     from src.db.connection import get_table_columns
-    columns = get_table_columns('mcp_servers')
-    expected_columns = ['id', 'name', 'server_type', 'description', 'command', 'env', 'http_url', 
-                      'auto_start', 'max_retries', 'timeout_seconds', 'tags', 'priority', 'status', 
-                      'enabled', 'started_at', 'last_error', 'error_count', 'connection_attempts', 
-                      'last_ping', 'tools_discovered', 'resources_discovered', 'created_at', 
-                      'updated_at', 'last_started', 'last_stopped']
+    columns = get_table_columns('mcp_configs')
+    expected_columns = ['id', 'name', 'config', 'created_at', 'updated_at']
     
     missing_columns = [col for col in expected_columns if col not in columns]
-    assert not missing_columns, f"Missing columns in mcp_servers: {missing_columns}"
+    assert not missing_columns, f"Missing columns in mcp_configs: {missing_columns}"
     
     print("✅ MCP table structure verified")
 
 def test_repository_functions():
     """Test MCP repository CRUD operations."""
-    # Test list servers (should work even if empty)
-    servers = list_mcp_servers()
-    print(f"✅ list_mcp_servers() works - found {len(servers)} servers")
+    # Test list configs (should work even if empty)
+    configs = list_mcp_configs()
+    print(f"✅ list_mcp_configs() works - found {len(configs)} configs")
     
-    # Test creating a test server
-    test_server = MCPServerDB(
+    # Test creating a test config
+    test_config = MCPConfigCreate(
         name="test_db_server",
-        server_type="stdio",
-        description="Test server for database verification",
-        command=["echo", "test"],
-        env={},
-        auto_start=False,
-        max_retries=3,
-        timeout_seconds=30,
-        tags=["test"],
-        priority=0
+        config={
+            "server_type": "stdio",
+            "description": "Test server for database verification",
+            "command": ["echo", "test"],
+            "env": {},
+            "auto_start": False,
+            "max_retries": 3,
+            "timeout": 30000,
+            "agents": ["test"],
+            "enabled": True
+        }
     )
     
-    # Try to create server
-    server_id = create_mcp_server(test_server)
-    assert server_id is not None, "create_mcp_server() failed"
-    print(f"✅ create_mcp_server() works - created server with ID {server_id}")
+    # Try to create config
+    config_id = create_mcp_config(test_config)
+    assert config_id is not None, "create_mcp_config() failed"
+    print(f"✅ create_mcp_config() works - created config with ID {config_id}")
     
     try:
         # Test get by name
-        retrieved_server = get_mcp_server_by_name("test_db_server")
-        assert retrieved_server is not None, "get_mcp_server_by_name() returned None"
-        assert retrieved_server.name == "test_db_server", "get_mcp_server_by_name() returned wrong server"
-        print("✅ get_mcp_server_by_name() works")
+        retrieved_config = get_mcp_config_by_name("test_db_server")
+        assert retrieved_config is not None, "get_mcp_config_by_name() returned None"
+        assert retrieved_config.name == "test_db_server", "get_mcp_config_by_name() returned wrong config"
+        print("✅ get_mcp_config_by_name() works")
         
         # Test update
-        test_server.id = server_id
-        test_server.description = "Updated test server"
-        update_success = update_mcp_server(test_server)
-        assert update_success, "update_mcp_server() failed"
-        print("✅ update_mcp_server() works")
+        updated_config = test_config.model_copy()
+        updated_config.config["description"] = "Updated test server"
+        update_success = update_mcp_config_by_name("test_db_server", updated_config)
+        assert update_success, "update_mcp_config_by_name() failed"
+        print("✅ update_mcp_config_by_name() works")
             
     finally:
-        # Clean up - delete test server
-        delete_success = delete_mcp_server(server_id)
-        assert delete_success, "delete_mcp_server() failed"
-        print("✅ delete_mcp_server() works")
+        # Clean up - delete test config
+        delete_success = delete_mcp_config_by_name("test_db_server")
+        assert delete_success, "delete_mcp_config_by_name() failed"
+        print("✅ delete_mcp_config_by_name() works")
 
 def test_existing_functionality():
     """Test that existing functionality still works with MCP integration."""

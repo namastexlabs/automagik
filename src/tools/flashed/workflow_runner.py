@@ -100,7 +100,7 @@ async def _execute_flashinho_thinker_internal(
         logger.info("Attempting to run flashinho_thinker via internal API")
         
         # Get API configuration
-        api_port = os.getenv("AM_PORT", "8000")
+        api_port = os.getenv("AUTOMAGIK_API_PORT", "8000")
         api_key = os.getenv("API_KEY", "")
         base_url = f"http://localhost:{api_port}"
         

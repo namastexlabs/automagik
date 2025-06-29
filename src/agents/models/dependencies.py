@@ -9,9 +9,7 @@ import logging
 from datetime import datetime
 
 # Import constants
-from src.constants import (
-    DEFAULT_MODEL
-)
+import os
 
 # Import httpx for typed HTTP client if available
 try:
@@ -259,7 +257,7 @@ class AutomagikAgentsDependencies(BaseDependencies):
     http_client: Optional[Any] = None  # Type as Any for compatibility
     
     # Model configuration
-    model_name: str = DEFAULT_MODEL
+    model_name: str = os.environ.get("AUTOMAGIK_DEFAULT_MODEL", "gpt-4.1-mini")
     model_settings: Dict[str, Any] = field(default_factory=dict)
     usage_limits: Optional[Any] = None  # Type as Any for compatibility
     
@@ -277,7 +275,7 @@ class AutomagikAgentsDependencies(BaseDependencies):
         super().__init__(**{k: v for k, v in kwargs.items() if k in ['user_id', 'session_id', 'api_keys', 'db_connection']})
         
         # Set our specific fields
-        self.model_name = model_name or DEFAULT_MODEL
+        self.model_name = model_name or os.environ.get("AUTOMAGIK_DEFAULT_MODEL", "gpt-4.1-mini")
         self.model_settings = model_settings or {}
         
         # Initialize private fields

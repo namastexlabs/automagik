@@ -5,7 +5,7 @@ Centralizing these values makes it easier to maintain and update the codebase.
 """
 
 # Default model settings
-DEFAULT_MODEL = "openai:gpt-4.1-mini"  # Default model for all agents
+# DEFAULT_MODEL is now handled by AUTOMAGIK_DEFAULT_MODEL env var
 DEFAULT_TEMPERATURE = 0.1  # Default temperature setting
 DEFAULT_MAX_TOKENS = 4000  # Default max tokens for responses
 DEFAULT_RETRIES = 3  # Default number of retries for API calls

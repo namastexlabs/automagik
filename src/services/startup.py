@@ -16,8 +16,18 @@ async def initialize_tools() -> None:
         
         discovery_service = get_tool_discovery_service()
         
-        # Discover all available tools
-        discovered = await discovery_service.discover_all_tools(force_refresh=True)
+        # Discover all available tools with timeout
+        try:
+            discovered = await asyncio.wait_for(
+                discovery_service.discover_all_tools(force_refresh=True), 
+                timeout=60.0  # 60 second timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning("⚠️ Tool discovery timed out, continuing with cached tools")
+            discovered = {"code_tools": [], "mcp_tools": []}
+        except KeyboardInterrupt:
+            logger.info("⚠️ Tool discovery interrupted, continuing with minimal setup")
+            discovered = {"code_tools": [], "mcp_tools": []}
         
         # Sync tools to database
         sync_stats = await discovery_service.sync_tools_to_database()
@@ -37,6 +47,7 @@ async def initialize_tools() -> None:
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize tools: {e}")
+        logger.info("📝 Continuing startup without full tool discovery")
         # Don't raise exception - let the app start even if tool discovery fails
         
 
@@ -129,10 +140,10 @@ async def initialize_mcp_servers() -> None:
         logger.info("🔌 Initializing MCP servers...")
         
         # Import here to avoid circular imports
-        from src.mcp.client import get_mcp_client_manager
+        from src.mcp.client import get_mcp_manager
         from src.db.repository.mcp import list_mcp_configs
         
-        mcp_manager = await get_mcp_client_manager()
+        mcp_manager = await get_mcp_manager()
         if not mcp_manager:
             logger.warning("⚠️  MCP client manager not available")
             return
@@ -176,12 +187,5 @@ async def startup_initialization() -> None:
     logger.info("✅ Platform initialization complete!")
 
 
-def run_startup_tasks() -> None:
-    """Run startup tasks synchronously (for use in lifespan context)."""
-    try:
-        # Run async initialization
-        asyncio.create_task(startup_initialization())
-        logger.info("🔄 Startup tasks queued for execution")
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to queue startup tasks: {e}")
+# REMOVED: run_startup_tasks() function that was causing asyncio.create_task() context boundary violations
+# The startup_initialization() function is called directly from main.py with proper await

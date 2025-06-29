@@ -14,6 +14,7 @@ import shlex
 import re
 import os
 import fnmatch
+import shutil
 from typing import List, Dict, Any
 from urllib.parse import urlparse
 import logging
@@ -58,10 +59,9 @@ def _build_allowed_commands():
     nodejs_paths = _get_nodejs_paths()
     
     commands = {
-        # Python package runner (uvx for MCP servers)
+        # Python package runner (uvx for MCP servers) - dynamically detected
         "uvx": {
-            "path": "/usr/local/bin/uvx",
-            "fallback_paths": ["/usr/bin/uvx", "/home/*/.local/bin/uvx", "/root/.local/bin/uvx", "/root/workspace/am-agents-labs/.venv/bin/uvx"],
+            "path": _detect_uvx_path(),
             "allowed_args": [
                 "mcp-server-*", "@modelcontextprotocol/server-*",
                 "--python", "--with", "--from",  # UV arguments
@@ -97,6 +97,29 @@ def _build_allowed_commands():
         }
     
     return commands
+
+def _detect_uvx_path():
+    """Dynamically detect uvx executable location"""
+    # Try PATH resolution first
+    uvx_path = shutil.which("uvx")
+    if uvx_path:
+        logger.debug(f"Found uvx via PATH: {uvx_path}")
+        return uvx_path
+    
+    # Static fallbacks as last resort
+    fallbacks = [
+        "/usr/local/bin/uvx",
+        "/usr/bin/uvx",
+        os.path.expanduser("~/.local/bin/uvx")
+    ]
+    
+    for path in fallbacks:
+        if os.path.exists(path) and os.access(path, os.X_OK):
+            logger.debug(f"Found uvx at fallback: {path}")
+            return path
+    
+    logger.warning("uvx not found - MCP servers using uvx will fail")
+    return "/usr/local/bin/uvx"  # Keep original default for safety
 
 # Build allowed commands dynamically
 ALLOWED_COMMANDS = _build_allowed_commands()

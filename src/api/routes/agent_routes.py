@@ -22,6 +22,7 @@ from src.db.repository import user as user_repo
 from src.db.repository import agent as agent_repo
 from src.db.repository import prompt as prompt_repo
 from src.db.models import Agent, Prompt, PromptCreate
+from src.config import settings
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -281,7 +282,7 @@ def parse_log_file(log_file_path: str) -> Dict[str, Any]:
 
 def find_claude_code_log(run_id: str) -> Optional[str]:
     """Find Claude Code log file by run_id."""
-    log_dir = "/home/namastex/workspace/am-agents-labs/logs"
+    log_dir = settings.AUTOMAGIK_LOG_DIRECTORY
     if not os.path.exists(log_dir):
         return None
     
@@ -295,7 +296,7 @@ def find_claude_code_log(run_id: str) -> Optional[str]:
 
 def find_claude_stream_file(run_id: str) -> Optional[str]:
     """Find Claude Code stream JSONL file by run_id."""
-    log_dir = "/home/namastex/workspace/am-agents-labs/logs"
+    log_dir = settings.AUTOMAGIK_LOG_DIRECTORY
     if not os.path.exists(log_dir):
         return None
     

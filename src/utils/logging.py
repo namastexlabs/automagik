@@ -48,10 +48,10 @@ def get_log_level(level: LogLevel) -> int:
 def configure_logging():
     """Configure logging with pretty formatting and proper log level."""
     # Get log level from settings
-    log_level = get_log_level(settings.AUTOMAGIK_AGENTS_LOG_LEVEL)
-    verbose_logging = settings.AUTOMAGIK_AGENTS_VERBOSE_LOGGING
-    log_to_file = getattr(settings, 'AUTOMAGIK_AGENTS_LOG_TO_FILE', False)
-    log_file_path = getattr(settings, 'AUTOMAGIK_AGENTS_LOG_FILE_PATH', 'debug.log')
+    log_level = get_log_level(settings.AUTOMAGIK_LOG_LEVEL)
+    verbose_logging = settings.AUTOMAGIK_VERBOSE_LOGGING
+    log_to_file = getattr(settings, 'AUTOMAGIK_LOG_TO_FILE', False)
+    log_file_path = getattr(settings, 'AUTOMAGIK_LOG_FILE_PATH', 'debug.log')
     
     # Configure root logger
     root_logger = logging.getLogger()
@@ -84,16 +84,16 @@ def configure_logging():
     configure_module_log_levels(verbose_logging)
 
     # Configure Logfire if token is present
-    if settings.LOGFIRE_TOKEN:
+    if settings.AUTOMAGIK_LOGFIRE_TOKEN:
         try:
             import logfire
-            os.environ["LOGFIRE_TOKEN"] = settings.LOGFIRE_TOKEN
+            os.environ["LOGFIRE_TOKEN"] = settings.AUTOMAGIK_LOGFIRE_TOKEN
             logfire.configure(scrubbing=False)  # Logfire reads token from environment
             logfire.instrument_pydantic_ai()
         except Exception as e:
             print(f"Warning: Failed to configure Logfire: {str(e)}")
-    elif not settings.LOGFIRE_IGNORE_NO_CONFIG:
-        print("Warning: LOGFIRE_TOKEN is not set. Tracing will be disabled.")
+    elif not settings.AUTOMAGIK_LOGFIRE_IGNORE_NO_CONFIG:
+        print("Warning: AUTOMAGIK_LOGFIRE_TOKEN is not set. Tracing will be disabled.")
 
 def configure_module_log_levels(verbose_logging: bool):
     """Configure log levels for specific modules based on verbosity setting."""

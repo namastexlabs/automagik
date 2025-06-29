@@ -312,8 +312,8 @@ class ToolRegistry:
         """
         try:
             # Try to get MCP client manager - if it's not ready, this will fail gracefully
-            from src.mcp.client import get_mcp_client_manager
-            mcp_client_manager = await get_mcp_client_manager()
+            from src.mcp.client import get_mcp_manager
+            mcp_client_manager = await get_mcp_manager()
             
             # Get MCP tools for this agent (returns List[PydanticTool])
             mcp_tools = mcp_client_manager.get_tools_for_agent(agent_name)

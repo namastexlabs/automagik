@@ -1,67 +1,68 @@
 services:
-  automagik-agents-dev:
+  automagik:
     build: 
       context: ..
       dockerfile: docker/Dockerfile
       args:
         BUILDKIT_INLINE_CACHE: 1
-        AUTOMAGIK_AGENTS_API_PORT: ${AUTOMAGIK_AGENTS_API_PORT:-8881}
-    image: automagik-agents:latest
-    container_name: automagik-agents-dev
+        AUTOMAGIK_API_PORT: ${AUTOMAGIK_API_PORT:-8881}
+    image: automagik:latest
+    container_name: automagik
     env_file:
       - ../.env
     ports:
-      - "${AUTOMAGIK_AGENTS_API_PORT:-8881}:${AUTOMAGIK_AGENTS_API_PORT:-8881}"
+      - "${AUTOMAGIK_API_PORT:-8881}:${AUTOMAGIK_API_PORT:-8881}"
     environment:
       # Keep all your existing environment variables
-      - AM_API_KEY=${AM_API_KEY}
-      - AUTOMAGIK_AGENTS_API_HOST=0.0.0.0
-      - AUTOMAGIK_AGENTS_API_PORT=${AUTOMAGIK_AGENTS_API_PORT:-8881}
-      - AUTOMAGIK_AGENTS_ENV=${AUTOMAGIK_AGENTS_ENV:-development}
-      - AUTOMAGIK_AGENTS_LOG_LEVEL=${AUTOMAGIK_AGENTS_LOG_LEVEL:-INFO}
+      - AUTOMAGIK_API_KEY=${AUTOMAGIK_API_KEY}
+      - AUTOMAGIK_API_HOST=0.0.0.0
+      - AUTOMAGIK_API_PORT=${AUTOMAGIK_API_PORT:-8881}
+      - AUTOMAGIK_ENV=${AUTOMAGIK_ENV:-production}
+      - AUTOMAGIK_LOG_LEVEL=${AUTOMAGIK_LOG_LEVEL:-INFO}
       - AUTOMAGIK_TIMEZONE=${AUTOMAGIK_TIMEZONE:-UTC}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-openai:gpt-4.1-mini}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       
-      # Override ONLY the host-related variables for Docker
-      - AUTOMAGIK_AGENTS_POSTGRES_HOST=automagik-agents-db
-      - AUTOMAGIK_AGENTS_POSTGRES_PORT=5432
-      - AUTOMAGIK_AGENTS_POSTGRES_USER=${AUTOMAGIK_AGENTS_POSTGRES_USER:-postgres}
-      - AUTOMAGIK_AGENTS_POSTGRES_PASSWORD=${AUTOMAGIK_AGENTS_POSTGRES_PASSWORD:-postgres}
-      - AUTOMAGIK_AGENTS_POSTGRES_DB=${AUTOMAGIK_AGENTS_POSTGRES_DB:-automagik}
-      - AUTOMAGIK_AGENTS_DATABASE_URL=postgresql://${AUTOMAGIK_AGENTS_POSTGRES_USER:-postgres}:${AUTOMAGIK_AGENTS_POSTGRES_PASSWORD:-postgres}@automagik-agents-db:5432/${AUTOMAGIK_AGENTS_POSTGRES_DB:-automagik}
+      # Override database URL for Docker - automatically extract credentials from DATABASE_URL if needed
+      - AUTOMAGIK_DATABASE_URL=postgresql://automagik_user:automagik_pass@automagik-db:5432/automagik_db
+      - AUTOMAGIK_POSTGRES_POOL_MIN=${AUTOMAGIK_POSTGRES_POOL_MIN:-10}
+      - AUTOMAGIK_POSTGRES_POOL_MAX=${AUTOMAGIK_POSTGRES_POOL_MAX:-25}
     depends_on:
-      automagik-agents-db:
+      automagik-db:
         condition: service_healthy
     restart: unless-stopped
     volumes:
       - ../src:/app/src
+      # Mount Claude CLI credentials from host (create if missing)
+      - ~/.claude:/root/.claude:ro
+      # Mount MCP configuration from project root
+      - ../.mcp.json:/app/.mcp.json:ro
     networks:
       - automagik_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${AUTOMAGIK_AGENTS_API_PORT:-8881}/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${AUTOMAGIK_API_PORT:-8881}/health"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
 
-  automagik-agents-db:
+  automagik-db:
     image: postgres:15
-    container_name: automagik-agents-db
+    container_name: automagik-db
     environment:
-      POSTGRES_DB: ${AUTOMAGIK_AGENTS_POSTGRES_DB:-automagik}
-      POSTGRES_USER: ${AUTOMAGIK_AGENTS_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${AUTOMAGIK_AGENTS_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: automagik_db
+      POSTGRES_USER: automagik_user
+      POSTGRES_PASSWORD: automagik_pass
     ports:
-      - "${AUTOMAGIK_AGENTS_POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - automagik_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - automagik_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AUTOMAGIK_AGENTS_POSTGRES_USER:-postgres} -d ${AUTOMAGIK_AGENTS_POSTGRES_DB:-automagik}"]}]
+      test: ["CMD-SHELL", "pg_isready -U automagik_user -d automagik_db"]
       interval: 10s
       timeout: 5s
       retries: 5

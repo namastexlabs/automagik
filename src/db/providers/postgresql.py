@@ -181,11 +181,11 @@ class PostgreSQLProvider(DatabaseProvider):
     
     def _get_db_config(self) -> Dict[str, Any]:
         """Get database configuration from connection string or individual settings."""
-        # Try to use AUTOMAGIK_AGENTS_DATABASE_URL first
-        if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
+        # Try to use AUTOMAGIK_DATABASE_URL first
+        if settings.AUTOMAGIK_DATABASE_URL:
             try:
-                env_db_url = os.environ.get("AUTOMAGIK_AGENTS_DATABASE_URL")
-                actual_db_url = env_db_url if env_db_url else settings.AUTOMAGIK_AGENTS_DATABASE_URL
+                env_db_url = os.environ.get("AUTOMAGIK_DATABASE_URL")
+                actual_db_url = env_db_url if env_db_url else settings.AUTOMAGIK_DATABASE_URL
                 parsed = urllib.parse.urlparse(actual_db_url)
 
                 dbname = parsed.path.lstrip("/")
@@ -200,32 +200,26 @@ class PostgreSQLProvider(DatabaseProvider):
                 }
             except Exception as e:
                 logger.warning(
-                    f"Failed to parse AUTOMAGIK_AGENTS_DATABASE_URL: {str(e)}. Falling back to individual settings."
+                    f"Failed to parse AUTOMAGIK_DATABASE_URL: {str(e)}. Falling back to individual settings."
                 )
 
-        # Fallback to individual settings
-        return {
-            "host": settings.AUTOMAGIK_AGENTS_POSTGRES_HOST,
-            "port": settings.AUTOMAGIK_AGENTS_POSTGRES_PORT,
-            "user": settings.AUTOMAGIK_AGENTS_POSTGRES_USER,
-            "password": settings.AUTOMAGIK_AGENTS_POSTGRES_PASSWORD,
-            "database": settings.AUTOMAGIK_AGENTS_POSTGRES_DB,
-            "client_encoding": "UTF8",
-        }
+        # Fallback to individual settings - these variables have been removed
+        # If DATABASE_URL parsing fails, there's no fallback anymore
+        raise ValueError("Database URL parsing failed and individual PostgreSQL settings are no longer supported")
     
     def _try_connect_with_auto_create(self) -> ThreadedConnectionPool:
         """Try to connect to database, auto-creating if needed. Fail fast on permission errors."""
         config = self._get_db_config()
         database_name = config.get('database', 'automagik_agents')
-        min_conn = getattr(settings, "AUTOMAGIK_AGENTS_POSTGRES_POOL_MIN", 1)
-        max_conn = getattr(settings, "AUTOMAGIK_AGENTS_POSTGRES_POOL_MAX", 10)
+        min_conn = getattr(settings, "AUTOMAGIK_POSTGRES_POOL_MIN", 1)
+        max_conn = getattr(settings, "AUTOMAGIK_POSTGRES_POOL_MAX", 10)
 
         logger.info(f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{database_name} with UTF8 encoding...")
 
         # First attempt: try to connect directly
         try:
-            if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
-                dsn = settings.AUTOMAGIK_AGENTS_DATABASE_URL
+            if settings.AUTOMAGIK_DATABASE_URL:
+                dsn = settings.AUTOMAGIK_DATABASE_URL
                 if "client_encoding" not in dsn.lower():
                     if "?" in dsn:
                         dsn += "&client_encoding=UTF8"
@@ -236,18 +230,7 @@ class PostgreSQLProvider(DatabaseProvider):
                 logger.info("✅ Successfully connected to PostgreSQL using DATABASE_URL with UTF8 encoding")
                 return pool
             else:
-                pool = ThreadedConnectionPool(
-                    minconn=min_conn,
-                    maxconn=max_conn,
-                    host=config["host"],
-                    port=config["port"],
-                    user=config["user"],
-                    password=config["password"],
-                    database=config["database"],
-                    client_encoding="UTF8",
-                )
-                logger.info("✅ Successfully connected to PostgreSQL database with UTF8 encoding")
-                return pool
+                raise ValueError("AUTOMAGIK_DATABASE_URL is required for PostgreSQL connections")
 
         except psycopg2.OperationalError as e:
             error_msg = str(e).lower()
@@ -267,8 +250,8 @@ class PostgreSQLProvider(DatabaseProvider):
                 # Database was created, now try to connect again
                 logger.info(f"🔄 Attempting connection to newly created database '{database_name}'...")
                 try:
-                    if settings.AUTOMAGIK_AGENTS_DATABASE_URL:
-                        dsn = settings.AUTOMAGIK_AGENTS_DATABASE_URL
+                    if settings.AUTOMAGIK_DATABASE_URL:
+                        dsn = settings.AUTOMAGIK_DATABASE_URL
                         if "client_encoding" not in dsn.lower():
                             if "?" in dsn:
                                 dsn += "&client_encoding=UTF8"
@@ -279,18 +262,7 @@ class PostgreSQLProvider(DatabaseProvider):
                         logger.info("✅ Successfully connected to auto-created PostgreSQL database")
                         return pool
                     else:
-                        pool = ThreadedConnectionPool(
-                            minconn=min_conn,
-                            maxconn=max_conn,
-                            host=config["host"],
-                            port=config["port"],
-                            user=config["user"],
-                            password=config["password"],
-                            database=config["database"],
-                            client_encoding="UTF8",
-                        )
-                        logger.info("✅ Successfully connected to auto-created PostgreSQL database")
-                        return pool
+                        raise ValueError("AUTOMAGIK_DATABASE_URL is required for PostgreSQL connections")
                 
                 except psycopg2.Error as retry_error:
                     logger.error(f"❌ Failed to connect even after creating database: {retry_error}")

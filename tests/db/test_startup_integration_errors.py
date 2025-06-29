@@ -416,7 +416,7 @@ class TestPostMigrationSmokeTests:
             from src.agents.models.agent_factory import AgentFactory
             
             # Test that at least one agent type can be created
-            agent_types = ["simple", "stan", "genie"]
+            agent_types = ["simple", "stan"]
             
             success_count = 0
             for agent_type in agent_types:

@@ -8,6 +8,7 @@ from .mcp_routes import router as mcp_router
 from .tool_routes import tool_router
 from .claude_code_routes import claude_code_router
 from .analytics_routes import router as analytics_router
+from .model_routes import router as model_router
 from src.api.memory_routes import memory_router
 
 # Create main router
@@ -25,3 +26,4 @@ main_router.include_router(message_router)
 main_router.include_router(mcp_router)
 main_router.include_router(tool_router)
 main_router.include_router(analytics_router)
+main_router.include_router(model_router, tags=["models"])

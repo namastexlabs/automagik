@@ -65,17 +65,13 @@ class FlashinhoV2(AutomagikAgent):
     - Cultural authenticity for Brazilian high school students
     """
     
-    # Model constants
-    PRO_MODEL = "google-gla:gemini-2.5-pro-preview-05-06"
-    FREE_MODEL = "google-gla:gemini-2.5-flash-preview-05-20"
+    # Model constants - these are dynamically selected based on user subscription
+    PRO_MODEL = "google:gemini-2.5-pro"  # For Pro users
+    FREE_MODEL = "google:gemini-2.5-flash"  # For Free users
     
     def __init__(self, config: Dict[str, str]) -> None:
         """Initialize Flashinho V2 with multimodal and Gemini configuration."""
         config = config or {}
-        
-        # Set default configuration
-        config.setdefault("model", self.FREE_MODEL)
-        config.setdefault("vision_model", self.FREE_MODEL)
         config.setdefault("supported_media", ["image", "audio", "document"])
         config.setdefault("auto_enhance_prompts", True)
         config.setdefault("enable_multi_prompt", True)

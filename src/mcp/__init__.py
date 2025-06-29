@@ -12,10 +12,7 @@ and standards compliance.
 from .client import (
     MCPManager, 
     get_mcp_manager, 
-    shutdown_mcp_manager,
-    MCPClientManager,  # Compatibility alias
-    get_mcp_client_manager,  # Compatibility function
-    shutdown_mcp_client_manager  # Compatibility function
+    shutdown_mcp_manager
 )
 
 # Common models and exceptions
@@ -27,11 +24,6 @@ __all__ = [
     "MCPManager",
     "get_mcp_manager", 
     "shutdown_mcp_manager",
-    
-    # Compatibility aliases for existing code
-    "MCPClientManager",
-    "get_mcp_client_manager",
-    "shutdown_mcp_client_manager",
     
     # Models and exceptions
     "MCPServerConfig", 

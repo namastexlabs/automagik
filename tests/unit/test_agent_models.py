@@ -6,6 +6,7 @@ including success cases, error handling, and edge cases.
 
 import pytest
 import uuid
+import os
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict
 
@@ -41,19 +42,20 @@ class TestAgentConfig:
         """Test AgentConfig initialization with different inputs."""
         # Test with empty config
         config = AgentConfig()
-        assert config.model == "openai:gpt-4.1-mini"
+        # Default should now come from env var or fallback to gpt-4.1-mini
+        assert config.model == os.environ.get("AUTOMAGIK_DEFAULT_MODEL", "gpt-4.1-mini")
         assert config.temperature == 0.7
         assert config.retries == 1
         
         # Test with custom config
         custom_config = {
-            "model": "claude-3",
+            "model": "anthropic:claude-3-5-sonnet",
             "temperature": "0.5",
             "retries": "3",
             "custom_field": "value"
         }
         config = AgentConfig(custom_config)
-        assert config.model == "claude-3"
+        assert config.model == "anthropic:claude-3-5-sonnet"
         assert config.temperature == 0.5
         assert config.retries == 3
         assert config.get("custom_field") == "value"

@@ -55,10 +55,6 @@ class StanAgent(AutomagikAgent):
         # Configure dependencies using the convenience method
         self.dependencies = self.create_default_dependencies()
         
-        # Override model to use gemini-flash like flashinho_v2
-        if hasattr(self.dependencies, 'model_name'):
-            self.dependencies.model_name = "google-gla:gemini-2.5-flash-preview-05-20"
-        
         # Set agent_id if available
         if self.db_id:
             self.dependencies.set_agent_id(self.db_id)
@@ -572,8 +568,8 @@ class StanAgent(AutomagikAgent):
             from datetime import datetime
             
             # Only create test users in development/test environments
-            if settings.AUTOMAGIK_AGENTS_ENV.value not in ["development", "test"]:
-                logger.warning(f"🔍 Not creating test user {user_id} in {settings.AUTOMAGIK_AGENTS_ENV.value} environment")
+            if settings.AUTOMAGIK_ENV.value not in ["development", "test"]:
+                logger.warning(f"🔍 Not creating test user {user_id} in {settings.AUTOMAGIK_ENV.value} environment")
                 return False
             
             # Check if this is a known test UUID
@@ -659,7 +655,7 @@ class StanAgent(AutomagikAgent):
                 return new_user_id
         
         # 4. Fallback to test user creation for development (only for known test UUIDs)
-        if initial_user_id and settings.AUTOMAGIK_AGENTS_ENV.value in ["development", "test"]:
+        if initial_user_id and settings.AUTOMAGIK_ENV.value in ["development", "test"]:
             logger.info(f"🔍 🧪 Attempting test user creation for development: {initial_user_id}")
             success = await self._ensure_test_user_exists(initial_user_id)
             if success:

@@ -20,7 +20,7 @@ from src.agents.models.automagik_agent import get_llm_semaphore
 import asyncio
 from pydantic_ai import Agent
 from src.config import settings
-from src.mcp.client import refresh_mcp_client_manager
+from src.mcp.client import get_mcp_manager
 from src.agents.models.response import AgentResponse
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,6 @@ class SofiaAgent(BaseSimpleAgent):
     """
     
     # Configuration - replaces extensive boilerplate
-    default_model = "openai:gpt-4.1"
     enable_retry_logic = True  # Sofia needs reliability features
     enable_mcp_servers = True  # Sofia uses MCP for advanced integrations
     
@@ -59,8 +58,8 @@ class SofiaAgent(BaseSimpleAgent):
     async def _load_mcp_servers(self):
         """Load MCP servers for backward compatibility with tests."""
         try:
-            # Call refresh_mcp_client_manager as tests expect  
-            client_manager = refresh_mcp_client_manager()
+            # Get MCP manager for tests
+            client_manager = asyncio.run(get_mcp_manager())
             # Handle if it's a coroutine (real implementation) vs mock (sync)
             if hasattr(client_manager, '__await__'):
                 client_manager = await client_manager
@@ -109,7 +108,7 @@ class SofiaAgent(BaseSimpleAgent):
         """
         # Get retry settings and semaphore for reliability features (tests expect these)
         # Use module-level settings import for test patching
-        retries = getattr(settings, 'LLM_RETRY_ATTEMPTS', 3)
+        retries = getattr(settings, 'AUTOMAGIK_LLM_RETRY_ATTEMPTS', 3)
         semaphore = get_llm_semaphore()
         
         last_exception = None

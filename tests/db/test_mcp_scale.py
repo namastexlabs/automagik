@@ -43,10 +43,9 @@ class TestMCPProductionScale:
         server_types = ["stdio", "http"]
         agent_combinations = [
             ["simple"],
-            ["genie"],
-            ["simple", "genie"],
-            ["simple", "genie", "discord"],
-            ["simple", "genie", "discord", "sofia"],
+            ["simple"],
+            ["simple", "discord"],
+            ["simple", "discord", "sofia"],
             ["*"]  # Wildcard assignment
         ]
         
@@ -193,7 +192,7 @@ class TestMCPProductionScale:
                     
                 elif operation_type == "filter":
                     # Simulate agent filtering
-                    agent_name = random.choice(["simple", "genie", "discord", "sofia"])
+                    agent_name = random.choice(["simple", "discord", "sofia"])
                     [c for c in configs_subset 
                              if agent_name in c.get("agents", []) or "*" in c.get("agents", [])]
                     time.sleep(0.001)
@@ -272,7 +271,7 @@ class TestMCPProductionScale:
             }
         
         # Test filtering for different agents
-        agents_to_test = ["simple", "genie", "discord", "sofia", "non_existent"]
+        agents_to_test = ["simple", "discord", "sofia", "non_existent"]
         results = []
         
         for agent_name in agents_to_test:
@@ -412,7 +411,6 @@ class TestMCPProductionScale:
             endpoints = [
                 "/api/v1/mcp/configs",
                 "/api/v1/mcp/agents/simple/configs", 
-                "/api/v1/mcp/agents/genie/configs",
                 "/api/v1/mcp/agents/discord/configs"
             ]
             
