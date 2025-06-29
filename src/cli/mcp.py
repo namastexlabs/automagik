@@ -21,15 +21,15 @@ def import_config(
     """Import MCP server configurations from a .mcp.json file."""
     async def _import():
         try:
-            from src.mcp.client import get_mcp_client_manager
+            from src.mcp.client import get_mcp_manager
             
             console.print(f"[yellow]Importing MCP configurations from {file}...[/yellow]")
             
-            # Get the MCP client manager
-            mcp_client_manager = await get_mcp_client_manager()
+            # Get the MCP manager
+            mcp_manager = await get_mcp_manager()
             
             # Import configurations
-            results = await mcp_client_manager.import_from_mcp_json(file)
+            results = await mcp_manager.import_from_mcp_json(file)
             
             # Display results
             table = Table(title="MCP Import Results")
@@ -60,12 +60,12 @@ def list_servers():
     """List all MCP servers."""
     async def _list():
         try:
-            from src.mcp.client import get_mcp_client_manager
+            from src.mcp.client import get_mcp_manager
             
-            # Get the MCP client manager
-            mcp_client_manager = await get_mcp_client_manager()
+            # Get the MCP manager
+            mcp_manager = await get_mcp_manager()
             
-            servers = mcp_client_manager.list_servers()
+            servers = mcp_manager.list_servers()
             
             if not servers:
                 console.print("[yellow]No MCP servers configured[/yellow]")
@@ -110,12 +110,12 @@ def status(
     """Get detailed status of an MCP server."""
     async def _status():
         try:
-            from src.mcp.client import get_mcp_client_manager
+            from src.mcp.client import get_mcp_manager
             
-            # Get the MCP client manager
-            mcp_client_manager = await get_mcp_client_manager()
+            # Get the MCP manager
+            mcp_manager = await get_mcp_manager()
             
-            status = await mcp_client_manager.get_server_status(server_name)
+            status = await mcp_manager.get_server_status(server_name)
             
             console.print(f"\n[bold]MCP Server: {server_name}[/bold]")
             console.print(f"Status: {status.status.value}")
@@ -151,14 +151,14 @@ def start(
     """Start an MCP server."""
     async def _start():
         try:
-            from src.mcp.client import get_mcp_client_manager
+            from src.mcp.client import get_mcp_manager
             
             console.print(f"[yellow]Starting MCP server '{server_name}'...[/yellow]")
             
-            # Get the MCP client manager
-            mcp_client_manager = await get_mcp_client_manager()
+            # Get the MCP manager
+            mcp_manager = await get_mcp_manager()
             
-            await mcp_client_manager.start_server(server_name)
+            await mcp_manager.start_server(server_name)
             
             console.print(f"[green]✅ MCP server '{server_name}' started successfully[/green]")
             
@@ -175,14 +175,14 @@ def stop(
     """Stop an MCP server."""
     async def _stop():
         try:
-            from src.mcp.client import get_mcp_client_manager
+            from src.mcp.client import get_mcp_manager
             
             console.print(f"[yellow]Stopping MCP server '{server_name}'...[/yellow]")
             
-            # Get the MCP client manager
-            mcp_client_manager = await get_mcp_client_manager()
+            # Get the MCP manager
+            mcp_manager = await get_mcp_manager()
             
-            await mcp_client_manager.stop_server(server_name)
+            await mcp_manager.stop_server(server_name)
             
             console.print(f"[green]✅ MCP server '{server_name}' stopped successfully[/green]")
             

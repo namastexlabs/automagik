@@ -25,14 +25,14 @@ class TestMCPRoutes:
     
     @pytest.fixture
     def mock_mcp_client_manager(self):
-        """Mock MCP client manager."""
-        with patch('src.api.routes.mcp_routes.get_mcp_client_manager') as mock:
+        """Mock MCP manager."""
+        with patch('src.api.routes.mcp_routes.get_mcp_manager') as mock:
             manager = MagicMock()
             # Set up async methods as AsyncMock
             manager.add_server = AsyncMock()
             manager._save_server_config = AsyncMock()
             manager.get_health = AsyncMock()
-            # Make get_mcp_client_manager return the manager when awaited
+            # Make get_mcp_manager return the manager when awaited
             mock.return_value = manager
             yield manager
     

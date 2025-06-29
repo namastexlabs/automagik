@@ -269,17 +269,21 @@ install-prod: ## 🏭 Install production Docker stack
 # ===========================================
 # 🎛️ Service Management
 # ===========================================
-.PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service restart-service uninstall-service status
-dev: ## 🛠️ Start development mode
-	$(call print_status,Starting development mode...)
+.PHONY: dev docker prod stop stop-prod stop-all start-service stop-service restart-service uninstall-service status
+dev: ## 🛠️ Start development mode with hot reload
+	$(call print_status,Starting development mode with hot reload...)
 	@$(call check_env_file)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_error,Virtual environment not found); \
 		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
 		exit 1; \
 	fi
-	@$(call print_status,Starting with uv run...)
-	@AM_FORCE_DEV_ENV=1 uv run python -m src
+	@echo -e "$(FONT_YELLOW)💡 Press Ctrl+C to stop the server$(FONT_RESET)"
+	@echo -e "$(FONT_PURPLE)🧹 Nuclear cleanup of any zombie processes...$(FONT_RESET)"
+	@ps aux | grep -E "(python.*src|uv run|uvicorn|multiprocessing)" | grep -v grep | awk '{print $$2}' | xargs -r kill -9 2>/dev/null || true
+	@sleep 1
+	@echo -e "$(FONT_PURPLE)🚀 Starting server...$(FONT_RESET)"
+	@uv run python -m src --reload
 
 docker: ## 🐳 Start Docker development stack
 	@$(call print_status,Starting Docker development stack...)
@@ -323,15 +327,6 @@ stop-all: ## 🛑 Stop all services (preserves containers)
 	@pkill -f "python.*src" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
-run: ## 🚀 Run development server with hot reload
-	$(call print_status,Starting development server with hot reload...)
-	@$(call check_env_file)
-	@echo -e "$(FONT_YELLOW)💡 Press Ctrl+C to stop the server$(FONT_RESET)"
-	@echo -e "$(FONT_PURPLE)🧹 Nuclear cleanup of any zombie processes...$(FONT_RESET)"
-	@ps aux | grep -E "(python.*src|uv run|uvicorn|multiprocessing)" | grep -v grep | awk '{print $$2}' | xargs -r kill -9 2>/dev/null || true
-	@sleep 1
-	@echo -e "$(FONT_PURPLE)🚀 Starting server...$(FONT_RESET)"
-	@AM_FORCE_DEV_ENV=1 uv run python -m src --reload
 
 start-service: ## 🔧 Start local PM2 service
 	@$(MAKE) start-local
@@ -755,6 +750,6 @@ finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 # 🧹 Phony Targets
 # ===========================================
 .PHONY: help print-test install install-service install-deps install-docker install-prod
-.PHONY: dev docker prod stop stop-prod stop-all run start-service stop-service status logs health
+.PHONY: dev docker prod stop stop-prod stop-all start-service stop-service status logs health
 .PHONY: update clean test build publish-test publish check-dist check-release clean-build
 .PHONY: bump-patch bump-minor bump-major bump-dev publish-dev finalize-version

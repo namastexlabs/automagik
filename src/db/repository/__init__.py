@@ -80,22 +80,18 @@ from src.db.repository.prompt import (
     delete_prompt
 )
 
-# MCP repository functions
+# MCP repository functions (simplified architecture - NMSTX-253)
 from src.db.repository.mcp import (
-    get_mcp_server,
-    get_mcp_server_by_name,
-    list_mcp_servers,
-    create_mcp_server,
-    update_mcp_server,
-    update_mcp_server_status,
-    update_mcp_server_discovery,
-    increment_connection_attempts,
-    delete_mcp_server,
-    assign_agent_to_server,
-    remove_agent_from_server,
-    get_agent_servers,
-    get_server_agents,
-    get_agent_server_assignments
+    get_mcp_config,
+    get_mcp_config_by_name,
+    list_mcp_configs,
+    create_mcp_config,
+    update_mcp_config,
+    update_mcp_config_by_name,
+    delete_mcp_config,
+    delete_mcp_config_by_name,
+    get_agent_mcp_configs,
+    get_configs_by_server_type
 )
 
 # Workflow Process repository functions
@@ -191,21 +187,17 @@ __all__ = [
     "get_prompts_by_agent_id",
     "delete_prompt",
     
-    # MCP functions
-    "get_mcp_server",
-    "get_mcp_server_by_name",
-    "list_mcp_servers",
-    "create_mcp_server",
-    "update_mcp_server",
-    "update_mcp_server_status",
-    "update_mcp_server_discovery",
-    "increment_connection_attempts",
-    "delete_mcp_server",
-    "assign_agent_to_server",
-    "remove_agent_from_server",
-    "get_agent_servers",
-    "get_server_agents",
-    "get_agent_server_assignments",
+    # MCP functions (simplified architecture - NMSTX-253)
+    "get_mcp_config",
+    "get_mcp_config_by_name",
+    "list_mcp_configs",
+    "create_mcp_config",
+    "update_mcp_config",
+    "update_mcp_config_by_name",
+    "delete_mcp_config",
+    "delete_mcp_config_by_name",
+    "get_agent_mcp_configs",
+    "get_configs_by_server_type",
     
     # Workflow Process functions
     "get_workflow_process",

@@ -19,7 +19,7 @@ except ImportError:
             self.prompt = prompt
 
 from src.db.models import ToolDB
-from src.mcp import get_mcp_client_manager
+from src.mcp import get_mcp_manager
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +103,8 @@ async def _execute_mcp_tool(
         if not tool.mcp_server_name or not tool.mcp_tool_name:
             raise ValueError(f"Missing mcp_server_name or mcp_tool_name for MCP tool {tool.name}")
         
-        # Get MCP client manager
-        mcp_manager = get_mcp_client_manager()
+        # Get MCP manager
+        mcp_manager = await get_mcp_manager()
         if not mcp_manager:
             raise RuntimeError("MCP client manager not available")
         

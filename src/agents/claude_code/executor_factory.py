@@ -33,7 +33,7 @@ class ExecutorFactory:
             from .cli_environment import CLIEnvironmentManager
             
             workspace_base = kwargs.get('workspace_base', 
-                                      os.environ.get("AUTOMAGIK_AGENTS_CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"))
+                                      os.environ.get("AUTOMAGIK_CLAUDE_LOCAL_WORKSPACE", "/tmp/claude-workspace"))
             
             environment_manager = CLIEnvironmentManager(
                 base_path=Path(workspace_base)

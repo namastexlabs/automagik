@@ -25,14 +25,14 @@ def get_database_provider() -> DatabaseProvider:
 def create_database_provider() -> DatabaseProvider:
     """Create a new database provider based on configuration."""
     # Get database type from environment variable
-    db_type = os.environ.get("AUTOMAGIK_AGENTS_DATABASE_TYPE", "sqlite").lower()
+    db_type = os.environ.get("AUTOMAGIK_DATABASE_TYPE", "sqlite").lower()
     
-    # Only auto-detect PostgreSQL if AUTOMAGIK_AGENTS_DATABASE_TYPE is not explicitly set
-    if "AUTOMAGIK_AGENTS_DATABASE_TYPE" not in os.environ:
+    # Only auto-detect PostgreSQL if AUTOMAGIK_DATABASE_TYPE is not explicitly set
+    if "AUTOMAGIK_DATABASE_TYPE" not in os.environ:
         # Check for PostgreSQL connection string to auto-detect
-        database_url = os.environ.get("AUTOMAGIK_AGENTS_DATABASE_URL", "")
+        database_url = os.environ.get("AUTOMAGIK_DATABASE_URL", "")
         if database_url.startswith("postgresql://") or database_url.startswith("postgres://"):
-            logger.info("PostgreSQL AUTOMAGIK_AGENTS_DATABASE_URL detected, auto-setting AUTOMAGIK_AGENTS_DATABASE_TYPE to postgresql")
+            logger.info("PostgreSQL AUTOMAGIK_DATABASE_URL detected, auto-setting AUTOMAGIK_DATABASE_TYPE to postgresql")
             db_type = "postgresql"
     
     # Create appropriate provider
@@ -41,7 +41,7 @@ def create_database_provider() -> DatabaseProvider:
         return PostgreSQLProvider()
     elif db_type == "sqlite":
         # Get SQLite database path
-        sqlite_path = os.environ.get("AUTOMAGIK_AGENTS_SQLITE_DATABASE_PATH")
+        sqlite_path = os.environ.get("AUTOMAGIK_SQLITE_DATABASE_PATH")
         logger.info(f"Using SQLite database provider (path: {sqlite_path or 'default'})")
         return SQLiteProvider(database_path=sqlite_path)
     else:

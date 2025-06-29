@@ -359,7 +359,7 @@ class ExecutionStrategies:
                         should_cleanup = not request.persistent
                     else:
                         # Fallback to environment variable
-                        should_cleanup = os.environ.get("AUTOMAGIK_AGENTS_CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
+                        should_cleanup = os.environ.get("AUTOMAGIK_CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
                     
                     if should_cleanup:
                         try:
@@ -528,7 +528,7 @@ class ExecutionStrategies:
                     should_cleanup = not request.persistent
                 else:
                     # Fallback to environment variable
-                    should_cleanup = os.environ.get("AUTOMAGIK_AGENTS_CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
+                    should_cleanup = os.environ.get("AUTOMAGIK_CLAUDE_LOCAL_CLEANUP", "true").lower() == "true"
                 
                 if should_cleanup:
                     try:

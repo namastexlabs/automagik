@@ -1,34 +1,12 @@
 {
   "mcpServers": {
-    "agent-memory": {
-      "type": "sse",
-      "url": "http://127.0.0.1:8000/sse",
-      "agent_names": ["simple", "genie"],
-      "tools": {
-        "include": ["*"]
-      }
-    },
-    "linear": {
+    "sqlite": {
       "command": "npx",
       "args": [
-        "-y",
-        "@tacticlaunch/mcp-linear"
+          "-y",
+          "mcp-sqlite",
+          "data/automagik.db"
       ],
-      "env": {
-        "LINEAR_API_TOKEN": "${LINEAR_API_TOKEN}"
-      },
-      "agent_names": ["simple", "genie"],
-      "tools": {
-        "include": ["*"]
-      }
-    },
-    "automagik": {
-      "command": "uvx",
-      "args": ["automagik-tools@latest", "tool", "automagik"],
-      "env": {
-        "AUTOMAGIK_API_KEY": "${AUTOMAGIK_API_KEY}",
-        "AUTOMAGIK_BASE_URL": "http://localhost:28881"
-      },
       "agent_names": ["simple"],
       "tools": {
         "include": ["*"]
@@ -39,6 +17,79 @@
       "args": [
         "mcp-server-git"
       ],
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "agent-brain": {
+      "type": "sse",
+      "url": "http://192.168.112.149:8765/mcp/openmemory/sse/genie-ui",
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "ask-repo-agent": {
+      "type": "sse",
+      "url": "https://mcp.deepwiki.com/sse",
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "search-repo-docs": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+
+    "workflow-orchestration": {
+      "command": "uvx",
+      "args": ["automagik-tools@latest", "tool", "automagik-workflows"],
+      "env": {
+        "AUTOMAGIK_WORKFLOWS_API_KEY": "your-api-key",
+        "AUTOMAGIK_WORKFLOWS_BASE_URL": "http://localhost:8881",
+        "AUTOMAGIK_WORKFLOWS_TIMEOUT": "7200",
+        "AUTOMAGIK_WORKFLOWS_POLLING_INTERVAL": "8",
+        "AUTOMAGIK_WORKFLOWS_MAX_RETRIES": "3"
+      },
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "wait": {
+      "command": "uvx",
+      "args": [
+        "automagik-tools@latest",
+        "tool",
+        "wait"
+      ],
+      "env": {
+        "WAIT_MAX_DURATION": "3600",
+        "WAIT_DEFAULT_PROGRESS_INTERVAL": "1.0"
+      },
+      "agent_names": ["simple"],
+      "tools": {
+        "include": ["*"]
+      }
+    },
+    "genie": {
+      "command": "uvx",
+      "args": [
+        "automagik-tools@latest",
+        "tool",
+        "genie"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "your-openai-api-key",
+        "AUTOMAGIK_API_KEY": "your-api-key",
+        "AUTOMAGIK_BASE_URL": "http://localhost:8881"
+      },
       "agent_names": ["simple"],
       "tools": {
         "include": ["*"]

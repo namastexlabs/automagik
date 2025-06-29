@@ -30,8 +30,6 @@ class SimpleAgent(AutomagikAgent):
             config = {}
         
         # Enhanced multimodal configuration
-        config.setdefault("vision_model", "openai:gpt-4o")  # Vision model for images/docs
-        config.setdefault("audio_model", "gemini:gemini-2.0-flash-exp")  # Best for audio
         config.setdefault("supported_media", ["image", "audio", "video", "document"])
         config.setdefault("auto_enhance_prompts", True)
         config.setdefault("enable_agno_for_multimodal", True)  # Use Agno for multimodal content
