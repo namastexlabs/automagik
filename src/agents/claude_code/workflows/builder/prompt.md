@@ -318,7 +318,9 @@ Patterns applied:
 
 Implements Linear task: {task_id}
 
-Co-authored-by: GENIE <automagik@namastex.ai>"""
+🧞 Automagik Genie
+
+Co-Authored-By: Automagik Genie <genie@namastex.ai>"""
 )
 ```
 
