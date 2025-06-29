@@ -12,16 +12,6 @@
         "include": ["*"]
       }
     },
-    "git": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-git"
-      ],
-      "agent_names": ["simple"],
-      "tools": {
-        "include": ["*"]
-      }
-    },
     "agent-brain": {
       "type": "sse",
       "url": "http://192.168.112.149:8765/mcp/openmemory/sse/genie-ui",
