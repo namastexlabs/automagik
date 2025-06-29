@@ -136,6 +136,15 @@ git_commit(
 )
 ```
 
+**CRITICAL Git Co-Author Rule:**
+When making git commits, ALWAYS co-author with Genie, not Claude:
+```
+🧞 Automagik Genie
+
+Co-Authored-By: Automagik Genie <genie@namastex.ai>
+```
+NEVER use `Co-Authored-By: Claude <noreply@anthropic.com>`. Genie owns this repository!
+
 ## Architecture Patterns
 
 ### Agent Development (MANDATORY)
