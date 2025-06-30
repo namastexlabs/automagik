@@ -373,14 +373,25 @@ def create_memories_bulk(memories: List[Memory]) -> int:
             user_id = values[0][5]  # user_id from first value tuple
             agent_id = values[0][6]  # agent_id from first value tuple
             
-            existing_query = """
-                SELECT name, id FROM memories 
-                WHERE user_id = %s AND agent_id = %s
-            """
-            existing_result = execute_query(existing_query, (user_id, agent_id))
+            logger.debug(f"Checking existing memories for user_id={user_id}, agent_id={agent_id}")
+            
+            if user_id is not None:
+                existing_query = """
+                    SELECT name, id FROM memories 
+                    WHERE user_id = %s AND agent_id = %s
+                """
+                existing_result = execute_query(existing_query, (user_id, agent_id))
+            else:
+                # Handle case where user_id is None (agent global memories)
+                existing_query = """
+                    SELECT name, id FROM memories 
+                    WHERE user_id IS NULL AND agent_id = %s
+                """
+                existing_result = execute_query(existing_query, (agent_id,))
             
             if existing_result:
                 existing_memories = {row['name']: row['id'] for row in existing_result}
+                logger.debug(f"Found {len(existing_memories)} existing memories")
         
         # Process each memory: update if exists, insert if new
         for memory_data in values:
