@@ -8,10 +8,10 @@ services:
         AUTOMAGIK_API_PORT: ${AUTOMAGIK_API_PORT:-8881}
     image: automagik:latest
     container_name: automagik
+    restart: unless-stopped
+    network_mode: host
     env_file:
       - ../.env
-    ports:
-      - "${AUTOMAGIK_API_PORT:-8881}:${AUTOMAGIK_API_PORT:-8881}"
     environment:
       # Keep all your existing environment variables
       - AUTOMAGIK_API_KEY=${AUTOMAGIK_API_KEY}
@@ -25,21 +25,18 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       
       # Override database URL for Docker - automatically extract credentials from DATABASE_URL if needed
-      - AUTOMAGIK_DATABASE_URL=postgresql://automagik_user:automagik_pass@automagik-db:5432/automagik_db
+      - AUTOMAGIK_DATABASE_URL=postgresql://automagik_user:automagik_pass@localhost:${POSTGRES_PORT:-5432}/automagik_db
       - AUTOMAGIK_POSTGRES_POOL_MIN=${AUTOMAGIK_POSTGRES_POOL_MIN:-10}
       - AUTOMAGIK_POSTGRES_POOL_MAX=${AUTOMAGIK_POSTGRES_POOL_MAX:-25}
     depends_on:
       automagik-db:
         condition: service_healthy
-    restart: unless-stopped
     volumes:
       - ../src:/app/src
       # Mount Claude CLI credentials from host (create if missing)
       - ~/.claude:/root/.claude:ro
       # Mount MCP configuration from project root
       - ../.mcp.json:/app/.mcp.json:ro
-    networks:
-      - automagik_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${AUTOMAGIK_API_PORT:-8881}/health"]
       interval: 30s
@@ -50,19 +47,18 @@ services:
   automagik-db:
     image: postgres:15
     container_name: automagik-db
+    restart: unless-stopped
+    network_mode: host
     environment:
       POSTGRES_DB: automagik_db
       POSTGRES_USER: automagik_user
       POSTGRES_PASSWORD: automagik_pass
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      PGDATA: /var/lib/postgresql/data/pgdata
+      PGPORT: ${POSTGRES_PORT:-5432}
     volumes:
       - automagik_postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks:
-      - automagik_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automagik_user -d automagik_db"]
+      test: ["CMD-SHELL", "pg_isready -U automagik_user -d automagik_db -p ${POSTGRES_PORT:-5432}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,7 +66,3 @@ services:
 
 volumes:
   automagik_postgres_data:
-
-networks:
-  automagik_network:
-    driver: bridge
