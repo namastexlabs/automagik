@@ -276,14 +276,19 @@ class FlashinhoProUserMatcher:
             if user_data_response and isinstance(user_data_response, dict) and "user" in user_data_response:
                 user = user_data_response["user"]
                 if isinstance(user, dict):
+                    # Safely extract metadata
+                    metadata = user.get("metadata", {})
+                    if not isinstance(metadata, dict):
+                        metadata = {}
+                    
                     variables.update({
                         "name": user.get("name", "Estudante"),
                         "createdAt": self._format_date(user.get("createdAt")),
                         # These would come from user metadata if available
-                        "levelOfEducation": user.get("metadata", {}).get("levelOfEducation", "Ensino Médio") if isinstance(user.get("metadata"), dict) else "Ensino Médio",
-                        "preferredSubject": user.get("metadata", {}).get("preferredSubject", "") if isinstance(user.get("metadata"), dict) else "",
+                        "levelOfEducation": metadata.get("levelOfEducation", "Ensino Médio"),
+                        "preferredSubject": metadata.get("preferredSubject", ""),
                     })
-                    logger.debug(f"Extracted user profile data: name={user.get('name', 'Estudante')}, education={user.get('metadata', {}).get('levelOfEducation', 'Ensino Médio')}")
+                    logger.debug(f"Extracted user profile data: name={user.get('name', 'Estudante')}, education={metadata.get('levelOfEducation', 'Ensino Médio')}")
             else:
                 logger.debug("No valid user data response received")
             
@@ -332,10 +337,19 @@ class FlashinhoProUserMatcher:
                         if card_plays and isinstance(card_plays, list):
                             last_play = card_plays[-1]  # Get most recent play
                             if isinstance(last_play, dict):
+                                # Safely extract subcategory and card data
+                                subcategory = last_round.get("subcategory", {})
+                                if not isinstance(subcategory, dict):
+                                    subcategory = {}
+                                    
+                                card = last_play.get("card", {})
+                                if not isinstance(card, dict):
+                                    card = {}
+                                
                                 variables.update({
                                     "last_cardPlay_result": "certo" if last_play.get("result") else "errado",
-                                    "last_cardPlay_category": last_round.get("subcategory", {}).get("name", "") if isinstance(last_round.get("subcategory"), dict) else "",
-                                    "last_cardPlay_topic": last_play.get("card", {}).get("topic", "") if isinstance(last_play.get("card"), dict) else "",
+                                    "last_cardPlay_category": subcategory.get("name", ""),
+                                    "last_cardPlay_topic": card.get("topic", ""),
                                     "last_cardPlay_date": self._format_date(last_round.get("completedAt")),
                                 })
                         

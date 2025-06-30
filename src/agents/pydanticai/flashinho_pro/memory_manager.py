@@ -63,9 +63,10 @@ class FlashinhoProMemoryManager:
                 logger.debug("Using default variables")
             
             # Create/update memories in bulk for better performance
+            logger.info(f"About to bulk update {len(variables)} memories for user_id: {self.user_id}, agent_id: {self.agent_id}")
             success_count = await self._bulk_update_memories(variables)
             
-            logger.debug(f"Updated {success_count}/{len(variables)} memories")
+            logger.info(f"Updated {success_count}/{len(variables)} memories")
             return success_count > 0
             
         except Exception as e:
@@ -131,6 +132,8 @@ class FlashinhoProMemoryManager:
         try:
             # Prepare list of Memory objects
             memories = []
+            logger.debug(f"Creating memory objects for {len(variables)} variables")
+            
             for var_name, var_value in variables.items():
                 memory = Memory(
                     id=uuid.uuid4(),
@@ -150,14 +153,16 @@ class FlashinhoProMemoryManager:
                     updated_at=datetime.now()
                 )
                 memories.append(memory)
+                logger.debug(f"Created memory object: name={var_name}, user_id={self.user_id}, agent_id={self.agent_id}")
             
             # Use bulk creation for better performance
+            logger.info(f"Calling create_memories_bulk with {len(memories)} memories")
             success_count = create_memories_bulk(memories)
             
             if success_count > 0:
-                logger.debug(f"Bulk updated {success_count} memories successfully")
+                logger.info(f"Bulk updated {success_count} memories successfully")
             else:
-                logger.warning("Bulk memory update returned 0 successes")
+                logger.warning(f"Bulk memory update returned 0 successes. user_id={self.user_id}, agent_id={self.agent_id}")
                 
             return success_count
             
