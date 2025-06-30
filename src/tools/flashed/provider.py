@@ -21,17 +21,23 @@ class FlashedProvider():
         
         Args:
         """
-        self.base_url = (settings.FLASHED_API_URL).rstrip('/')
-        if not self.base_url:
-            raise ValueError("API URL is not set. Provide a base URL or set FLASHED_URL environment variable.")
-            
-        self.session: Optional[aiohttp.ClientSession] = None
-
+        # Store credentials without immediate validation
+        self.base_url = settings.FLASHED_API_URL.rstrip('/') if settings.FLASHED_API_URL else None
         self.auth_token = settings.FLASHED_API_KEY
-        if not self.auth_token:
-            raise ValueError("Auth token not set. Provide a token or set the FLASHED_API_KEY environment variable.")
-
-        # Mock data for testing - in production this would be a real API client
+        self.session: Optional[aiohttp.ClientSession] = None
+        
+        # Warn about missing credentials but don't raise errors
+        if not self.base_url or not self.auth_token:
+            missing = []
+            if not self.base_url:
+                missing.append("FLASHED_API_URL")
+            if not self.auth_token:
+                missing.append("FLASHED_API_KEY")
+            logger.warning(f"Flashed credentials not provided: missing {', '.join(missing)}. Set environment variables or agent will have limited functionality.")
+        else:
+            logger.info("Initialized FlashedProvider with credentials")
+        
+        # Initialize mock data for testing - in production this would be a real API client
         self._mock_pro_users = [
             "123e4567-e89b-12d3-a456-426614174000",  # Test Pro user
             "550e8400-e29b-41d4-a716-446655440000",  # Another test Pro user
@@ -43,6 +49,16 @@ class FlashedProvider():
             "1bl1UKm0JC": "c0743fb7-7765-4cf0-9ab6-90a196a1559a",  # Pro user code
             "FreeMock99": "aaaaaaaa-bbbb-cccc-dddd-ffffffffffff",  # Free user mock code (valid UUID format, 10 chars)
         }
+
+    def _validate_credentials(self) -> None:
+        """Validate that API URL and key are available."""
+        if not self.base_url or not self.auth_token:
+            missing = []
+            if not self.base_url:
+                missing.append("FLASHED_API_URL")
+            if not self.auth_token:
+                missing.append("FLASHED_API_KEY")
+            raise ValueError(f"Flashed API requires credentials. Missing: {', '.join(missing)}. Set environment variables: {', '.join(missing)}.")
         
     async def __aenter__(self):
         """Create aiohttp session when entering context."""
@@ -85,7 +101,7 @@ class FlashedProvider():
         
         # Check if we're in development mode and debug log level
         is_dev_debug = (
-            settings.AM_ENV.value == "development" and
+            settings.AUTOMAGIK_ENV.value == "development" and
             settings.AUTOMAGIK_LOG_LEVEL == "DEBUG"
         )
         
