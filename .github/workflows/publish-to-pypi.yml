@@ -32,7 +32,7 @@ jobs:
         version: "latest"
     
     - name: Install dependencies
-      run:  < /dev/null | 
+      run: |
         uv venv
         source .venv/bin/activate
         uv pip install build twine
