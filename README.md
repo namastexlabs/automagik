@@ -92,13 +92,13 @@ export AUTOMAGIK_EXTERNAL_AGENTS_DIR=/path/to/my/agents
 automagik-server
 ```
 
-**Default External Agents Directory:** `~/.automagik/agents`
+**Default External Agents Directory:** `./automagik_agents`
 
-This is where you can place custom agents that will be automatically discovered when the server starts. Each agent should be in its own subdirectory with an `agent.py` file containing a `create_agent` factory function.
+This is where you can place custom agents that will be automatically discovered when the server starts. The directory is created relative to your current working directory. Each agent should be in its own subdirectory with an `agent.py` file containing a `create_agent` factory function.
 
 **Creating an External Agent:**
 ```python
-# ~/.automagik/agents/my_custom_agent/agent.py
+# ./automagik_agents/my_custom_agent/agent.py
 from typing import Dict, Optional
 from automagik.agents.models.automagik_agent import AutomagikAgent
 from automagik.agents.models.dependencies import AutomagikAgentsDependencies
