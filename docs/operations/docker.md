@@ -34,8 +34,8 @@ docker ps --filter "name=automagik-agents-" --format "table {{.Names}}\t{{.State
 ### No Hardcoded Ports
 All ports are now configurable via environment variables:
 
-- **Development**: `AM_PORT` (default: 8881)
-- **Production**: `AM_PORT` (default: 18881) 
+- **Development**: `AUTOMAGIK_API_PORT` (default: 8881)
+- **Production**: `AUTOMAGIK_API_PORT` (default: 18881) 
 - **Database**: `POSTGRES_PORT` (default: 5432)
 
 ### Environment Files
@@ -50,9 +50,9 @@ services:
   automagik-agents-dev:
     container_name: automagik-agents-dev
     ports:
-      - "${AM_PORT:-8881}:${AM_PORT:-8881}"
+      - "${AUTOMAGIK_API_PORT:-8881}:${AUTOMAGIK_API_PORT:-8881}"
     environment:
-      - AM_PORT=${AM_PORT:-8881}
+      - AUTOMAGIK_API_PORT=${AUTOMAGIK_API_PORT:-8881}
 ```
 
 ### docker-compose-prod.yml (Production)
@@ -61,9 +61,9 @@ services:
   automagik-agents-prod:
     container_name: automagik-agents-prod
     ports:
-      - "${AM_PORT:-18881}:${AM_PORT:-18881}"
+      - "${AUTOMAGIK_API_PORT:-18881}:${AUTOMAGIK_API_PORT:-18881}"
     environment:
-      - AM_PORT=${AM_PORT:-18881}
+      - AUTOMAGIK_API_PORT=${AUTOMAGIK_API_PORT:-18881}
 ```
 
 ## Benefits

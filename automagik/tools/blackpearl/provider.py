@@ -69,7 +69,7 @@ class BlackpearlProvider:
         
         # Check if we're in development mode and debug log level
         is_dev_debug = (
-            settings.AM_ENV.value == "development" and
+            settings.ENVIRONMENT.value == "development" and
             settings.AUTOMAGIK_LOG_LEVEL == "DEBUG"
         )
         
@@ -798,7 +798,7 @@ class BlackpearlProvider:
         logger = logging.getLogger(__name__)
         
         # Check if environment is development
-        is_development = settings.AM_ENV == "development"
+        is_development = settings.ENVIRONMENT == "development"
         development_param = "?development=true" if is_development else ""
         
         if is_development:

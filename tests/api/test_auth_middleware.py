@@ -64,7 +64,7 @@ class TestAPIKeyMiddleware:
     @pytest.mark.asyncio
     async def test_valid_api_key_in_header(self, middleware, mock_request, mock_call_next):
         """Test valid API key in header allows access."""
-        mock_request.headers = {API_KEY_NAME: settings.AM_API_KEY}
+        mock_request.headers = {API_KEY_NAME: settings.AUTOMAGIK_API_KEY}
         
         response = await middleware.dispatch(mock_request, mock_call_next)
         
@@ -74,7 +74,7 @@ class TestAPIKeyMiddleware:
     @pytest.mark.asyncio
     async def test_valid_api_key_in_query_params(self, middleware, mock_request, mock_call_next):
         """Test valid API key in query parameters allows access."""
-        mock_request.query_params = {API_KEY_NAME: settings.AM_API_KEY}
+        mock_request.query_params = {API_KEY_NAME: settings.AUTOMAGIK_API_KEY}
         
         response = await middleware.dispatch(mock_request, mock_call_next)
         
@@ -106,7 +106,7 @@ class TestAPIKeyMiddleware:
     @pytest.mark.asyncio
     async def test_header_priority_over_query(self, middleware, mock_request, mock_call_next):
         """Test header API key takes priority over query parameter."""
-        mock_request.headers = {API_KEY_NAME: settings.AM_API_KEY}
+        mock_request.headers = {API_KEY_NAME: settings.AUTOMAGIK_API_KEY}
         mock_request.query_params = {API_KEY_NAME: "invalid-key"}
         
         response = await middleware.dispatch(mock_request, mock_call_next)
@@ -118,7 +118,7 @@ class TestAPIKeyMiddleware:
     async def test_case_sensitive_header(self, middleware, mock_request, mock_call_next):
         """Test that header name is case-sensitive."""
         # Wrong case should not work
-        mock_request.headers = {"X-API-KEY": settings.AM_API_KEY}  # Wrong case
+        mock_request.headers = {"X-API-KEY": settings.AUTOMAGIK_API_KEY}  # Wrong case
         
         response = await middleware.dispatch(mock_request, mock_call_next)
         
@@ -132,8 +132,8 @@ class TestGetAPIKeyDependency:
     @pytest.mark.asyncio
     async def test_valid_api_key(self):
         """Test valid API key returns successfully."""
-        result = await get_api_key(settings.AM_API_KEY)
-        assert result == settings.AM_API_KEY
+        result = await get_api_key(settings.AUTOMAGIK_API_KEY)
+        assert result == settings.AUTOMAGIK_API_KEY
     
     @pytest.mark.asyncio
     async def test_missing_api_key(self):
@@ -309,12 +309,12 @@ class TestAuthenticationIntegration:
         """Test protected route with valid API key."""
         response = client.get(
             "/api/v1/protected",
-            headers={API_KEY_NAME: settings.AM_API_KEY}
+            headers={API_KEY_NAME: settings.AUTOMAGIK_API_KEY}
         )
         
         assert response.status_code == 200
         assert response.json()["message"] == "Protected content"
-        assert response.json()["api_key"] == settings.AM_API_KEY
+        assert response.json()["api_key"] == settings.AUTOMAGIK_API_KEY
     
     def test_protected_route_without_key(self, client):
         """Test protected route without API key."""

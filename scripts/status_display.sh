@@ -101,7 +101,7 @@ detect_systemd_service() {
         if [ "$status" = "active" ]; then
             pid=$(systemctl show automagik-agents --property=MainPID --value 2>/dev/null)
             # Try to get port from environment or process
-            port=$(ps aux | grep "$pid" | grep -o 'AM_PORT[=:][0-9]*' | cut -d'=' -f2 | cut -d':' -f2 | head -1)
+            port=$(ps aux | grep "$pid" | grep -o 'AUTOMAGIK_API_PORT[=:][0-9]*' | cut -d'=' -f2 | cut -d':' -f2 | head -1)
             [ -z "$port" ] && port="8881"  # default
             
             # Get service start time
@@ -124,7 +124,7 @@ detect_dev_processes() {
     while IFS= read -r line; do
         if [ -n "$line" ]; then
             local pid=$(echo "$line" | awk '{print $2}')
-            local port=$(echo "$line" | grep -o 'AM_PORT[=:][0-9]*' | cut -d'=' -f2 | cut -d':' -f2 | head -1)
+            local port=$(echo "$line" | grep -o 'AUTOMAGIK_API_PORT[=:][0-9]*' | cut -d'=' -f2 | cut -d':' -f2 | head -1)
             [ -z "$port" ] && port="8881"  # default
             
             # Get process start time

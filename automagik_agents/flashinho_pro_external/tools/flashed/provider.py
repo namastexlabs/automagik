@@ -101,7 +101,7 @@ class FlashedProvider():
         
         # Check if we're in development mode and debug log level
         is_dev_debug = (
-            settings.AUTOMAGIK_ENV.value == "development" and
+            settings.ENVIRONMENT.value == "development" and
             settings.AUTOMAGIK_LOG_LEVEL == "DEBUG"
         )
         
