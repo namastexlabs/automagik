@@ -5,7 +5,7 @@ A powerful framework for building and deploying AI agents with memory,
 tools, and orchestration capabilities.
 """
 
-__version__ = "0.4.5"
+__version__ = "0.4.6"
 
 # Export key components for easier imports
 from automagik.agents.models.agent_factory import AgentFactory
