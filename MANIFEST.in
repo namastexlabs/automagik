@@ -13,6 +13,9 @@ recursive-include automagik/agents/claude_code/workflows *
 # Include configuration files
 recursive-include automagik/config *
 
+# Include database migrations
+recursive-include automagik/db/migrations *.sql
+
 # Include README and LICENSE
 include README.md
 include LICENSE

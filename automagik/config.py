@@ -33,7 +33,7 @@ class Environment(str, Enum):
 
 class Settings(BaseSettings):
     # Authentication
-    AUTOMAGIK_API_KEY: str = Field(..., description="API key for authenticating requests")
+    AUTOMAGIK_API_KEY: str = Field("namastex888", description="API key for authenticating requests")
 
     # OpenAI
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key for agent operations")

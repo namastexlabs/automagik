@@ -63,12 +63,74 @@ make install-prod
 make install-service
 ```
 
+## 📦 Pip Installation
+
+You can also install Automagik as a Python package:
+
+```bash
+# Install from local directory
+pip install -e /path/to/automagik-agents
+
+# Or from git (coming soon)
+# pip install git+https://github.com/namastexlabs/automagik-agents.git
+```
+
+**After pip installation:**
+```bash
+# Start server with default settings
+automagik-server
+
+# Start on custom port
+automagik-server --port 38881
+
+# Specify external agents directory
+automagik-server --agents-dir /path/to/my/agents
+
+# Or use environment variables
+export AUTOMAGIK_API_PORT=38881
+export AUTOMAGIK_EXTERNAL_AGENTS_DIR=/path/to/my/agents
+automagik-server
+```
+
+**Default External Agents Directory:** `~/.automagik/agents`
+
+This is where you can place custom agents that will be automatically discovered when the server starts. Each agent should be in its own subdirectory with an `agent.py` file containing a `create_agent` factory function.
+
+**Creating an External Agent:**
+```python
+# ~/.automagik/agents/my_custom_agent/agent.py
+from typing import Dict, Optional
+from automagik.agents.models.automagik_agent import AutomagikAgent
+from automagik.agents.models.dependencies import AutomagikAgentsDependencies
+
+def create_agent(config: Optional[Dict[str, str]] = None) -> AutomagikAgent:
+    """Factory function to create your custom agent."""
+    return MyCustomAgent(config or {})
+
+class MyCustomAgent(AutomagikAgent):
+    def __init__(self, config: Dict[str, str]):
+        super().__init__(config)
+        self._code_prompt_text = "Your agent prompt here"
+        self.dependencies = AutomagikAgentsDependencies(
+            model_name=config.get("model", "openai:gpt-4o-mini"),
+            model_settings={},
+            api_keys={},
+            tool_config={}
+        )
+        self.tool_registry.register_default_tools(self.context)
+    
+    @property
+    def model_name(self) -> str:
+        return self.dependencies.model_name or "openai:gpt-4o-mini"
+```
+
 ## 📝 Post-Installation
 
 1. **Add your API keys:**
 ```bash
 nano .env
 # Add: OPENAI_API_KEY=sk-your-actual-key
+# Default API Key: namastex888 (unless AUTOMAGIK_API_KEY is set)
 ```
 
 2. **Start and monitor:**
@@ -125,15 +187,15 @@ make docker FORCE=1        # Force start Docker stack
 
 ### API Examples
 ```bash
-# Test agent
+# Test agent (using default API key)
 curl -X POST http://localhost:${AM_PORT}/api/v1/agent/simple/run \
-  -H "X-API-Key: your_api_key" \
+  -H "X-API-Key: namastex888" \
   -H "Content-Type: application/json" \
   -d '{"message_content": "Hello!", "session_name": "test"}'
 
 # Create memory that auto-injects into prompts
 curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
-  -H "X-API-Key: your_api_key" \
+  -H "X-API-Key: namastex888" \
   -H "Content-Type: application/json" \
   -d '{"name": "personality", "content": "friendly and helpful", "agent_id": 1}'
 ```
