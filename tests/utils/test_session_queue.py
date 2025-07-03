@@ -2,7 +2,7 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from src.utils.session_queue import SessionQueue
+from automagik.utils.session_queue import SessionQueue
 
 # Mark this module as asyncio
 pytestmark = [

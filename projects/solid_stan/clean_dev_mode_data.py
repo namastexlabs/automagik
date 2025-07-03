@@ -24,12 +24,12 @@ init(autoreset=True)
 # Add parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.tools.blackpearl import (
+from automagik.tools.blackpearl import (
     get_contatos, delete_cliente, delete_contato, get_clientes
 )
-from src.db.repository.message import delete_session_messages
-from src.db.repository.session import list_sessions, delete_session
-from src.db.repository.user import get_user, delete_user
+from automagik.db.repository.message import delete_session_messages
+from automagik.db.repository.session import list_sessions, delete_session
+from automagik.db.repository.user import get_user, delete_user
 
 class ColoredFormatter(logging.Formatter):
     """Custom formatter with colors."""

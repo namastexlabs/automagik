@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.pydanticai.simple.agent import SimpleAgent
-from src.agents.pydanticai.sofia.agent import SofiaAgent
+from automagik.agents.pydanticai.simple.agent import SimpleAgent
+from automagik.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestAgentParity:
@@ -29,7 +29,7 @@ class TestAgentParity:
     
     def test_both_agents_extend_automagik_agent(self, simple_agent, sofia_agent):
         """Test that both agents properly extend AutomagikAgent."""
-        from src.agents.models.automagik_agent import AutomagikAgent
+        from automagik.agents.models.automagik_agent import AutomagikAgent
         
         assert isinstance(simple_agent, AutomagikAgent)
         assert isinstance(sofia_agent, AutomagikAgent)
@@ -97,9 +97,9 @@ class TestAgentParity:
                                 mock_simple.run = AsyncMock(return_value=mock_simple_result)
                                 
                                 # Mock extract functions for Simple
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             simple_result = await simple_agent.run(test_input)
         
@@ -114,11 +114,11 @@ class TestAgentParity:
                                 mock_sofia.run = AsyncMock(return_value=mock_sofia_result)
                                 
                                 # Mock extract functions for Sofia
-                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
                                             # Mock semaphore for Sofia
-                                            with patch('src.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
+                                            with patch('automagik.agents.pydanticai.sofia.agent.get_llm_semaphore') as mock_semaphore:
                                                 mock_sem = AsyncMock()
                                                 mock_semaphore.return_value = mock_sem
                                                 

@@ -1,6 +1,6 @@
 """Test Simple Agent basic functionality."""
 import pytest
-from src.agents.pydanticai.simple.agent import SimpleAgent
+from automagik.agents.pydanticai.simple.agent import SimpleAgent
 
 
 class TestSimpleAgent:
@@ -29,7 +29,7 @@ class TestSimpleAgent:
         # MCP loading is now handled by the framework
         assert hasattr(agent, 'ai_framework')
         assert hasattr(agent, 'framework_type')
-        from src.agents.models.framework_types import FrameworkType
+        from automagik.agents.models.framework_types import FrameworkType
         assert agent.framework_type == FrameworkType.PYDANTIC_AI.value
     
     @pytest.mark.asyncio
@@ -71,8 +71,8 @@ class TestSimpleAgentFeatures:
     def test_agent_has_retry_logic_imports(self, agent_config):
         """Test that Simple agent has the imports needed for retry logic."""
         # This will test that the imports are available
-        from src.agents.models.automagik_agent import get_llm_semaphore
-        from src.config import settings
+        from automagik.agents.models.automagik_agent import get_llm_semaphore
+        from automagik.config import settings
         
         assert callable(get_llm_semaphore)
         assert hasattr(settings, 'LLM_RETRY_ATTEMPTS')

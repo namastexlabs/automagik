@@ -3,9 +3,9 @@
 import pytest
 import uuid
 from unittest.mock import Mock, patch
-from src.api.controllers.agent_controller import handle_agent_run
-from src.api.models import AgentRunRequest
-from src.agents.models.response import AgentResponse
+from automagik.api.controllers.agent_controller import handle_agent_run
+from automagik.api.models import AgentRunRequest
+from automagik.agents.models.response import AgentResponse
 
 
 class TestAgentResponseUsageField:
@@ -39,11 +39,11 @@ class TestAgentResponseUsageField:
         )
         
         # Mock the agent execution to return our mock response
-        with patch('src.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_history_class, \
-             patch('src.api.controllers.agent_controller.get_or_create_user') as mock_get_user:
+        with patch('automagik.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_history_class, \
+             patch('automagik.api.controllers.agent_controller.get_or_create_user') as mock_get_user:
             
             # Setup mocks
             mock_agent = Mock()
@@ -97,11 +97,11 @@ class TestAgentResponseUsageField:
         )
         
         # Mock the agent execution to return our mock response
-        with patch('src.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_history_class, \
-             patch('src.api.controllers.agent_controller.get_or_create_user') as mock_get_user:
+        with patch('automagik.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_history_class, \
+             patch('automagik.api.controllers.agent_controller.get_or_create_user') as mock_get_user:
             
             # Setup mocks
             mock_agent = Mock()
@@ -156,11 +156,11 @@ class TestAgentResponseUsageField:
         }
         
         # Mock the agent execution to return our mock response
-        with patch('src.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_history_class, \
-             patch('src.api.controllers.agent_controller.get_or_create_user') as mock_get_user:
+        with patch('automagik.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_history_class, \
+             patch('automagik.api.controllers.agent_controller.get_or_create_user') as mock_get_user:
             
             # Setup mocks
             mock_agent = Mock()
@@ -207,10 +207,10 @@ class TestAgentResponseUsageField:
         test_user_id = str(uuid.uuid4())
         
         # Mock the agent execution to return a simple string
-        with patch('src.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_history_class:
+        with patch('automagik.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.AgentFactory') as mock_factory_class, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_history_class:
             
             # Setup mocks
             mock_agent = Mock()

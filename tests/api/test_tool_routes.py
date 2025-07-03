@@ -4,8 +4,8 @@ import json
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
-from src.main import app
-from src.config import settings
+from automagik.main import app
+from automagik.config import settings
 
 
 @pytest.fixture
@@ -25,10 +25,10 @@ class TestToolRoutes:
     
     def test_list_tools_empty(self, client, auth_headers):
         """Test listing tools when none exist."""
-        with patch('src.api.routes.tool_routes.db_list_tools') as mock_list:
+        with patch('automagik.api.routes.tool_routes.db_list_tools') as mock_list:
             mock_list.return_value = []
             
-            with patch('src.api.routes.tool_routes.get_tool_categories') as mock_categories:
+            with patch('automagik.api.routes.tool_routes.get_tool_categories') as mock_categories:
                 mock_categories.return_value = []
                 
                 response = client.get("/tools/", headers=auth_headers)
@@ -42,7 +42,7 @@ class TestToolRoutes:
     
     def test_list_tools_with_data(self, client, auth_headers):
         """Test listing tools with sample data."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -51,7 +51,7 @@ class TestToolRoutes:
             name="test_tool",
             type="code",
             description="Test tool description",
-            module_path="src.tools.test.tool",
+            module_path="automagik.tools.test.tool",
             function_name="test_function",
             parameters_schema={
                 "type": "object",
@@ -67,10 +67,10 @@ class TestToolRoutes:
             updated_at=datetime.utcnow()
         )
         
-        with patch('src.api.routes.tool_routes.db_list_tools') as mock_list:
+        with patch('automagik.api.routes.tool_routes.db_list_tools') as mock_list:
             mock_list.return_value = [mock_tool]
             
-            with patch('src.api.routes.tool_routes.get_tool_categories') as mock_categories:
+            with patch('automagik.api.routes.tool_routes.get_tool_categories') as mock_categories:
                 mock_categories.return_value = ["test", "utility"]
                 
                 response = client.get("/tools/", headers=auth_headers)
@@ -86,10 +86,10 @@ class TestToolRoutes:
     
     def test_list_tools_with_filters(self, client, auth_headers):
         """Test listing tools with filtering parameters."""
-        with patch('src.api.routes.tool_routes.db_list_tools') as mock_list:
+        with patch('automagik.api.routes.tool_routes.db_list_tools') as mock_list:
             mock_list.return_value = []
             
-            with patch('src.api.routes.tool_routes.get_tool_categories') as mock_categories:
+            with patch('automagik.api.routes.tool_routes.get_tool_categories') as mock_categories:
                 mock_categories.return_value = []
                 
                 response = client.get(
@@ -103,7 +103,7 @@ class TestToolRoutes:
     
     def test_list_tools_with_search(self, client, auth_headers):
         """Test listing tools with search functionality."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -114,7 +114,7 @@ class TestToolRoutes:
                 name="email_sender",
                 type="code",
                 description="Send emails via SMTP",
-                module_path="src.tools.email.tool",
+                module_path="automagik.tools.email.tool",
                 function_name="send_email",
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
@@ -124,17 +124,17 @@ class TestToolRoutes:
                 name="file_processor",
                 type="code", 
                 description="Process files and documents",
-                module_path="src.tools.file.tool",
+                module_path="automagik.tools.file.tool",
                 function_name="process_file",
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
         ]
         
-        with patch('src.api.routes.tool_routes.db_list_tools') as mock_list:
+        with patch('automagik.api.routes.tool_routes.db_list_tools') as mock_list:
             mock_list.return_value = tools
             
-            with patch('src.api.routes.tool_routes.get_tool_categories') as mock_categories:
+            with patch('automagik.api.routes.tool_routes.get_tool_categories') as mock_categories:
                 mock_categories.return_value = []
                 
                 # Search for "email" - should return only email_sender
@@ -147,7 +147,7 @@ class TestToolRoutes:
     
     def test_get_tool_details_success(self, client, auth_headers):
         """Test getting tool details successfully."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -157,7 +157,7 @@ class TestToolRoutes:
             name="test_tool",
             type="code",
             description="Test tool description",
-            module_path="src.tools.test.tool",
+            module_path="automagik.tools.test.tool",
             function_name="test_function",
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
@@ -171,10 +171,10 @@ class TestToolRoutes:
             "avg_execution_time_ms": 150.5
         }
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = mock_tool
             
-            with patch('src.api.routes.tool_routes.get_tool_execution_stats') as mock_stats_fn:
+            with patch('automagik.api.routes.tool_routes.get_tool_execution_stats') as mock_stats_fn:
                 mock_stats_fn.return_value = mock_stats
                 
                 response = client.get("/tools/test_tool", headers=auth_headers)
@@ -187,7 +187,7 @@ class TestToolRoutes:
     
     def test_get_tool_details_not_found(self, client, auth_headers):
         """Test getting details for non-existent tool."""
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = None
             
             response = client.get("/tools/nonexistent_tool", headers=auth_headers)
@@ -196,7 +196,7 @@ class TestToolRoutes:
     
     def test_execute_tool_success(self, client, auth_headers):
         """Test successful tool execution."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -205,7 +205,7 @@ class TestToolRoutes:
             name="test_tool",
             type="code",
             description="Test tool",
-            module_path="src.tools.test.tool",
+            module_path="automagik.tools.test.tool",
             function_name="test_function",
             enabled=True,
             created_at=datetime.utcnow(),
@@ -217,13 +217,13 @@ class TestToolRoutes:
             "parameters": {"param1": "value1"}
         }
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = mock_tool
             
-            with patch('src.api.routes.tool_routes.execute_tool') as mock_execute:
+            with patch('automagik.api.routes.tool_routes.execute_tool') as mock_execute:
                 mock_execute.return_value = {"result": "success"}
                 
-                with patch('src.api.routes.tool_routes.log_tool_execution') as mock_log:
+                with patch('automagik.api.routes.tool_routes.log_tool_execution') as mock_log:
                     mock_log.return_value = True
                     
                     response = client.post(
@@ -239,7 +239,7 @@ class TestToolRoutes:
     
     def test_execute_tool_not_found(self, client, auth_headers):
         """Test executing non-existent tool."""
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = None
             
             request_data = {
@@ -256,7 +256,7 @@ class TestToolRoutes:
     
     def test_execute_tool_disabled(self, client, auth_headers):
         """Test executing disabled tool."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -269,7 +269,7 @@ class TestToolRoutes:
             updated_at=datetime.utcnow()
         )
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = mock_tool
             
             request_data = {
@@ -287,7 +287,7 @@ class TestToolRoutes:
     
     def test_create_tool_success(self, client, auth_headers):
         """Test successful tool creation."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -295,7 +295,7 @@ class TestToolRoutes:
             "name": "new_tool",
             "type": "code",
             "description": "A new test tool",
-            "module_path": "src.tools.new.tool",
+            "module_path": "automagik.tools.new.tool",
             "function_name": "new_function",
             "parameters_schema": {
                 "type": "object",
@@ -312,7 +312,7 @@ class TestToolRoutes:
             name="new_tool",
             type="code",
             description="A new test tool",
-            module_path="src.tools.new.tool",
+            module_path="automagik.tools.new.tool",
             function_name="new_function",
             parameters_schema=tool_data["parameters_schema"],
             categories=["test"],
@@ -321,10 +321,10 @@ class TestToolRoutes:
             updated_at=datetime.utcnow()
         )
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = None  # Tool doesn't exist
             
-            with patch('src.api.routes.tool_routes.create_tool') as mock_create:
+            with patch('automagik.api.routes.tool_routes.create_tool') as mock_create:
                 mock_create.return_value = mock_created_tool
                 
                 response = client.post(
@@ -341,7 +341,7 @@ class TestToolRoutes:
     
     def test_create_tool_already_exists(self, client, auth_headers):
         """Test creating tool that already exists."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -359,7 +359,7 @@ class TestToolRoutes:
             "description": "Tool that already exists"
         }
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = existing_tool
             
             response = client.post(
@@ -372,7 +372,7 @@ class TestToolRoutes:
     
     def test_update_tool_success(self, client, auth_headers):
         """Test successful tool update."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -402,10 +402,10 @@ class TestToolRoutes:
             "enabled": False
         }
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = existing_tool
             
-            with patch('src.api.routes.tool_routes.update_tool') as mock_update:
+            with patch('automagik.api.routes.tool_routes.update_tool') as mock_update:
                 mock_update.return_value = updated_tool
                 
                 response = client.put(
@@ -421,7 +421,7 @@ class TestToolRoutes:
     
     def test_update_tool_not_found(self, client, auth_headers):
         """Test updating non-existent tool."""
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = None
             
             update_data = {
@@ -437,7 +437,7 @@ class TestToolRoutes:
     
     def test_delete_tool_success(self, client, auth_headers):
         """Test successful tool deletion."""
-        from src.db.models.tool import ToolDB
+        from automagik.db.models.tool import ToolDB
         from datetime import datetime
         import uuid
         
@@ -449,10 +449,10 @@ class TestToolRoutes:
             updated_at=datetime.utcnow()
         )
         
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = existing_tool
             
-            with patch('src.api.routes.tool_routes.delete_tool') as mock_delete:
+            with patch('automagik.api.routes.tool_routes.delete_tool') as mock_delete:
                 mock_delete.return_value = True
                 
                 response = client.delete("/tools/test_tool", headers=auth_headers)
@@ -464,7 +464,7 @@ class TestToolRoutes:
     
     def test_delete_tool_not_found(self, client, auth_headers):
         """Test deleting non-existent tool."""
-        with patch('src.api.routes.tool_routes.get_tool_by_name') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_by_name') as mock_get:
             mock_get.return_value = None
             
             response = client.delete("/tools/nonexistent_tool", headers=auth_headers)
@@ -474,7 +474,7 @@ class TestToolRoutes:
         """Test listing tool categories."""
         mock_categories = ["messaging", "file_operations", "database", "api"]
         
-        with patch('src.api.routes.tool_routes.get_tool_categories') as mock_get:
+        with patch('automagik.api.routes.tool_routes.get_tool_categories') as mock_get:
             mock_get.return_value = mock_categories
             
             response = client.get("/tools/categories/list", headers=auth_headers)
@@ -502,7 +502,7 @@ class TestToolRoutes:
             "total": 3
         }
         
-        with patch('src.api.routes.tool_routes.get_tool_discovery_service') as mock_get_service:
+        with patch('automagik.api.routes.tool_routes.get_tool_discovery_service') as mock_get_service:
             mock_service = MagicMock()
             mock_service.discover_all_tools = AsyncMock(return_value=mock_discovered)
             mock_service.sync_tools_to_database = AsyncMock(return_value=mock_sync_stats)
@@ -518,7 +518,7 @@ class TestToolRoutes:
     
     def test_create_mcp_server(self, client, auth_headers):
         """Test creating MCP server configuration."""
-        from src.db.models.mcp import MCPConfig
+        from automagik.db.models.mcp import MCPConfig
         from datetime import datetime
         import uuid
         
@@ -541,10 +541,10 @@ class TestToolRoutes:
             updated_at=datetime.utcnow()
         )
         
-        with patch('src.api.routes.tool_routes.create_mcp_config') as mock_create:
+        with patch('automagik.api.routes.tool_routes.create_mcp_config') as mock_create:
             mock_create.return_value = mock_config
             
-            with patch('src.api.routes.tool_routes.get_tool_discovery_service') as mock_get_service:
+            with patch('automagik.api.routes.tool_routes.get_tool_discovery_service') as mock_get_service:
                 mock_service = MagicMock()
                 mock_service._discover_mcp_tools = AsyncMock(return_value=[])
                 mock_get_service.return_value = mock_service

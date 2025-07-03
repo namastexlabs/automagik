@@ -19,7 +19,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-from src.tools.airtable.interface import airtable_list_records
+from automagik.tools.airtable.interface import airtable_list_records
 
 pytestmark = pytest.mark.anyio
 

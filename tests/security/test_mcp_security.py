@@ -8,7 +8,7 @@ vulnerabilities are properly blocked.
 import pytest
 from unittest.mock import patch
 
-from src.mcp.security import (
+from automagik.mcp.security import (
     build_secure_command,
     validate_command,
     validate_command_argument,
@@ -295,8 +295,8 @@ class TestInputValidation:
 class TestSecureCommandBuild:
     """Test secure command building"""
     
-    @patch('src.mcp.security.resolve_command_path')
-    @patch('src.mcp.security.validate_command')
+    @patch('automagik.mcp.security.resolve_command_path')
+    @patch('automagik.mcp.security.validate_command')
     def test_secure_command_build(self, mock_validate, mock_resolve):
         """Test building secure commands"""
         mock_resolve.return_value = "/usr/bin/npx"
@@ -374,9 +374,9 @@ class TestAPISecurityIntegration:
     @pytest.fixture
     def mock_security_functions(self):
         """Mock security functions for testing"""
-        with patch('src.mcp.security.validate_server_name') as mock_validate_name, \
-             patch('src.mcp.security.validate_mcp_config') as mock_validate_config, \
-             patch('src.mcp.security.build_secure_command') as mock_build_cmd:
+        with patch('automagik.mcp.security.validate_server_name') as mock_validate_name, \
+             patch('automagik.mcp.security.validate_mcp_config') as mock_validate_config, \
+             patch('automagik.mcp.security.build_secure_command') as mock_build_cmd:
             
             mock_validate_name.return_value = True
             mock_validate_config.return_value = True

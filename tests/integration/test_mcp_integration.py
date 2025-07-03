@@ -6,7 +6,7 @@ import uuid
 import os
 from unittest.mock import patch, AsyncMock
 
-from src.config import settings
+from automagik.config import settings
 
 # Skip integration tests if server is not available
 skip_if_server_unavailable = pytest.mark.skipif(
@@ -433,8 +433,8 @@ async def test_mcp_system_end_to_end():
     """End-to-end test of the complete MCP system functionality."""
     
     # Mock the MCPServerManager class entirely for isolated testing
-    with patch('src.mcp.client.MCPClientManager._load_server_configurations') as mock_load:
-        with patch('src.mcp.server.MCPServerManager') as mock_server_manager:
+    with patch('automagik.mcp.client.MCPClientManager._load_server_configurations') as mock_load:
+        with patch('automagik.mcp.server.MCPServerManager') as mock_server_manager:
             # Mock database loading to return empty (isolated test)
             mock_load.return_value = None
             
@@ -460,8 +460,8 @@ async def test_mcp_system_end_to_end():
             mock_server_manager.return_value = mock_server_instance
             
             # Import after mocking
-            from src.mcp.client import MCPClientManager
-            from src.mcp.models import MCPServerConfig, MCPServerType, MCPServerStatus
+            from automagik.mcp.client import MCPClientManager
+            from automagik.mcp.models import MCPServerConfig, MCPServerType, MCPServerStatus
             
             # Set up the mock status after importing the enum
             mock_server_instance.status = MCPServerStatus.RUNNING

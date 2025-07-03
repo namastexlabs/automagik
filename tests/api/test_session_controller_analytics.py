@@ -4,7 +4,7 @@ import pytest
 import json
 from datetime import datetime
 
-from src.api.controllers.session_controller import _extract_usage_from_messages
+from automagik.api.controllers.session_controller import _extract_usage_from_messages
 
 
 class TestSessionControllerAnalyticsHelpers:

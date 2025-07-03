@@ -7,8 +7,8 @@ import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock, mock_open
 
-from src.agents.models.agent_factory import AgentFactory
-from src.agents.claude_code.agent import ClaudeCodeAgent
+from automagik.agents.models.agent_factory import AgentFactory
+from automagik.agents.claude_code.agent import ClaudeCodeAgent
 
 
 class TestAgentFactoryIntegration:
@@ -16,8 +16,8 @@ class TestAgentFactoryIntegration:
     
     @pytest.mark.integration
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     def test_agent_factory_discovery(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test that ClaudeCodeAgent is discoverable by AgentFactory."""
         # Mock credentials exist
@@ -28,10 +28,10 @@ class TestAgentFactoryIntegration:
         import sys
         
         # Reload the module to pick up the new settings
-        if 'src.agents.claude_code' in sys.modules:
-            importlib.reload(sys.modules['src.agents.claude_code'])
+        if 'automagik.agents.claude_code' in sys.modules:
+            importlib.reload(sys.modules['automagik.agents.claude_code'])
         
-        claude_code_module = importlib.import_module('src.agents.claude_code')
+        claude_code_module = importlib.import_module('automagik.agents.claude_code')
         
         # Check for create_agent function
         assert hasattr(claude_code_module, 'create_agent')
@@ -61,8 +61,8 @@ class TestAgentFactoryIntegration:
         
     @pytest.mark.integration
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     def test_agent_factory_create_agent(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test creating ClaudeCodeAgent instance via factory."""
         # Mock credentials exist
@@ -79,8 +79,8 @@ class TestAgentFactoryIntegration:
         
     @pytest.mark.integration
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     def test_agent_factory_create_from_config(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test creating ClaudeCodeAgent from configuration."""
         # Mock credentials exist
@@ -108,8 +108,8 @@ class TestDatabaseIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_agent_with_message_history(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test agent execution with message history storage."""
         mock_exists.return_value = True
@@ -127,7 +127,7 @@ class TestDatabaseIntegration:
         mock_executor_factory.create_executor.return_value = mock_executor
         
         # Mock message history
-        from src.memory.message_history import MessageHistory
+        from automagik.memory.message_history import MessageHistory
         mock_history = Mock(spec=MessageHistory)
         mock_history.messages = []
         
@@ -198,8 +198,8 @@ class TestAPIIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_async_api_pattern(self, mock_executor_factory, mock_container_class):
         """Test async API pattern with polling."""
         # Mock executor
@@ -289,8 +289,8 @@ class TestErrorHandlingIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_docker_initialization_failure(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test handling Docker initialization failure."""
         mock_exists.return_value = True
@@ -396,8 +396,8 @@ class TestConcurrencyIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_concurrent_runs(self, mock_executor_factory, mock_container_class):
         """Test handling multiple concurrent runs."""
         # Mock executor that takes time
@@ -435,8 +435,8 @@ class TestCleanupIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_agent_cleanup(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test agent cleanup process."""
         # Mock credentials exist
@@ -453,7 +453,7 @@ class TestCleanupIntegration:
         agent.context['test_data'] = 'value'
         
         # Mock parent cleanup
-        with patch('src.agents.models.automagik_agent.AutomagikAgent.cleanup') as mock_parent:
+        with patch('automagik.agents.models.automagik_agent.AutomagikAgent.cleanup') as mock_parent:
             await agent.cleanup()
         
         # Verify cleanup was called on executor

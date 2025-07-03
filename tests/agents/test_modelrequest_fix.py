@@ -1,8 +1,8 @@
 """Test the ModelRequest fix for agent framework refactor."""
 import pytest
 from unittest.mock import patch
-from src.agents.models.ai_frameworks.pydantic_ai import PydanticAIFramework
-from src.agents.models.ai_frameworks.base import AgentConfig
+from automagik.agents.models.ai_frameworks.pydantic_ai import PydanticAIFramework
+from automagik.agents.models.ai_frameworks.base import AgentConfig
 from pydantic_ai.messages import ModelRequest, ModelResponse, SystemPromptPart, UserPromptPart, TextPart
 
 
@@ -148,13 +148,13 @@ class TestSofiaAgentModelRequestFix:
     
     async def test_sofia_agent_with_memory_history(self, sofia_config):
         """Test that Sofia agent can handle message history from memory system."""
-        from src.agents.pydanticai.sofia.agent import SofiaAgent
-        from src.memory.message_history import MessageHistory
+        from automagik.agents.pydanticai.sofia.agent import SofiaAgent
+        from automagik.memory.message_history import MessageHistory
         
         agent = SofiaAgent(sofia_config)
         
         # Initialize the agent framework
-        from src.agents.models.dependencies import AutomagikAgentsDependencies
+        from automagik.agents.models.dependencies import AutomagikAgentsDependencies
         success = await agent.initialize_framework(AutomagikAgentsDependencies)
         assert success, "Framework initialization should succeed"
         assert agent.ai_framework is not None, "AI framework should be initialized"

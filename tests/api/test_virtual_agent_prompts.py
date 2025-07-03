@@ -101,7 +101,7 @@ class TestVirtualAgentPrompts:
         try:
             import sys
             sys.path.append('/home/claude/am-agent-labs')
-            from src.db.connection import execute_query
+            from automagik.db.connection import execute_query
             
             # Query for prompts with our distinctive text
             prompts = execute_query(

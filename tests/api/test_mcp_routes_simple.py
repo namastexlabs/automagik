@@ -6,7 +6,7 @@ from datetime import datetime
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from src.main import app
+from automagik.main import app
 
 
 class TestStreamlinedMCPRoutesSimple:
@@ -20,7 +20,7 @@ class TestStreamlinedMCPRoutesSimple:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers for API calls."""
-        from src.config import settings
+        from automagik.config import settings
         return {"x-api-key": settings.AM_API_KEY}
     
     @pytest.fixture
@@ -40,7 +40,7 @@ class TestStreamlinedMCPRoutesSimple:
         }
     
     # Test GET /configs
-    @patch('src.api.routes.mcp_routes.list_mcp_configs')
+    @patch('automagik.api.routes.mcp_routes.list_mcp_configs')
     def test_list_configs_success(self, mock_list, client, auth_headers):
         """Test successful listing of MCP configurations."""
         # Setup mock with minimal data structure
@@ -65,7 +65,7 @@ class TestStreamlinedMCPRoutesSimple:
         
         mock_list.assert_called_once_with(enabled_only=True, agent_name=None)
     
-    @patch('src.api.routes.mcp_routes.list_mcp_configs')
+    @patch('automagik.api.routes.mcp_routes.list_mcp_configs')
     def test_list_configs_empty(self, mock_list, client, auth_headers):
         """Test listing configs with no results."""
         # Setup mock

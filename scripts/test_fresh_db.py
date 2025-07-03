@@ -3,7 +3,7 @@
 Test script to verify migrations work on a fresh database.
 """
 import psycopg2
-from src.config import settings
+from automagik.config import settings
 import urllib.parse
 
 def main():
@@ -60,7 +60,7 @@ def main():
         )
         
         # Import and run the migration manager
-        from src.db.migration_manager import MigrationManager
+        from automagik.db.migration_manager import MigrationManager
         from pathlib import Path
         
         # Create all tables first

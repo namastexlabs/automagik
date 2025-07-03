@@ -8,8 +8,8 @@ command arrays into command and args parameters, preventing the issue:
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 
-from src.mcp.client import MCPManager
-from src.mcp.exceptions import MCPError
+from automagik.mcp.client import MCPManager
+from automagik.mcp.exceptions import MCPError
 
 
 class TestMCPConstructorRegression:
@@ -33,7 +33,7 @@ class TestMCPConstructorRegression:
         """Create MCPManager instance for testing."""
         return MCPManager()
 
-    @patch('src.mcp.client.MCPServerStdio')
+    @patch('automagik.mcp.client.MCPServerStdio')
     async def test_mcp_server_stdio_constructor_parameters(self, mock_stdio_class, mcp_manager, mock_mcp_config):
         """Test that MCPServerStdio is called with correct command and args parameters."""
         # Setup
@@ -56,7 +56,7 @@ class TestMCPConstructorRegression:
         # Verify server was stored (not started - PydanticAI servers are context managers)
         # Note: PydanticAI MCP servers don't have persistent start/stop - they're context managers
 
-    @patch('src.mcp.client.MCPServerStdio')
+    @patch('automagik.mcp.client.MCPServerStdio')
     async def test_mcp_server_single_command_no_args(self, mock_stdio_class, mcp_manager, mock_mcp_config):
         """Test command array with single element (no arguments)."""
         # Setup - single command, no arguments
@@ -90,7 +90,7 @@ class TestMCPConstructorRegression:
         with pytest.raises(MCPError, match="'command' is required for stdio servers"):
             await mcp_manager._create_and_start_server(mock_mcp_config)
 
-    @patch('src.mcp.client.MCPServerStdio')
+    @patch('automagik.mcp.client.MCPServerStdio')
     async def test_mcp_server_complex_command_args(self, mock_stdio_class, mcp_manager, mock_mcp_config):
         """Test complex command with multiple arguments."""
         # Setup - complex command with multiple args

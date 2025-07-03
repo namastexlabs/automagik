@@ -8,9 +8,9 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 
-from src.agents.claude_code.models import ClaudeCodeRunRequest
-from src.agents.claude_code.cli_environment import CLIEnvironmentManager
-from src.agents.claude_code.sdk_execution_strategies import ExecutionStrategies
+from automagik.agents.claude_code.models import ClaudeCodeRunRequest
+from automagik.agents.claude_code.cli_environment import CLIEnvironmentManager
+from automagik.agents.claude_code.sdk_execution_strategies import ExecutionStrategies
 
 
 class TestTempWorkspaceCreation:
@@ -144,8 +144,8 @@ class TestTempWorkspaceExecution:
     """Test temp workspace execution in SDK strategies."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.sdk_execution_strategies.query')
-    @patch('src.agents.claude_code.sdk_execution_strategies.ensure_node_in_path')
+    @patch('automagik.agents.claude_code.sdk_execution_strategies.query')
+    @patch('automagik.agents.claude_code.sdk_execution_strategies.ensure_node_in_path')
     async def test_execute_with_temp_workspace(self, mock_ensure_node, mock_query):
         """Test execution with temporary workspace."""
         # Setup mocks
@@ -190,7 +190,7 @@ class TestTempWorkspaceExecution:
         assert result['success'] is True
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.sdk_execution_strategies.query')
+    @patch('automagik.agents.claude_code.sdk_execution_strategies.query')
     async def test_temp_workspace_cleanup_on_error(self, mock_query):
         """Test that temp workspace is cleaned up even on error."""
         # Setup mocks

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Database tests for MCP tables and repository - NAM-15"""
 
-from src.db.repository.mcp import (
+from automagik.db.repository.mcp import (
     list_mcp_configs, get_mcp_config_by_name, create_mcp_config, 
     update_mcp_config_by_name, delete_mcp_config_by_name
 )
-from src.db.models import MCPConfig, MCPConfigCreate
+from automagik.db.models import MCPConfig, MCPConfigCreate
 
 def test_database_tables():
     """Test that MCP database tables exist."""
@@ -13,7 +13,7 @@ def test_database_tables():
     # New architecture uses single mcp_configs table (NMSTX-253)
     
     # Check mcp_configs table exists using database-agnostic method
-    from src.db.connection import table_exists
+    from automagik.db.connection import table_exists
     mcp_configs_exists = table_exists('mcp_configs')
     
     print(f"✅ MCP Table exists - mcp_configs: {mcp_configs_exists}")
@@ -21,7 +21,7 @@ def test_database_tables():
     assert mcp_configs_exists, "MCP configs table is missing"
     
     # Check table structure using database-agnostic method
-    from src.db.connection import get_table_columns
+    from automagik.db.connection import get_table_columns
     columns = get_table_columns('mcp_configs')
     expected_columns = ['id', 'name', 'config', 'created_at', 'updated_at']
     
@@ -83,7 +83,7 @@ def test_existing_functionality():
     print("✅ Server startup already verified in NAM-14")
     
     # Test that existing database functionality works
-    from src.db.repository.agent import list_agents
+    from automagik.db.repository.agent import list_agents
     agents = list_agents()
     print(f"✅ Existing agent repository still works - found {len(agents)} agents")
     

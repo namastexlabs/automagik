@@ -7,11 +7,11 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 
-from src.tools.omie.tool import (
+from automagik.tools.omie.tool import (
     search_clients,
     search_client_by_cnpj
 )
-from src.tools.omie.schema import (
+from automagik.tools.omie.schema import (
     ClientSearchInput,
     ClientSearchResult,
     ClientSimplifiedResult
@@ -63,7 +63,7 @@ async def test_search_clients_success():
     )
     
     # Mock provider
-    with patch('src.tools.omie.tool.OmieProvider') as mock_provider:
+    with patch('automagik.tools.omie.tool.OmieProvider') as mock_provider:
         mock_instance = mock_provider.return_value
         mock_instance.search_clients = AsyncMock(return_value=mock_result)
         
@@ -90,7 +90,7 @@ async def test_search_clients_error():
     )
     
     # Mock provider error
-    with patch('src.tools.omie.tool.OmieProvider') as mock_provider:
+    with patch('automagik.tools.omie.tool.OmieProvider') as mock_provider:
         mock_instance = mock_provider.return_value
         mock_instance.search_clients = AsyncMock(side_effect=Exception("API Error"))
         
@@ -114,7 +114,7 @@ async def test_search_client_by_cnpj_success():
     )
     
     # Mock provider
-    with patch('src.tools.omie.tool.OmieProvider') as mock_provider:
+    with patch('automagik.tools.omie.tool.OmieProvider') as mock_provider:
         mock_instance = mock_provider.return_value
         mock_instance.search_client_by_cnpj = AsyncMock(return_value=mock_result)
         
@@ -133,7 +133,7 @@ async def test_search_client_by_cnpj_error():
     ctx = MagicMock()
     
     # Mock provider error
-    with patch('src.tools.omie.tool.OmieProvider') as mock_provider:
+    with patch('automagik.tools.omie.tool.OmieProvider') as mock_provider:
         mock_instance = mock_provider.return_value
         mock_instance.search_client_by_cnpj = AsyncMock(side_effect=Exception("API Error"))
         

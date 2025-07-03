@@ -4,7 +4,7 @@ from typing import List, Tuple
 import pytest
 
 # Import the module under test
-from src.db import connection as db_connection
+from automagik.db import connection as db_connection
 
 
 @pytest.mark.asyncio

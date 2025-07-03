@@ -13,7 +13,7 @@ Usage:
 import asyncio
 import logging
 import time
-from src.agents.pydanticai.sofia.specialized.airtable import (
+from automagik.agents.pydanticai.sofia.specialized.airtable import (
     fetch_airtable_schema, 
     build_dynamic_system_prompt,
     get_airtable_assistant,
@@ -21,7 +21,7 @@ from src.agents.pydanticai.sofia.specialized.airtable import (
     get_cache_info,
     SCHEMA_CACHE_TTL_MINUTES
 )
-from src.config import settings
+from automagik.config import settings
 
 # Set up logging to see what's happening
 logging.basicConfig(level=logging.INFO)

@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from src.config import settings
-from src.tools.airtable.tool import (
+from automagik.config import settings
+from automagik.tools.airtable.tool import (
     _headers, 
     _get_token, 
     _request,
@@ -47,7 +47,7 @@ class TestTokenManagement:
 class TestRequestHandling:
     """Test HTTP request handling and rate limiting."""
     
-    @patch('src.tools.airtable.tool.requests.request')
+    @patch('automagik.tools.airtable.tool.requests.request')
     def test_request_success(self, mock_request, monkeypatch):
         """_request() should handle successful responses."""
         monkeypatch.setattr(settings, "AIRTABLE_TOKEN", "test_token")
@@ -69,8 +69,8 @@ class TestRequestHandling:
         assert headers['Authorization'] == 'Bearer test_token'
         assert headers['Content-Type'] == 'application/json'
     
-    @patch('src.tools.airtable.tool.requests.request')
-    @patch('src.tools.airtable.tool.time.sleep')
+    @patch('automagik.tools.airtable.tool.requests.request')
+    @patch('automagik.tools.airtable.tool.time.sleep')
     def test_request_rate_limit_retry(self, mock_sleep, mock_request, monkeypatch):
         """_request() should handle 429 rate limiting with retry."""
         monkeypatch.setattr(settings, "AIRTABLE_TOKEN", "test_token")
@@ -91,7 +91,7 @@ class TestRequestHandling:
         assert mock_request.call_count == 2
         mock_sleep.assert_called_once_with(30)  # Should sleep 30 seconds
     
-    @patch('src.tools.airtable.tool.requests.request')
+    @patch('automagik.tools.airtable.tool.requests.request')
     def test_request_rate_limit_no_retry(self, mock_request, monkeypatch):
         """_request() should not retry when retry_on_rate_limit=False."""
         monkeypatch.setattr(settings, "AIRTABLE_TOKEN", "test_token")
@@ -105,7 +105,7 @@ class TestRequestHandling:
         assert result.status_code == 429
         assert mock_request.call_count == 1
     
-    @patch('src.tools.airtable.tool.requests.request')
+    @patch('automagik.tools.airtable.tool.requests.request')
     def test_request_with_params_and_json(self, mock_request, monkeypatch):
         """_request() should pass through params and json correctly."""
         monkeypatch.setattr(settings, "AIRTABLE_TOKEN", "test_token")
@@ -169,7 +169,7 @@ class TestValidation:
 class TestErrorHandling:
     """Test error handling scenarios."""
     
-    @patch('src.tools.airtable.tool.requests.request')
+    @patch('automagik.tools.airtable.tool.requests.request')
     def test_request_timeout_handling(self, mock_request, monkeypatch):
         """Test that request timeout is set correctly."""
         monkeypatch.setattr(settings, "AIRTABLE_TOKEN", "test_token")

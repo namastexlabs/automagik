@@ -14,8 +14,8 @@ import logging
 import pytest
 
 from pydantic_ai import RunContext
-from src.config import settings
-from src.tools.airtable.tool import list_records
+from automagik.config import settings
+from automagik.tools.airtable.tool import list_records
 
 # ---------------------------------------------------------------------------
 # Test configuration & helpers

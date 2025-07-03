@@ -7,7 +7,7 @@ import unittest
 import logging
 from unittest.mock import patch
 
-from src.agents.pydanticai.simple.agent import SimpleAgent
+from automagik.agents.pydanticai.simple.agent import SimpleAgent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,16 +24,16 @@ class TestSimpleAgentTools(unittest.TestCase):
             "agent_id": "test-agent"
         }
     
-    @patch("src.tools.datetime.get_current_date_tool")
-    @patch("src.tools.datetime.get_current_time_tool")
-    @patch("src.tools.datetime.format_date_tool")
-    @patch("src.db.repository.memory.get_memory_by_name", return_value=None)
-    @patch("src.db.repository.memory.create_memory", return_value=1)
+    @patch("automagik.tools.datetime.get_current_date_tool")
+    @patch("automagik.tools.datetime.get_current_time_tool")
+    @patch("automagik.tools.datetime.format_date_tool")
+    @patch("automagik.db.repository.memory.get_memory_by_name", return_value=None)
+    @patch("automagik.db.repository.memory.create_memory", return_value=1)
     def test_tool_registration(self, mock_create_memory, mock_get_memory, mock_format_date, 
                               mock_get_time, mock_get_date):
         """Test that tools are properly registered."""
         # Mock the prompt module import
-        with patch("src.agents.pydanticai.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
+        with patch("automagik.agents.pydanticai.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
             # This test will only create the agent and check the tool registry directly
             # without trying to call _initialize_agent
             with patch.object(SimpleAgent, '_initialize_agent', return_value=None):
@@ -47,12 +47,12 @@ class TestSimpleAgentTools(unittest.TestCase):
                 # Check for expected tool types
                 self.assertGreaterEqual(len(tools), 5)  # At least date/time and memory tools
     
-    @patch("src.db.repository.memory.get_memory_by_name", return_value=None)
-    @patch("src.db.repository.memory.create_memory", return_value=1)
+    @patch("automagik.db.repository.memory.get_memory_by_name", return_value=None)
+    @patch("automagik.db.repository.memory.create_memory", return_value=1)
     def test_tool_types(self, mock_create_memory, mock_get_memory):
         """Test that all tools have the expected types."""
         # Mock the prompt module import
-        with patch("src.agents.pydanticai.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
+        with patch("automagik.agents.pydanticai.simple.prompts.prompt.AGENT_PROMPT", "test prompt"):
             # This test will only create the agent and check the tool registry directly
             # without trying to call _initialize_agent
             with patch.object(SimpleAgent, '_initialize_agent', return_value=None):

@@ -10,9 +10,9 @@ import os
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict
 
-from src.agents.models.automagik_agent import AutomagikAgent, AgentConfig
-from src.agents.models.agent import MessageModel, HistoryModel, AgentBaseResponse_v2
-from src.agents.models.response import AgentResponse
+from automagik.agents.models.automagik_agent import AutomagikAgent, AgentConfig
+from automagik.agents.models.agent import MessageModel, HistoryModel, AgentBaseResponse_v2
+from automagik.agents.models.response import AgentResponse
 from pydantic_ai.messages import SystemPromptPart, UserPromptPart, ModelResponse, ModelRequest
 
 
@@ -202,7 +202,7 @@ class TestMessageModels:
             "messages": ["not a dict", {"role": "user", "content": "valid"}, None]
         }
         
-        with patch('src.agents.models.agent.logging') as mock_logging:
+        with patch('automagik.agents.models.agent.logging') as mock_logging:
             response = AgentBaseResponse_v2.from_agent_response(
                 message="Test",
                 history=history
@@ -214,7 +214,7 @@ class TestMessageModels:
         # Test with history that raises exception
         history.to_dict.side_effect = Exception("Serialization error")
         
-        with patch('src.agents.models.agent.logging') as mock_logging:
+        with patch('automagik.agents.models.agent.logging') as mock_logging:
             response = AgentBaseResponse_v2.from_agent_response(
                 message="Test",
                 history=history
@@ -229,11 +229,11 @@ class TestAutomagikAgent:
     @pytest.fixture
     def mock_dependencies(self):
         """Fixture for mocking agent dependencies."""
-        with patch('src.agents.models.automagik_agent.validate_agent_id') as mock_validate, \
-             patch('src.agents.models.automagik_agent.ToolRegistry') as mock_registry, \
-             patch('src.db.get_agent_by_name') as mock_get_agent, \
-             patch('src.db.register_agent') as mock_register, \
-             patch('src.db.list_agents') as mock_list_agents:
+        with patch('automagik.agents.models.automagik_agent.validate_agent_id') as mock_validate, \
+             patch('automagik.agents.models.automagik_agent.ToolRegistry') as mock_registry, \
+             patch('automagik.db.get_agent_by_name') as mock_get_agent, \
+             patch('automagik.db.register_agent') as mock_register, \
+             patch('automagik.db.list_agents') as mock_list_agents:
             
             mock_validate.return_value = 123
             mock_registry.return_value = MagicMock()
@@ -251,7 +251,7 @@ class TestAutomagikAgent:
     
     def test_agent_initialization_with_dict_config(self, mock_dependencies):
         """Test agent initialization with dictionary config."""
-        with patch('src.agents.models.automagik_agent.settings') as mock_settings:
+        with patch('automagik.agents.models.automagik_agent.settings') as mock_settings:
             mock_settings.GRAPHITI_ENABLED = False
             mock_settings.NEO4J_URI = None
             
@@ -309,7 +309,7 @@ class TestAutomagikAgent:
         mock_dependencies['validate_agent_id'].return_value = None
         mock_dependencies['register_agent'].side_effect = Exception("DB error")
         
-        with patch('src.agents.models.automagik_agent.logger') as mock_logger:
+        with patch('automagik.agents.models.automagik_agent.logger') as mock_logger:
             config = {"name": "error_agent"}
             agent = MockAgent(config)
             
@@ -335,7 +335,7 @@ class TestAutomagikAgent:
         agent = MockAgent({"name": "test", "agent_id": "123"})
         agent._code_prompt_text = None
         
-        with patch('src.agents.models.automagik_agent.logger') as mock_logger:
+        with patch('automagik.agents.models.automagik_agent.logger') as mock_logger:
             result = await agent.initialize_prompts()
             assert result is True
             mock_logger.info.assert_called_with(
@@ -352,8 +352,8 @@ class TestAutomagikAgent:
         mock_prompt.id = 1
         mock_prompt.prompt_text = "Test prompt with {{variable}}"
         
-        with patch('src.db.repository.prompt.get_active_prompt') as mock_get, \
-             patch('src.agents.models.automagik_agent.PromptBuilder.extract_template_variables') as mock_extract:
+        with patch('automagik.db.repository.prompt.get_active_prompt') as mock_get, \
+             patch('automagik.agents.models.automagik_agent.PromptBuilder.extract_template_variables') as mock_extract:
             
             mock_get.return_value = mock_prompt
             mock_extract.return_value = ["variable"]
@@ -372,8 +372,8 @@ class TestAutomagikAgent:
         mock_prompt = MagicMock()
         mock_prompt.prompt_text = "Default prompt"
         
-        with patch('src.db.repository.prompt.get_active_prompt') as mock_get, \
-             patch('src.agents.models.automagik_agent.PromptBuilder.extract_template_variables') as mock_extract:
+        with patch('automagik.db.repository.prompt.get_active_prompt') as mock_get, \
+             patch('automagik.agents.models.automagik_agent.PromptBuilder.extract_template_variables') as mock_extract:
             
             # First call returns None, second returns default
             mock_get.side_effect = [None, mock_prompt]
@@ -429,11 +429,11 @@ class TestAutomagikAgent:
         # Mock message history
         message_history = MagicMock()
         
-        with patch('src.agents.common.message_parser.parse_user_message') as mock_parse, \
-             patch('src.agents.common.session_manager.create_context') as mock_context, \
-             patch('src.agents.common.session_manager.validate_user_id') as mock_validate_user, \
-             patch('src.agents.common.session_manager.extract_multimodal_content') as mock_extract, \
-             patch('src.agents.common.message_parser.format_message_for_db') as mock_format, \
+        with patch('automagik.agents.common.message_parser.parse_user_message') as mock_parse, \
+             patch('automagik.agents.common.session_manager.create_context') as mock_context, \
+             patch('automagik.agents.common.session_manager.validate_user_id') as mock_validate_user, \
+             patch('automagik.agents.common.session_manager.extract_multimodal_content') as mock_extract, \
+             patch('automagik.agents.common.message_parser.format_message_for_db') as mock_format, \
              patch.object(agent, 'initialize_graphiti', new_callable=AsyncMock):
             
             mock_parse.return_value = ("Hello", {})
@@ -461,7 +461,7 @@ class TestAutomagikAgent:
         agent.dependencies = MagicMock()
         agent.dependencies.http_client = MagicMock()
         
-        with patch('src.agents.models.automagik_agent.close_http_client', new_callable=AsyncMock) as mock_close:
+        with patch('automagik.agents.models.automagik_agent.close_http_client', new_callable=AsyncMock) as mock_close:
             await agent.cleanup()
             mock_close.assert_called_with(agent.dependencies.http_client)
     
@@ -484,8 +484,8 @@ class TestAutomagikAgent:
         
         mock_client = MagicMock()
         
-        with patch('src.agents.models.automagik_agent.get_graphiti_client') as mock_get_sync, \
-             patch('src.agents.models.automagik_agent.get_graphiti_client_async', new_callable=AsyncMock) as mock_get_async:
+        with patch('automagik.agents.models.automagik_agent.get_graphiti_client') as mock_get_sync, \
+             patch('automagik.agents.models.automagik_agent.get_graphiti_client_async', new_callable=AsyncMock) as mock_get_async:
             
             mock_get_sync.return_value = None
             mock_get_async.return_value = mock_client

@@ -5,7 +5,7 @@ import time
 import pytest
 from unittest.mock import Mock, patch
 
-from src.tools.airtable.tool import (
+from automagik.tools.airtable.tool import (
     list_records, 
     create_records, 
     update_records, 
@@ -16,11 +16,11 @@ from src.tools.airtable.tool import (
 class TestPerformance:
     """Test performance characteristics of Airtable operations."""
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_list_records_performance(self, mock_request, monkeypatch):
         """Test list_records performance with large result sets."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Create large mock response (100 records)
         large_records = [
@@ -53,11 +53,11 @@ class TestPerformance:
         assert len(result["records"]) == 100
         assert duration < 1.0  # Should complete in under 1 second
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_batch_create_performance(self, mock_request, monkeypatch):
         """Test performance of maximum batch create operation."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Mock successful batch create
         created_records = [
@@ -92,11 +92,11 @@ class TestPerformance:
         assert len(result["records"]) == MAX_RECORDS_PER_BATCH
         assert duration < 2.0  # Should complete in under 2 seconds
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_concurrent_operations(self, mock_request, monkeypatch):
         """Test concurrent Airtable operations."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Mock responses for different operations
         def mock_response_handler(*args, **kwargs):
@@ -141,11 +141,11 @@ class TestPerformance:
 class TestStressTests:
     """Stress tests for Airtable operations."""
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_rapid_successive_requests(self, mock_request, monkeypatch):
         """Test rapid successive API requests."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -174,11 +174,11 @@ class TestStressTests:
         assert mock_request.call_count == 20
         assert duration < 5.0  # Should handle rapid requests efficiently
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_large_field_data_handling(self, mock_request, monkeypatch):
         """Test handling of records with large field data."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Create record with large text fields
         large_text = "x" * 10000  # 10KB of text
@@ -211,11 +211,11 @@ class TestStressTests:
         assert len(result["records"][0]["fields"]["LargeText"]) == 10000
         assert duration < 2.0  # Should handle large data efficiently
     
-    @patch('src.tools.airtable.tool.requests.request')
+    @patch('automagik.tools.airtable.tool.requests.request')
     @pytest.mark.asyncio 
     async def test_rate_limit_simulation(self, mock_request, monkeypatch):
         """Test behavior under simulated rate limiting."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         call_count = 0
         
@@ -240,7 +240,7 @@ class TestStressTests:
         start_time = time.time()
         
         # This should trigger rate limiting and retry once (actual _request function will handle retry)
-        with patch('src.tools.airtable.tool.time.sleep'):  # Speed up the test
+        with patch('automagik.tools.airtable.tool.time.sleep'):  # Speed up the test
             result = await list_records(ctx, table="tblTest", base_id="appTest")
         
         end_time = time.time()
@@ -254,11 +254,11 @@ class TestStressTests:
 class TestMemoryUsage:
     """Test memory usage patterns."""
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_large_record_set_memory(self, mock_request, monkeypatch):
         """Test memory usage with large record sets."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Create many records to test memory usage
         many_records = [
@@ -293,11 +293,11 @@ class TestMemoryUsage:
         expected_total = sum(range(1000))  # 0 + 1 + 2 + ... + 999
         assert total_index == expected_total
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_repeated_operations_memory(self, mock_request, monkeypatch):
         """Test memory stability over repeated operations."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -324,11 +324,11 @@ class TestMemoryUsage:
 class TestErrorRecovery:
     """Test error recovery and resilience."""
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_intermittent_failures(self, mock_request, monkeypatch):
         """Test recovery from intermittent failures."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         call_count = 0
         
@@ -369,11 +369,11 @@ class TestErrorRecovery:
         assert failed_operations > 0
         assert successful_operations + failed_operations == 10
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_timeout_handling(self, mock_request, monkeypatch):
         """Test handling of timeout scenarios."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         def timeout_simulation(*args, **kwargs):
             import requests
@@ -393,11 +393,11 @@ class TestErrorRecovery:
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_empty_response_handling(self, mock_request, monkeypatch):
         """Test handling of empty API responses."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -410,11 +410,11 @@ class TestEdgeCases:
         assert result["success"] is True
         assert result["records"] == []
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_malformed_json_response(self, mock_request, monkeypatch):
         """Test handling of malformed JSON responses."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -431,12 +431,12 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_maximum_batch_size_boundary(self, monkeypatch):
         """Test exactly at maximum batch size boundary."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Test exactly MAX_RECORDS_PER_BATCH records
         records = [{"Name": f"Record {i}"} for i in range(MAX_RECORDS_PER_BATCH)]
         
-        with patch('src.tools.airtable.tool._request') as mock_request:
+        with patch('automagik.tools.airtable.tool._request') as mock_request:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"records": []}
@@ -451,7 +451,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_over_maximum_batch_size(self, monkeypatch):
         """Test over maximum batch size boundary."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Test one more than MAX_RECORDS_PER_BATCH records
         records = [{"Name": f"Record {i}"} for i in range(MAX_RECORDS_PER_BATCH + 1)]

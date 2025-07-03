@@ -4,9 +4,9 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-from src.main import app
-from src.mcp.models import MCPServerStatus, MCPServerState
-from src.mcp.exceptions import MCPError
+from automagik.main import app
+from automagik.mcp.models import MCPServerStatus, MCPServerState
+from automagik.mcp.exceptions import MCPError
 
 
 class TestMCPRoutes:
@@ -20,13 +20,13 @@ class TestMCPRoutes:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers for API calls."""
-        from src.config import settings
+        from automagik.config import settings
         return {"x-api-key": settings.AM_API_KEY}
     
     @pytest.fixture
     def mock_mcp_client_manager(self):
         """Mock MCP manager."""
-        with patch('src.api.routes.mcp_routes.get_mcp_manager') as mock:
+        with patch('automagik.api.routes.mcp_routes.get_mcp_manager') as mock:
             manager = MagicMock()
             # Set up async methods as AsyncMock
             manager.add_server = AsyncMock()
@@ -62,7 +62,7 @@ class TestMCPRoutes:
     def test_list_mcp_servers(self, client, auth_headers, mock_mcp_client_manager):
         """Test listing MCP servers."""
         # Setup mock - create a proper MCPServerState instance
-        from src.mcp.models import MCPServerState
+        from automagik.mcp.models import MCPServerState
         mock_server_state = MCPServerState(
             name="filesystem",
             status=MCPServerStatus.RUNNING

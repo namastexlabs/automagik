@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from src.agents.models.agent_factory import AgentFactory
+from automagik.agents.models.agent_factory import AgentFactory
 
 # Global variables
 available_agents = []
@@ -18,9 +18,9 @@ def setup_module():
         pytest.skip("No agents available for testing")
     
     # Register agents in database for testing (similar to what main.py does at startup)
-    from src.db.repository.agent import create_agent, get_agent_by_name
-    from src.db.models import Agent
-    from src.agents.models.framework_types import FrameworkType
+    from automagik.db.repository.agent import create_agent, get_agent_by_name
+    from automagik.db.models import Agent
+    from automagik.agents.models.framework_types import FrameworkType
     
     for agent_name in available_agents:
         existing_agent = get_agent_by_name(agent_name)
