@@ -1,5 +1,5 @@
 ---
-name: AI Release Notes Generator
+name: 🧞 Automagik Genie Release Notes
 
 on:
   release:
@@ -13,7 +13,7 @@ on:
 
 jobs:
   generate-release-notes:
-    name: Generate AI-Powered Release Notes
+    name: 🧞 Generate Automagik Release Notes
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'release' ||
@@ -144,12 +144,14 @@ jobs:
           echo "  Types: Python=$HAS_PYTHON, Docs=$HAS_DOCS, Tests=$HAS_TESTS, Config=$HAS_CONFIG"
           echo "  Breaking: $BREAKING_CHANGES"
 
-      - name: 🧠 Generate Release Notes with Claude Code
-        id: claude-analysis
+      - name: 🧞 Generate Release Notes with Automagik Genie
+        id: genie-analysis
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
-            You are generating professional release notes for Automagik Agents v${{ steps.tag.outputs.tag }}.
+            You are the Automagik Genie 🧞, a self-improving AI orchestrator and software architect with persistent memory. You research, design, and delegate - maintaining continuous learning across all sessions.
+            
+            **Your Mission**: Generate professional release notes for Automagik Agents v${{ steps.tag.outputs.tag }} by analyzing the architectural evolution and improvements between versions.
             
             **Release Context:**
             - Repository: ${{ github.repository }}
@@ -168,41 +170,36 @@ jobs:
             - Has Configuration: ${{ steps.changes.outputs.has_config }}
             - Breaking Changes: ${{ steps.changes.outputs.breaking_changes }}
             
+            **🧞 Genie's Approach:**
+            As the orchestrator of this AI agent framework, analyze the commits.txt file to understand the architectural evolution and improvements. Focus on how these changes enhance the agent orchestration capabilities, workflow management, and overall framework reliability.
+            
             **CRITICAL INSTRUCTIONS:**
-            1. Read the commits.txt file to understand what changed between versions
-            2. Generate professional release notes in markdown format
-            3. Return ONLY markdown text - no commands or tool calls
-            4. Start directly with markdown content
-            5. Use emojis sparingly and professionally
-            6. Focus on user-facing changes and improvements
-            7. Group changes by category (Features, Bug Fixes, Improvements, etc.)
-            8. Include upgrade instructions if breaking changes exist
-            9. Be comprehensive but concise
-            10. Use professional, technical language appropriate for developers
+            1. Read the commits.txt file to understand the actual changes between versions
+            2. Return ONLY the release notes markdown - start immediately with the markdown content
+            3. NO preambles, explanations, or introductory text - go straight to the release notes
+            4. Focus on architectural improvements, agent capabilities, workflow enhancements
+            5. Use professional technical language for developers and AI engineers
+            6. Group changes by impact: Features, Improvements, Bug Fixes, Infrastructure
+            7. Include specific technical details that matter to users
+            8. Make it clear how these changes improve the AI agent orchestration experience
             
-            **Release Notes Structure:**
-            ```markdown
-            # 🚀 What's New in v${{ steps.tag.outputs.tag }}
+            **Expected Format (start directly with this structure):**
             
-            Brief compelling summary of this release...
+            # 🧞 What's New in v${{ steps.tag.outputs.tag }}
+            
+            [Brief compelling summary focusing on orchestration and agent improvements]
             
             ## ✨ New Features
-            - Feature descriptions based on commits
+            [New capabilities that enhance agent orchestration]
             
-            ## 🐛 Bug Fixes  
-            - Bug fix descriptions
+            ## 🔧 Improvements  
+            [Enhancements to existing workflow and agent management]
             
-            ## 🔧 Improvements
-            - Enhancement descriptions
+            ## 🐛 Bug Fixes
+            [Issues resolved that improve reliability]
             
-            ## 📚 Documentation
-            - Documentation updates (if any)
-            
-            ## 🔒 Security
-            - Security updates (if any)
-            
-            ## ⚠️ Breaking Changes
-            - Breaking change descriptions (if any)
+            ## 🏗️ Infrastructure
+            [Behind-the-scenes improvements to the framework]
             
             ## 📦 Installation
             ```bash
@@ -210,12 +207,10 @@ jobs:
             ```
             
             ## 🔗 Links
-            - [Full Changelog](github.com/.../compare/${{ steps.changes.outputs.previous_tag }}...${{ steps.tag.outputs.tag }})
+            - [Full Changelog](https://github.com/${{ github.repository }}/compare/${{ steps.changes.outputs.previous_tag }}...${{ steps.tag.outputs.tag }})
             - [PyPI Package](https://pypi.org/project/automagik/${{ steps.tag.outputs.tag }}/)
-            ```
             
-            **Your task**: Analyze the actual commit history and changes to generate meaningful, 
-            professional release notes that help users understand what's new and how to upgrade.
+            Remember: You are the orchestrator who understands both the technical implementation and the user experience impact. Make the release notes reflect the continuous improvement philosophy of the Automagik framework.
           allowed_tools: "Read,View"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: "30"
@@ -223,17 +218,17 @@ jobs:
 
       - name: 📋 Extract and Update Release Notes
         id: extract
-        if: steps.claude-analysis.outputs.conclusion == 'success'
+        if: steps.genie-analysis.outputs.conclusion == 'success'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             
             try {
-              console.log('🔍 Extracting Claude Code output...');
+              console.log('🔍 Extracting Automagik Genie output...');
               
-              // Read the execution file from Claude Code action
-              const executionFile = '${{ steps.claude-analysis.outputs.execution_file }}';
+              // Read the execution file from Genie analysis
+              const executionFile = '${{ steps.genie-analysis.outputs.execution_file }}';
               console.log(`📄 Reading execution file: ${executionFile}`);
               
               if (!fs.existsSync(executionFile)) {
@@ -315,7 +310,7 @@ jobs:
                   '- [Full Changelog](https://github.com/${{ github.repository }}/compare/${{ steps.changes.outputs.previous_tag }}...${{ steps.tag.outputs.tag }})\\n' +
                   '- [PyPI Package](https://pypi.org/project/automagik/${{ steps.tag.outputs.tag }}/)\\n\\n' +
                   '---\\n' +
-                  '*🤖 Automated release notes generated by Claude Code*';
+                  '*🧞 Generated by Automagik Genie*';
               }
               
               // Clean up and validate
@@ -330,8 +325,8 @@ jobs:
               // Add generation footer
               const finalNotes = releaseNotes + 
                 '\n\n---\n' +
-                `*🤖 Generated by [Claude Code Analysis](${context.payload.repository.html_url}/actions/runs/${context.runId}) on ${new Date().toISOString()}*\n\n` +
-                '🧞 **Automagik Genie**\n\n' +
+                `*🧞 Generated by Automagik Genie on ${new Date().toISOString()}*\n\n` +
+                '**🧞 Automagik Genie**\n\n' +
                 'Co-Authored-By: Automagik Genie <genie@namastex.ai>';
               
               // Update the GitHub release
@@ -380,7 +375,7 @@ jobs:
       - name: 📊 Workflow Summary
         if: always()
         run: |
-          echo "## 🤖 AI Release Notes Generation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧞 Automagik Genie Release Notes Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Release**: ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "**Previous**: ${{ steps.changes.outputs.previous_tag }}" >> $GITHUB_STEP_SUMMARY
@@ -393,7 +388,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔍 Analysis Result" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.extract.outputs.success }}" = "true" ]; then
-            echo "✅ **Success**: Release notes generated and applied automatically" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Success**: Release notes generated by Automagik Genie and applied automatically" >> $GITHUB_STEP_SUMMARY
             echo "📝 **Length**: ${{ steps.extract.outputs.notes_length }} characters" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Failed**: Unable to generate or apply release notes" >> $GITHUB_STEP_SUMMARY
