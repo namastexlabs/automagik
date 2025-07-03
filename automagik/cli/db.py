@@ -21,23 +21,70 @@ def apply_migrations(logger=None):
     provider = get_database_provider()
     logger.info(f"Using {provider.get_database_type()} database provider")
     
-    # Apply file-based migrations - check for database-specific directory first
-    db_type = provider.get_database_type()
-    if db_type == "sqlite":
-        sqlite_migrations_dir = Path("automagik/db/migrations/sqlite")
-        if sqlite_migrations_dir.exists():
-            migrations_dir = sqlite_migrations_dir
-            logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
-        else:
-            migrations_dir = Path("automagik/db/migrations")
-            logger.info(f"Using base migrations directory: {migrations_dir}")
-    else:
-        # For other databases, use base directory
-        migrations_dir = Path("automagik/db/migrations")
-        logger.info(f"Using base migrations directory: {migrations_dir}")
+    # Find migrations directory from installed package
+    try:
+        import importlib.resources as pkg_resources
+        try:
+            # Try to get migrations from package resources
+            migrations_base = pkg_resources.files('automagik.db') / 'migrations'
+            
+            # Apply file-based migrations - check for database-specific directory first
+            db_type = provider.get_database_type()
+            if db_type == "sqlite":
+                sqlite_migrations_dir = migrations_base / 'sqlite'
+                if sqlite_migrations_dir.is_dir():
+                    migrations_dir = Path(str(sqlite_migrations_dir))
+                    logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
+                else:
+                    migrations_dir = Path(str(migrations_base))
+                    logger.info(f"Using base migrations directory: {migrations_dir}")
+            else:
+                # For other databases, use base directory
+                migrations_dir = Path(str(migrations_base))
+                logger.info(f"Using base migrations directory: {migrations_dir}")
+                
+        except (ImportError, AttributeError):
+            # Fallback for older Python versions
+            import pkg_resources as legacy_pkg_resources
+            try:
+                # Get package path and construct migrations path
+                package_path = legacy_pkg_resources.resource_filename('automagik', 'db/migrations')
+                migrations_base = Path(package_path)
+                
+                db_type = provider.get_database_type()
+                if db_type == "sqlite":
+                    sqlite_migrations_dir = migrations_base / 'sqlite'
+                    if sqlite_migrations_dir.exists():
+                        migrations_dir = sqlite_migrations_dir
+                        logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
+                    else:
+                        migrations_dir = migrations_base
+                        logger.info(f"Using base migrations directory: {migrations_dir}")
+                else:
+                    migrations_dir = migrations_base
+                    logger.info(f"Using base migrations directory: {migrations_dir}")
+            except:
+                # Final fallback to relative paths (development mode)
+                logger.warning("Could not find migrations via package resources, trying relative paths")
+                db_type = provider.get_database_type()
+                if db_type == "sqlite":
+                    sqlite_migrations_dir = Path("automagik/db/migrations/sqlite")
+                    if sqlite_migrations_dir.exists():
+                        migrations_dir = sqlite_migrations_dir
+                        logger.info(f"Using SQLite-specific migrations directory: {migrations_dir}")
+                    else:
+                        migrations_dir = Path("automagik/db/migrations")
+                        logger.info(f"Using base migrations directory: {migrations_dir}")
+                else:
+                    migrations_dir = Path("automagik/db/migrations")
+                    logger.info(f"Using base migrations directory: {migrations_dir}")
+                    
+    except Exception as e:
+        logger.error(f"Error finding migrations directory: {e}")
+        return False
     
     if not migrations_dir.exists():
-        logger.warning("No migrations directory found")
+        logger.warning(f"No migrations directory found at: {migrations_dir}")
         return False
     
     logger.info(f"Applying migrations from {migrations_dir}")
