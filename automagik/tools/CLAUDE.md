@@ -470,7 +470,7 @@ except Exception as e:
 
 # Enable tool debug logging
 export TOOL_DEBUG=true
-export AM_LOG_LEVEL=DEBUG
+export AUTOMAGIK_LOG_LEVEL=DEBUG
 ```
 
 ## ⚠️ Tool Development Guidelines

@@ -142,7 +142,7 @@ make logs-f        # Follow logs in real-time
 
 3. **Test it:**
 ```bash
-curl http://localhost:${AM_PORT}/health
+curl http://localhost:${AUTOMAGIK_API_PORT}/health
 ```
 
 ## 🎯 Usage
@@ -188,13 +188,13 @@ make docker FORCE=1        # Force start Docker stack
 ### API Examples
 ```bash
 # Test agent (using default API key)
-curl -X POST http://localhost:${AM_PORT}/api/v1/agent/simple/run \
+curl -X POST http://localhost:${AUTOMAGIK_API_PORT}/api/v1/agent/simple/run \
   -H "X-API-Key: namastex888" \
   -H "Content-Type: application/json" \
   -d '{"message_content": "Hello!", "session_name": "test"}'
 
 # Create memory that auto-injects into prompts
-curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
+curl -X POST http://localhost:${AUTOMAGIK_API_PORT}/api/v1/memories \
   -H "X-API-Key: namastex888" \
   -H "Content-Type: application/json" \
   -d '{"name": "personality", "content": "friendly and helpful", "agent_id": 1}'
@@ -202,9 +202,9 @@ curl -X POST http://localhost:${AM_PORT}/api/v1/memories \
 
 ## Useful Endpoints
 
-*   **API Docs:** `http://localhost:${AM_PORT}/docs`
-*   **Health Check:** `http://localhost:${AM_PORT}/health`
-*   **List Agents:** `http://localhost:${AM_PORT}/api/v1/agents`
+*   **API Docs:** `http://localhost:${AUTOMAGIK_API_PORT}/docs`
+*   **Health Check:** `http://localhost:${AUTOMAGIK_API_PORT}/health`
+*   **List Agents:** `http://localhost:${AUTOMAGIK_API_PORT}/api/v1/agents`
 
 ## 🛠️ Create Custom Agents
 

@@ -376,7 +376,7 @@ async def test_tool_execution():
 
 ```bash
 # Enable MCP debug logging
-export AM_LOG_LEVEL=DEBUG
+export AUTOMAGIK_LOG_LEVEL=DEBUG
 export MCP_DEBUG=true
 
 # Test MCP server standalone

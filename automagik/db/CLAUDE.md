@@ -275,7 +275,7 @@ def test_migration_idempotency():
 
 ```bash
 # Enable SQL query logging
-export AM_LOG_SQL=true
+export AUTOMAGIK_LOG_SQL=true
 
 # Check migration status
 uv run python -c "
@@ -304,7 +304,7 @@ print(f'Pool status: {pool.getconn().dsn}')
 ### Performance Considerations
 - Use pagination for large result sets
 - Index frequently queried JSONB paths with GIN indexes
-- Monitor slow queries with `AM_LOG_SQL=true`
+- Monitor slow queries with `AUTOMAGIK_LOG_SQL=true`
 - Use connection pooling appropriately
 - Implement proper connection cleanup
 

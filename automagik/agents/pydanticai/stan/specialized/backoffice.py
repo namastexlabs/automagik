@@ -35,7 +35,7 @@ from automagik.tools.omie.schema import ClientSearchInput
 
 logger = logging.getLogger(__name__)
 
-ENVIRIONMENT_MODE = settings.AUTOMAGIK_ENV
+ENVIRIONMENT_MODE = settings.ENVIRONMENT
 
 async def make_conversation_summary(message_history) -> str:
     """Make a summary of the conversation."""
