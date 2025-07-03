@@ -38,7 +38,7 @@ jobs:
 
     environment:
       name: production
-      url: https://pypi.org/p/automagik-agents
+      url: https://pypi.org/p/automagik
 
     steps:
       - name: Retrieve release distributions
