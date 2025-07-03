@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key for agent operations")
 
+    # Anthropic (Optional)
+    ANTHROPIC_API_KEY: Optional[str] = Field(None, description="Anthropic API key for agent operations")
+
     # Google Gemini (Optional)
     GEMINI_API_KEY: Optional[str] = Field(None, description="Google Gemini API key for agent operations")
 
