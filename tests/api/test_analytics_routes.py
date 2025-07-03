@@ -5,7 +5,7 @@ import uuid
 from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 
-from src.main import app
+from automagik.main import app
 
 
 class TestAnalyticsRoutes:
@@ -81,8 +81,8 @@ class TestAnalyticsRoutes:
     
     def test_get_session_usage_success(self, client, valid_session_id, sample_messages_with_usage):
         """Test successful session usage analytics retrieval."""
-        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
@@ -106,7 +106,7 @@ class TestAnalyticsRoutes:
     
     def test_get_session_usage_invalid_session_id(self, client):
         """Test session usage analytics with invalid session ID."""
-        with patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mock to return None for invalid UUID
             mock_safe_uuid.return_value = None
@@ -121,8 +121,8 @@ class TestAnalyticsRoutes:
     
     def test_get_session_usage_no_messages(self, client, valid_session_id):
         """Test session usage analytics with no messages."""
-        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
@@ -142,9 +142,9 @@ class TestAnalyticsRoutes:
     
     def test_get_user_usage_success(self, client, valid_user_id, sample_sessions, sample_messages_with_usage):
         """Test successful user usage analytics retrieval."""
-        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
-             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x == valid_user_id or x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
@@ -165,9 +165,9 @@ class TestAnalyticsRoutes:
     
     def test_get_user_usage_with_custom_days(self, client, valid_user_id, sample_sessions, sample_messages_with_usage):
         """Test user usage analytics with custom days parameter."""
-        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
-             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x == valid_user_id or x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
@@ -184,7 +184,7 @@ class TestAnalyticsRoutes:
     
     def test_get_user_usage_invalid_user_id(self, client):
         """Test user usage analytics with invalid user ID."""
-        with patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mock to return None for invalid UUID
             mock_safe_uuid.return_value = None
@@ -201,9 +201,9 @@ class TestAnalyticsRoutes:
         """Test successful agent usage analytics retrieval."""
         agent_id = 123
         
-        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
-             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
@@ -226,9 +226,9 @@ class TestAnalyticsRoutes:
         """Test agent usage analytics with custom days parameter."""
         agent_id = 123
         
-        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
-             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
@@ -245,9 +245,9 @@ class TestAnalyticsRoutes:
     
     def test_get_top_usage_sessions_success(self, client, sample_sessions, sample_messages_with_usage):
         """Test successful top usage sessions retrieval."""
-        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
-             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
@@ -267,9 +267,9 @@ class TestAnalyticsRoutes:
     
     def test_get_top_usage_sessions_with_custom_parameters(self, client, sample_sessions):
         """Test top usage sessions with custom limit and days parameters."""
-        with patch('src.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
-             patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_sessions') as mock_list_sessions, \
+             patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.side_effect = lambda x: uuid.UUID(x) if x in [s['id'] for s in sample_sessions] else uuid.UUID(x)
@@ -316,8 +316,8 @@ class TestAnalyticsRoutes:
             }
         ]
         
-        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
@@ -341,8 +341,8 @@ class TestAnalyticsRoutes:
             {'id': str(uuid.uuid4()), 'usage': 'invalid json'}
         ]
         
-        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.return_value = uuid.UUID(valid_session_id)
@@ -360,8 +360,8 @@ class TestAnalyticsRoutes:
     
     def test_analytics_endpoints_error_handling(self, client, valid_session_id):
         """Test that analytics endpoints handle errors gracefully."""
-        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks to raise exception
             mock_safe_uuid.return_value = uuid.UUID(valid_session_id)

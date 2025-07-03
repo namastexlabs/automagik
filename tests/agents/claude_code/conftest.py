@@ -25,7 +25,7 @@ def mock_docker_client():
 @pytest.fixture
 def mock_container_manager():
     """Provide a mocked ContainerManager."""
-    from src.agents.claude_code.container import ContainerManager
+    from automagik.agents.claude_code.container import ContainerManager
     
     manager = Mock(spec=ContainerManager)
     manager.docker_client = Mock()
@@ -45,7 +45,7 @@ def mock_container_manager():
 @pytest.fixture
 def mock_executor(mock_container_manager):
     """Provide a mocked DockerExecutor."""
-    from src.agents.claude_code.docker_executor import DockerExecutor
+    from automagik.agents.claude_code.docker_executor import DockerExecutor
     
     executor = DockerExecutor(mock_container_manager)
     # Ensure return_value is a concrete dictionary, not containing any AsyncMock objects
@@ -62,10 +62,10 @@ def mock_executor(mock_container_manager):
 @pytest.fixture
 def claude_code_agent(mock_container_manager, mock_executor):
     """Provide a ClaudeCodeAgent instance with mocked dependencies."""
-    from src.agents.claude_code.agent import ClaudeCodeAgent
+    from automagik.agents.claude_code.agent import ClaudeCodeAgent
     
-    with patch('src.agents.claude_code.agent.ContainerManager', return_value=mock_container_manager):
-        with patch('src.agents.claude_code.agent.ExecutorFactory') as mock_factory:
+    with patch('automagik.agents.claude_code.agent.ContainerManager', return_value=mock_container_manager):
+        with patch('automagik.agents.claude_code.agent.ExecutorFactory') as mock_factory:
             mock_factory.create_executor.return_value = mock_executor
             agent = ClaudeCodeAgent({})
             agent._validate_workflow = AsyncMock(return_value=True)
@@ -75,7 +75,7 @@ def claude_code_agent(mock_container_manager, mock_executor):
 @pytest.fixture
 def mock_settings():
     """Provide mocked settings with claude-code enabled."""
-    with patch('src.agents.claude_code.agent.settings') as mock_settings:
+    with patch('automagik.agents.claude_code.agent.settings') as mock_settings:
         mock_settings.AM_ENABLE_CLAUDE_CODE = True
         yield mock_settings
 
@@ -83,7 +83,7 @@ def mock_settings():
 @pytest.fixture
 def sample_request():
     """Provide a sample ClaudeCodeRunRequest."""
-    from src.agents.claude_code.models import ClaudeCodeRunRequest
+    from automagik.agents.claude_code.models import ClaudeCodeRunRequest
     
     return ClaudeCodeRunRequest(
         message="Fix the bug in session controller",

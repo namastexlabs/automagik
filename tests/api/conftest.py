@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
-from src.main import app
-from src.config import settings
+from automagik.main import app
+from automagik.config import settings
 
 @pytest.fixture(scope="session")
 def client():

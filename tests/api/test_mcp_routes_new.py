@@ -6,8 +6,8 @@ from datetime import datetime
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
-from src.main import app
-from src.db.models import MCPConfig
+from automagik.main import app
+from automagik.db.models import MCPConfig
 
 
 class TestStreamlinedMCPRoutes:
@@ -21,7 +21,7 @@ class TestStreamlinedMCPRoutes:
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers for API calls."""
-        from src.config import settings
+        from automagik.config import settings
         return {"x-api-key": settings.AM_API_KEY}
     
     @pytest.fixture
@@ -63,7 +63,7 @@ class TestStreamlinedMCPRoutes:
         )
     
     # Test GET /configs
-    @patch('src.api.routes.mcp_routes.list_mcp_configs')
+    @patch('automagik.api.routes.mcp_routes.list_mcp_configs')
     def test_list_configs_success(self, mock_list, client, auth_headers, sample_mcp_config):
         """Test successful listing of MCP configurations."""
         # Setup mock
@@ -82,7 +82,7 @@ class TestStreamlinedMCPRoutes:
         
         mock_list.assert_called_once_with(enabled_only=True, agent_name=None)
     
-    @patch('src.api.routes.mcp_routes.list_mcp_configs')
+    @patch('automagik.api.routes.mcp_routes.list_mcp_configs')
     def test_list_configs_with_agent_filter(self, mock_list, client, auth_headers, sample_mcp_config):
         """Test listing configs filtered by agent."""
         # Setup mock
@@ -99,7 +99,7 @@ class TestStreamlinedMCPRoutes:
         
         mock_list.assert_called_once_with(enabled_only=False, agent_name="simple")
     
-    @patch('src.api.routes.mcp_routes.list_mcp_configs')
+    @patch('automagik.api.routes.mcp_routes.list_mcp_configs')
     def test_list_configs_empty(self, mock_list, client, auth_headers):
         """Test listing configs with no results."""
         # Setup mock
@@ -115,8 +115,8 @@ class TestStreamlinedMCPRoutes:
         assert len(data["configs"]) == 0
     
     # Test POST /configs
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
-    @patch('src.api.routes.mcp_routes.create_mcp_config')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.create_mcp_config')
     def test_create_config_success(self, mock_create, mock_get_by_name, client, auth_headers, sample_config, sample_mcp_config):
         """Test successful creation of MCP configuration."""
         # Setup mocks
@@ -135,7 +135,7 @@ class TestStreamlinedMCPRoutes:
         mock_create.assert_called_once()
         assert mock_get_by_name.call_count == 2  # Check if exists, then get after creation
     
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
     def test_create_config_already_exists(self, mock_get_by_name, client, auth_headers, sample_config, sample_mcp_config):
         """Test creating config that already exists."""
         # Setup mock
@@ -216,8 +216,8 @@ class TestStreamlinedMCPRoutes:
         assert "timeout must be at least 1000ms" in data["detail"]
     
     # Test PUT /configs/{name}
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
-    @patch('src.api.routes.mcp_routes.update_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.update_mcp_config_by_name')
     def test_update_config_success(self, mock_update, mock_get_by_name, client, auth_headers, sample_config, sample_mcp_config):
         """Test successful update of MCP configuration."""
         # Setup mocks
@@ -240,7 +240,7 @@ class TestStreamlinedMCPRoutes:
         mock_update.assert_called_once()
         assert mock_get_by_name.call_count == 2
     
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
     def test_update_config_not_found(self, mock_get_by_name, client, auth_headers, sample_config):
         """Test updating non-existent config."""
         # Setup mock
@@ -254,7 +254,7 @@ class TestStreamlinedMCPRoutes:
         data = response.json()
         assert "not found" in data["detail"]
     
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
     def test_update_config_name_mismatch(self, mock_get_by_name, client, auth_headers, sample_config, sample_mcp_config):
         """Test updating config with mismatched name."""
         # Setup mock
@@ -272,8 +272,8 @@ class TestStreamlinedMCPRoutes:
         assert "Cannot change configuration name" in data["detail"]
     
     # Test DELETE /configs/{name}
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
-    @patch('src.api.routes.mcp_routes.delete_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.delete_mcp_config_by_name')
     def test_delete_config_success(self, mock_delete, mock_get_by_name, client, auth_headers, sample_mcp_config):
         """Test successful deletion of MCP configuration."""
         # Setup mocks
@@ -289,7 +289,7 @@ class TestStreamlinedMCPRoutes:
         
         mock_delete.assert_called_once_with("test-server")
     
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
     def test_delete_config_not_found(self, mock_get_by_name, client, auth_headers):
         """Test deleting non-existent config."""
         # Setup mock
@@ -303,8 +303,8 @@ class TestStreamlinedMCPRoutes:
         data = response.json()
         assert "not found" in data["detail"]
     
-    @patch('src.api.routes.mcp_routes.get_mcp_config_by_name')
-    @patch('src.api.routes.mcp_routes.delete_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.get_mcp_config_by_name')
+    @patch('automagik.api.routes.mcp_routes.delete_mcp_config_by_name')
     def test_delete_config_db_error(self, mock_delete, mock_get_by_name, client, auth_headers, sample_mcp_config):
         """Test deletion with database error."""
         # Setup mocks

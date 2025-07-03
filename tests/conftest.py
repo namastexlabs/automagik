@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import pytest
 from unittest.mock import Mock, AsyncMock
-from src.agents.models.dependencies import AutomagikAgentsDependencies
+from automagik.agents.models.dependencies import AutomagikAgentsDependencies
 
 # Configure pytest-asyncio
 pytest_plugins = ('pytest_asyncio',)

@@ -1,0 +1,1 @@
+"""Agent templates for external agents."""

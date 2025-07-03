@@ -18,7 +18,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.agents.claude_code.utils.worktree_cleanup import cleanup_orphaned_worktrees
+from automagik.agents.claude_code.utils.worktree_cleanup import cleanup_orphaned_worktrees
 
 # Configure logging
 logging.basicConfig(

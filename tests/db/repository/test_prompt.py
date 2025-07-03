@@ -2,8 +2,8 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.db.models import PromptCreate
-from src.db.repository.prompt import (
+from automagik.db.models import PromptCreate
+from automagik.db.repository.prompt import (
     get_prompt_by_id,
     get_active_prompt,
     get_latest_version_for_status,
@@ -19,7 +19,7 @@ TEST_PROMPT_NAME = "Test Prompt"
 
 @pytest.fixture
 def mock_execute_query():
-    with patch('src.db.repository.prompt.execute_query') as mock:
+    with patch('automagik.db.repository.prompt.execute_query') as mock:
         yield mock
 
 class TestPromptRepository:
@@ -132,7 +132,7 @@ class TestPromptRepository:
         mock_get_prompt.return_value.status_key = TEST_STATUS_KEY
         mock_get_prompt.return_value.is_active = False
         
-        with patch('src.db.repository.prompt.get_prompt_by_id', mock_get_prompt):
+        with patch('automagik.db.repository.prompt.get_prompt_by_id', mock_get_prompt):
             # Exercise
             result = set_prompt_active(1, True)
             

@@ -6,7 +6,7 @@ This module tests the common utilities in src/agents/common.
 import pytest
 import logging
 
-from src.agents.common import (
+from automagik.agents.common import (
     format_message_for_db,
     parse_user_message,
     create_context,

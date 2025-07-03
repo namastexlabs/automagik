@@ -9,7 +9,7 @@ import logging
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from src.mcp.client import MCPClientManager
+from automagik.mcp.client import MCPClientManager
 
 # Setup logging to suppress MCP noise unless needed
 logging.getLogger('mcp').setLevel(logging.WARNING)

@@ -8,7 +8,7 @@ import unittest
 import uuid
 import logging
 
-from src.memory.message_history import MessageHistory
+from automagik.memory.message_history import MessageHistory
 from pydantic_ai.messages import (
     ModelRequest, 
     ModelResponse,

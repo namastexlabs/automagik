@@ -266,6 +266,42 @@ install-prod: ## 🏭 Install production Docker stack
 	@env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) up -d
 	@$(call print_success_with_logo,Production Docker stack ready!)
 
+install-pip: ## 📦 Install package via pip (editable mode)
+	@$(call print_status,Installing automagik package via pip...)
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(call print_warning,Virtual environment not found - creating it now...); \
+		$(UV) venv $(VENV_PATH); \
+		$(call print_success,Virtual environment created); \
+	fi
+	@$(call print_status,Installing package in editable mode...)
+	@$(VENV_PATH)/bin/pip install -e .
+	@$(call print_success_with_logo,Package installed successfully!)
+	@echo -e "$(FONT_CYAN)💡 You can now use 'automagik' command$(FONT_RESET)"
+	@echo -e "$(FONT_CYAN)💡 Start the API server with: automagik-server$(FONT_RESET)"
+
+build-pip: ## 📦 Build pip package for distribution
+	@$(call print_status,Building pip package...)
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(call print_error,Virtual environment not found); \
+		echo -e "$(FONT_YELLOW)💡 Run 'make install' first$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@$(VENV_PATH)/bin/pip install build
+	@$(VENV_PATH)/bin/python -m build
+	@$(call print_success,Package built successfully!)
+	@echo -e "$(FONT_CYAN)📦 Distribution files created in ./dist/$(FONT_RESET)"
+
+publish-pip: ## 📤 Publish package to PyPI
+	@$(call print_status,Publishing package to PyPI...)
+	@if [ ! -d "dist" ]; then \
+		$(call print_error,No distribution files found); \
+		echo -e "$(FONT_YELLOW)💡 Run 'make build-pip' first$(FONT_RESET)"; \
+		exit 1; \
+	fi
+	@$(VENV_PATH)/bin/pip install twine
+	@$(VENV_PATH)/bin/twine upload dist/*
+	@$(call print_success,Package published to PyPI!)
+
 # ===========================================
 # 🎛️ Service Management
 # ===========================================
@@ -280,10 +316,10 @@ dev: ## 🛠️ Start development mode with hot reload
 	fi
 	@echo -e "$(FONT_YELLOW)💡 Press Ctrl+C to stop the server$(FONT_RESET)"
 	@echo -e "$(FONT_PURPLE)🧹 Nuclear cleanup of any zombie processes...$(FONT_RESET)"
-	@ps aux | grep -E "(python.*src|uv run|uvicorn|multiprocessing)" | grep -v grep | awk '{print $$2}' | xargs -r kill -9 2>/dev/null || true
+	@ps aux | grep -E "(python.*automagik|uv run|uvicorn|multiprocessing)" | grep -v grep | awk '{print $$2}' | xargs -r kill -9 2>/dev/null || true
 	@sleep 1
 	@echo -e "$(FONT_PURPLE)🚀 Starting server...$(FONT_RESET)"
-	@uv run python -m src --reload
+	@uv run python -m automagik --reload
 
 docker: ## 🐳 Start Docker development stack
 	@$(call print_status,Starting Docker development stack...)
@@ -307,7 +343,7 @@ stop: ## 🛑 Stop development automagik-agents container only
 	$(call print_status,Stopping development automagik-agents container...)
 	@pm2 stop am-agents-labs 2>/dev/null || true
 	@docker stop automagik-agents-dev 2>/dev/null || true
-	@pkill -f "python.*src" 2>/dev/null || true
+	@pkill -f "python.*automagik" 2>/dev/null || true
 	$(call print_success,Development automagik-agents stopped!)
 
 stop-prod: ## 🛑 Stop production automagik-agents container only
@@ -324,7 +360,7 @@ stop-all: ## 🛑 Stop all services (preserves containers)
 	else \
 		$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) --env-file .env stop 2>/dev/null || true; \
 	fi
-	@pkill -f "python.*src" 2>/dev/null || true
+	@pkill -f "python.*automagik" 2>/dev/null || true
 	$(call print_success,All services stopped!)
 
 
@@ -535,8 +571,8 @@ define show_docker_status
 endef
 
 define show_local_status
-	if pgrep -f "python.*src" >/dev/null 2>&1; then \
-		pid=$$(pgrep -f "python.*src"); \
+	if pgrep -f "python.*automagik" >/dev/null 2>&1; then \
+		pid=$$(pgrep -f "python.*automagik"); \
 		port=$$(ss -tlnp | grep $$pid | awk '{print $$4}' | cut -d: -f2 | head -1); \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 			"local-process" "running" "$${port:-8881}" "$$pid"; \

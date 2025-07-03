@@ -16,7 +16,7 @@ def setup_logging(token: Optional[str] = None):
     """
     try:
         # Try to import settings from src
-        from src.config import settings
+        from automagik.config import settings
         token = token or settings.LOGFIRE_TOKEN
     except ImportError:
         # Fallback to environment variable

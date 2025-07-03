@@ -16,8 +16,8 @@ logger = logging.getLogger("memory_system_test")
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.agents.pydanticai.simple.agent import SimpleAgent
-from src.tools.memory.provider import MemoryProvider
+from automagik.agents.pydanticai.simple.agent import SimpleAgent
+from automagik.tools.memory.provider import MemoryProvider
 
 @pytest.mark.asyncio
 async def test_memory_provider():
@@ -114,7 +114,7 @@ async def test_template_extraction():
     """
     
     # Import the correct method
-    from src.agents.common.prompt_builder import PromptBuilder
+    from automagik.agents.common.prompt_builder import PromptBuilder
     vars = PromptBuilder.extract_template_variables(test_template)
     expected_vars = {"variable1", "variable2", "third_variable"}
     

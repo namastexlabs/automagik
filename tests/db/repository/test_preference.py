@@ -5,8 +5,8 @@
 
 import pytest
 
-from src.db.models import PreferenceCreate, PreferenceUpdate
-from src.db.repository.preference import PreferenceRepository
+from automagik.db.models import PreferenceCreate, PreferenceUpdate
+from automagik.db.repository.preference import PreferenceRepository
 
 
 @pytest.mark.asyncio

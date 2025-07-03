@@ -18,17 +18,17 @@ def test_core_imports() -> List[Tuple[str, str, bool, str]]:
     
     tests = [
         ('src', 'Main src module'),
-        ('src.config', 'Configuration system'),
-        ('src.agents', 'Agent framework'),
-        ('src.agents.pydanticai.simple', 'Simple agent'),
-        ('src.agents.pydanticai.stan', 'Stan agent'),
-        ('src.agents.pydanticai.sofia', 'Sofia agent'),
-        ('src.api', 'API framework'),
-        ('src.db', 'Database layer'),
-        ('src.mcp', 'MCP integration'),
-        ('src.tools', 'Tools framework'),
-        ('src.cli', 'Command line interface'),
-        ('src.main', 'Main entry point'),
+        ('automagik.config', 'Configuration system'),
+        ('automagik.agents', 'Agent framework'),
+        ('automagik.agents.pydanticai.simple', 'Simple agent'),
+        ('automagik.agents.pydanticai.stan', 'Stan agent'),
+        ('automagik.agents.pydanticai.sofia', 'Sofia agent'),
+        ('automagik.api', 'API framework'),
+        ('automagik.db', 'Database layer'),
+        ('automagik.mcp', 'MCP integration'),
+        ('automagik.tools', 'Tools framework'),
+        ('automagik.cli', 'Command line interface'),
+        ('automagik.main', 'Main entry point'),
     ]
     
     results = []
@@ -54,7 +54,7 @@ def test_functional_verification():
     
     # Test 1: Configuration access
     try:
-        from src.config import settings
+        from automagik.config import settings
         print(f"✅ Configuration: Environment={settings.AM_ENV}, Port={settings.AM_PORT}")
     except Exception as e:
         print(f"❌ Configuration access failed: {e}")
@@ -62,7 +62,7 @@ def test_functional_verification():
     
     # Test 2: Agent creation
     try:
-        from src.agents.models.agent_factory import AgentFactory
+        from automagik.agents.models.agent_factory import AgentFactory
         
         test_config = {"am_api_key": "test", "openai_api_key": "test-key"}
         agent = AgentFactory.create_agent("simple", config=test_config)
@@ -73,7 +73,7 @@ def test_functional_verification():
     
     # Test 3: Database provider
     try:
-        from src.db.providers.factory import get_database_provider
+        from automagik.db.providers.factory import get_database_provider
         
         provider = get_database_provider()
         print(f"✅ Database: {type(provider).__name__} initialized")

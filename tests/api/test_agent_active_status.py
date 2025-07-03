@@ -1,6 +1,6 @@
 import pytest
-from src.db.repository.agent import list_agents, get_agent_by_name, update_agent
-from src.api.controllers.agent_controller import list_registered_agents
+from automagik.db.repository.agent import list_agents, get_agent_by_name, update_agent
+from automagik.api.controllers.agent_controller import list_registered_agents
 
 
 @pytest.mark.asyncio

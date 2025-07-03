@@ -18,7 +18,7 @@ def setup_module():
     """Setup test data before running tests"""
     global created_session_id, _TEST_USER_ID
     
-    from src.db.connection import execute_query
+    from automagik.db.connection import execute_query
     
     # Ensure we have at least one user to satisfy FK / NOT NULL constraint.
     user_result = execute_query("SELECT id FROM users WHERE email = %s", (_TEST_USER_EMAIL,))

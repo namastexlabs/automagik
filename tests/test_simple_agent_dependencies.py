@@ -6,7 +6,7 @@ verifying that it properly provides dependencies and handles configuration.
 import unittest
 from unittest.mock import MagicMock
 
-from src.agents.models.dependencies import AutomagikAgentsDependencies
+from automagik.agents.models.dependencies import AutomagikAgentsDependencies
 
 class TestAutomagikAgentsDependencies(unittest.TestCase):
     """Test cases for AutomagikAgentsDependencies."""

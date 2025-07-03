@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.pydanticai.sofia.agent import SofiaAgent
+from automagik.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestSofiaAgentMCP:
@@ -43,7 +43,7 @@ class TestSofiaAgentMCP:
     @pytest.mark.asyncio
     async def test_load_mcp_servers_success(self, sofia_agent, mock_server_manager):
         """Test successful loading of MCP servers."""
-        with patch('src.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
+        with patch('automagik.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
             mock_client_manager = Mock()
             mock_client_manager.get_servers_for_agent.return_value = [mock_server_manager]
             mock_refresh.return_value = mock_client_manager
@@ -58,7 +58,7 @@ class TestSofiaAgentMCP:
     @pytest.mark.asyncio
     async def test_load_mcp_servers_no_servers(self, sofia_agent):
         """Test loading when no MCP servers are assigned."""
-        with patch('src.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
+        with patch('automagik.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
             mock_client_manager = Mock()
             mock_client_manager.get_servers_for_agent.return_value = []
             mock_refresh.return_value = mock_client_manager
@@ -75,7 +75,7 @@ class TestSofiaAgentMCP:
         mock_server_manager.is_running = False  # Server not running
         mock_server_manager.name = "stopped-server"
         
-        with patch('src.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
+        with patch('automagik.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
             mock_client_manager = Mock()
             mock_client_manager.get_servers_for_agent.return_value = [mock_server_manager]
             mock_refresh.return_value = mock_client_manager
@@ -94,7 +94,7 @@ class TestSofiaAgentMCP:
         mock_server_manager._server.is_running = False  # Needs to be started
         mock_server_manager._server.__aenter__ = AsyncMock(return_value="server_context")
         
-        with patch('src.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
+        with patch('automagik.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
             mock_client_manager = Mock()
             mock_client_manager.get_servers_for_agent.return_value = [mock_server_manager]
             mock_refresh.return_value = mock_client_manager
@@ -115,7 +115,7 @@ class TestSofiaAgentMCP:
     @pytest.mark.asyncio
     async def test_load_mcp_servers_error_handling(self, sofia_agent):
         """Test error handling during MCP server loading."""
-        with patch('src.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
+        with patch('automagik.agents.pydanticai.sofia.agent.refresh_mcp_client_manager') as mock_refresh:
             mock_refresh.side_effect = Exception("MCP client manager error")
             
             servers = await sofia_agent._load_mcp_servers()
@@ -126,7 +126,7 @@ class TestSofiaAgentMCP:
     async def test_initialize_pydantic_agent_with_mcp_servers(self, sofia_agent, mock_mcp_servers):
         """Test initializing PydanticAI agent with MCP servers."""
         with patch.object(sofia_agent, '_load_mcp_servers', return_value=mock_mcp_servers):
-            with patch('src.agents.pydanticai.sofia.agent.Agent') as mock_agent_class:
+            with patch('automagik.agents.pydanticai.sofia.agent.Agent') as mock_agent_class:
                 mock_agent_instance = Mock()
                 mock_agent_class.return_value = mock_agent_instance
                 
@@ -145,7 +145,7 @@ class TestSofiaAgentMCP:
         """Test that agent is recreated when MCP servers change."""
         # First initialization with 1 server
         with patch.object(sofia_agent, '_load_mcp_servers', return_value=[Mock()]):
-            with patch('src.agents.pydanticai.sofia.agent.Agent') as mock_agent_class:
+            with patch('automagik.agents.pydanticai.sofia.agent.Agent') as mock_agent_class:
                 mock_agent_instance = Mock()
                 mock_agent_instance.mcp_servers = [Mock()]  # 1 server
                 mock_agent_class.return_value = mock_agent_instance
@@ -172,9 +172,9 @@ class TestSofiaAgentMCP:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.sofia.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.sofia.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.sofia.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await sofia_agent.run("Test with MCP")
                                             

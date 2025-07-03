@@ -5,7 +5,7 @@ This test suite addresses the critical startup errors discovered during system t
 ensuring the migration safety system accounts for and prevents these integration failures.
 
 Critical Issues Identified from Startup Log:
-1. Sofia agent import error: 'refresh_mcp_client_manager' missing from src.mcp.client
+1. Sofia agent import error: 'refresh_mcp_client_manager' missing from automagik.mcp.client
 2. PlaceholderAgent undefined error in sofia error handling
 3. MCP server initialization failures: MCPServerStdio missing 'args' parameter
 4. General import and integration failures between components
@@ -27,7 +27,7 @@ class TestStartupIntegrationErrors:
     def test_mcp_client_import_compatibility(self):
         """Test that mcp.client module has all required functions for agent compatibility."""
         try:
-            from src.mcp.client import get_mcp_manager
+            from automagik.mcp.client import get_mcp_manager
             # This should exist as the new function
             assert callable(get_mcp_manager)
         except ImportError as e:
@@ -37,12 +37,12 @@ class TestStartupIntegrationErrors:
         """Test that legacy function names are properly aliased or handled."""
         try:
             # This is the function Sofia agent is trying to import
-            from src.mcp.client import refresh_mcp_client_manager
+            from automagik.mcp.client import refresh_mcp_client_manager
             assert callable(refresh_mcp_client_manager)
         except ImportError:
             # If it doesn't exist, verify the error handling path works
             try:
-                from src.agents.pydanticai.sofia.agent import SofiaAgent
+                from automagik.agents.pydanticai.sofia.agent import SofiaAgent
                 pytest.fail("Sofia agent should fail gracefully when refresh_mcp_client_manager is missing")
             except ImportError:
                 # This is expected - Sofia should fail to import if the function is missing
@@ -51,7 +51,7 @@ class TestStartupIntegrationErrors:
     def test_placeholder_agent_availability(self):
         """Test that PlaceholderAgent is available for error handling."""
         try:
-            from src.agents.models.placeholder import PlaceholderAgent
+            from automagik.agents.models.placeholder import PlaceholderAgent
             assert PlaceholderAgent is not None
             
             # Test that it can be instantiated with error config
@@ -65,7 +65,7 @@ class TestStartupIntegrationErrors:
     
     def test_agent_factory_error_handling(self):
         """Test that agent factory handles missing agents gracefully."""
-        from src.agents.models.agent_factory import AgentFactory
+        from automagik.agents.models.agent_factory import AgentFactory
         
         # Test creating an agent that might have import issues
         try:
@@ -80,10 +80,10 @@ class TestStartupIntegrationErrors:
         except Exception as e:
             pytest.fail(f"Agent factory should handle errors gracefully, got: {e}")
     
-    @patch('src.mcp.client.MCPServerStdio')
+    @patch('automagik.mcp.client.MCPServerStdio')
     def test_mcp_server_initialization_parameters(self, mock_stdio):
         """Test that MCP server initialization has correct parameters."""
-        from src.mcp.client import MCPManager
+        from automagik.mcp.client import MCPManager
         
         # Mock the MCPServerStdio to check what parameters it's called with
         mock_stdio.return_value = Mock()
@@ -117,7 +117,7 @@ class TestStartupIntegrationErrors:
     
     def test_mcp_config_validation_prevents_startup_errors(self):
         """Test that config validation catches issues before startup."""
-        from src.db.models import MCPConfig
+        from automagik.db.models import MCPConfig
         
         # Test configuration that caused startup failure
         invalid_config = {
@@ -218,7 +218,7 @@ class TestMCPServerCompatibilityLayer:
     def test_mcp_server_stdio_compatibility(self, mock_stdio):
         """Test that MCPServerStdio is called with correct parameters."""
         try:
-            from src.mcp.client import MCPManager
+            from automagik.mcp.client import MCPManager
             
             # Mock successful server creation
             mock_server = Mock()
@@ -297,7 +297,7 @@ class TestAgentInitializationErrorHandling:
         """Test that Sofia agent errors are handled gracefully."""
         try:
             # Try to import Sofia agent - should either work or fail gracefully
-            from src.agents.pydanticai.sofia import create_agent
+            from automagik.agents.pydanticai.sofia import create_agent
             
             # If import succeeds, test agent creation
             try:
@@ -318,7 +318,7 @@ class TestAgentInitializationErrorHandling:
     
     def test_agent_discovery_with_errors(self):
         """Test that agent discovery continues despite individual agent errors."""
-        from src.agents.models.agent_factory import AgentFactory
+        from automagik.agents.models.agent_factory import AgentFactory
         
         # Test agent discovery process
         try:
@@ -345,8 +345,8 @@ class TestSystemIntegrationValidation:
     def test_database_mcp_integration(self):
         """Test that database and MCP systems integrate properly after migration."""
         try:
-            from src.db.models import MCPConfig
-            from src.mcp.client import MCPManager
+            from automagik.db.models import MCPConfig
+            from automagik.mcp.client import MCPManager
             
             # Test that MCP configs can be loaded from database
             MCPManager()
@@ -378,8 +378,8 @@ class TestSystemIntegrationValidation:
     def test_agent_mcp_tool_registration(self):
         """Test that agent-MCP tool registration works after migration."""
         try:
-            from src.agents.common.tool_registry import ToolRegistry
-            from src.mcp.client import MCPManager
+            from automagik.agents.common.tool_registry import ToolRegistry
+            from automagik.mcp.client import MCPManager
             
             # Test that tools can be registered from MCP servers
             tool_registry = ToolRegistry()
@@ -413,7 +413,7 @@ class TestPostMigrationSmokeTests:
     def test_basic_agent_creation_smoke_test(self):
         """Smoke test for basic agent creation after migration."""
         try:
-            from src.agents.models.agent_factory import AgentFactory
+            from automagik.agents.models.agent_factory import AgentFactory
             
             # Test that at least one agent type can be created
             agent_types = ["simple", "stan"]
@@ -435,7 +435,7 @@ class TestPostMigrationSmokeTests:
     def test_database_connectivity_smoke_test(self):
         """Smoke test for database connectivity after migration."""
         try:
-            from src.db.connection import execute_query
+            from automagik.db.connection import execute_query
             
             # Test basic database connectivity
             result = execute_query("SELECT 1 as test", fetch=True)
@@ -449,7 +449,7 @@ class TestPostMigrationSmokeTests:
     def test_mcp_system_smoke_test(self):
         """Smoke test for MCP system functionality after migration."""
         try:
-            from src.mcp.client import MCPManager
+            from automagik.mcp.client import MCPManager
             
             # Test that MCP manager can be initialized
             manager = MCPManager()

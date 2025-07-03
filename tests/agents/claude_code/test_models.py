@@ -7,7 +7,7 @@ import pytest
 from datetime import datetime
 from pydantic import ValidationError
 
-from src.agents.claude_code.models import (
+from automagik.agents.claude_code.models import (
     ClaudeCodeRunRequest,
     ClaudeCodeRunResponse,
     ClaudeCodeStatusResponse,

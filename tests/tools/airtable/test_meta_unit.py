@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from src.tools.airtable.interface import airtable_list_bases, airtable_list_tables
-from src.tools.airtable.tool import list_bases, list_tables
+from automagik.tools.airtable.interface import airtable_list_bases, airtable_list_tables
+from automagik.tools.airtable.tool import list_bases, list_tables
 
 
 class TestListBases:
@@ -180,11 +180,11 @@ class TestListTables:
 class TestMetaToolIntegration:
     """Test meta tool integration with actual tool functions."""
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_list_bases_actual_function(self, mock_request, monkeypatch):
         """Test list_bases actual function with mocked HTTP."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Mock successful API response
         mock_response = Mock()
@@ -210,11 +210,11 @@ class TestMetaToolIntegration:
             "https://api.airtable.com/v0/meta/bases"
         )
     
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_list_tables_actual_function(self, mock_request, monkeypatch):
         """Test list_tables actual function with mocked HTTP."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Mock successful API response
         mock_response = Mock()

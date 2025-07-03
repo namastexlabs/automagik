@@ -8,17 +8,17 @@ import os
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timezone
 
-from src.agents.claude_code.agent import ClaudeCodeAgent
-from src.agents.claude_code.models import (
+from automagik.agents.claude_code.agent import ClaudeCodeAgent
+from automagik.agents.claude_code.models import (
     ClaudeCodeRunRequest
 )
-from src.memory.message_history import MessageHistory
+from automagik.memory.message_history import MessageHistory
 
 
 class TestClaudeCodeAgentInitialization:
     """Test ClaudeCodeAgent initialization."""
     
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     def test_agent_initialization(self, mock_executor_factory):
         """Test basic agent initialization."""
         # Mock executor
@@ -44,7 +44,7 @@ class TestClaudeCodeAgentInitialization:
             cleanup_on_complete=True
         )
         
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     def test_agent_default_values(self, mock_executor_factory):
         """Test agent initialization with default values."""
         agent = ClaudeCodeAgent({})
@@ -54,7 +54,7 @@ class TestClaudeCodeAgentInitialization:
         assert agent.config.get("default_workflow") == "surgeon"
         assert agent.config.get("git_branch") is None
         
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     def test_agent_dependencies(self, mock_executor_factory):
         """Test agent dependencies setup."""
         agent = ClaudeCodeAgent({})
@@ -82,7 +82,7 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_run_invalid_workflow(self, mock_executor_factory, mock_exists):
         """Test running with invalid workflow."""
         # Mock credentials file exists
@@ -99,8 +99,8 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_run_successful_execution(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test successful execution."""
         # Mock credentials file exists
@@ -135,7 +135,7 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_run_failed_execution(self, mock_executor_factory, mock_exists):
         """Test failed execution."""
         mock_exists.return_value = True
@@ -163,8 +163,8 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ContainerManager')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ContainerManager')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_run_with_message_history(self, mock_executor_factory, mock_container_class, mock_exists):
         """Test run with message history storage."""
         mock_exists.return_value = True
@@ -216,7 +216,7 @@ class TestClaudeCodeAgentRun:
         
     @pytest.mark.asyncio
     @patch('pathlib.Path.exists')
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_run_exception_handling(self, mock_executor_factory, mock_exists):
         """Test exception handling during run."""
         mock_exists.return_value = True
@@ -342,7 +342,7 @@ class TestAsyncExecution:
     """Test async execution methods."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_create_async_run(self, mock_executor_factory):
         """Test creating async run."""
         agent = ClaudeCodeAgent({})
@@ -365,7 +365,7 @@ class TestAsyncExecution:
         mock_create_task.assert_called_once()
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_execute_async_run_success(self, mock_executor_factory):
         """Test executing async run successfully."""
         # Mock executor
@@ -401,7 +401,7 @@ class TestAsyncExecution:
         assert agent.context["run_run_123"]["result"] == mock_result
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_execute_async_run_failure(self, mock_executor_factory):
         """Test executing async run with failure."""
         # Mock executor to raise exception
@@ -465,7 +465,7 @@ class TestCleanup:
     """Test cleanup methods."""
     
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_cleanup(self, mock_executor_factory):
         """Test agent cleanup."""
         # Mock executor with cleanup method
@@ -475,7 +475,7 @@ class TestCleanup:
         agent = ClaudeCodeAgent({})
         
         # Mock parent cleanup
-        with patch('src.agents.models.automagik_agent.AutomagikAgent.cleanup') as mock_parent_cleanup:
+        with patch('automagik.agents.models.automagik_agent.AutomagikAgent.cleanup') as mock_parent_cleanup:
             mock_parent_cleanup.return_value = None
             await agent.cleanup()
         
@@ -484,7 +484,7 @@ class TestCleanup:
         mock_parent_cleanup.assert_called_once()
         
     @pytest.mark.asyncio
-    @patch('src.agents.claude_code.agent.ExecutorFactory')
+    @patch('automagik.agents.claude_code.agent.ExecutorFactory')
     async def test_cleanup_exception(self, mock_executor_factory):
         """Test cleanup with exception."""
         # Mock executor that raises exception
