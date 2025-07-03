@@ -703,6 +703,32 @@ publish: check-release build check-dist ## 🚀 Upload to PyPI and create GitHub
 	fi
 	$(call print_success,Published to PyPI and GitHub!)
 
+publish-github: check-release ## 🚀 Create GitHub release (triggers GitHub Actions for PyPI)
+	$(call print_status,Creating GitHub release to trigger automated PyPI publishing...)
+	@# Get version from pyproject.toml
+	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+	echo -e "$(FONT_CYAN)Publishing version: v$$VERSION$(FONT_RESET)"; \
+	if ! git tag | grep -q "^v$$VERSION$$"; then \
+		echo -e "$(FONT_CYAN)Creating git tag v$$VERSION$(FONT_RESET)"; \
+		git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	fi; \
+	echo -e "$(FONT_CYAN)Pushing tag to GitHub$(FONT_RESET)"; \
+	git push origin "v$$VERSION"; \
+	if command -v gh >/dev/null 2>&1; then \
+		echo -e "$(FONT_CYAN)Creating GitHub release$(FONT_RESET)"; \
+		gh release create "v$$VERSION" \
+			--title "v$$VERSION" \
+			--notes "Release v$$VERSION - Automated PyPI publishing via GitHub Actions with Trusted Publisher" \
+			--generate-notes || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
+	else \
+		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - creating release manually$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Go to: https://github.com/namastexlabs/am-agents-labs/releases/new$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Tag: v$$VERSION$(FONT_RESET)"; \
+	fi; \
+	echo -e "$(FONT_PURPLE)🚀 GitHub Actions will now build and publish to PyPI automatically!$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)Monitor progress: https://github.com/namastexlabs/am-agents-labs/actions$(FONT_RESET)"
+	$(call print_success,GitHub release created! PyPI publishing in progress...)
+
 clean-build: ## 🧹 Clean build artifacts
 	$(call print_status,Cleaning build artifacts...)
 	@rm -rf build dist *.egg-info
