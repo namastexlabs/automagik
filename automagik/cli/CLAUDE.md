@@ -454,10 +454,10 @@ def cli(ctx, config, verbose, debug, env_file):
     # Configure logging
     if debug:
         log.set_level("DEBUG")
-        os.environ["AM_LOG_LEVEL"] = "DEBUG"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
     elif verbose:
         log.set_level("INFO")
-        os.environ["AM_LOG_LEVEL"] = "INFO"
+        os.environ["AUTOMAGIK_LOG_LEVEL"] = "INFO"
     
     # Load environment file
     if Path(env_file).exists():
@@ -796,7 +796,7 @@ automagik --verbose db init
 automagik --help
 
 # Test with mock data
-AUTOMAGIK_ENV=test automagik agents list
+ENVIRONMENT=test automagik agents list
 ```
 
 ## ⚠️ CLI Development Guidelines

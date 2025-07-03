@@ -236,7 +236,7 @@ GEMINI_API_KEY=your-key
 DATABASE_URL=sqlite:///automagik.db  # or PostgreSQL URL
 
 # API
-AM_PORT=8000
+AUTOMAGIK_API_PORT=8000
 API_KEY=your-api-key
 ```
 

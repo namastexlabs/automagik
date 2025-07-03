@@ -11,7 +11,7 @@ The environment loading system provides intelligent detection and loading of env
 ### 🎯 Smart Environment Detection
 - **Automatic mode detection** (development/production)
 - **Container-based detection** using Docker standardization
-- **Environment variable analysis** (AM_ENV setting)
+- **Environment variable analysis** (ENVIRONMENT setting)
 - **Port-based inference** for production mode
 
 ### 📁 Multi-File Support
@@ -91,7 +91,7 @@ source ./scripts/env_loader.sh
 
 # Use functions directly
 env_file=$(get_env_file)
-port=$(get_port "AM_PORT" "8881")
+port=$(get_port "AUTOMAGIK_API_PORT" "8881")
 if env_supports_feature "graphiti"; then
     echo "Graphiti enabled"
 fi
@@ -102,7 +102,7 @@ fi
 ### Mode Detection Algorithm
 
 1. **Check for .env.prod** existence
-2. **Analyze AM_ENV** settings in both files
+2. **Analyze ENVIRONMENT** settings in both files
 3. **Check Docker containers** for production naming
 4. **Port analysis** for production indicators
 5. **Default to development** if unclear
@@ -111,21 +111,21 @@ fi
 
 ```bash
 # Production indicators:
-# - .env.prod exists AND AM_ENV=production
+# - .env.prod exists AND ENVIRONMENT=production
 # - Production containers running (automagik-agents-prod)
 # - Production ports in use (18881)
 
 # Development fallback:
 # - Only .env exists
-# - AM_ENV=development
+# - ENVIRONMENT=development
 # - No production containers
 ```
 
 ## Variable Validation
 
 ### Required Variables
-- `AM_API_KEY` - API authentication key
-- `AM_PORT` - Server port
+- `AUTOMAGIK_API_KEY` - API authentication key
+- `AUTOMAGIK_API_PORT` - Server port
 - `DATABASE_URL` - Database connection string
 
 ### Optional but Important
@@ -136,8 +136,8 @@ fi
 ### Validation Output
 ```
 🔍 Validating environment variables...
-  ✓ AM_API_KEY: configured
-  ✓ AM_PORT: configured
+  ✓ AUTOMAGIK_API_KEY: configured
+  ✓ AUTOMAGIK_API_PORT: configured
   ✓ DATABASE_URL: configured
   ✓ OPENAI_API_KEY: configured
   ⚠ NEO4J_URI: not set (optional)
@@ -211,8 +211,8 @@ fi
 ### Variable Format
 ```bash
 # Comments supported
-AM_PORT=8881
-AM_HOST="0.0.0.0"  # Quotes handled
+AUTOMAGIK_API_PORT=8881
+AUTOMAGIK_API_HOST="0.0.0.0"  # Quotes handled
 DATABASE_URL=postgresql://user:pass@host:port/db  # No quotes needed
 ```
 

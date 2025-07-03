@@ -213,7 +213,7 @@ async def test_with_llm():
 
 ```bash
 # Enable debug logging
-export AM_LOG_LEVEL=DEBUG
+export AUTOMAGIK_LOG_LEVEL=DEBUG
 automagik agents chat -a my_agent
 
 # Check agent registration

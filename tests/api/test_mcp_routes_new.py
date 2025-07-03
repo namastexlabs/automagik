@@ -22,7 +22,7 @@ class TestStreamlinedMCPRoutes:
     def auth_headers(self):
         """Authentication headers for API calls."""
         from automagik.config import settings
-        return {"x-api-key": settings.AM_API_KEY}
+        return {"x-api-key": settings.AUTOMAGIK_API_KEY}
     
     @pytest.fixture
     def sample_config(self):
