@@ -20,7 +20,7 @@ OPTIONAL="○"
 
 # Default timeouts
 TIMEOUT=${TIMEOUT:-5}
-DEFAULT_PORT=${AM_PORT:-8881}
+DEFAULT_PORT=${AUTOMAGIK_API_PORT:-8881}
 
 # Function to check if a service is responding on a port
 check_port() {
@@ -67,7 +67,7 @@ get_port_from_env() {
 
 # Check Automagik Agents API
 check_agents_api() {
-    local port=$(get_port_from_env "AM_PORT" "$DEFAULT_PORT")
+    local port=$(get_port_from_env "AUTOMAGIK_API_PORT" "$DEFAULT_PORT")
     local health_url="http://localhost:${port}/health"
     
     echo -n "  💜 Automagik Agents API    "
@@ -260,8 +260,8 @@ detailed_health_info() {
     
     echo ""
     echo -e "${PURPLE}🔍 Environment Information:${NC}"
-    local am_port=$(get_port_from_env "AM_PORT" "$DEFAULT_PORT")
-    echo "  AM_PORT: $am_port"
+    local am_port=$(get_port_from_env "AUTOMAGIK_API_PORT" "$DEFAULT_PORT")
+    echo "  AUTOMAGIK_API_PORT: $am_port"
     echo "  Environment file: $([[ -f .env ]] && echo "✅ .env found" || echo "❌ .env missing")"
     echo "  Production file: $([[ -f .env.prod ]] && echo "✅ .env.prod found" || echo "❌ .env.prod missing")"
     
@@ -275,7 +275,7 @@ detailed_health_info() {
     
     echo ""
     echo -e "${PURPLE}📡 Network Connectivity:${NC}"
-    local am_port=$(get_port_from_env "AM_PORT" "$DEFAULT_PORT")
+    local am_port=$(get_port_from_env "AUTOMAGIK_API_PORT" "$DEFAULT_PORT")
     local postgres_port=$(get_port_from_env "POSTGRES_PORT" "5432")
     local neo4j_port=$(get_port_from_env "NEO4J_PORT" "7474")
     

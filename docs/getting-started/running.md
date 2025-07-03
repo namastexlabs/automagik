@@ -196,7 +196,7 @@ source .venv/bin/activate
 uvicorn src.main:app --host 0.0.0.0 --port 8881 --reload
 
 # Or use make with custom environment
-AM_PORT=8882 make dev
+AUTOMAGIK_API_PORT=8882 make dev
 ```
 
 ## Environment Detection
@@ -211,10 +211,10 @@ The Makefile automatically detects your environment:
 
 Once services are running, access:
 
-- **API Endpoints:** `http://localhost:${AM_PORT}/api/v1/`
-- **Interactive Documentation (Swagger UI):** `http://localhost:${AM_PORT}/docs`
-- **Alternative Documentation (ReDoc):** `http://localhost:${AM_PORT}/redoc`
-- **Health Check:** `http://localhost:${AM_PORT}/health`
+- **API Endpoints:** `http://localhost:${AUTOMAGIK_API_PORT}/api/v1/`
+- **Interactive Documentation (Swagger UI):** `http://localhost:${AUTOMAGIK_API_PORT}/docs`
+- **Alternative Documentation (ReDoc):** `http://localhost:${AUTOMAGIK_API_PORT}/redoc`
+- **Health Check:** `http://localhost:${AUTOMAGIK_API_PORT}/health`
 
 **Port Detection:** Use `make status` to see which ports services are running on.
 
@@ -275,7 +275,7 @@ make dev FORCE=1
 make status                 # Shows all ports in use
 
 # Change port in environment file
-nano .env                   # Edit AM_PORT
+nano .env                   # Edit AUTOMAGIK_API_PORT
 ```
 
 ### Database Issues
@@ -314,7 +314,7 @@ docker logs -f automagik_agents    # Docker container logs
 | **Environment** | Uses `.env` | Uses `.env.prod` |
 | **Mode** | Local Python process | Docker containers |
 | **Logging** | Verbose logging | Production logging |
-| **Port** | Default AM_PORT | Production ports |
+| **Port** | Default AUTOMAGIK_API_PORT | Production ports |
 
 ### Force Mode Effects
 

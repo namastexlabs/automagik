@@ -24,13 +24,13 @@ detect_environment_mode() {
     # Check if production environment indicators exist
     if [[ -f "$PROD_ENV_FILE" ]]; then
         # Check if we're in production mode based on:
-        # 1. AM_ENV=production in current env
+        # 1. ENVIRONMENT=production in current env
         # 2. Production ports in use
         # 3. Production containers running
         
-        local current_env=$(grep "^AM_ENV=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'" | tr '[:upper:]' '[:lower:]')
-        local prod_env=$(grep "^AM_ENV=" "$PROD_ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'" | tr '[:upper:]' '[:lower:]')
-        local prod_port=$(grep "^AM_PORT=" "$PROD_ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'")
+        local current_env=$(grep "^ENVIRONMENT=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'" | tr '[:upper:]' '[:lower:]')
+        local prod_env=$(grep "^ENVIRONMENT=" "$PROD_ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'" | tr '[:upper:]' '[:lower:]')
+        local prod_port=$(grep "^AUTOMAGIK_API_PORT=" "$PROD_ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'")
         
         # Check if production containers are running
         if docker ps | grep -q "automagik-agents-prod\|automagik_agent.*:${prod_port:-18881}"; then
@@ -105,8 +105,8 @@ validate_env() {
     
     # Core required variables
     local required_vars=(
-        "AM_API_KEY"
-        "AM_PORT"
+        "AUTOMAGIK_API_KEY"
+        "AUTOMAGIK_API_PORT"
         "DATABASE_URL"
     )
     
@@ -160,7 +160,7 @@ get_env_var() {
 
 # Get port from environment (with fallback)
 get_port() {
-    local var_name="${1:-AM_PORT}"
+    local var_name="${1:-AUTOMAGIK_API_PORT}"
     local default_port="${2:-8881}"
     local env_file="${3:-$(get_env_file)}"
     
@@ -187,13 +187,13 @@ show_env_info() {
     if [[ -n "$env_file" && -f "$env_file" ]]; then
         echo ""
         echo -e "${PURPLE}🔧 Key Variables:${NC}"
-        local am_port=$(get_env_var "AM_PORT" "$env_file")
-        local am_env=$(get_env_var "AM_ENV" "$env_file")
+        local am_port=$(get_env_var "AUTOMAGIK_API_PORT" "$env_file")
+        local am_env=$(get_env_var "ENVIRONMENT" "$env_file")
         local db_host=$(get_env_var "POSTGRES_HOST" "$env_file")
         local db_port=$(get_env_var "POSTGRES_PORT" "$env_file")
         
-        echo "  AM_PORT: ${am_port:-"not set"}"
-        echo "  AM_ENV: ${am_env:-"not set"}"
+        echo "  AUTOMAGIK_API_PORT: ${am_port:-"not set"}"
+        echo "  ENVIRONMENT: ${am_env:-"not set"}"
         echo "  POSTGRES_HOST: ${db_host:-"not set"}"
         echo "  POSTGRES_PORT: ${db_port:-"not set"}"
     fi
@@ -302,7 +302,7 @@ main() {
             echo "  info                  Show environment information"
             echo "  detect                Detect environment mode (development/production)"
             echo "  get-env-file          Get the appropriate environment file path"
-            echo "  get-port [var] [def]  Get port from environment (default: AM_PORT, 8881)"
+            echo "  get-port [var] [def]  Get port from environment (default: AUTOMAGIK_API_PORT, 8881)"
             echo "  get-var VAR [file]    Get specific environment variable"
             echo "  supports FEATURE      Check if environment supports feature"
             echo "  create [file]         Create environment file from template"
@@ -313,7 +313,7 @@ main() {
             echo "Examples:"
             echo "  $0 load                    # Load environment"
             echo "  $0 validate                # Validate environment"
-            echo "  $0 get-port                # Get AM_PORT"
+            echo "  $0 get-port                # Get AUTOMAGIK_API_PORT"
             echo "  $0 get-port POSTGRES_PORT 5432  # Get POSTGRES_PORT with default"
             echo "  $0 get-var DATABASE_URL    # Get DATABASE_URL"
             echo "  $0 supports graphiti       # Check if Graphiti is enabled"

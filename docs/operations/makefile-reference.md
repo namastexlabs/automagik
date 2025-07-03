@@ -256,9 +256,9 @@ make health
 
 Key variables read from `.env` or `.env.prod`:
 
-- `AM_PORT` - Main application port
+- `AUTOMAGIK_API_PORT` - Main application port
 - `DATABASE_URL` - PostgreSQL connection string
-- `AM_API_KEY` - API authentication key
+- `AUTOMAGIK_API_KEY` - API authentication key
 - `LOG_LEVEL` - Logging verbosity
 
 ## 💡 Tips & Best Practices

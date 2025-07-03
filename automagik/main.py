@@ -492,7 +492,7 @@ def setup_routes(app: FastAPI):
             status="healthy",
             timestamp=datetime.now(),
             version=SERVICE_INFO["version"],
-            environment=settings.AUTOMAGIK_ENV
+            environment=settings.ENVIRONMENT
         )
 
     

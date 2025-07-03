@@ -106,7 +106,7 @@ def db_callback(
     
     Use these commands to initialize, backup, and manage the database.
     """
-    # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
+    # If debug flag is set, ensure AUTOMAGIK_LOG_LEVEL is set to DEBUG
     if debug:
         os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
 

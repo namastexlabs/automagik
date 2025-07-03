@@ -17,7 +17,7 @@ def client():
 @pytest.fixture
 def auth_headers():
     """Authentication headers for API requests."""
-    return {"x-api-key": settings.AM_API_KEY}
+    return {"x-api-key": settings.AUTOMAGIK_API_KEY}
 
 
 class TestToolRoutes:

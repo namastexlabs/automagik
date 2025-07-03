@@ -68,7 +68,7 @@ def get_server_config(args=None):
     elif os.environ.get('INVOCATION_ID'):  # Running under systemd
         should_reload = False  # Disable reload for systemd to fix signal handling
     else:
-        should_reload = settings.AUTOMAGIK_ENV == Environment.DEVELOPMENT
+        should_reload = settings.ENVIRONMENT == Environment.DEVELOPMENT
     
     return host, port, should_reload
 

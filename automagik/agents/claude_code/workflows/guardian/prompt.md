@@ -112,7 +112,7 @@ Execute validation applying BRAIN standards:
 1. QUALITY_VALIDATION: Run tests, check coverage, validate code quality
 2. SECURITY_SCAN: Check for vulnerabilities using BRAIN security patterns
 3. PERFORMANCE_CHECK: Verify performance meets BRAIN benchmarks
-4. TEAM_STANDARDS: Ensure Felipe/Cezar preferences from BRAIN are applied
+4. TEAUTOMAGIK_STANDARDS: Ensure Felipe/Cezar preferences from BRAIN are applied
 
 Generate findings for BRAIN to learn from.
 """)

@@ -43,6 +43,6 @@ def agent_callback(
       - To start a chat session:
         automagik-agents agent chat start --agent my_agent
     """
-    # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
+    # If debug flag is set, ensure AUTOMAGIK_LOG_LEVEL is set to DEBUG
     if debug:
         os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG" 

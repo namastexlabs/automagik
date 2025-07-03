@@ -19,7 +19,7 @@ def client():
         headers = kwargs.get("headers", {})
         if headers is None:
             headers = {}
-        headers["x-api-key"] = settings.AM_API_KEY
+        headers["x-api-key"] = settings.AUTOMAGIK_API_KEY
         kwargs["headers"] = headers
         return original_request(*args, **kwargs)
     

@@ -55,7 +55,7 @@ def test_functional_verification():
     # Test 1: Configuration access
     try:
         from automagik.config import settings
-        print(f"✅ Configuration: Environment={settings.AM_ENV}, Port={settings.AM_PORT}")
+        print(f"✅ Configuration: Environment={settings.ENVIRONMENT}, Port={settings.AUTOMAGIK_API_PORT}")
     except Exception as e:
         print(f"❌ Configuration access failed: {e}")
         return False
