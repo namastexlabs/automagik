@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Type, List
 import logging
 import os
+import sys
 import traceback
 import uuid
 import importlib
@@ -194,51 +195,81 @@ class AgentFactory:
         if not external_agents_dir:
             return
         
-        external_path = Path(external_agents_dir)
+        external_path = Path(external_agents_dir).resolve()
         if not external_path.exists():
             logger.info(f"External agents directory does not exist: {external_path}")
             return
         
         logger.info(f"Discovering external agents from: {external_path}")
         
+        # Add external agents directory to Python path for imports
+        external_path_str = str(external_path)
+        if external_path_str not in sys.path:
+            sys.path.insert(0, external_path_str)
+            logger.debug(f"Added to Python path: {external_path_str}")
+        
         # Scan external agents directory for agent folders
         for agent_dir in external_path.iterdir():
             if agent_dir.is_dir() and not agent_dir.name.startswith('.') and not agent_dir.name.startswith('__'):
                 try:
-                    # Look for an agent.py or __init__.py file
-                    agent_file = agent_dir / "agent.py"
+                    # Look for an __init__.py file first (preferred), then agent.py
                     init_file = agent_dir / "__init__.py"
+                    agent_file = agent_dir / "agent.py"
                     
-                    if agent_file.exists():
-                        # Load the agent module
-                        spec = importlib.util.spec_from_file_location(
-                            f"external_agents.{agent_dir.name}",
-                            agent_file
-                        )
-                        module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(module)
-                        
-                        # Check for create_agent function
-                        if hasattr(module, "create_agent") and callable(module.create_agent):
-                            cls.register_agent_creator(agent_dir.name, module.create_agent)
-                            logger.info(f"Discovered external agent: {agent_dir.name}")
-                    elif init_file.exists():
-                        # Load from __init__.py
-                        spec = importlib.util.spec_from_file_location(
-                            f"external_agents.{agent_dir.name}",
-                            init_file
-                        )
-                        module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(module)
-                        
-                        if hasattr(module, "create_agent") and callable(module.create_agent):
-                            cls.register_agent_creator(agent_dir.name, module.create_agent)
-                            logger.info(f"Discovered external agent: {agent_dir.name}")
+                    module = None
+                    
+                    if init_file.exists():
+                        # Load from __init__.py (preferred - allows proper package structure)
+                        try:
+                            spec = importlib.util.spec_from_file_location(
+                                agent_dir.name,  # Use simple module name, not nested
+                                init_file
+                            )
+                            module = importlib.util.module_from_spec(spec)
+                            
+                            # Add the module to sys.modules to support relative imports
+                            sys.modules[agent_dir.name] = module
+                            
+                            spec.loader.exec_module(module)
+                            logger.debug(f"Loaded external agent module from __init__.py: {agent_dir.name}")
+                            
+                        except Exception as e:
+                            logger.warning(f"Failed to load from __init__.py for {agent_dir.name}: {e}")
+                            module = None
+                    
+                    # Fallback to agent.py if __init__.py failed or doesn't exist
+                    if module is None and agent_file.exists():
+                        try:
+                            spec = importlib.util.spec_from_file_location(
+                                f"{agent_dir.name}_agent",  # Unique name to avoid conflicts
+                                agent_file
+                            )
+                            module = importlib.util.module_from_spec(spec)
+                            
+                            # Add to sys.modules
+                            sys.modules[f"{agent_dir.name}_agent"] = module
+                            
+                            spec.loader.exec_module(module)
+                            logger.debug(f"Loaded external agent module from agent.py: {agent_dir.name}")
+                            
+                        except Exception as e:
+                            logger.warning(f"Failed to load from agent.py for {agent_dir.name}: {e}")
+                            module = None
+                    
+                    # Check for create_agent function
+                    if module and hasattr(module, "create_agent") and callable(module.create_agent):
+                        cls.register_agent_creator(agent_dir.name, module.create_agent)
+                        logger.info(f"✅ Discovered external agent: {agent_dir.name}")
                     else:
-                        logger.debug(f"No agent.py or __init__.py found in {agent_dir.name}")
+                        if module:
+                            logger.warning(f"External agent {agent_dir.name} loaded but missing create_agent function")
+                        else:
+                            logger.debug(f"No valid agent module found in {agent_dir.name}")
                         
                 except Exception as e:
                     logger.error(f"Error loading external agent {agent_dir.name}: {str(e)}")
+                    import traceback
+                    logger.debug(f"Full traceback for {agent_dir.name}: {traceback.format_exc()}")
     
     @classmethod
     def _discover_single_agent(cls, agent_name: str) -> None:

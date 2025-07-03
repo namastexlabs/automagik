@@ -1245,8 +1245,7 @@ class AutomagikAgent(ABC, Generic[T]):
             system_prompt=system_message,
             message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20) if message_history_obj else [],
             multimodal_content=multimodal_content,
-            channel_payload=channel_payload,
-            message_limit=message_limit
+            channel_payload=channel_payload
         )
     
     async def cleanup(self) -> None:
