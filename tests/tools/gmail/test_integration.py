@@ -10,8 +10,8 @@ import os
 import pytest
 import logging
 
-from src.tools.gmail import send_email
-from src.tools.gmail.schema import SendEmailInput
+from automagik.tools.gmail import send_email
+from automagik.tools.gmail.schema import SendEmailInput
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

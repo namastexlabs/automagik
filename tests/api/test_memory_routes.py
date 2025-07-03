@@ -5,9 +5,9 @@ import uuid
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from src.api.memory_routes import memory_router
-from src.api.memory_models import MemoryCreate, MemoryUpdate
-from src.db.models import Memory
+from automagik.api.memory_routes import memory_router
+from automagik.api.memory_models import MemoryCreate, MemoryUpdate
+from automagik.db.models import Memory
 from datetime import datetime
 
 
@@ -51,8 +51,8 @@ class TestMemoryValidation:
             "agent_id": 1
         }
         
-        with patch('src.api.memory_routes.repo_create_memory') as mock_create, \
-             patch('src.api.memory_routes.get_memory') as mock_get:
+        with patch('automagik.api.memory_routes.repo_create_memory') as mock_create, \
+             patch('automagik.api.memory_routes.get_memory') as mock_get:
             
             mock_create.return_value = uuid.uuid4()
             mock_get.return_value = Memory(
@@ -88,9 +88,9 @@ class TestMemoryValidation:
             "agent_id": 1
         }
         
-        with patch('src.api.memory_routes.ensure_user_exists') as mock_ensure, \
-             patch('src.api.memory_routes.repo_create_memory') as mock_create, \
-             patch('src.api.memory_routes.get_memory') as mock_get:
+        with patch('automagik.api.memory_routes.ensure_user_exists') as mock_ensure, \
+             patch('automagik.api.memory_routes.repo_create_memory') as mock_create, \
+             patch('automagik.api.memory_routes.get_memory') as mock_get:
             
             mock_ensure.return_value = uuid.UUID(user_id)
             mock_create.return_value = uuid.uuid4()
@@ -142,8 +142,8 @@ class TestMemoryValidation:
             "content": "Updated content"
         }
         
-        with patch('src.api.memory_routes.get_memory') as mock_get, \
-             patch('src.api.memory_routes.repo_update_memory') as mock_update:
+        with patch('automagik.api.memory_routes.get_memory') as mock_get, \
+             patch('automagik.api.memory_routes.repo_update_memory') as mock_update:
             
             mock_get.side_effect = [sample_memory, sample_memory]  # Called twice: validation + return
             mock_update.return_value = sample_memory.id
@@ -160,7 +160,7 @@ class TestMemoryValidation:
             "agent_id": None
         }
         
-        with patch('src.api.memory_routes.get_memory') as mock_get:
+        with patch('automagik.api.memory_routes.get_memory') as mock_get:
             mock_get.return_value = sample_memory
             
             response = test_app.put(f"/api/v1/memories/{memory_id}", json=update_data)
@@ -212,7 +212,7 @@ class TestMemoryFiltering:
 
     def test_list_memories_filter_by_user_id_none(self, test_app):
         """Test listing memories with user_id=None filter (agent global memories)."""
-        with patch('src.api.memory_routes.repo_list_memories') as mock_list:
+        with patch('automagik.api.memory_routes.repo_list_memories') as mock_list:
             mock_list.return_value = []
             
             response = test_app.get("/api/v1/memories?user_id=None")
@@ -222,7 +222,7 @@ class TestMemoryFiltering:
 
     def test_list_memories_filter_by_agent_id(self, test_app):
         """Test listing memories filtered by agent_id."""
-        with patch('src.api.memory_routes.repo_list_memories') as mock_list:
+        with patch('automagik.api.memory_routes.repo_list_memories') as mock_list:
             mock_list.return_value = []
             
             response = test_app.get("/api/v1/memories?agent_id=1")

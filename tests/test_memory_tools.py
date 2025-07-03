@@ -21,15 +21,15 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import from the new memory tools package
-from src.tools.memory.schema import (
+from automagik.tools.memory.schema import (
     MemoryReadResult, Memory, ReadMemoryInput, CreateMemoryInput
 )
-from src.tools.memory.tool import (
+from automagik.tools.memory.tool import (
     read_memory, create_memory, update_memory,
     get_memory_tool, store_memory_tool, list_memories_tool
 )
-from src.tools.memory.provider import MemoryProvider, get_memory_provider_for_agent
-from src.tools.memory.interface import validate_memory_name, format_memory_content
+from automagik.tools.memory.provider import MemoryProvider, get_memory_provider_for_agent
+from automagik.tools.memory.interface import validate_memory_name, format_memory_content
 
 from pydantic_ai.tools import RunContext
 
@@ -53,14 +53,14 @@ class TestMemoryTools:
         self.test_agent_id = 9999
         
         # Set up patches
-        self.list_memories_patch = patch("src.tools.memory.tool.list_memories_in_db")
-        self.get_memory_patch = patch("src.tools.memory.tool.get_memory_in_db")
-        self.create_memory_patch = patch("src.tools.memory.tool.create_memory_in_db")
-        self.update_memory_patch = patch("src.tools.memory.tool.update_memory_in_db")
-        self.agent_by_name_patch = patch("src.tools.memory.tool.get_agent_by_name")
-        self.agent_factory_patch = patch("src.tools.memory.tool.AgentFactory")
+        self.list_memories_patch = patch("automagik.tools.memory.tool.list_memories_in_db")
+        self.get_memory_patch = patch("automagik.tools.memory.tool.get_memory_in_db")
+        self.create_memory_patch = patch("automagik.tools.memory.tool.create_memory_in_db")
+        self.update_memory_patch = patch("automagik.tools.memory.tool.update_memory_in_db")
+        self.agent_by_name_patch = patch("automagik.tools.memory.tool.get_agent_by_name")
+        self.agent_factory_patch = patch("automagik.tools.memory.tool.AgentFactory")
         # Add patch for provider's import
-        self.provider_list_memories_patch = patch("src.db.list_memories")
+        self.provider_list_memories_patch = patch("automagik.db.list_memories")
         
         # Start patches
         self.mock_list_memories = self.list_memories_patch.start()
@@ -289,8 +289,8 @@ class TestMemoryTools:
         mock_list.return_value = list_result
         
         # Mock the database functions that the tools actually use
-        with patch("src.tools.memory.tool.db_get_memory_by_name") as mock_db_get, \
-             patch("src.tools.memory.tool.db_create_memory") as mock_db_create:
+        with patch("automagik.tools.memory.tool.db_get_memory_by_name") as mock_db_get, \
+             patch("automagik.tools.memory.tool.db_create_memory") as mock_db_create:
             
             # Setup mock to return a memory object
             class MockMemory:
@@ -309,7 +309,7 @@ class TestMemoryTools:
             assert result == f"Memory stored with key '{self.test_memory_name}'"
             
             # Test list_memories_tool - mock the database function it uses
-            with patch("src.tools.memory.tool.list_memories_in_db") as mock_list_db:
+            with patch("automagik.tools.memory.tool.list_memories_in_db") as mock_list_db:
                 class MockListMemory:
                     def __init__(self, name):
                         self.name = name

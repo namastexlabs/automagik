@@ -5,12 +5,12 @@ import uuid
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
-from src.agents.models.ai_frameworks.pydantic_ai import PydanticAIFramework
-from src.agents.models.response import AgentResponse
-from src.agents.models.ai_frameworks.base import AgentConfig
-from src.agents.models.dependencies import BaseDependencies
-from src.memory.message_history import MessageHistory
-from src.agents.common.message_parser import format_message_for_db
+from automagik.agents.models.ai_frameworks.pydantic_ai import PydanticAIFramework
+from automagik.agents.models.response import AgentResponse
+from automagik.agents.models.ai_frameworks.base import AgentConfig
+from automagik.agents.models.dependencies import BaseDependencies
+from automagik.memory.message_history import MessageHistory
+from automagik.agents.common.message_parser import format_message_for_db
 
 
 class TestUsageTrackingIntegration:
@@ -205,7 +205,7 @@ class TestUsageTrackingIntegration:
             "response_tokens": 200
         }
         
-        with patch('src.memory.message_history.create_message') as mock_create_message:
+        with patch('automagik.memory.message_history.create_message') as mock_create_message:
             
             # Create MessageHistory instance in local mode to avoid DB operations
             message_history = MessageHistory(session_id, no_auto_create=True)
@@ -242,7 +242,7 @@ class TestUsageTrackingIntegration:
             "usage": sample_usage
         }
         
-        with patch('src.memory.message_history.create_message') as mock_create_message:
+        with patch('automagik.memory.message_history.create_message') as mock_create_message:
             
             # Create MessageHistory instance in local mode
             message_history = MessageHistory(session_id, no_auto_create=True)

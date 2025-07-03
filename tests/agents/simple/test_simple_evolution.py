@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.pydanticai.simple.agent import SimpleAgent
-from src.channels.models import EvolutionMessagePayload
+from automagik.agents.pydanticai.simple.agent import SimpleAgent
+from automagik.channels.models import EvolutionMessagePayload
 
 
 class TestSimpleAgentEvolution:
@@ -41,7 +41,7 @@ class TestSimpleAgentEvolution:
     
     def test_evolution_import(self):
         """Test that Evolution types can be imported."""
-        from src.channels.models import EvolutionMessagePayload
+        from automagik.channels.models import EvolutionMessagePayload
         assert EvolutionMessagePayload is not None
     
     def test_simple_agent_initialization(self, simple_agent):
@@ -68,9 +68,9 @@ class TestSimpleAgentEvolution:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await simple_agent.run(
                                                 "Test message",
@@ -112,7 +112,7 @@ class TestSimpleAgentEvolution:
         mock_ctx.deps.context = {"evolution_payload": evolution_payload}
         
         # Mock the underlying evolution API to return success immediately
-        with patch('src.tools.evolution.api.send_reaction', new_callable=AsyncMock) as mock_api_send:
+        with patch('automagik.tools.evolution.api.send_reaction', new_callable=AsyncMock) as mock_api_send:
             mock_api_send.return_value = (True, "Reaction sent successfully")
             
             result = await wrapper(mock_ctx, "👍")
@@ -185,9 +185,9 @@ class TestSimpleAgentEvolution:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             await simple_agent.run(
                                                 "Test group message",

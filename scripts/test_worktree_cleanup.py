@@ -9,7 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.agents.claude_code.utils.worktree_cleanup import get_cleanup_service
+from automagik.agents.claude_code.utils.worktree_cleanup import get_cleanup_service
 
 
 async def main():

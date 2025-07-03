@@ -3,7 +3,7 @@
 Script to fix the migration tracking for partially applied migrations.
 """
 import psycopg2
-from src.config import settings
+from automagik.config import settings
 import urllib.parse
 
 def main():

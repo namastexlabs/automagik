@@ -1,0 +1,29 @@
+# Include all package data
+recursive-include automagik *.py *.md *.json *.yaml *.yml
+
+# Include agent templates
+recursive-include automagik/agents/templates *
+
+# Include prompts
+recursive-include automagik/agents/*/prompts *
+
+# Include workflows
+recursive-include automagik/agents/claude_code/workflows *
+
+# Include configuration files
+recursive-include automagik/config *
+
+# Include README and LICENSE
+include README.md
+include LICENSE
+
+# Exclude test files
+recursive-exclude tests *
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+
+# Exclude development files
+exclude .env
+exclude .env.example
+exclude update_imports.py
+exclude Makefile

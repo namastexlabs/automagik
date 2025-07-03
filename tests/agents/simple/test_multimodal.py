@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.agents.pydanticai.simple.agent import SimpleAgent
+from automagik.agents.pydanticai.simple.agent import SimpleAgent
 
 
 class TestSimpleAgentMultimodal:
@@ -59,9 +59,9 @@ class TestSimpleAgentMultimodal:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await simple_agent.run(
                                                 "What do you see in these images?",
@@ -94,9 +94,9 @@ class TestSimpleAgentMultimodal:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await simple_agent.run(
                                                 "Describe this image", 
@@ -120,9 +120,9 @@ class TestSimpleAgentMultimodal:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await simple_agent.run(
                                                 "Process these images",
@@ -146,9 +146,9 @@ class TestSimpleAgentMultimodal:
                                 mock_agent.run = AsyncMock(return_value=mock_result)
                                 
                                 # Mock extract functions
-                                with patch('src.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
-                                    with patch('src.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
-                                        with patch('src.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
+                                with patch('automagik.agents.pydanticai.simple.agent.extract_all_messages', return_value=[]):
+                                    with patch('automagik.agents.pydanticai.simple.agent.extract_tool_calls', return_value=[]):
+                                        with patch('automagik.agents.pydanticai.simple.agent.extract_tool_outputs', return_value=[]):
                                             
                                             result = await simple_agent.run("Just text input")
                                             

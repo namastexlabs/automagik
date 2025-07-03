@@ -12,7 +12,7 @@ import uuid
 import json
 from datetime import datetime
 
-from src.db.providers.sqlite import SQLiteProvider
+from automagik.db.providers.sqlite import SQLiteProvider
 
 
 class TestSQLiteParameterBinding:
@@ -291,8 +291,8 @@ class TestParameterBindingRegression:
     
     def test_session_creation_parameter_binding(self):
         """Regression test for session creation parameter binding error."""
-        from src.db.models import Session
-        from src.db.repository.session import create_session
+        from automagik.db.models import Session
+        from automagik.db.repository.session import create_session
         
         # This previously failed with "Error binding parameter 1 - probably unsupported type"
         test_session = Session(
@@ -315,8 +315,8 @@ class TestParameterBindingRegression:
     
     def test_message_creation_parameter_binding(self):
         """Regression test for message creation parameter binding error."""
-        from src.db.models import Message
-        from src.db.repository.message import create_message
+        from automagik.db.models import Message
+        from automagik.db.repository.message import create_message
         
         # This previously failed with "Error binding parameter 0 - probably unsupported type"
         test_message = Message(
@@ -340,7 +340,7 @@ class TestParameterBindingRegression:
     
     def test_list_messages_parameter_binding(self):
         """Regression test for list_messages parameter binding error."""
-        from src.db.repository.message import list_messages
+        from automagik.db.repository.message import list_messages
         
         # This previously failed with parameter binding for session_id UUID
         session_id = uuid.uuid4()

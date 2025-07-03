@@ -69,13 +69,37 @@ Repository = "https://github.com/namastexlabs/automagik-agents"
 Issues = "https://github.com/namastexlabs/automagik-agents/issues"
 
 [project.scripts]
-automagik = "src.cli:app"
+automagik = "automagik.cli:app"
+automagik-server = "automagik.cli.commands.server:start_server_from_pip"
+
+[project.entry-points."automagik.agents"]
+simple = "automagik.agents.pydanticai.simple:create_agent"
+flashinho = "automagik.agents.pydanticai.flashinho:create_agent" 
+claude_code = "automagik.agents.claude_code:create_agent"
+genie = "automagik.agents.claude_code:create_agent"
+pdf_reader = "automagik.agents.pydanticai.pdf_reader:create_agent"
+swarm = "automagik.agents.pydanticai.swarm:create_agent"
+basic_tool_agent = "automagik.agents.agno.basic_tool_agent:create_agent"
 
 [tool.setuptools]
-packages = ["src"]
+packages = ["automagik"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+automagik = [
+    "agents/*/prompts/*.py",
+    "agents/*/prompts/*.md",
+    "agents/claude_code/workflows/*/*.json",
+    "agents/claude_code/workflows/*/*.md",
+    "agents/claude_code/workflows/*/*/*.json",
+    "agents/claude_code/workflows/*/*/*.md",
+    "agents/templates/**/*",
+    "config/*.yaml",
+    "config/*.json",
+]
 
 [tool.setuptools.dynamic]
-version = {attr = "src.version.__version__"}
+version = {attr = "automagik.version.__version__"}
 
 [tool.logfire]
 ignore_no_config = true

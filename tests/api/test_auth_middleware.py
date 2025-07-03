@@ -10,8 +10,8 @@ from fastapi import HTTPException, Request, Response
 from starlette.responses import JSONResponse
 
 from fastapi import Depends
-from src.auth import APIKeyMiddleware, get_api_key, API_KEY_NAME
-from src.config import settings
+from automagik.auth import APIKeyMiddleware, get_api_key, API_KEY_NAME
+from automagik.config import settings
 
 
 class TestAPIKeyMiddleware:
@@ -160,7 +160,7 @@ class TestJSONParsingMiddleware:
     @pytest.fixture
     def json_middleware(self):
         """Create JSONParsingMiddleware instance."""
-        from src.api.middleware import JSONParsingMiddleware
+        from automagik.api.middleware import JSONParsingMiddleware
         return JSONParsingMiddleware(MagicMock())
     
     @pytest.fixture
@@ -222,7 +222,7 @@ class TestJSONParsingMiddleware:
         
         call_next = AsyncMock(return_value=Response("Success"))
         
-        with patch('src.api.middleware.logger') as mock_logger:
+        with patch('automagik.api.middleware.logger') as mock_logger:
             response = await json_middleware.dispatch(mock_json_request, call_next)
             
             assert response.body == b"Success"
@@ -259,7 +259,7 @@ class TestJSONParsingMiddleware:
         
         call_next = AsyncMock(return_value=Response("Success"))
         
-        with patch('src.api.middleware.logger') as mock_logger:
+        with patch('automagik.api.middleware.logger') as mock_logger:
             response = await json_middleware.dispatch(mock_json_request, call_next)
             
             assert response.body == b"Success"
@@ -275,7 +275,7 @@ class TestJSONParsingMiddleware:
         
         call_next = AsyncMock(return_value=Response("Success"))
         
-        with patch('src.api.middleware.logger') as mock_logger:
+        with patch('automagik.api.middleware.logger') as mock_logger:
             response = await json_middleware.dispatch(mock_json_request, call_next)
             
             assert response.body == b"Success"

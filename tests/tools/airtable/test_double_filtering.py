@@ -11,7 +11,7 @@ complex filtering scenarios including:
 import pytest
 from unittest.mock import Mock, patch
 
-from src.tools.airtable.tool import list_records
+from automagik.tools.airtable.tool import list_records
 
 
 class TestDoubleFiltering:
@@ -22,11 +22,11 @@ class TestDoubleFiltering:
         """Create a dummy context for testing."""
         return {}
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_status_only_filter_a_fazer(self, mock_request, dummy_context, monkeypatch):
         """Test filtering for only 'A fazer' (to do) status tasks."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         # Mock response with tasks that have 'A fazer' status
         mock_response = Mock()
@@ -72,11 +72,11 @@ class TestDoubleFiltering:
         assert "filterByFormula" in call_args[1]["params"]
         assert call_args[1]["params"]["filterByFormula"] == "{{Status}} = 'A fazer'"
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_person_and_status_double_filter(self, mock_request, dummy_context, monkeypatch):
         """Test double filtering: specific person AND specific status."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -112,11 +112,11 @@ class TestDoubleFiltering:
         expected_filter = "AND(SEARCH('Cezar Vasconcelos', {{Assigned Team Members}}), {{Status}} = 'Estou trabalhando')"
         assert call_args[1]["params"]["filterByFormula"] == expected_filter
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_multiple_status_or_filter(self, mock_request, dummy_context, monkeypatch):
         """Test OR filtering for multiple status values."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -155,11 +155,11 @@ class TestDoubleFiltering:
         assert "A fazer" in statuses
         assert "Estou trabalhando" in statuses
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_not_completed_filter(self, mock_request, dummy_context, monkeypatch):
         """Test NOT filter to exclude completed tasks."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -197,11 +197,11 @@ class TestDoubleFiltering:
         for record in result["records"]:
             assert record["fields"]["Status"] != "Terminei"
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_priority_and_person_filter(self, mock_request, dummy_context, monkeypatch):
         """Test filtering by priority AND person assignment."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -231,11 +231,11 @@ class TestDoubleFiltering:
         assert result["records"][0]["fields"]["Priority"] == "Alta"
         assert "Daniel Amora" in result["records"][0]["fields"]["Assigned Team Members"]
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_complex_triple_filter(self, mock_request, dummy_context, monkeypatch):
         """Test complex filtering with three conditions."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -268,11 +268,11 @@ class TestDoubleFiltering:
         assert record["fields"]["Priority"] == "Para tudo e faz"
         assert "Cezar Vasconcelos" in record["fields"]["Assigned Team Members"]
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_empty_filter_result(self, mock_request, dummy_context, monkeypatch):
         """Test filter that returns no results."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -291,11 +291,11 @@ class TestDoubleFiltering:
         assert result["success"] is True
         assert len(result["records"]) == 0
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_case_sensitive_status_filter(self, mock_request, dummy_context, monkeypatch):
         """Test that status filtering is case-sensitive."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -364,11 +364,11 @@ class TestCommonFilterScenarios:
     def dummy_context(self):
         return {}
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_blocked_tasks_filter(self, mock_request, dummy_context, monkeypatch):
         """Test filtering for blocked tasks specifically."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -397,11 +397,11 @@ class TestCommonFilterScenarios:
         assert len(result["records"]) == 1
         assert result["records"][0]["fields"]["Status"] == "Estou bloqueado"
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_high_priority_incomplete_tasks(self, mock_request, dummy_context, monkeypatch):
         """Test filtering for high priority tasks that are not completed."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -444,11 +444,11 @@ class TestCommonFilterScenarios:
             assert priority in ["Para tudo e faz", "Alta"]
             assert status != "Terminei"
 
-    @patch('src.tools.airtable.tool._request')
+    @patch('automagik.tools.airtable.tool._request')
     @pytest.mark.asyncio
     async def test_team_member_tasks_any_status(self, mock_request, dummy_context, monkeypatch):
         """Test getting all tasks for a team member regardless of status."""
-        monkeypatch.setattr("src.tools.airtable.tool._get_token", lambda: "test_token")
+        monkeypatch.setattr("automagik.tools.airtable.tool._get_token", lambda: "test_token")
         
         mock_response = Mock()
         mock_response.status_code = 200

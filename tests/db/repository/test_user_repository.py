@@ -10,7 +10,7 @@ import json
 from unittest.mock import patch
 from datetime import datetime
 
-from src.db.repository.user import (
+from automagik.db.repository.user import (
     get_user,
     get_user_by_email,
     get_user_by_identifier,
@@ -22,7 +22,7 @@ from src.db.repository.user import (
     update_user_data,
     _deep_update
 )
-from src.db.models import User
+from automagik.db.models import User
 
 
 class TestUserRepository:
@@ -31,7 +31,7 @@ class TestUserRepository:
     @pytest.fixture
     def mock_execute_query(self):
         """Fixture to mock execute_query function."""
-        with patch('src.db.repository.user.execute_query') as mock:
+        with patch('automagik.db.repository.user.execute_query') as mock:
             yield mock
     
     @pytest.fixture
@@ -79,7 +79,7 @@ class TestUserRepository:
         """Test handling database errors when getting a user."""
         mock_execute_query.side_effect = Exception("Database error")
         
-        with patch('src.db.repository.user.logger') as mock_logger:
+        with patch('automagik.db.repository.user.logger') as mock_logger:
             user = get_user(uuid.uuid4())
             
             assert user is None
@@ -110,7 +110,7 @@ class TestUserRepository:
         user_id = sample_user_data["id"]
         mock_execute_query.return_value = [sample_user_data]
         
-        with patch('src.db.repository.user.get_user') as mock_get_user:
+        with patch('automagik.db.repository.user.get_user') as mock_get_user:
             mock_get_user.return_value = User.from_db_row(sample_user_data)
             
             user = get_user_by_identifier(str(user_id))
@@ -122,7 +122,7 @@ class TestUserRepository:
         """Test getting a user by email identifier."""
         mock_execute_query.return_value = []  # No phone match
         
-        with patch('src.db.repository.user.get_user_by_email') as mock_get_email:
+        with patch('automagik.db.repository.user.get_user_by_email') as mock_get_email:
             mock_get_email.return_value = User.from_db_row(sample_user_data)
             
             user = get_user_by_identifier("test@example.com")
@@ -134,7 +134,7 @@ class TestUserRepository:
         """Test getting a user by phone number identifier."""
         mock_execute_query.return_value = [sample_user_data]
         
-        with patch('src.db.repository.user.get_user_by_email') as mock_get_email:
+        with patch('automagik.db.repository.user.get_user_by_email') as mock_get_email:
             mock_get_email.return_value = None
             
             user = get_user_by_identifier("+1234567890")
@@ -175,7 +175,7 @@ class TestUserRepository:
         """Test handling errors when listing users."""
         mock_execute_query.side_effect = Exception("Database error")
         
-        with patch('src.db.repository.user.logger') as mock_logger:
+        with patch('automagik.db.repository.user.logger') as mock_logger:
             users, total = list_users()
             
             assert users == []
@@ -187,7 +187,7 @@ class TestUserRepository:
         user_id = uuid.uuid4()
         mock_execute_query.return_value = [{"id": user_id}]  # INSERT returns new ID
         
-        with patch('src.db.repository.user.get_user_by_email') as mock_get_email:
+        with patch('automagik.db.repository.user.get_user_by_email') as mock_get_email:
             mock_get_email.return_value = None
             
             user = User(
@@ -208,8 +208,8 @@ class TestUserRepository:
             email="existing@example.com"
         )
         
-        with patch('src.db.repository.user.get_user_by_email') as mock_get_email, \
-             patch('src.db.repository.user.update_user') as mock_update:
+        with patch('automagik.db.repository.user.get_user_by_email') as mock_get_email, \
+             patch('automagik.db.repository.user.update_user') as mock_update:
             
             mock_get_email.return_value = existing_user
             mock_update.return_value = existing_user.id
@@ -225,8 +225,8 @@ class TestUserRepository:
         """Test user creation generates UUID when not provided."""
         mock_execute_query.return_value = [{"id": uuid.uuid4()}]
         
-        with patch('src.db.repository.user.get_user_by_email') as mock_get_email, \
-             patch('src.db.repository.user.generate_uuid') as mock_gen_uuid:
+        with patch('automagik.db.repository.user.get_user_by_email') as mock_get_email, \
+             patch('automagik.db.repository.user.generate_uuid') as mock_gen_uuid:
             
             mock_get_email.return_value = None
             test_uuid = uuid.uuid4()
@@ -261,7 +261,7 @@ class TestUserRepository:
         """Test updating user without ID finds by email."""
         existing_id = uuid.uuid4()
         
-        with patch('src.db.repository.user.get_user_by_email') as mock_get_email:
+        with patch('automagik.db.repository.user.get_user_by_email') as mock_get_email:
             existing_user = User(id=existing_id, email="test@example.com")
             mock_get_email.return_value = existing_user
             
@@ -273,7 +273,7 @@ class TestUserRepository:
     
     def test_update_user_without_id_or_email_creates_new(self, mock_execute_query):
         """Test updating user without ID or email creates new user."""
-        with patch('src.db.repository.user.create_user') as mock_create:
+        with patch('automagik.db.repository.user.create_user') as mock_create:
             new_id = uuid.uuid4()
             mock_create.return_value = new_id
             
@@ -288,7 +288,7 @@ class TestUserRepository:
         user_id = uuid.uuid4()
         mock_execute_query.return_value = None
         
-        with patch('src.db.repository.user.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.db.repository.user.safe_uuid') as mock_safe_uuid:
             mock_safe_uuid.return_value = str(user_id)
             
             result = delete_user(user_id)
@@ -304,7 +304,7 @@ class TestUserRepository:
         """Test handling errors when deleting a user."""
         mock_execute_query.side_effect = Exception("Database error")
         
-        with patch('src.db.repository.user.logger') as mock_logger:
+        with patch('automagik.db.repository.user.logger') as mock_logger:
             result = delete_user(uuid.uuid4())
             
             assert result is False
@@ -314,7 +314,7 @@ class TestUserRepository:
         """Test ensure_default_user_exists when user already exists."""
         user_id = uuid.uuid4()
         
-        with patch('src.db.repository.user.get_user') as mock_get:
+        with patch('automagik.db.repository.user.get_user') as mock_get:
             mock_get.return_value = User(id=user_id)
             
             result = ensure_default_user_exists(user_id)
@@ -324,9 +324,9 @@ class TestUserRepository:
     
     def test_ensure_default_user_exists_creates_new(self, mock_execute_query):
         """Test ensure_default_user_exists creates new user."""
-        with patch('src.db.repository.user.get_user') as mock_get, \
-             patch('src.db.repository.user.create_user') as mock_create, \
-             patch('src.db.repository.user.generate_uuid') as mock_gen_uuid:
+        with patch('automagik.db.repository.user.get_user') as mock_get, \
+             patch('automagik.db.repository.user.create_user') as mock_create, \
+             patch('automagik.db.repository.user.generate_uuid') as mock_gen_uuid:
             
             mock_get.return_value = None
             new_id = uuid.uuid4()
@@ -349,7 +349,7 @@ class TestUserRepository:
             user_data={"preferences": {"theme": "light", "lang": "en"}}
         )
         
-        with patch('src.db.repository.user.get_user') as mock_get:
+        with patch('automagik.db.repository.user.get_user') as mock_get:
             mock_get.return_value = existing_user
             mock_execute_query.return_value = None
             
@@ -371,7 +371,7 @@ class TestUserRepository:
             user_data={"existing": "value", "nested": {"key": "value"}}
         )
         
-        with patch('src.db.repository.user.get_user') as mock_get:
+        with patch('automagik.db.repository.user.get_user') as mock_get:
             mock_get.return_value = existing_user
             
             result = update_user_data(
@@ -391,7 +391,7 @@ class TestUserRepository:
         user_id = uuid.uuid4()
         existing_user = User(id=user_id, user_data={})
         
-        with patch('src.db.repository.user.get_user') as mock_get:
+        with patch('automagik.db.repository.user.get_user') as mock_get:
             mock_get.return_value = existing_user
             
             result = update_user_data(
@@ -407,7 +407,7 @@ class TestUserRepository:
     
     def test_update_user_data_user_not_found(self, mock_execute_query):
         """Test updating data for non-existent user."""
-        with patch('src.db.repository.user.get_user') as mock_get:
+        with patch('automagik.db.repository.user.get_user') as mock_get:
             mock_get.return_value = None
             
             result = update_user_data(uuid.uuid4(), {"key": "value"})

@@ -28,7 +28,7 @@ from typing import List, Dict
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.db.models import MCPConfigCreate
+from automagik.db.models import MCPConfigCreate
 
 
 class TestMCPProductionScale:
@@ -369,7 +369,7 @@ class TestMCPProductionScale:
     def test_api_response_under_load(self):
         """Test API response times under simulated load."""
         from fastapi.testclient import TestClient
-        from src.main import app
+        from automagik.main import app
         
         client = TestClient(app)
         
@@ -406,7 +406,7 @@ class TestMCPProductionScale:
                 }
         
         # Mock authentication for all requests
-        with patch('src.api.middleware.verify_api_key', return_value=True):
+        with patch('automagik.api.middleware.verify_api_key', return_value=True):
             # Define endpoints to test
             endpoints = [
                 "/api/v1/mcp/configs",

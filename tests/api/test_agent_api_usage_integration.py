@@ -5,8 +5,8 @@ import uuid
 from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
 
-from src.main import app
-from src.agents.models.response import AgentResponse
+from automagik.main import app
+from automagik.agents.models.response import AgentResponse
 
 
 class TestAgentAPIUsageIntegration:
@@ -61,10 +61,10 @@ class TestAgentAPIUsageIntegration:
     
     def test_agent_run_includes_usage_in_response(self, client, valid_agent_name, agent_response_with_usage):
         """Test that agent run API includes usage information in response."""
-        with patch('src.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent_by_name, \
-             patch('src.api.controllers.agent_controller.AgentFactory') as mock_agent_factory_class, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
+        with patch('automagik.api.controllers.agent_controller.get_agent_by_name') as mock_get_agent_by_name, \
+             patch('automagik.api.controllers.agent_controller.AgentFactory') as mock_agent_factory_class, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
             
             # Setup mocks
             mock_agent = Mock()
@@ -122,9 +122,9 @@ class TestAgentAPIUsageIntegration:
     
     def test_agent_run_without_usage_data(self, client, valid_agent_name, agent_response_without_usage):
         """Test that agent run API works when no usage data is available."""
-        with patch('src.api.controllers.agent_controller.get_agent') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
+        with patch('automagik.api.controllers.agent_controller.get_agent') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
             
             # Setup mocks
             mock_agent = Mock()
@@ -164,9 +164,9 @@ class TestAgentAPIUsageIntegration:
     
     def test_agent_run_with_string_response(self, client, valid_agent_name):
         """Test that agent run API works with simple string responses."""
-        with patch('src.api.controllers.agent_controller.get_agent') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
+        with patch('automagik.api.controllers.agent_controller.get_agent') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
             
             # Setup mocks
             mock_agent = Mock()
@@ -206,9 +206,9 @@ class TestAgentAPIUsageIntegration:
     
     def test_agent_run_with_dict_response_including_usage(self, client, valid_agent_name, sample_usage_data):
         """Test that agent run API works with dictionary responses that include usage."""
-        with patch('src.api.controllers.agent_controller.get_agent') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
+        with patch('automagik.api.controllers.agent_controller.get_agent') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
             
             # Setup mocks
             mock_agent = Mock()
@@ -259,9 +259,9 @@ class TestAgentAPIUsageIntegration:
     
     def test_agent_run_error_handling_preserves_usage(self, client, valid_agent_name):
         """Test that usage information is preserved even during error scenarios."""
-        with patch('src.api.controllers.agent_controller.get_agent') as mock_get_agent, \
-             patch('src.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
-             patch('src.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
+        with patch('automagik.api.controllers.agent_controller.get_agent') as mock_get_agent, \
+             patch('automagik.api.controllers.agent_controller.run_in_threadpool') as mock_run_in_threadpool, \
+             patch('automagik.api.controllers.agent_controller.MessageHistory') as mock_message_history_class:
             
             # Setup mocks to simulate agent not found
             mock_get_agent.return_value = None
@@ -285,12 +285,12 @@ class TestAgentAPIUsageIntegration:
         """Test that session endpoint includes token analytics."""
         session_id = str(uuid.uuid4())
         
-        with patch('src.api.controllers.session_controller.db_get_session') as mock_get_session, \
-             patch('src.api.controllers.session_controller.list_session_messages') as mock_list_messages, \
-             patch('src.api.controllers.session_controller.get_system_prompt') as mock_get_prompt, \
-             patch('src.api.controllers.session_controller.safe_uuid') as mock_safe_uuid, \
-             patch('src.api.controllers.session_controller.run_in_threadpool') as mock_run_in_threadpool, \
-             patch('src.api.controllers.session_controller.MessageHistory') as mock_message_history_class:
+        with patch('automagik.api.controllers.session_controller.db_get_session') as mock_get_session, \
+             patch('automagik.api.controllers.session_controller.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.controllers.session_controller.get_system_prompt') as mock_get_prompt, \
+             patch('automagik.api.controllers.session_controller.safe_uuid') as mock_safe_uuid, \
+             patch('automagik.api.controllers.session_controller.run_in_threadpool') as mock_run_in_threadpool, \
+             patch('automagik.api.controllers.session_controller.MessageHistory') as mock_message_history_class:
             
             # Setup mocks
             mock_safe_uuid.return_value = uuid.UUID(session_id)
@@ -351,8 +351,8 @@ class TestAgentAPIUsageIntegration:
         """Test that analytics endpoint returns proper session usage data."""
         session_id = str(uuid.uuid4())
         
-        with patch('src.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
-             patch('src.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
+        with patch('automagik.api.routes.analytics_routes.list_session_messages') as mock_list_messages, \
+             patch('automagik.api.routes.analytics_routes.safe_uuid') as mock_safe_uuid:
             
             # Setup mocks
             mock_safe_uuid.return_value = uuid.UUID(session_id)

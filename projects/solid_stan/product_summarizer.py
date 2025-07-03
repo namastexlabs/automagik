@@ -13,7 +13,7 @@ from rich.progress import Progress
 from pydantic_ai import Agent
 from typing import Dict, Any
 
-from src.config import settings
+from automagik.config import settings
 
 console = Console()
 

@@ -1,6 +1,6 @@
 """Test Sofia Agent basic functionality."""
 import pytest
-from src.agents.pydanticai.sofia.agent import SofiaAgent
+from automagik.agents.pydanticai.sofia.agent import SofiaAgent
 
 
 class TestSofiaAgent:

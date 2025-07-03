@@ -13,9 +13,9 @@ from pydantic_ai import Agent, RunContext, capture_run_messages
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.messages import ModelResponse, ToolCallPart
 
-from src.tools.airtable.tool import update_records, create_records
-from src.tools.airtable.interface import airtable_update_records
-from src.config import settings
+from automagik.tools.airtable.tool import update_records, create_records
+from automagik.tools.airtable.interface import airtable_update_records
+from automagik.config import settings
 
 pytestmark = pytest.mark.anyio
 
@@ -62,7 +62,7 @@ class TestUpdateRecordsUnit:
             }
             return mock_response
 
-        monkeypatch.setattr("src.tools.airtable.tool._request", mock_request)
+        monkeypatch.setattr("automagik.tools.airtable.tool._request", mock_request)
         
         records_to_update = [
             {"id": "rec123", "fields": {"Name": "Updated Record 1", "Status": "Active"}},
@@ -128,7 +128,7 @@ class TestUpdateRecordsUnit:
             mock_response.text = "INVALID_REQUEST_UNKNOWN: Field 'NonExistentField' does not exist"
             return mock_response
 
-        monkeypatch.setattr("src.tools.airtable.tool._request", mock_request_error)
+        monkeypatch.setattr("automagik.tools.airtable.tool._request", mock_request_error)
         
         records_to_update = [
             {"id": "rec123", "fields": {"NonExistentField": "Invalid"}}
@@ -175,7 +175,7 @@ class TestRegistryUpdateScenarios:
             }
             return mock_response
 
-        monkeypatch.setattr("src.tools.airtable.tool._request", mock_request)
+        monkeypatch.setattr("automagik.tools.airtable.tool._request", mock_request)
         
         # Simulate updating an agent's status in registry
         registry_update = [
@@ -217,7 +217,7 @@ class TestRegistryUpdateScenarios:
             }
             return mock_response
 
-        monkeypatch.setattr("src.tools.airtable.tool._request", mock_request)
+        monkeypatch.setattr("automagik.tools.airtable.tool._request", mock_request)
         
         # Simulate deprecating multiple agents
         bulk_update = [
@@ -343,7 +343,7 @@ class TestUpdateIntegration:
             assert updated_record["fields"]["Name"] == "Updated Test Entry"
             
             # Step 3: Verify the update by fetching the record
-            from src.tools.airtable.tool import get_record
+            from automagik.tools.airtable.tool import get_record
             
             fetch_result = await get_record(
                 dummy_context,
@@ -358,7 +358,7 @@ class TestUpdateIntegration:
             
         finally:
             # Step 4: Clean up - delete the test record
-            from src.tools.airtable.tool import delete_records
+            from automagik.tools.airtable.tool import delete_records
             
             delete_result = await delete_records(
                 dummy_context,

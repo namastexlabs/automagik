@@ -2,8 +2,8 @@
 import pytest
 import pytest_asyncio
 
-from src.agents.pydanticai.sofia.specialized.airtable import get_airtable_assistant
-from src.config import settings
+from automagik.agents.pydanticai.sofia.specialized.airtable import get_airtable_assistant
+from automagik.config import settings
 
 
 ###############################################################################

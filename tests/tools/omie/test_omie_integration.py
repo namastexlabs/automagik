@@ -7,8 +7,8 @@ These tests make real API calls to Omie and require valid credentials in environ
 import os
 import pytest
 
-from src.tools.omie.tool import search_clients, search_client_by_cnpj
-from src.tools.omie.schema import ClientSearchInput
+from automagik.tools.omie.tool import search_clients, search_client_by_cnpj
+from automagik.tools.omie.schema import ClientSearchInput
 
 # Skip all tests if credentials are not set
 pytestmark = pytest.mark.skipif(
