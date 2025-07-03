@@ -34,7 +34,7 @@ case "${1:-env-info}" in
         echo "🎯 Running: make env-get-port"
         echo ""
         port=$(./scripts/env_loader.sh get-port)
-        echo "AM_PORT: $port"
+        echo "AUTOMAGIK_API_PORT: $port"
         
         # Show other ports too
         postgres_port=$(./scripts/env_loader.sh get-port POSTGRES_PORT 5432)
@@ -114,7 +114,7 @@ case "${1:-env-info}" in
         
         # Show specific variables
         echo "🔧 Key Variables:"
-        vars=("AM_PORT" "AM_ENV" "DATABASE_URL" "POSTGRES_HOST" "POSTGRES_PORT")
+        vars=("AUTOMAGIK_API_PORT" "ENVIRONMENT" "DATABASE_URL" "POSTGRES_HOST" "POSTGRES_PORT")
         for var in "${vars[@]}"; do
             value=$(./scripts/env_loader.sh get-var "$var")
             if [[ -n "$value" ]]; then

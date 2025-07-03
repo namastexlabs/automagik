@@ -21,7 +21,7 @@ class TestMCPRoutes:
     def auth_headers(self):
         """Authentication headers for API calls."""
         from automagik.config import settings
-        return {"x-api-key": settings.AM_API_KEY}
+        return {"x-api-key": settings.AUTOMAGIK_API_KEY}
     
     @pytest.fixture
     def mock_mcp_client_manager(self):

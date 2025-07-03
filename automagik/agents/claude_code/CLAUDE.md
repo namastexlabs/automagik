@@ -434,7 +434,7 @@ def test_stream_parsing():
 ```bash
 # Enable comprehensive debugging
 export CLAUDE_CODE_DEBUG=true
-export AM_LOG_LEVEL=DEBUG
+export AUTOMAGIK_LOG_LEVEL=DEBUG
 
 # Test specific workflow prompt
 uv run python -c "
@@ -451,7 +451,7 @@ for run_id, status in get_active_workflows().items():
 "
 
 # Debug stream processing
-export STREAM_DEBUG=true
+export STREAUTOMAGIK_DEBUG=true
 # Then run any workflow to see detailed stream processing logs
 ```
 

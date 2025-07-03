@@ -10,8 +10,8 @@ from automagik.config import settings
 
 # Skip integration tests if server is not available
 skip_if_server_unavailable = pytest.mark.skipif(
-    not os.environ.get("AM_API_KEY") or not os.environ.get("AM_INTEGRATION_SERVER_RUNNING"),
-    reason="Integration server not running or AM_API_KEY not set"
+    not os.environ.get("AUTOMAGIK_API_KEY") or not os.environ.get("AUTOMAGIK_INTEGRATION_SERVER_RUNNING"),
+    reason="Integration server not running or AUTOMAGIK_API_KEY not set"
 )
 
 
@@ -21,12 +21,12 @@ class TestMCPIntegration:
     @pytest.fixture
     def base_url(self):
         """Base URL for API calls."""
-        return f"http://localhost:{settings.AM_PORT}"
+        return f"http://localhost:{settings.AUTOMAGIK_API_PORT}"
     
     @pytest.fixture
     def auth_headers(self):
         """Authentication headers."""
-        return {"X-API-Key": settings.AM_API_KEY}
+        return {"X-API-Key": settings.AUTOMAGIK_API_KEY}
     
     @pytest.fixture
     def unique_server_name(self):

@@ -677,7 +677,7 @@ def test_unauthorized_access():
 
 ```bash
 # Enable API debug logging
-export AM_LOG_LEVEL=DEBUG
+export AUTOMAGIK_LOG_LEVEL=DEBUG
 export API_DEBUG=true
 
 # Test API endpoints

@@ -65,7 +65,7 @@ def create_callback(
     This command provides tools to create new agents from existing templates.
     Use 'list' to see available templates, or 'agent' to create a new agent.
     """
-    # If debug flag is set, ensure AM_LOG_LEVEL is set to DEBUG
+    # If debug flag is set, ensure AUTOMAGIK_LOG_LEVEL is set to DEBUG
     if debug:
         os.environ["AUTOMAGIK_LOG_LEVEL"] = "DEBUG"
 
