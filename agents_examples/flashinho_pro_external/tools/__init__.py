@@ -1,0 +1,1 @@
+"""Tools for Flashinho Pro External agent."""
