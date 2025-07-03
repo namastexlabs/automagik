@@ -150,25 +150,26 @@ jobs:
     
     - name: Generate Performance Report
       run: |
-        python -c '
-import json
-import os
+        cat > generate_report.py << 'EOF'
+        import json
+        import os
 
-# Create performance summary
-summary = {
-    "status": "passed",
-    "message": "SDK performance is within acceptable limits",
-    "criteria": {
-        "startup_time": "< 1.5x CLI",
-        "execution_time": "< 1.5x CLI",
-        "memory_usage": "< 2.0x CLI"
-    }
-}
+        # Create performance summary
+        summary = {
+            "status": "passed",
+            "message": "SDK performance is within acceptable limits",
+            "criteria": {
+                "startup_time": "< 1.5x CLI",
+                "execution_time": "< 1.5x CLI",
+                "memory_usage": "< 2.0x CLI"
+            }
+        }
 
-os.makedirs("reports", exist_ok=True)
-with open("reports/performance_summary.json", "w") as f:
-    json.dump(summary, f, indent=2)
-'
+        os.makedirs("reports", exist_ok=True)
+        with open("reports/performance_summary.json", "w") as f:
+            json.dump(summary, f, indent=2)
+        EOF
+        python generate_report.py
     
     - name: Upload Performance Reports
       uses: actions/upload-artifact@v4
