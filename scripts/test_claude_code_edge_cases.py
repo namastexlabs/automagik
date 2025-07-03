@@ -15,8 +15,8 @@ import aiohttp
 
 
 # Configuration
-BASE_URL = os.getenv("AM_BASE_URL", "http://localhost:28881")
-API_KEY = os.getenv("AM_API_KEY", "namastex888")
+BASE_URL = os.getenv("AUTOMAGIK_BASE_URL", "http://localhost:28881")
+API_KEY = os.getenv("AUTOMAGIK_API_KEY", "namastex888")
 
 
 class Colors:

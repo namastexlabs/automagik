@@ -71,7 +71,7 @@ def get_env_mode() -> str:
         if env_file.exists():
             with open(env_file, 'r') as f:
                 for line in f:
-                    if line.strip().startswith('AM_ENV='):
+                    if line.strip().startswith('ENVIRONMENT='):
                         value = line.split('=', 1)[1].strip().strip('"').strip("'")
                         return value
     except Exception:

@@ -9,18 +9,18 @@ def create_mock_settings():
     """Create a properly mocked settings object."""
     mock_settings = MagicMock()
     
-    # Set the AM_ENABLE_CLAUDE_CODE attribute directly
-    mock_settings.AM_ENABLE_CLAUDE_CODE = False
+    # Set the AUTOMAGIK_ENABLE_CLAUDE_CODE attribute directly
+    mock_settings.AUTOMAGIK_ENABLE_CLAUDE_CODE = False
     
     # Add a config-like interface for backwards compatibility
-    mock_settings.AM_ENABLE_CLAUDE_CODE = False
+    mock_settings.AUTOMAGIK_ENABLE_CLAUDE_CODE = False
     
     # Make the mock return appropriate values when accessed as attributes
     def get_attr(name):
-        if name == "AM_ENABLE_CLAUDE_CODE":
+        if name == "AUTOMAGIK_ENABLE_CLAUDE_CODE":
             return mock_settings._enable_claude_code
         elif name == "config":
-            return {"AM_ENABLE_CLAUDE_CODE": mock_settings._enable_claude_code}
+            return {"AUTOMAGIK_ENABLE_CLAUDE_CODE": mock_settings._enable_claude_code}
         return Mock()
     
     mock_settings._enable_claude_code = False

@@ -181,7 +181,7 @@ Solution: Increase POSTGRES_POOL_MAX setting
 ```bash
 # Disable expensive operations
 export GRAPHITI_ENABLED=false
-export AM_LOG_LEVEL=WARNING
+export AUTOMAGIK_LOG_LEVEL=WARNING
 
 # Increase connection limits
 export POSTGRES_POOL_MAX=50
@@ -191,8 +191,8 @@ export POSTGRES_POOL_MIN=5
 ### **For Development**
 ```bash
 # Enable detailed logging
-export AM_LOG_LEVEL=DEBUG
-export AM_VERBOSE_LOGGING=true
+export AUTOMAGIK_LOG_LEVEL=DEBUG
+export AUTOMAGIK_VERBOSE_LOGGING=true
 
 # Enable all features
 export GRAPHITI_ENABLED=true

@@ -90,8 +90,8 @@ class AgentServerManager:
             # Create simple agent-specific env file (placeholder)
             env_file = f"/tmp/{agent_name}_env"
             with open(env_file, 'w') as f:
-                f.write(f"AM_PORT={port}\n")
-                f.write(f"AM_AGENT_NAME={agent_name}\n")
+                f.write(f"AUTOMAGIK_API_PORT={port}\n")
+                f.write(f"AUTOMAGIK_AGENT_NAME={agent_name}\n")
             
             # Add Slack thread to env if available
             if self.slack_thread_ts:

@@ -65,7 +65,7 @@ def global_callback(ctx: typer.Context, debug: bool = False):
         try:
             from automagik.config import settings
             print("🔧 Configuration loaded:")
-            print(f"├── Environment: {settings.AUTOMAGIK_ENV}")
+            print(f"├── Environment: {settings.ENVIRONMENT}")
             print(f"├── Log Level: {settings.AUTOMAGIK_LOG_LEVEL}")
             print(f"├── Server: {settings.AUTOMAGIK_API_HOST}:{settings.AUTOMAGIK_API_PORT}")
             print(f"├── OpenAI API Key: {settings.OPENAI_API_KEY[:5]}...{settings.OPENAI_API_KEY[-5:]}")

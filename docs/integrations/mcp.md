@@ -271,13 +271,13 @@ automagik agents dev
 ```bash
 # Solution: Include correct API key header
 curl -H "X-API-Key: namastex888" http://localhost:8881/api/v1/mcp/servers
-# Note: Key value should match AM_API_KEY in .env file
+# Note: Key value should match AUTOMAGIK_API_KEY in .env file
 ```
 
 **Problem**: API key not working
 ```bash
 # Check environment variable
-echo $AM_API_KEY
+echo $AUTOMAGIK_API_KEY
 # Verify it matches the key being sent in requests
 ```
 

@@ -63,7 +63,7 @@ Execute Linear operations in parallel using MCP Linear integration:
    - SURGEON task with performance optimization focus
    - SHIPPER task with Docker + deployment preparation
 
-4. TEAM_ASSIGNMENT: Assign based on expertise
+4. TEAUTOMAGIK_ASSIGNMENT: Assign based on expertise
    - Felipe: Security, validation, error handling tasks
    - Cezar: Architecture, framework design, system integration
    - Use mcp__linear__linear_assignIssue() for assignments
@@ -88,10 +88,10 @@ labels = await mcp__linear__linear_getLabels()
 
 # Extract real Namastex Labs configuration
 namastex_team = next((team for team in teams if "namastex" in team.name.lower()), teams[0])
-TEAM_ID = namastex_team.id
+TEAUTOMAGIK_ID = namastex_team.id
 
 # Get real workflow states for the team
-workflow_states = await mcp__linear__linear_getWorkflowStates(teamId=TEAM_ID)
+workflow_states = await mcp__linear__linear_getWorkflowStates(teamId=TEAUTOMAGIK_ID)
 states_map = {state.name.lower(): state.id for state in workflow_states}
 
 # Map common workflow states (handle variations)
@@ -156,7 +156,7 @@ Enhance automagik-agents codebase with {feature_description} following our FastA
 - Documentation updated in /docs/development/
 - Linear tasks properly tracked and updated
     """,
-    teamId=TEAM_ID,
+    teamId=TEAUTOMAGIK_ID,
     priority=2,
     labelIds=[FEATURE, AUTOMAGIK_AGENTS] if AUTOMAGIK_AGENTS else [FEATURE]
 )
@@ -271,7 +271,7 @@ def create_workflow_task(workflow_type, epic_id, feature_details):
     return mcp__linear__linear_createIssue(
         title=template["title"],
         description=template["description"],
-        teamId=TEAM_ID,
+        teamId=TEAUTOMAGIK_ID,
         projectId=PROJECT_ID,
         parentId=epic_id,
         priority=template["priority"],
@@ -537,7 +537,7 @@ Implement JWT-based authentication system with role-based access control using p
 Requested by: Felipe Rosa
 Following Felipe's security preferences with parallel execution optimization
 """,
-    teamId=TEAM_ID,
+    teamId=TEAUTOMAGIK_ID,
     projectId=PROJECT_ID,
     priority=1,
     labelIds=[FEATURE]

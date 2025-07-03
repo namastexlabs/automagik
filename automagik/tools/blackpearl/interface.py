@@ -43,7 +43,7 @@ def handle_api_error(func):
     async def wrapper(*args, **kwargs):
         # Check if we're in development mode and debug log level
         is_dev_debug = (
-            settings.AM_ENV.value == "development" and
+            settings.ENVIRONMENT.value == "development" and
             settings.AUTOMAGIK_LOG_LEVEL == "DEBUG"
         )
         

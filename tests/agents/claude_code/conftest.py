@@ -76,7 +76,7 @@ def claude_code_agent(mock_container_manager, mock_executor):
 def mock_settings():
     """Provide mocked settings with claude-code enabled."""
     with patch('automagik.agents.claude_code.agent.settings') as mock_settings:
-        mock_settings.AM_ENABLE_CLAUDE_CODE = True
+        mock_settings.AUTOMAGIK_ENABLE_CLAUDE_CODE = True
         yield mock_settings
 
 
@@ -124,7 +124,7 @@ def reset_environment():
     original_env = os.environ.copy()
     
     # Set required environment variables for Claude Code tests
-    os.environ['AM_ENABLE_CLAUDE_CODE'] = 'true'
+    os.environ['AUTOMAGIK_ENABLE_CLAUDE_CODE'] = 'true'
     
     yield
     

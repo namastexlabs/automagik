@@ -19,8 +19,8 @@ import aiohttp
 
 
 # Configuration
-BASE_URL = os.getenv("AUTOMAGIK_API_URL", os.getenv("AM_BASE_URL", "http://localhost:8881"))
-API_KEY = os.getenv("AM_API_KEY", "test-key")
+BASE_URL = os.getenv("AUTOMAGIK_API_URL", os.getenv("AUTOMAGIK_BASE_URL", "http://localhost:8881"))
+API_KEY = os.getenv("AUTOMAGIK_API_KEY", "test-key")
 TIMEOUT_SECONDS = 30  # Maximum time to wait for workflow completion
 POLL_INTERVAL = 2  # Seconds between status checks
 

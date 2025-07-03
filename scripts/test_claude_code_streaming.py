@@ -23,8 +23,8 @@ from pathlib import Path
 
 
 # Configuration
-BASE_URL = os.getenv("AM_BASE_URL", "http://localhost:8881")
-API_KEY = os.getenv("AM_API_KEY", "test-key")
+BASE_URL = os.getenv("AUTOMAGIK_BASE_URL", "http://localhost:8881")
+API_KEY = os.getenv("AUTOMAGIK_API_KEY", "test-key")
 TIMEOUT_SECONDS = 120  # Max time to wait for workflow completion
 POLL_INTERVAL = 3  # Seconds between status checks
 

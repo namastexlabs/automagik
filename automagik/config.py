@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     # Server
     AUTOMAGIK_API_PORT: int = Field(8881, description="Port to run the server on")
     AUTOMAGIK_API_HOST: str = Field("0.0.0.0", description="Host to bind the server to")
-    AUTOMAGIK_ENV: Environment = Field(Environment.DEVELOPMENT, description="Environment (development, production, testing)")
+    ENVIRONMENT: Environment = Field(Environment.DEVELOPMENT, description="Environment (development, production, testing)")
 
     # Logging
     AUTOMAGIK_LOG_LEVEL: LogLevel = Field(LogLevel.INFO, description="Logging level")
@@ -169,13 +169,13 @@ class Settings(BaseSettings):
     
     # Backward compatibility properties for legacy variable names
     @property
-    def AM_LOG_LEVEL(self):
-        """Backward compatibility for AM_LOG_LEVEL -> AUTOMAGIK_LOG_LEVEL"""
+    def AUTOMAGIK_LOG_LEVEL(self):
+        """Backward compatibility for AUTOMAGIK_LOG_LEVEL -> AUTOMAGIK_LOG_LEVEL"""
         return self.AUTOMAGIK_LOG_LEVEL
     
     @property
-    def AM_PORT(self):
-        """Backward compatibility for AM_PORT -> AUTOMAGIK_API_PORT"""
+    def AUTOMAGIK_API_PORT(self):
+        """Backward compatibility for AUTOMAGIK_API_PORT -> AUTOMAGIK_API_PORT"""
         return self.AUTOMAGIK_API_PORT
     
 

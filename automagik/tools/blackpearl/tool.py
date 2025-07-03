@@ -613,7 +613,7 @@ async def verificar_cnpj(ctx: RunContext[Dict], cnpj: str) -> Dict[str, Any]:
         # Create a modified result without status and reason fields if they exist
         # Only remove these fields in development environment
         
-        if isinstance(verification_result, dict) and settings.AM_ENV == Environment.DEVELOPMENT:
+        if isinstance(verification_result, dict) and settings.ENVIRONMENT == Environment.DEVELOPMENT:
             if 'status' in verification_result:
                 verification_result.pop('status', None)
             if 'reason' in verification_result:

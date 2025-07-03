@@ -84,13 +84,13 @@ Edit the `.env` file with your configuration:
 
 ```dotenv
 # Essential Variables
-AM_API_KEY="am-your_secure_api_key_here"
+AUTOMAGIK_API_KEY="am-your_secure_api_key_here"
 OPENAI_API_KEY="sk-your_openai_api_key_here"
 
 # Server Configuration
-AM_PORT=8881
-AM_HOST=0.0.0.0
-AM_ENV=development
+AUTOMAGIK_API_PORT=8881
+AUTOMAGIK_API_HOST=0.0.0.0
+ENVIRONMENT=development
 
 # Database Configuration
 # DATABASE_TYPE can be "sqlite" (default) or "postgresql"
@@ -125,7 +125,7 @@ ANTHROPIC_API_KEY=
 **Important Notes:**
 - Replace placeholder values with your actual API keys
 - Get API keys from: [OpenAI](https://platform.openai.com/api-keys), [Google AI Studio](https://makersuite.google.com/app/apikey), [Anthropic](https://console.anthropic.com/)
-- The `AM_API_KEY` is used for internal API authentication - generate a secure random string
+- The `AUTOMAGIK_API_KEY` is used for internal API authentication - generate a secure random string
 
 ### 2. Database Setup
 
