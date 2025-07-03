@@ -5,7 +5,7 @@
       "args": [
           "-y",
           "mcp-sqlite",
-          "data/automagik.db"
+          "data/your-database.db"
       ],
       "agent_names": ["simple"],
       "tools": {
@@ -14,7 +14,7 @@
     },
     "agent-brain": {
       "type": "sse",
-      "url": "http://192.168.112.149:8765/mcp/openmemory/sse/genie-ui",
+      "url": "http://localhost:8765/mcp/openmemory/sse/genie",
       "agent_names": ["simple"],
       "tools": {
         "include": ["*"]
@@ -62,23 +62,6 @@
       "env": {
         "WAIT_MAX_DURATION": "3600",
         "WAIT_DEFAULT_PROGRESS_INTERVAL": "1.0"
-      },
-      "agent_names": ["simple"],
-      "tools": {
-        "include": ["*"]
-      }
-    },
-    "genie": {
-      "command": "uvx",
-      "args": [
-        "automagik-tools@latest",
-        "tool",
-        "genie"
-      ],
-      "env": {
-        "OPENAI_API_KEY": "your-openai-api-key",
-        "AUTOMAGIK_API_KEY": "your-api-key",
-        "AUTOMAGIK_BASE_URL": "http://localhost:8881"
       },
       "agent_names": ["simple"],
       "tools": {
