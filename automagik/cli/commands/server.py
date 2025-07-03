@@ -29,8 +29,8 @@ def start_server_from_pip(
     if agents_dir:
         os.environ["AUTOMAGIK_EXTERNAL_AGENTS_DIR"] = agents_dir
     elif "AUTOMAGIK_EXTERNAL_AGENTS_DIR" not in os.environ:
-        # Default to ~/.automagik/agents
-        default_agents_dir = Path.home() / ".automagik" / "agents"
+        # Default to ./automagik_agents relative to current directory
+        default_agents_dir = Path.cwd() / "automagik_agents"
         default_agents_dir.mkdir(parents=True, exist_ok=True)
         os.environ["AUTOMAGIK_EXTERNAL_AGENTS_DIR"] = str(default_agents_dir)
     
