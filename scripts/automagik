@@ -93,7 +93,7 @@ main() {
     
     # Call the Python CLI with all arguments
     echo "🚀 Executing automagik CLI..."
-    exec python -c "from src.cli import app; app()" "$@"
+    exec python -c "from automagik.cli import app; app()" "$@"
 }
 
 # Show help if no arguments or help requested

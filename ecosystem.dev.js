@@ -62,7 +62,7 @@ module.exports = {
       name: 'automagik-dev',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
-      args: '-m src',
+      args: '-m automagik',
       interpreter: 'none',
       version: extractVersionFromPyproject(PROJECT_ROOT),
       env: {
@@ -79,7 +79,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
-      watch: ['src'], // Enable hot reload for src directory
+      watch: ['automagik'], // Enable hot reload for automagik directory
       watch_delay: 1000,
       ignore_watch: [
         'node_modules',

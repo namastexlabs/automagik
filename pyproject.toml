@@ -104,7 +104,7 @@ ignore_no_config = true
 
 [tool.codeflash]
 # All paths are relative to this pyproject.toml's directory.
-module-root = "src"
+module-root = "automagik"
 tests-root = "tests"
 test-framework = "pytest"
 ignore-paths = []

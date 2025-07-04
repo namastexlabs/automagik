@@ -17,7 +17,7 @@ def test_core_imports() -> List[Tuple[str, str, bool, str]]:
     """Test core module imports and return results."""
     
     tests = [
-        ('src', 'Main src module'),
+        ('automagik', 'Main automagik module'),
         ('automagik.config', 'Configuration system'),
         ('automagik.agents', 'Agent framework'),
         ('automagik.agents.pydanticai.simple', 'Simple agent'),

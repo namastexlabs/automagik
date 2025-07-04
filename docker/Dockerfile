@@ -34,7 +34,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --no-install-project
 
 # Copy source code and install project
-COPY src/ ./src/
+COPY automagik/ ./automagik/
 RUN uv pip install --no-deps -e .
 
 ENV AUTOMAGIK_ENV=production
@@ -43,4 +43,4 @@ EXPOSE ${AUTOMAGIK_API_PORT}
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${AUTOMAGIK_API_PORT}/health || exit 1
 
-CMD ["uv", "run", "python", "-m", "src"]
+CMD ["uv", "run", "python", "-m", "automagik"]

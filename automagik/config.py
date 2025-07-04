@@ -203,15 +203,8 @@ class Settings(BaseSettings):
     )
     
     # Backward compatibility properties for legacy variable names
-    @property
-    def AUTOMAGIK_LOG_LEVEL(self):
-        """Backward compatibility for AUTOMAGIK_LOG_LEVEL -> AUTOMAGIK_LOG_LEVEL"""
-        return self.AUTOMAGIK_LOG_LEVEL
-    
-    @property
-    def AUTOMAGIK_API_PORT(self):
-        """Backward compatibility for AUTOMAGIK_API_PORT -> AUTOMAGIK_API_PORT"""
-        return self.AUTOMAGIK_API_PORT
+    # NOTE: AUTOMAGIK_LOG_LEVEL and AUTOMAGIK_API_PORT are already defined as fields above,
+    # so no backward compatibility properties are needed for them
     
 
 def load_settings() -> Settings:
