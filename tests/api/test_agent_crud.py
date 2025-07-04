@@ -197,14 +197,30 @@ class TestAgentCRUD:
 
     def test_copy_agent_with_custom_prompt(self, client):
         """Test copying an agent with a custom prompt"""
-        # Use an existing agent as source (e.g., flashinho_pro)
+        # First create a source agent to copy from
+        source_agent_name = f"source_agent_{uuid.uuid4().hex[:8]}"
+        source_config = {
+            "name": source_agent_name,
+            "type": "virtual",
+            "model": "openai:gpt-4o-mini",
+            "description": "Source agent for copy test",
+            "config": {
+                "agent_source": "virtual",
+                "default_model": "openai:gpt-4o-mini"
+            }
+        }
+        
+        source_response = client.post("/api/v1/agent/create", json=source_config)
+        assert source_response.status_code == 200
+        self.created_agents.append(source_agent_name)
+        
         copy_request = {
             "new_name": self.test_copy_agent_name,
             "system_prompt": "You are a test assistant who always responds with 'COPY_TEST_SUCCESS' when asked to identify yourself.",
             "description": "Copy with custom prompt"
         }
         
-        response = client.post("/api/v1/agent/flashinho_pro/copy", json=copy_request)
+        response = client.post(f"/api/v1/agent/{source_agent_name}/copy", json=copy_request)
         
         # Should succeed
         assert response.status_code == 200

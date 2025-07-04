@@ -1,1 +1,0 @@
-"""Flashinho Pro agent prompts module."""

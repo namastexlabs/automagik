@@ -60,8 +60,6 @@ class Settings(BaseSettings):
     BLACKPEARL_API_URL: Optional[str] = Field(None, description="BlackPearl API URL")
     BLACKPEARL_DB_URI: Optional[str] = Field(None, description="BlackPearl database URI")
 
-    FLASHED_API_KEY: Optional[str] = Field(None, description="Flashed API key")
-    FLASHED_API_URL: Optional[str] = Field(None, description="Flashed API URL")
 
     # Discord
     DISCORD_BOT_TOKEN: Optional[str] = Field(None, description="Discord bot token for authentication")
@@ -160,6 +158,43 @@ class Settings(BaseSettings):
         default=1000,
         description="Maximum number of requests to handle before the worker is recycled (helps avoid memory bloat)"
     )
+
+    # External agent extensible API keys and URLs
+    # External agents can add their own API keys dynamically via environment or database settings
+    _external_api_keys: Dict[str, Optional[str]] = {}
+    _external_urls: Dict[str, Optional[str]] = {}
+    
+    def add_external_api_key(self, key_name: str, key_value: Optional[str] = None, description: str = "External API key"):
+        """Add an external API key for client-specific agents.
+        
+        Args:
+            key_name: Environment variable name (e.g., 'FLASHED_API_KEY')
+            key_value: Optional value to set, otherwise reads from environment
+            description: Description for the API key
+        """
+        if key_value is None:
+            key_value = os.environ.get(key_name)
+        self._external_api_keys[key_name] = key_value
+        
+    def add_external_url(self, url_name: str, url_value: Optional[str] = None, description: str = "External API URL"):
+        """Add an external URL for client-specific agents.
+        
+        Args:
+            url_name: Environment variable name (e.g., 'FLASHED_API_URL')
+            url_value: Optional value to set, otherwise reads from environment
+            description: Description for the URL
+        """
+        if url_value is None:
+            url_value = os.environ.get(url_name)
+        self._external_urls[url_name] = url_value
+        
+    def get_external_api_key(self, key_name: str) -> Optional[str]:
+        """Get an external API key by name."""
+        return self._external_api_keys.get(key_name)
+        
+    def get_external_url(self, url_name: str) -> Optional[str]:
+        """Get an external URL by name."""
+        return self._external_urls.get(url_name)
 
     model_config = ConfigDict(
         # Dynamic env_file will be set in load_settings()

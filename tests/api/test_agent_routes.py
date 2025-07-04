@@ -76,7 +76,7 @@ def test_list_agents(client):
     
     # We should have at least some registered agents in the API
     # This accounts for the fact that agents are only registered when first used
-    # Since we have at least one agent (flashinho), that's sufficient for the API test
+    # Since we have at least one agent available, that's sufficient for the API test
     assert len(matching_agents) >= 1, f"Expected at least 1 agent in API, but found {len(matching_agents)}: {matching_agents}. Available factory agents: {factory_names}, API agents: {api_names}"
 
 def test_run_agent_simple(client):

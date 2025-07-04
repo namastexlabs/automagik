@@ -84,8 +84,6 @@ def create_agent(agent_name=None):
 
 # Canonical exports for common agent classes
 SimpleAgent = import_module("automagik.agents.pydanticai.simple.agent").SimpleAgent  # type: ignore
-FlashinhoAgent = import_module("automagik.agents.pydanticai.flashinho.agent").FlashinhoAgent  # type: ignore
-FlashinhoProAgent = import_module("automagik.agents.pydanticai.flashinho_pro.agent").FlashinhoPro  # type: ignore
 StanAgent = import_module("automagik.agents.pydanticai.stan.agent").StanAgent  # type: ignore
 StanEmailAgent = import_module("automagik.agents.pydanticai.stan_email.agent").StanEmailAgent  # type: ignore
 SofiaAgent = import_module("automagik.agents.pydanticai.sofia.agent").SofiaAgent  # type: ignore
@@ -95,8 +93,6 @@ EstruturarAgent = import_module("automagik.agents.pydanticai.estruturar.agent").
 
 __all__ = [
     "SimpleAgent",
-    "FlashinhoAgent",
-    "FlashinhoProAgent",
     "StanAgent",
     "StanEmailAgent",
     "SofiaAgent",

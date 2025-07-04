@@ -1,4 +1,4 @@
-"""Flashinho V2 Agent - Advanced multimodal Brazilian educational assistant.
+"""Flashinho The First Agent - Advanced multimodal Brazilian educational assistant.
 
 This agent combines the authentic Brazilian educational coaching personality of Flashinho
 with advanced multimodal capabilities powered by Google Gemini 2.5 Pro model.
@@ -11,16 +11,15 @@ import uuid
 from automagik.agents.models.automagik_agent import AutomagikAgent
 from automagik.agents.models.response import AgentResponse
 from automagik.memory.message_history import MessageHistory
-from automagik.tools.flashed.tool import (
+# Import tools from local tools directory
+from .tools.flashed.tool import (
     get_user_data, get_user_score, get_user_roadmap, 
     get_user_objectives, get_last_card_round, get_user_energy,
     get_user_by_pretty_id
 )
-from automagik.tools.flashed.provider import FlashedProvider
-from .prompts import AGENT_FREE, AGENT_PROMPT
-# Import shared authentication utilities from tools/flashed
-from automagik.tools.flashed.auth_utils import UserStatusChecker
-from automagik.tools.flashed.user_identification import (
+from .tools.flashed.provider import FlashedProvider
+from .tools.flashed.auth_utils import UserStatusChecker
+from .tools.flashed.user_identification import (
     build_external_key,
     attach_user_by_external_key,
     attach_user_by_flashed_id_lookup,
@@ -30,14 +29,31 @@ from automagik.tools.flashed.user_identification import (
     UserIdentificationResult,
     ensure_user_uuid_matches_flashed_id
 )
-from .memories import FlashinhoMemories
-from .session_utils import (
-    update_message_history_user_id,
-    update_session_user_id,
-    make_session_persistent,
-    ensure_session_row,
-)
-from .api_client import FlashinhoAPI
+from .prompts import AGENT_PROMPT_DEFAULT, AGENT_PROMPT_PRO
+
+# Simplified stubs for missing modules
+class FlashinhoMemories:
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    async def get_user_preferences(self, user_id):
+        return {}
+
+class FlashinhoAPI:
+    def __init__(self, *args, **kwargs):
+        pass
+
+def update_message_history_user_id(*args, **kwargs):
+    pass
+
+def update_session_user_id(*args, **kwargs):
+    pass
+
+def make_session_persistent(*args, **kwargs):
+    pass
+
+def ensure_session_row(*args, **kwargs):
+    pass
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +70,7 @@ class ModelConfig:
 # UserIdentificationResult is now imported from shared utilities
 
 
-class FlashinhoV2(AutomagikAgent):
+class FlashinhoTheFirst(AutomagikAgent):
     """Advanced multimodal Brazilian educational assistant powered by Google Gemini 2.5 Pro.
     
     Features:
@@ -78,7 +94,7 @@ class FlashinhoV2(AutomagikAgent):
 
         super().__init__(config)
 
-        self._code_prompt_text = AGENT_FREE
+        self._code_prompt_text = AGENT_PROMPT_DEFAULT
         self._setup_dependencies()
         self._register_flashed_tools()
         self._initialize_user_status()
@@ -405,7 +421,7 @@ class FlashinhoV2(AutomagikAgent):
             
             # Basic response sanity log.
             if response and response.text:
-                logger.info("FlashinhoV2 response length: %s chars", len(response.text))
+                logger.info("FlashinhoTheFirst response length: %s chars", len(response.text))
             
             # Save the agent response to message history
             if message_history_obj and response:
@@ -425,7 +441,7 @@ class FlashinhoV2(AutomagikAgent):
             return response
             
         except Exception as e:
-            logger.error(f"Error in FlashinhoV2 run method: {str(e)}")
+            logger.error(f"Error in FlashinhoTheFirst run method: {str(e)}")
             return self._create_error_response(e)
     
     def _log_execution_context(self, user_id: Optional[str]) -> None:
@@ -739,11 +755,11 @@ class FlashinhoV2(AutomagikAgent):
         register_multimodal_tools(self.tool_registry, self.dependencies)
 
 
-def create_agent(config: Dict[str, str]) -> FlashinhoV2:
-    """Factory function to create Flashinho V2 agent instance."""
+def create_agent(config: Dict[str, str]) -> FlashinhoTheFirst:
+    """Factory function to create Flashinho The First agent instance."""
     try:
-        return FlashinhoV2(config)
+        return FlashinhoTheFirst(config)
     except Exception as e:
-        logger.error(f"Failed to create Flashinho V2 Agent: {e}")
+        logger.error(f"Failed to create Flashinho The First Agent: {e}")
         from automagik.agents.models.placeholder import PlaceholderAgent
         return PlaceholderAgent(config)

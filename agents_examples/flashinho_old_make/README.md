@@ -1,4 +1,4 @@
-# Flashinho Agent
+# Flashinho Old Make Agent
 
 Basic educational assistant for Brazilian students, integrated with the Flashed learning platform.
 
@@ -29,9 +29,9 @@ The agent uses OpenAI GPT-4o-mini as the default model and requires:
 ## Usage
 
 ```python
-from agents_examples.flashinho import FlashinhoAgent
+from agents_examples.flashinho_old_make import FlashinhoOldMakeAgent
 
-agent = FlashinhoAgent(config={
+agent = FlashinhoOldMakeAgent(config={
     "model": "openai:gpt-4o-mini",
     "temperature": 0.7
 })
