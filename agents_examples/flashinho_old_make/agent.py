@@ -1,18 +1,18 @@
-"""Flashinho Old Make Agent - Basic educational assistant for Brazilian students.
+"""Flashinho Old Make Agent - Refactored with BaseExternalAgent.
 
-This is a client-specific agent with self-contained tools.
+This shows how to use the base class to reduce boilerplate.
 """
 import logging
+import sys
 import os
 from typing import Dict
 
-from automagik.agents.models.automagik_agent import AutomagikAgent
-from automagik.agents.models.response import AgentResponse
-from automagik.agents.models.dependencies import AutomagikAgentsDependencies
-from automagik.memory.message_history import MessageHistory
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# Import tools from local tools directory
-from .tools.flashed.tool import (
+from base_external_agent import BaseExternalAgent
+from external_agent_factory import create_external_agent
+from tools import (
     get_user_data, get_user_score, get_user_roadmap, 
     get_user_objectives, get_last_card_round, get_user_energy
 )
@@ -21,64 +21,35 @@ from .prompts.prompt import AGENT_PROMPT
 logger = logging.getLogger(__name__)
 
 
-class FlashinhoOldMakeAgent(AutomagikAgent):
-    """Flashinho Old Make Agent - Basic educational assistant for Brazilian students.
+class FlashinhoOldMakeAgentRefactored(BaseExternalAgent):
+    """Flashinho Old Make Agent - Simplified with base class."""
     
-    This is a client-specific agent with self-contained tools.
-    """
+    # Configuration - just override class attributes
+    DEFAULT_MODEL = "openai:gpt-4o-mini"
+    EXTERNAL_API_KEYS = [
+        ("FLASHED_API_KEY", "Flashed API authentication key"),
+    ]
+    EXTERNAL_URLS = [
+        ("FLASHED_API_URL", "Flashed API base URL"),
+    ]
     
-    def __init__(self, config: Dict[str, str]) -> None:
-        """Initialize Flashinho Agent with configuration."""
-        if config is None:
-            config = {}
-
-        # Default model
-        self.default_model = "openai:gpt-4o-mini"
-        config.setdefault("supported_media", ["image", "audio", "document"])
-        
-        super().__init__(config)
-
+    def _initialize_agent(self) -> None:
+        """Initialize agent-specific functionality."""
+        # Set the prompt
         self._code_prompt_text = AGENT_PROMPT
-
-        # Setup dependencies
-        self.dependencies = AutomagikAgentsDependencies(
-            model_name=self.default_model,
-            model_settings={
-                "temperature": 0.7,
-                "max_tokens": 2048
-            },
-            api_keys={
-                "openai_api_key": os.environ.get("OPENAI_API_KEY", "")
-            },
-            tool_config={}
-        )
         
-        if self.db_id:
-            self.dependencies.set_agent_id(self.db_id)
-            
-        self.tool_registry.register_default_tools(self.context)
+        # Register tools
+        tools = [
+            get_user_data, get_user_score, get_user_roadmap,
+            get_user_objectives, get_last_card_round, get_user_energy
+        ]
         
-        # Register Flashed API tools
-        self._register_flashed_tools()
+        for tool in tools:
+            self.tool_registry.register_tool(tool)
         
-        logger.info("Flashinho Old Make Agent initialized")
-    
-    def _register_flashed_tools(self) -> None:
-        """Register all Flashed API tools."""
-        self.tool_registry.register_tool(get_user_data)
-        self.tool_registry.register_tool(get_user_score)
-        self.tool_registry.register_tool(get_user_roadmap)
-        self.tool_registry.register_tool(get_user_objectives)
-        self.tool_registry.register_tool(get_last_card_round)
-        self.tool_registry.register_tool(get_user_energy)
-        logger.debug("Flashed tools registered")
+        logger.debug(f"Registered {len(tools)} Flashed tools")
 
 
-def create_agent(config: Dict[str, str]) -> FlashinhoOldMakeAgent:
-    """Factory function to create Flashinho Old Make agent."""
-    try:
-        return FlashinhoOldMakeAgent(config)
-    except Exception as e:
-        logger.error(f"Failed to create Flashinho Old Make Agent: {e}")
-        from automagik.agents.models.placeholder import PlaceholderAgent
-        return PlaceholderAgent(config)
+def create_agent(config: Dict[str, str]) -> FlashinhoOldMakeAgentRefactored:
+    """Factory function using the simplified factory."""
+    return create_external_agent(FlashinhoOldMakeAgentRefactored, config)

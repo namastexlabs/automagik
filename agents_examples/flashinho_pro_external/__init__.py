@@ -1,8 +1,8 @@
 """External Flashinho Pro agent factory."""
 
 from typing import Dict, Optional
-from .agent import FlashinhoProExternal
+from .agent import FlashinhoProExternalRefactored
 
-def create_agent(config: Optional[Dict[str, str]] = None) -> FlashinhoProExternal:
+def create_agent(config: Optional[Dict[str, str]] = None) -> FlashinhoProExternalRefactored:
     """Factory function to create external Flashinho Pro agent instance."""
-    return FlashinhoProExternal(config or {})
+    return FlashinhoProExternalRefactored(config or {})
