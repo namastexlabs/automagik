@@ -1,0 +1,19 @@
+{
+  "display_name": "Lina - Project Management",
+  "description": "Linear integration and project management specialist coordinating tasks, tracking progress, and maintaining project momentum",
+  "category": "project-management",
+  "icon": "CheckSquare",
+  "mainColour": "#6366F1",
+  "emoji": "📋",
+  "capabilities": [
+    "linear-integration",
+    "task-tracking",
+    "project-coordination",
+    "status-updates",
+    "milestone-management"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 30,
+  "active": true,
+  "is_system_workflow": true
+}
