@@ -23,7 +23,7 @@ class ExecutorFactory:
         Returns:
             ClaudeSDKExecutor instance
         """
-        logger.info("Creating SDK executor")
+        logger.debug("Creating SDK executor")
         
         from .sdk_executor import ClaudeSDKExecutor
         

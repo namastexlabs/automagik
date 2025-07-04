@@ -78,7 +78,7 @@ class CLIEnvironmentManager:
         
         # Ensure base path exists
         self.base_path.mkdir(parents=True, exist_ok=True)
-        logger.info(f"CLIEnvironmentManager initialized with base path: {self.base_path}")
+        logger.debug(f"CLIEnvironmentManager initialized with base path: {self.base_path}")
     
     async def create_workspace(self, run_id: str, workflow_name: Optional[str] = None, persistent: bool = True, git_branch: Optional[str] = None) -> Path:
         """Create git worktree workspace with race condition protection.
