@@ -135,10 +135,19 @@ class WorkflowDiscovery:
             if tools_file.exists():
                 allowed_tools = json.loads(tools_file.read_text(encoding='utf-8'))
             
-            # Load MCP configuration
+            # Load MCP configuration (with root fallback)
             mcp_config = {}
             if mcp_file.exists():
                 mcp_config = json.loads(mcp_file.read_text(encoding='utf-8'))
+            else:
+                # Try to use root project .mcp.json as fallback
+                root_mcp_file = Path(__file__).parent.parent.parent.parent / ".mcp.json"
+                if root_mcp_file.exists():
+                    try:
+                        mcp_config = json.loads(root_mcp_file.read_text(encoding='utf-8'))
+                        logger.debug(f"Using root .mcp.json for workflow {workflow_name}")
+                    except Exception as e:
+                        logger.debug(f"Could not load root .mcp.json: {e}")
             
             # Build workflow data
             workflow_data = {
