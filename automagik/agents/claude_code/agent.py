@@ -94,7 +94,7 @@ class ClaudeCodeAgent(AutomagikAgent):
         # Register default tools (not applicable for local execution)
         # Tools are managed via workflow configurations
         
-        logger.info(f"ClaudeCodeAgent initialized successfully in local mode")
+        logger.debug(f"ClaudeCodeAgent initialized successfully in local mode")
     
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj: Optional[MessageHistory] = None,
@@ -351,7 +351,7 @@ class ClaudeCodeAgent(AutomagikAgent):
             for optional_file in optional_files:
                 file_path = os.path.join(workflow_path, optional_file)
                 if not os.path.exists(file_path):
-                    logger.info(f"Optional workflow file missing (will use default behavior): {file_path}")
+                    logger.debug(f"Optional workflow file missing (will use default behavior): {file_path}")
             
             # Validate JSON files for both required and optional files that exist
             all_files = required_files + optional_files
@@ -429,7 +429,7 @@ class ClaudeCodeAgent(AutomagikAgent):
                             "valid": False
                         }
             
-            logger.info(f"Found {len(workflows)} workflows")
+            logger.debug(f"Found {len(workflows)} workflows")
             return workflows
             
         except Exception as e:
