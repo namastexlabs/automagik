@@ -331,7 +331,7 @@ class TestWorkflowIntegration:
         
         # Get the claude_code directory
         claude_code_dir = os.path.dirname(
-            os.path.abspath(__file__).replace('/tests/', '/src/')
+            os.path.abspath(__file__).replace('/tests/', '/automagik/')
         )
         workflows_dir = os.path.join(claude_code_dir, 'workflows')
         

@@ -39,7 +39,7 @@ jobs:
     
     - name: Run SDK Unit Tests
       run: |
-        pytest tests/test_sdk_executor.py -v --cov=src/agents/claude_code/sdk_executor --cov-report=xml --cov-report=html --html=reports/sdk_unit_tests.html --self-contained-html
+        pytest tests/test_sdk_executor.py -v --cov=automagik/agents/claude_code/sdk_executor --cov-report=xml --cov-report=html --html=reports/sdk_unit_tests.html --self-contained-html
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     

@@ -1,7 +1,7 @@
 """Main entry point for the application when run as a module.
 
 This allows running the Automagik Agents application with:
-    python -m src
+    python -m automagik
 """
 
 import sys

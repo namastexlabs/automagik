@@ -17,8 +17,8 @@ import sys
 from unittest.mock import Mock, patch
 from pathlib import Path
 
-# Add src to path for testing
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+# Add automagik to path for testing
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "automagik"))
 
 
 class TestStartupIntegrationErrors:
@@ -156,7 +156,7 @@ class TestMigrationSafetyWithStartupErrors:
     
     def test_migration_safety_checks_include_startup_validation(self):
         """Test that pre-migration checks validate startup compatibility."""
-        # Add src to path for importing migration module
+        # Add automagik to path for importing migration module
         scripts_path = Path(__file__).parent.parent.parent / "scripts"
         sys.path.insert(0, str(scripts_path))
         
