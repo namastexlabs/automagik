@@ -62,19 +62,35 @@ async def initialize_all_agents():
         for agent_name in available_agents:
             existing_agent = get_agent_by_name(agent_name)
             if not existing_agent:
+                # Get agent class to read DEFAULT_MODEL and DEFAULT_CONFIG
+                try:
+                    agent_class = AgentFactory.get_agent_class(agent_name)
+                    if agent_class and hasattr(agent_class, 'DEFAULT_MODEL'):
+                        model = agent_class.DEFAULT_MODEL
+                        default_config = getattr(agent_class, 'DEFAULT_CONFIG', {})
+                    else:
+                        # Fall back to creating temporary instance to get model
+                        temp_agent = AgentFactory.create_agent(agent_name, {})
+                        model = getattr(temp_agent.config, 'model', 'openai:gpt-4o-mini')
+                        default_config = {}
+                except Exception as e:
+                    logger.warning(f"Could not get model for {agent_name}: {e}")
+                    model = "openai:gpt-4o-mini"  # Sensible default
+                    default_config = {}
+                
                 # Create new agent in database
                 from automagik.agents.models.framework_types import FrameworkType
                 new_agent = Agent(
                     name=agent_name,
                     type=FrameworkType.default().value,  # Use enum for consistency
-                    model="openai:gpt-4.1",  # Default model
-                    config={"created_by": "auto_discovery"},
+                    model=model,  # Use agent's declared model
+                    config={**default_config, "created_by": "auto_discovery"},
                     description=f"Auto-discovered {agent_name} agent",
                     active=True  # Default to active
                 )
                 create_agent(new_agent)
                 registered_count += 1
-                logger.info(f"📝 Registered new agent in database: {agent_name}")
+                logger.info(f"📝 Registered new agent in database: {agent_name} with model {model}")
         
         if registered_count > 0:
             logger.info(f"✅ Registered {registered_count} new agents in database")
