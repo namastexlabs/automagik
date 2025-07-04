@@ -337,8 +337,9 @@ class ClaudeCodeAgent(AutomagikAgent):
             
             # Check for required workflow files and validate JSON files
             # Note: prompt.md is optional - when missing, workflow uses default Claude behavior
-            required_files = [".mcp.json", "allowed_tools.json"]
-            optional_files = ["prompt.md"]
+            # .mcp.json is also optional - will use root project .mcp.json as fallback
+            required_files = ["allowed_tools.json"]
+            optional_files = ["prompt.md", ".mcp.json", "config.json"]
             
             for required_file in required_files:
                 file_path = os.path.join(workflow_path, required_file)
