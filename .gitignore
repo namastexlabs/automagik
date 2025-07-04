@@ -256,6 +256,14 @@ data/
 !data/.gitkeep
 
 ####################
+# External Agents
+####################
+
+# External agents directory (dev environment only)
+external_agents/
+stan_agents/
+
+####################
 # Documentation
 ####################
 
