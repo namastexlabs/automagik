@@ -1,0 +1,19 @@
+{
+  "display_name": "Shipper - Deployment Specialist",
+  "description": "Deployment and release management specialist handling CI/CD pipelines, environment setup, and production releases",
+  "category": "deployment",
+  "icon": "Rocket",
+  "mainColour": "#F59E0B",
+  "emoji": "🚀",
+  "capabilities": [
+    "deployment",
+    "release-management",
+    "ci-cd",
+    "environment-setup",
+    "rollback-strategies"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 40,
+  "active": true,
+  "is_system_workflow": true
+}

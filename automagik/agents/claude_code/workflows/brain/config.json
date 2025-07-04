@@ -1,0 +1,19 @@
+{
+  "display_name": "Brain - Memory Orchestrator",
+  "description": "Collective memory and intelligence orchestrator that manages knowledge, context, and decision-making across all workflows",
+  "category": "orchestration",
+  "icon": "Brain",
+  "mainColour": "#8B5CF6",
+  "emoji": "🧠",
+  "capabilities": [
+    "memory-management",
+    "context-awareness", 
+    "decision-making",
+    "workflow-coordination",
+    "knowledge-synthesis"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 50,
+  "active": true,
+  "is_system_workflow": true
+}

@@ -178,6 +178,16 @@ class WorkflowInfo(BaseModel):
     description: str = Field(..., description="Workflow description")
     path: str = Field(..., description="Path to workflow configuration")
     valid: bool = Field(..., description="Whether the workflow is valid")
+    
+    # New required fields for enhanced workflow metadata
+    icon: str = Field(default="Bot", description="Lucide icon name for the workflow")
+    mainColour: str = Field(default="#3B82F6", description="Primary color for the workflow UI")
+    displayName: str = Field(default="", description="Human-friendly display name")
+    category: str = Field(default="general", description="Workflow category")
+    capabilities: List[str] = Field(default_factory=list, description="List of workflow capabilities")
+    emoji: str = Field(default="🤖", description="Emoji representation of the workflow")
+    maxTurns: Optional[int] = Field(None, description="Maximum conversation turns")
+    suggestedTurns: Optional[int] = Field(None, description="Suggested conversation turns")
 
 
 @claude_code_router.post(
@@ -789,10 +799,10 @@ async def get_claude_code_run_status(run_id: str, debug: bool = False):
 @claude_code_router.get("/manage", response_model=List[WorkflowInfo])
 async def list_claude_code_workflows() -> List[WorkflowInfo]:
     """
-    List all available Claude-Code workflows.
+    List all available Claude-Code workflows with enhanced metadata.
 
     **Returns:**
-    List of available workflows with their descriptions and validation status.
+    List of available workflows with their descriptions, validation status, and UI metadata.
 
     **Example:**
     ```bash
@@ -800,25 +810,35 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
     ```
     """
     try:
-        # Get the claude-code agent
-        agent = AgentFactory.get_agent("claude_code")
-        if not agent:
-            raise HTTPException(
-                status_code=404, detail="Claude-Code agent not available"
-            )
-
-        # Get available workflows
-        workflows = await agent.get_available_workflows()
-
-        # Convert to response format
+        # Get workflows from database
+        from automagik.db import list_workflows
+        
+        # Get all workflows (both system and custom)
+        db_workflows, _ = list_workflows(filters={"active": True})
+        
+        # Convert to response format with enhanced metadata
         workflow_list = []
-        for name, info in workflows.items():
+        
+        for workflow in db_workflows:
+            # Get metadata from config field (stored as JSON in database)
+            config = workflow.config or {}
+            
+            # Build workflow info with all required fields
             workflow_list.append(
                 WorkflowInfo(
-                    name=name,
-                    description=info.get("description", "No description available"),
-                    path=info.get("path", ""),
-                    valid=info.get("valid", False),
+                    name=workflow.name,
+                    description=workflow.description or config.get("description", "No description available"),
+                    path=f"/workflows/{workflow.name}",
+                    valid=True,  # Database workflows are assumed valid
+                    # Enhanced metadata fields from config
+                    icon=config.get("icon", "Bot"),
+                    mainColour=config.get("mainColour", "#3B82F6"),
+                    displayName=config.get("display_name") or workflow.display_name or workflow.name.title(),
+                    category=workflow.category or config.get("category", "general"),
+                    capabilities=config.get("capabilities", []),
+                    emoji=config.get("emoji", "🤖"),
+                    maxTurns=config.get("maxTurns"),
+                    suggestedTurns=config.get("suggestedTurns", 50)
                 )
             )
 
@@ -1055,6 +1075,14 @@ class WorkflowManageRequest(BaseModel):
     allowed_tools: List[str] = Field(default_factory=list, description="List of allowed tool names")
     mcp_config: Dict[str, Any] = Field(default_factory=dict, description="MCP server configuration")
     active: bool = Field(default=True, description="Whether workflow is active")
+    
+    # Enhanced metadata fields
+    icon: Optional[str] = Field(default="Bot", description="Lucide icon name")
+    mainColour: Optional[str] = Field(default="#3B82F6", description="Primary color hex code")
+    emoji: Optional[str] = Field(default="🤖", description="Emoji representation")
+    capabilities: Optional[List[str]] = Field(default_factory=list, description="List of capabilities")
+    maxTurns: Optional[int] = Field(None, description="Maximum conversation turns")
+    suggestedTurns: Optional[int] = Field(default=50, description="Suggested conversation turns")
     config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
 
 
@@ -1090,6 +1118,17 @@ async def create_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
         
         # No category validation - allow any category
         
+        # Prepare enhanced config with metadata
+        enhanced_config = request.config.copy()
+        enhanced_config.update({
+            "icon": request.icon,
+            "mainColour": request.mainColour,
+            "emoji": request.emoji,
+            "capabilities": request.capabilities,
+            "maxTurns": request.maxTurns,
+            "suggestedTurns": request.suggestedTurns
+        })
+        
         # Create workflow
         workflow_create = WorkflowCreate(
             name=request.name,
@@ -1101,7 +1140,7 @@ async def create_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
             mcp_config=request.mcp_config,
             active=request.active,
             is_system_workflow=False,  # Custom workflows are never system workflows
-            config=request.config
+            config=enhanced_config
         )
         
         workflow_id = create_workflow(workflow_create)
@@ -1111,6 +1150,8 @@ async def create_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
             from automagik.db import get_workflow
             workflow = get_workflow(workflow_id)
             
+            # Include enhanced metadata in response
+            config = workflow.config or {}
             return WorkflowManageResponse(
                 success=True,
                 message=f"Workflow '{request.name}' created successfully",
@@ -1122,7 +1163,14 @@ async def create_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
                     "category": workflow.category,
                     "active": workflow.active,
                     "is_system_workflow": workflow.is_system_workflow,
-                    "created_at": workflow.created_at.isoformat() if hasattr(workflow.created_at, 'isoformat') else str(workflow.created_at)
+                    "created_at": workflow.created_at.isoformat() if hasattr(workflow.created_at, 'isoformat') else str(workflow.created_at),
+                    # Enhanced metadata
+                    "icon": config.get("icon", "Bot"),
+                    "mainColour": config.get("mainColour", "#3B82F6"),
+                    "emoji": config.get("emoji", "🤖"),
+                    "capabilities": config.get("capabilities", []),
+                    "maxTurns": config.get("maxTurns"),
+                    "suggestedTurns": config.get("suggestedTurns", 50)
                 }
             )
         else:
@@ -1166,6 +1214,17 @@ async def update_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
         
         # No category validation - allow any category
         
+        # Prepare enhanced config with metadata
+        enhanced_config = request.config.copy()
+        enhanced_config.update({
+            "icon": request.icon,
+            "mainColour": request.mainColour,
+            "emoji": request.emoji,
+            "capabilities": request.capabilities,
+            "maxTurns": request.maxTurns,
+            "suggestedTurns": request.suggestedTurns
+        })
+        
         # Update workflow
         workflow_update = WorkflowUpdate(
             display_name=request.display_name,
@@ -1175,7 +1234,7 @@ async def update_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
             allowed_tools=request.allowed_tools,
             mcp_config=request.mcp_config,
             active=request.active,
-            config=request.config
+            config=enhanced_config
         )
         
         success = update_workflow(existing_workflow.id, workflow_update)
@@ -1185,6 +1244,8 @@ async def update_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
             from automagik.db import get_workflow
             workflow = get_workflow(existing_workflow.id)
             
+            # Include enhanced metadata in response
+            config = workflow.config or {}
             return WorkflowManageResponse(
                 success=True,
                 message=f"Workflow '{request.name}' updated successfully",
@@ -1196,7 +1257,14 @@ async def update_workflow(request: WorkflowManageRequest) -> WorkflowManageRespo
                     "category": workflow.category,
                     "active": workflow.active,
                     "is_system_workflow": workflow.is_system_workflow,
-                    "updated_at": workflow.updated_at.isoformat() if hasattr(workflow.updated_at, 'isoformat') else str(workflow.updated_at)
+                    "updated_at": workflow.updated_at.isoformat() if hasattr(workflow.updated_at, 'isoformat') else str(workflow.updated_at),
+                    # Enhanced metadata
+                    "icon": config.get("icon", "Bot"),
+                    "mainColour": config.get("mainColour", "#3B82F6"),
+                    "emoji": config.get("emoji", "🤖"),
+                    "capabilities": config.get("capabilities", []),
+                    "maxTurns": config.get("maxTurns"),
+                    "suggestedTurns": config.get("suggestedTurns", 50)
                 }
             )
         else:

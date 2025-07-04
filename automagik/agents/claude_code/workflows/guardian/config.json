@@ -1,0 +1,19 @@
+{
+  "display_name": "Guardian - Quality Assurance",
+  "description": "Testing, validation, and quality assurance specialist ensuring code reliability, security, and best practices",
+  "category": "testing",
+  "icon": "Shield",
+  "mainColour": "#10B981",
+  "emoji": "🛡️",
+  "capabilities": [
+    "testing",
+    "validation",
+    "quality-checks",
+    "security-review",
+    "performance-analysis"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 75,
+  "active": true,
+  "is_system_workflow": true
+}

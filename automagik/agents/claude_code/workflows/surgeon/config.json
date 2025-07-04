@@ -1,0 +1,19 @@
+{
+  "display_name": "Surgeon - Bug Fix Specialist",
+  "description": "Precision bug fixing and issue resolution specialist with expertise in debugging, root cause analysis, and surgical code fixes",
+  "category": "maintenance",
+  "icon": "Stethoscope",
+  "mainColour": "#EF4444",
+  "emoji": "🔧",
+  "capabilities": [
+    "bug-fixing",
+    "debugging",
+    "issue-resolution",
+    "performance-optimization",
+    "error-analysis"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 50,
+  "active": true,
+  "is_system_workflow": true
+}

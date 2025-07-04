@@ -1,0 +1,19 @@
+{
+  "display_name": "Builder - Implementation Specialist",
+  "description": "Feature development and implementation specialist focused on writing clean, efficient code and building robust systems",
+  "category": "development",
+  "icon": "Hammer",
+  "mainColour": "#3B82F6",
+  "emoji": "🔨",
+  "capabilities": [
+    "feature-development",
+    "code-generation",
+    "api-implementation",
+    "database-design",
+    "refactoring"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 100,
+  "active": true,
+  "is_system_workflow": true
+}

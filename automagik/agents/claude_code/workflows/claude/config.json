@@ -1,0 +1,19 @@
+{
+  "display_name": "Claude - General Assistant",
+  "description": "General-purpose AI assistant for code review, documentation, research, and versatile development support",
+  "category": "general",
+  "icon": "Bot",
+  "mainColour": "#9333EA",
+  "emoji": "🤖",
+  "capabilities": [
+    "general-assistance",
+    "code-review",
+    "documentation",
+    "research",
+    "architecture-design"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 50,
+  "active": true,
+  "is_system_workflow": true
+}
