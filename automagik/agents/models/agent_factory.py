@@ -480,7 +480,7 @@ class AgentFactory:
     def get_agent_with_session(cls, agent_name: str, session_id: str = None, user_id: str = None, session_name: str = None) -> AutomagikAgent:
         """Get an agent instance with session-based caching for conversational continuity.
         
-        For conversational agents like flashinho_pro, this method maintains agent instances
+        For conversational agents, this method maintains agent instances
         across requests within the same session to preserve user memory and context.
         
         Args:
@@ -492,7 +492,7 @@ class AgentFactory:
             Agent instance (cached for session if applicable)
         """
         # For conversational agents, use session-based caching
-        conversational_agents = {'flashinho_pro', 'flashinho_v2'}
+        conversational_agents = set()  # Removed flashinho agents
         
         if agent_name in conversational_agents and session_id:
             session_key = f"{agent_name}:{session_id}"

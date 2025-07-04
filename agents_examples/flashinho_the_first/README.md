@@ -1,6 +1,6 @@
-# Flashinho V2 Agent
+# Flashinho The First Agent
 
-Flashinho V2 is an advanced multimodal Brazilian educational assistant powered by Google Gemini 2.5 Pro model. It provides personalized coaching for Brazilian high school students with authentic Generation Z Portuguese style and complete integration with the Flashed educational gaming platform.
+Flashinho The First is an advanced multimodal Brazilian educational assistant powered by Google Gemini 2.5 Pro model. It provides personalized coaching for Brazilian high school students with authentic Generation Z Portuguese style and complete integration with the Flashed educational gaming platform.
 
 ## Features
 

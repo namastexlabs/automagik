@@ -60,8 +60,25 @@ class TestVirtualAgentPrompts:
             "description": "Copied agent with custom prompt"
         }
         
-        # Copy from an existing agent (flashinho_pro should exist)
-        response = client.post("/api/v1/agent/flashinho_pro/copy", json=copy_request)
+        # Copy from an existing agent (use a test agent instead)
+        # First create a source agent to copy from
+        source_agent_name = f"source_agent_{self.test_id}"
+        source_config = {
+            "name": source_agent_name,
+            "type": "virtual",
+            "model": "openai:gpt-4o-mini",
+            "description": "Source agent for copy test",
+            "config": {
+                "agent_source": "virtual",
+                "default_model": "openai:gpt-4o-mini"
+            }
+        }
+        
+        source_response = client.post("/api/v1/agent/create", json=source_config)
+        assert source_response.status_code == 200
+        self.created_agents.append(source_agent_name)
+        
+        response = client.post(f"/api/v1/agent/{source_agent_name}/copy", json=copy_request)
         
         # The main fix: this should not fail with foreign key constraint errors
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
@@ -256,8 +273,24 @@ class TestPromptErrorRegression:
             "description": "Regression test for foreign key fix"
         }
         
+        # First create a source agent to copy from
+        source_agent_name = f"regression_source_{uuid.uuid4().hex[:8]}"
+        source_config = {
+            "name": source_agent_name,
+            "type": "virtual",
+            "model": "openai:gpt-4o-mini",
+            "description": "Source agent for regression test",
+            "config": {
+                "agent_source": "virtual",
+                "default_model": "openai:gpt-4o-mini"
+            }
+        }
+        
+        source_response = client.post("/api/v1/agent/create", json=source_config)
+        assert source_response.status_code == 200
+        
         # This should not fail with "FOREIGN KEY constraint failed"
-        response = client.post("/api/v1/agent/flashinho_pro/copy", json=copy_request)
+        response = client.post(f"/api/v1/agent/{source_agent_name}/copy", json=copy_request)
         
         # Should succeed with the fix
         assert response.status_code == 200
@@ -268,6 +301,7 @@ class TestPromptErrorRegression:
         
         # Clean up
         client.delete(f"/api/v1/agent/{test_name}")
+        client.delete(f"/api/v1/agent/{source_agent_name}")
 
     def test_prompt_model_validation_fix(self, client):
         """Regression test for the Prompt vs PromptCreate validation error"""

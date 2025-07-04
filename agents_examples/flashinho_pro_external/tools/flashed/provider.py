@@ -6,8 +6,8 @@ import logging
 from typing import Optional, Dict, Any, List
 import aiohttp
 # from automagik.tools.blackpearl.interface import validate_api_response, handle_api_error, format_api_request, filter_none_params
-from automagik.tools.flashed.interface import format_api_request, filter_none_params
-from automagik.config import settings
+from .interface import format_api_request, filter_none_params
+from automagik.config import get_settings
 import uuid
 
 logger = logging.getLogger(__name__)

@@ -389,3 +389,8 @@ class FlashinhoProExternal(AutomagikAgent):
     def model_name(self) -> str:
         """Get the current model name."""
         return self.dependencies.model_name or self.free_model
+    
+    @model_name.setter
+    def model_name(self, value: str) -> None:
+        """Set the current model name."""
+        self.dependencies.model_name = value
