@@ -376,6 +376,12 @@ class MCPManager:
                 # Start with current process environment to include .env variables
                 process_env = os.environ.copy()
                 
+                # Debug: Check if OPENAI_API_KEY is present
+                if 'OPENAI_API_KEY' in process_env:
+                    logger.debug(f"OPENAI_API_KEY is present in environment for {config.name}")
+                else:
+                    logger.debug(f"WARNING: OPENAI_API_KEY not found in environment for {config.name}")
+                
                 # Update with any specific env vars from config
                 if env:
                     process_env.update(env)
