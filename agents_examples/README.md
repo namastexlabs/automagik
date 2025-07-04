@@ -2,7 +2,7 @@
 
 This directory contains working examples of external agents that have been successfully tested with the Automagik platform.
 
-## ✅ Verified Working Example
+## ✅ Available Agent Examples
 
 ### `flashinho_pro_external/`
 
@@ -17,6 +17,41 @@ This is a complete external agent implementation that demonstrates:
 - ✅ **Session Management**: Creates and manages user sessions
 - ✅ **Error Handling**: Graceful error responses in Portuguese
 - ✅ **Tool Integration**: Includes Flashed API and Evolution API tools
+
+### `flashinho_old_make/`
+
+**Status**: 🔄 **CLIENT-SPECIFIC AGENT (MIGRATED)**
+
+Basic educational assistant for Brazilian students:
+
+- 🎯 **Basic Features**: Educational assistance and Flashed API integration
+- 🔧 **Model**: OpenAI GPT-4o-mini
+- 📚 **Tools**: Core Flashed API tools for user data and gamification
+- 🇧🇷 **Language**: Brazilian Portuguese, Generation Z style
+
+### `flashinho_pro/`
+
+**Status**: 🔄 **CLIENT-SPECIFIC AGENT (MIGRATED)**
+
+Advanced multimodal educational assistant:
+
+- 🚀 **Advanced Features**: Multimodal processing, Pro subscription features
+- 🔧 **Model**: Google Gemini 2.5 Pro
+- 📸 **Capabilities**: Image analysis, educational problem solving
+- 🔗 **Integration**: Full Flashed + Evolution API integration
+- 💬 **Messaging**: Real-time messaging and workflow orchestration
+
+### `flashinho_the_first/`
+
+**Status**: 🔄 **CLIENT-SPECIFIC AGENT (MIGRATED)**
+
+Most comprehensive educational platform integration:
+
+- 🌟 **Full-Featured**: Complete educational platform integration
+- 🧠 **Dynamic**: Pro vs Free user differentiation
+- 🔄 **Smart**: User identification and session management
+- 📊 **Analytics**: Comprehensive user progress tracking
+- 🎨 **Customizable**: Multiple prompt configurations
 
 ## 🚀 How to Use These Examples
 

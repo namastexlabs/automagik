@@ -1,4 +1,4 @@
-"""Flashinho Agent - Basic educational assistant for Brazilian students.
+"""Flashinho Old Make Agent - Basic educational assistant for Brazilian students.
 
 This is a client-specific agent with self-contained tools.
 """
@@ -21,8 +21,8 @@ from .prompts.prompt import AGENT_PROMPT
 logger = logging.getLogger(__name__)
 
 
-class FlashinhoAgent(AutomagikAgent):
-    """Flashinho Agent - Basic educational assistant for Brazilian students.
+class FlashinhoOldMakeAgent(AutomagikAgent):
+    """Flashinho Old Make Agent - Basic educational assistant for Brazilian students.
     
     This is a client-specific agent with self-contained tools.
     """
@@ -61,7 +61,7 @@ class FlashinhoAgent(AutomagikAgent):
         # Register Flashed API tools
         self._register_flashed_tools()
         
-        logger.info("Flashinho Agent initialized")
+        logger.info("Flashinho Old Make Agent initialized")
     
     def _register_flashed_tools(self) -> None:
         """Register all Flashed API tools."""
@@ -74,11 +74,11 @@ class FlashinhoAgent(AutomagikAgent):
         logger.debug("Flashed tools registered")
 
 
-def create_agent(config: Dict[str, str]) -> FlashinhoAgent:
-    """Factory function to create enhanced Flashinho agent."""
+def create_agent(config: Dict[str, str]) -> FlashinhoOldMakeAgent:
+    """Factory function to create Flashinho Old Make agent."""
     try:
-        return FlashinhoAgent(config)
+        return FlashinhoOldMakeAgent(config)
     except Exception as e:
-        logger.error(f"Failed to create Enhanced Flashinho Agent: {e}")
+        logger.error(f"Failed to create Flashinho Old Make Agent: {e}")
         from automagik.agents.models.placeholder import PlaceholderAgent
         return PlaceholderAgent(config)
