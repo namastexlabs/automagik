@@ -2,6 +2,57 @@
 
 This directory contains working examples of external agents that have been successfully tested with the Automagik platform.
 
+## 🚀 Quick Start - Reduced Boilerplate
+
+### Method 1: Using BaseExternalAgent (Recommended)
+
+The simplest way to create an external agent with minimal boilerplate:
+
+```python
+from base_external_agent import BaseExternalAgent
+from tools import get_user_data, get_user_score
+
+class MyAgent(BaseExternalAgent):
+    # Just set these class attributes - no boilerplate needed!
+    DEFAULT_MODEL = "openai:gpt-4o-mini"
+    EXTERNAL_API_KEYS = [("MY_API_KEY", "My API key")]
+    EXTERNAL_URLS = [("MY_API_URL", "My API URL")]
+    
+    def _initialize_agent(self):
+        self._code_prompt_text = "You are a helpful assistant..."
+        self.tool_registry.register_tool(get_user_data)
+```
+
+### Method 2: Using Tool Decorators
+
+Create tools with minimal code:
+
+```python
+from tool_utils import external_tool
+
+@external_tool(description="Get weather data")
+async def get_weather(city: str, context: dict) -> dict:
+    return {"temperature": 25, "condition": "sunny"}
+```
+
+## 📁 Improved Structure
+
+```
+agents_examples/
+├── tools/                    # Shared tools - no duplication!
+│   ├── flashed/             # Educational platform tools
+│   └── evolution/           # Messaging tools
+├── utils/                    # Shared utilities
+│   ├── user_matcher.py      # User matching utilities
+│   └── memory_manager.py    # Memory management
+├── base_external_agent.py    # Base class - handles all boilerplate
+├── external_agent_factory.py # Factory with error handling
+├── tool_utils.py            # Tool creation utilities
+└── your_agent/              # Your agent - just the essentials
+    ├── agent.py             # ~30 lines instead of ~100
+    └── prompts/             # Your prompts
+```
+
 ## ✅ Available Agent Examples
 
 ### `flashinho_pro_external/`

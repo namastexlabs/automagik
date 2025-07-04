@@ -86,6 +86,15 @@ class AgentFactory:
         
         # Use agent type as-is, no normalization
         
+        # Ensure external agents are discovered if environment variable is set
+        if os.environ.get("AUTOMAGIK_EXTERNAL_AGENTS_DIR") and len(cls._agent_creators) == 0:
+            logger.info(f"No agents registered yet, discovering agents first...")
+            cls.discover_agents()
+        
+        # Log available creators for debugging
+        logger.debug(f"Looking for agent '{agent_type}' in {len(cls._agent_creators)} registered creators")
+        logger.debug(f"Available creators: {list(cls._agent_creators.keys())}")
+        
         # Try to create using a registered creator function
         if agent_type in cls._agent_creators:
             try:
@@ -116,7 +125,12 @@ class AgentFactory:
             frameworks_to_try.append(framework)
         
         # Add default frameworks to try
-        default_frameworks = ["pydanticai", "agno", "claude_code"]
+        # IMPORTANT: Don't include claude_code for external agents - it should only be used for "claude_code" specifically
+        default_frameworks = ["pydanticai", "agno"]
+        # Only add claude_code if the agent_type is specifically "claude_code"
+        if agent_type == "claude_code":
+            default_frameworks.append("claude_code")
+            
         for fw in default_frameworks:
             if fw not in frameworks_to_try:
                 frameworks_to_try.append(fw)
@@ -152,7 +166,13 @@ class AgentFactory:
                 continue
                 
         logger.warning(f"Could not import agent module for {agent_type} from any framework")
-                
+        
+        # Check if this might be an external agent that wasn't discovered
+        external_dir = os.environ.get("AUTOMAGIK_EXTERNAL_AGENTS_DIR")
+        if external_dir:
+            logger.error(f"Agent '{agent_type}' not found. External agents directory is set to: {external_dir}")
+            logger.error(f"Available external agents: {[k for k in cls._agent_creators.keys() if '.' not in k and k not in ['simple', 'claude_code']]}")
+        
         # Unknown agent type
         logger.error(f"Unknown agent type: {agent_type}")
         return PlaceholderAgent({"name": "unknown_agent_type", "error": f"Unknown agent type: {agent_type}"})

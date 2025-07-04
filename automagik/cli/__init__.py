@@ -26,9 +26,11 @@ app = typer.Typer(
 
 # Import component apps
 from automagik.cli.agents import agents_app
+from automagik.cli.api import api_app
 
 # Add component subcommands
 app.add_typer(agents_app, name="agents", help="Automagik Agents - AI agent framework")
+app.add_typer(api_app, name="api", help="API server management")
 
 # Placeholder for future components
 @app.command("omni", hidden=True)
