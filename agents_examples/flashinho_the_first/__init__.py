@@ -1,10 +1,10 @@
 """Flashinho The First Agent - Advanced multimodal Brazilian educational assistant."""
 
 from typing import Dict, Optional
-from .agent import FlashinhoTheFirst
+from .agent import FlashinhoTheFirstRefactored
 
-def create_agent(config: Optional[Dict[str, str]] = None) -> FlashinhoTheFirst:
+def create_agent(config: Optional[Dict[str, str]] = None) -> FlashinhoTheFirstRefactored:
     """Factory function to create external Flashinho The First agent instance."""
-    return FlashinhoTheFirst(config or {})
+    return FlashinhoTheFirstRefactored(config or {})
 
-__all__ = ["FlashinhoTheFirst", "create_agent"]
+__all__ = ["FlashinhoTheFirstRefactored", "create_agent"]
