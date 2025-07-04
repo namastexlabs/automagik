@@ -75,9 +75,9 @@ class TestNoLegacyCode:
     def test_legacy_files_removed(self):
         """Ensure legacy files have been removed from filesystem."""
         legacy_files = [
-            'src/agents/claude_code/cli_executor.py',
-            'src/agents/claude_code/local_executor.py',
-            'src/agents/claude_code/utils/find_claude_executable.py',
+            'automagik/agents/claude_code/cli_executor.py',
+            'automagik/agents/claude_code/local_executor.py',
+            'automagik/agents/claude_code/utils/find_claude_executable.py',
         ]
         
         project_root = Path(__file__).parent.parent

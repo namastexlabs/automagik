@@ -32,7 +32,7 @@ services:
       automagik-db:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../automagik:/app/automagik
       # Mount Claude CLI credentials from host (create if missing)
       - ~/.claude:/root/.claude:ro
       # Mount MCP configuration from project root

@@ -63,7 +63,7 @@ module.exports = {
       name: 'am-agents-labs',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
-      args: '-m src',
+      args: '-m automagik',
       interpreter: 'none',
       version: extractVersionFromPyproject(PROJECT_ROOT),
       env: {
