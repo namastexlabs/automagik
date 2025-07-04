@@ -99,6 +99,14 @@ class AutomagikAgent(ABC, Generic[T]):
     This class uses dependency inversion to support multiple AI frameworks
     through the AgentAIFramework interface.
     """
+    
+    # Declarative model configuration (can be overridden by subclasses)
+    DEFAULT_MODEL: str = "openai:gpt-4o-mini"
+    FALLBACK_MODELS: List[str] = []
+    DEFAULT_CONFIG: Dict[str, Any] = {}
+    
+    # Declarative prompt file (can be overridden by subclasses)
+    PROMPT_FILE: str = None  # e.g., "prompt.md"
 
     def __init__(self, 
                  config: Union[Dict[str, str], AgentConfig],
@@ -111,10 +119,16 @@ class AutomagikAgent(ABC, Generic[T]):
             framework_type: Type of AI framework to use (string or FrameworkType enum)
             state_manager: Optional state manager instance
         """
-        # Convert config to AgentConfig if it's a dictionary
+        # Merge class defaults with provided config
         if isinstance(config, dict):
-            self.config = AgentConfig(config)
+            # Merge DEFAULT_CONFIG with provided config (provided config takes precedence)
+            merged_config = {**self.DEFAULT_CONFIG, **config}
+            self.config = AgentConfig(merged_config)
         else:
+            # If AgentConfig object, merge defaults into it
+            for key, value in self.DEFAULT_CONFIG.items():
+                if key not in config.config:
+                    config.config[key] = value
             self.config = config
             
         # Set framework type - normalize enum to string value
@@ -164,6 +178,21 @@ class AutomagikAgent(ABC, Generic[T]):
                     )
             except Exception as e:
                 logger.error(f"Error during auto-registration for {self.name}: {e}")
+        
+        # NEW: External Agent Support - Load package environment if specified
+        package_env = getattr(self, 'PACKAGE_ENV_FILE', None)
+        if package_env:
+            self._load_package_env(package_env)
+        
+        # NEW: External Agent Support - Register external API keys if specified
+        external_keys = getattr(self, 'EXTERNAL_API_KEYS', [])
+        if external_keys:
+            self._register_external_keys(external_keys)
+        
+        # NEW: Load prompt from file if PROMPT_FILE is specified
+        prompt_file = getattr(self, 'PROMPT_FILE', None)
+        if prompt_file:
+            self._load_prompt_from_file(prompt_file)
         
         # Initialize core components
         self.tool_registry = ToolRegistry()
@@ -244,6 +273,114 @@ class AutomagikAgent(ABC, Generic[T]):
             dependencies.set_agent_id(self.db_id)
             
         return dependencies
+    
+    def _load_package_env(self, env_file: str) -> None:
+        """Load package-specific environment variables.
+        
+        Args:
+            env_file: Relative path to .env file from agent's module directory
+        """
+        try:
+            from dotenv import load_dotenv
+        except ImportError:
+            logger.warning("python-dotenv not available, package .env file won't be loaded")
+            return
+            
+        import inspect
+        from pathlib import Path
+        
+        try:
+            # Get the directory of the agent's module
+            agent_module = inspect.getfile(self.__class__)
+            agent_dir = Path(agent_module).parent
+            env_path = agent_dir / env_file
+            
+            if env_path.exists():
+                # Load with override=True to ensure package values take precedence
+                load_dotenv(env_path, override=True)
+                logger.info(f"Loaded package environment from {env_path}")
+            else:
+                logger.debug(f"Package .env file not found at {env_path}")
+                
+        except Exception as e:
+            logger.warning(f"Error loading package environment: {e}")
+    
+    def _register_external_keys(self, external_keys: List[tuple]) -> None:
+        """Register external API keys with the settings system.
+        
+        Args:
+            external_keys: List of (key_name, description) tuples
+        """
+        try:
+            from automagik.config import settings
+            
+            for key_name, description in external_keys:
+                value = os.environ.get(key_name)
+                if value:
+                    if hasattr(settings, 'add_external_api_key'):
+                        settings.add_external_api_key(key_name, value, description)
+                    logger.debug(f"Registered external API key: {key_name}")
+                else:
+                    logger.warning(f"External API key {key_name} not found in environment")
+                    
+        except Exception as e:
+            logger.warning(f"Error registering external keys: {e}")
+    
+    def _load_prompt_from_file(self, prompt_file: str) -> None:
+        """Load prompt from a file relative to the agent's module.
+        
+        Args:
+            prompt_file: Relative path to prompt file (e.g., "prompt.md")
+        """
+        try:
+            from pathlib import Path
+            import inspect
+            
+            # Get the directory of the agent class
+            agent_module = inspect.getmodule(self.__class__)
+            if agent_module and hasattr(agent_module, '__file__'):
+                agent_dir = Path(agent_module.__file__).parent
+            else:
+                # Fallback to current directory
+                agent_dir = Path.cwd()
+            
+            prompt_path = agent_dir / prompt_file
+            
+            if prompt_path.exists():
+                self._code_prompt_text = prompt_path.read_text(encoding='utf-8')
+                logger.info(f"Loaded prompt from file: {prompt_file}")
+            else:
+                logger.warning(f"Prompt file not found: {prompt_path}")
+                
+        except Exception as e:
+            logger.error(f"Failed to load prompt from file {prompt_file}: {e}")
+    
+    def register_tools(self, tools) -> None:
+        """Convenience method for bulk tool registration.
+        
+        Args:
+            tools: List of tool functions, single tool function, or module with tools
+        """
+        if callable(tools):
+            # Single tool function
+            self.tool_registry.register_tool(tools)
+        elif isinstance(tools, (list, tuple)):
+            # List of tool functions
+            for tool in tools:
+                if callable(tool):
+                    self.tool_registry.register_tool(tool)
+        elif hasattr(tools, '__name__'):
+            # Module - register all callable functions
+            import inspect
+            registered_count = 0
+            for name, obj in inspect.getmembers(tools):
+                if (inspect.iscoroutinefunction(obj) and 
+                    not name.startswith('_') and 
+                    hasattr(obj, '__module__') and 
+                    obj.__module__ == tools.__name__):
+                    self.tool_registry.register_tool(obj)
+                    registered_count += 1
+            logger.debug(f"Auto-registered {registered_count} tools from {tools.__name__}")
     
     async def initialize_framework(self, 
                                   dependencies_type: Type[BaseDependencies],

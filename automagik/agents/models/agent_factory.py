@@ -14,11 +14,15 @@ import asyncio  # NEW
 from automagik.agents.models.automagik_agent import AutomagikAgent
 from automagik.agents.models.placeholder import PlaceholderAgent
 
+# Import declarative registry
+from automagik.agents.registry import AgentRegistry, load_agents_manifest
+
 logger = logging.getLogger(__name__)
 
 class AgentFactory:
-    """A factory for creating agent instances."""
+    """A factory for creating agent instances with declarative registry support."""
 
+    # Legacy registry for backward compatibility
     _agent_classes = {}
     _agent_creators = {}
     _agent_templates: Dict[str, AutomagikAgent] = {}  # Store one template per agent
@@ -27,7 +31,20 @@ class AgentFactory:
     _lock_creation_lock = asyncio.Lock()  # NEW global lock to protect _agent_locks_async
     _session_agents: Dict[str, AutomagikAgent] = {}  # Cache agents by session for conversational continuity
     
-
+    # Registry initialization flag
+    _registry_initialized = False
+    
+    @classmethod
+    def _ensure_registry_loaded(cls):
+        """Ensure the declarative agent registry is loaded."""
+        if not cls._registry_initialized:
+            try:
+                load_agents_manifest()
+                cls._registry_initialized = True
+                logger.info("Declarative agent registry loaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to load agent registry: {e}")
+                logger.error(traceback.format_exc())
     
     @classmethod
     def register_agent_class(cls, name: str, agent_class: Type[AutomagikAgent]) -> None:
@@ -70,6 +87,9 @@ class AgentFactory:
             
         logger.debug(f"Creating agent of type {agent_type} with framework {framework}")
         
+        # Ensure declarative registry is loaded
+        cls._ensure_registry_loaded()
+        
         # Check for virtual agent first
         agent_source = config.get("agent_source")
         if agent_source == "virtual":
@@ -83,6 +103,16 @@ class AgentFactory:
         # Set framework in config if provided
         if framework:
             config["framework_type"] = framework
+        
+        # ===== NEW: Try declarative registry first =====
+        try:
+            agent = AgentRegistry.create_agent(agent_type, config)
+            if agent and not isinstance(agent, PlaceholderAgent):
+                logger.debug(f"Successfully created {agent_type} agent using declarative registry")
+                return agent
+        except Exception as e:
+            logger.debug(f"Declarative registry failed for '{agent_type}': {e}")
+            # Continue to legacy fallback
         
         # Use agent type as-is, no normalization
         
@@ -280,11 +310,26 @@ class AgentFactory:
                     if module and hasattr(module, "create_agent") and callable(module.create_agent):
                         cls.register_agent_creator(agent_dir.name, module.create_agent)
                         logger.info(f"✅ Discovered external agent: {agent_dir.name}")
-                    else:
-                        if module:
-                            logger.warning(f"External agent {agent_dir.name} loaded but missing create_agent function")
+                    elif module:
+                        # NEW: Look for agent class directly if no create_agent function
+                        agent_class = None
+                        for attr_name in dir(module):
+                            attr = getattr(module, attr_name)
+                            if (isinstance(attr, type) and 
+                                issubclass(attr, AutomagikAgent) and 
+                                attr != AutomagikAgent and
+                                attr_name.endswith('Agent')):
+                                agent_class = attr
+                                logger.debug(f"Found external agent class {attr_name}")
+                                break
+                        
+                        if agent_class:
+                            cls.register_agent_class(agent_dir.name, agent_class)
+                            logger.info(f"✅ Discovered external agent class: {agent_dir.name}")
                         else:
-                            logger.debug(f"No valid agent module found in {agent_dir.name}")
+                            logger.warning(f"External agent {agent_dir.name} loaded but missing create_agent function or Agent class")
+                    else:
+                        logger.debug(f"No valid agent module found in {agent_dir.name}")
                         
                 except Exception as e:
                     logger.error(f"Error loading external agent {agent_dir.name}: {str(e)}")
@@ -341,6 +386,25 @@ class AgentFactory:
                         agent_name = item.name
                         cls.register_agent_creator(agent_name, module.create_agent)
                         logger.debug(f"Discovered and registered {directory_name} agent: {agent_name}")
+                    else:
+                        # NEW: Look for agent class directly if no create_agent function
+                        # Try to find an agent class in the module
+                        agent_class = None
+                        for attr_name in dir(module):
+                            attr = getattr(module, attr_name)
+                            if (isinstance(attr, type) and 
+                                issubclass(attr, AutomagikAgent) and 
+                                attr != AutomagikAgent and
+                                attr_name.endswith('Agent')):
+                                agent_class = attr
+                                logger.debug(f"Found agent class {attr_name} in {item.name}")
+                                break
+                        
+                        if agent_class:
+                            # Register the class directly
+                            agent_name = item.name
+                            cls.register_agent_class(agent_name, agent_class)
+                            logger.debug(f"Discovered and registered {directory_name} agent class: {agent_name}")
                 except Exception as e:
                     logger.error(f"Error importing {directory_name} agent from {item.name}: {str(e)}")
     
@@ -351,14 +415,23 @@ class AgentFactory:
         Returns:
             List of available agent names
         """
-        # Combine creators and classes, use names as-is
-        agents = []
+        # Ensure declarative registry is loaded
+        cls._ensure_registry_loaded()
         
+        # Get agents from declarative registry first
+        registry_agents = AgentRegistry.list_agents(enabled_only=True)
+        
+        # Combine with legacy registry for backward compatibility
+        legacy_agents = []
         for name in list(cls._agent_creators.keys()) + list(cls._agent_classes.keys()):
-            if name not in agents:
-                agents.append(name)
+            if name not in legacy_agents and name not in registry_agents:
+                legacy_agents.append(name)
         
-        return agents
+        # Combine and sort
+        all_agents = sorted(registry_agents + legacy_agents)
+        
+        logger.debug(f"Available agents: {len(all_agents)} total ({len(registry_agents)} from registry, {len(legacy_agents)} legacy)")
+        return all_agents
         
     @classmethod
     def get_default_agent(cls, framework: str, config: Optional[Dict[str, str]] = None) -> AutomagikAgent:
@@ -399,12 +472,16 @@ class AgentFactory:
         Returns:
             Dictionary mapping framework names to lists of agent names
         """
-        agents_by_framework = {}
+        # Ensure declarative registry is loaded
+        cls._ensure_registry_loaded()
         
-        # Discover agents if not already done
+        # Get from declarative registry first
+        agents_by_framework = AgentRegistry.list_by_framework()
+        
+        # Merge with legacy registry for backward compatibility
         cls.discover_agents()
         
-        # Group registered agents by framework
+        # Group legacy registered agents by framework
         for agent_name in cls._agent_creators.keys():
             if "." in agent_name:
                 # Framework-prefixed agent (e.g., "pydanticai.simple")
@@ -414,11 +491,19 @@ class AgentFactory:
                 if agent not in agents_by_framework[framework]:
                     agents_by_framework[framework].append(agent)
             else:
-                # Non-prefixed agent - add to pydanticai (default framework)
-                if "pydanticai" not in agents_by_framework:
-                    agents_by_framework["pydanticai"] = []
-                if agent_name not in agents_by_framework["pydanticai"]:
-                    agents_by_framework["pydanticai"].append(agent_name)
+                # Check if agent is already in registry
+                found_in_registry = False
+                for fw_agents in agents_by_framework.values():
+                    if agent_name in fw_agents:
+                        found_in_registry = True
+                        break
+                
+                # Only add to legacy if not in registry
+                if not found_in_registry:
+                    if "pydanticai" not in agents_by_framework:
+                        agents_by_framework["pydanticai"] = []
+                    if agent_name not in agents_by_framework["pydanticai"]:
+                        agents_by_framework["pydanticai"].append(agent_name)
                     
         return agents_by_framework
         
@@ -454,12 +539,17 @@ class AgentFactory:
             try:
                 from automagik.db.repository.agent import get_agent_by_name as get_db_agent
                 db_agent = get_db_agent(agent_name)
-                if db_agent and db_agent.config:
+                if db_agent:
+                    # Load model from database
+                    if db_agent.model:
+                        config["model"] = db_agent.model
+                        logger.debug(f"Loaded model '{db_agent.model}' for agent {agent_name} from database")
+                    
                     # Merge database config
-                    if isinstance(db_agent.config, dict):
+                    if db_agent.config and isinstance(db_agent.config, dict):
                         config.update(db_agent.config)
                         logger.debug(f"Loaded config for agent {agent_name} from database")
-                    else:
+                    elif db_agent.config:
                         logger.warning(f"Agent {agent_name} has invalid config in database")
             except Exception as e:
                 logger.debug(f"Could not load config for agent {agent_name} from database: {e}")
