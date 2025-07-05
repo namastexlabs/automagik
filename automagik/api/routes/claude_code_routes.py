@@ -814,7 +814,7 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
         from automagik.db import list_workflows
         
         # Get all workflows (both system and custom)
-        db_workflows, _ = list_workflows(filters={"active": True})
+        db_workflows = list_workflows(active_only=True)
         
         # Convert to response format with enhanced metadata
         workflow_list = []
