@@ -622,7 +622,7 @@ async def clean_and_parse_agent_run_payload(request: Request) -> AgentRunRequest
             detail=f"Failed to parse JSON body: {str(e)}",
         )
 
-@agent_router.get("/agent/list", response_model=List[AgentInfo], tags=["Agents"], 
+@agent_router.get("/agents", response_model=List[AgentInfo], tags=["Agents"], 
            summary="List Registered Agents",
            description="Returns a list of all registered agents available in the database.")
 async def list_agents():
