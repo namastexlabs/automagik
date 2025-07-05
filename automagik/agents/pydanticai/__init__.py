@@ -89,7 +89,6 @@ StanEmailAgent = import_module("automagik.agents.pydanticai.stan_email.agent").S
 SofiaAgent = import_module("automagik.agents.pydanticai.sofia.agent").SofiaAgent  # type: ignore
 SummaryAgent = import_module("automagik.agents.pydanticai.summary.agent").SummaryAgent  # type: ignore
 PromptMakerAgent = import_module("automagik.agents.pydanticai.prompt_maker.agent").PromptMakerAgent  # type: ignore
-EstruturarAgent = import_module("automagik.agents.pydanticai.estruturar.agent").EstruturarAgent  # type: ignore
 
 __all__ = [
     "SimpleAgent",
@@ -98,5 +97,4 @@ __all__ = [
     "SofiaAgent",
     "SummaryAgent",
     "PromptMakerAgent",
-    "EstruturarAgent",
 ]
