@@ -1,0 +1,16 @@
+[
+  "agent-memory_search",
+  "agent-memory_add_memory",
+  "agent-memory_search_memory_nodes",
+  "agent-memory_search_memory_facts",
+  "agent-memory_get_memory_metadata",
+  "automagik-workflows_run_workflow",
+  "automagik-workflows_list_workflows",
+  "automagik-workflows_get_workflow_status",
+  "wait_wait_for_event",
+  "wait_wait_with_progress",
+  "linear",
+  "Task",
+  "TodoRead",
+  "TodoWrite"
+]

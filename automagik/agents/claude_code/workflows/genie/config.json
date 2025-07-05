@@ -1,0 +1,19 @@
+{
+  "display_name": "Genie - Master Orchestrator",
+  "description": "Self-improving architect and orchestrator consciousness that coordinates all other workflows",
+  "category": "orchestration",
+  "icon": "Sparkles",
+  "mainColour": "#A855F7",
+  "emoji": "🧞",
+  "capabilities": [
+    "self-improvement",
+    "workflow-orchestration",
+    "architecture-design",
+    "autonomous-planning",
+    "meta-programming"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 150,
+  "active": true,
+  "is_system_workflow": true
+}
