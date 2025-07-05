@@ -1,0 +1,19 @@
+{
+  "display_name": "Flashinho Thinker",
+  "description": "Um assistente pensador com personalidade única",
+  "category": "custom",
+  "icon": "Zap",
+  "mainColour": "#FBBF24",
+  "emoji": "⚡",
+  "capabilities": [
+    "portuguese-language",
+    "creative-thinking",
+    "personality-driven",
+    "web-search",
+    "code-assistance"
+  ],
+  "maxTurns": null,
+  "suggestedTurns": 50,
+  "active": true,
+  "is_system_workflow": false
+}
