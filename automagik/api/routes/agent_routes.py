@@ -657,7 +657,7 @@ async def run_agent(
     {"message_content": "Hello world"}
     
     # Agent with session persistence
-    POST /agent/flashinho_pro/run  
+    POST /agent/claude_code/run  
     {
       "message_content": "Analyze this code snippet",
       "session_name": "code_review_session",
@@ -665,7 +665,7 @@ async def run_agent(
     }
     
     # Agent with user context
-    POST /agent/flashinho_pro/run
+    POST /agent/claude_code/run
     {
       "message_content": "Help me debug this issue",
       "user_id": "user123",

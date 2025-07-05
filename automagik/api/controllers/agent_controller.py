@@ -195,22 +195,22 @@ async def get_or_create_user(
     Args:
         user_id: Optional user ID
         user_data: Optional user data for creation/update
-        context: Optional context containing additional user info (e.g., flashed_user_id)
+        context: Optional context containing additional user info (e.g., external_user_id)
 
     Returns:
         UUID of the existing or newly created user
     """
     # Import UserCreate here as well to ensure it's available
 
-    # Check for flashed_user_id in context first (for flashinho agents)
+    # Check for external_user_id in context first (for external agents)
     if context and not user_id:
-        flashed_user_id = context.get("flashed_user_id")
-        if flashed_user_id:
+        external_user_id = context.get("external_user_id") or context.get("flashed_user_id")
+        if external_user_id:
             try:
-                user_id = uuid.UUID(flashed_user_id)
-                logger.debug(f"Using flashed_user_id from context: {user_id}")
+                user_id = uuid.UUID(external_user_id)
+                logger.debug(f"Using external_user_id from context: {user_id}")
             except ValueError:
-                logger.warning(f"Invalid flashed_user_id format: {flashed_user_id}")
+                logger.warning(f"Invalid external_user_id format: {external_user_id}")
 
     # If no user ID or data, use the default user
     if not user_id and not user_data:
@@ -271,15 +271,15 @@ async def get_or_create_user(
 
     # If user doesn't exist but we have user_data, create new user
     elif user_data:
-        # Create new user - check context for flashed_user_id before generating random UUID
+        # Create new user - check context for external_user_id before generating random UUID
         if not user_id and context:
-            flashed_user_id = context.get("flashed_user_id")
-            if flashed_user_id:
+            external_user_id = context.get("external_user_id") or context.get("flashed_user_id")
+            if external_user_id:
                 try:
-                    user_id = uuid.UUID(flashed_user_id)
-                    logger.debug(f"Using flashed_user_id for new user creation: {user_id}")
+                    user_id = uuid.UUID(external_user_id)
+                    logger.debug(f"Using external_user_id for new user creation: {user_id}")
                 except ValueError:
-                    logger.warning(f"Invalid flashed_user_id format for new user: {flashed_user_id}")
+                    logger.warning(f"Invalid external_user_id format for new user: {external_user_id}")
         
         new_user = User(
             id=user_id if user_id else generate_uuid(),
