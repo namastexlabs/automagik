@@ -203,7 +203,19 @@ class WorkflowDiscovery:
                         if existing.is_system_workflow:
                             # System workflows can be updated from filesystem
                             logger.debug(f"System workflow found in DB: {workflow_name}")
-                            # Could add update logic here if needed
+                            # Update system workflow with latest filesystem data
+                            from automagik.db import update_workflow, WorkflowUpdate
+                            
+                            # Only update config field to preserve other database values
+                            update_data = WorkflowUpdate(
+                                config=workflow_data.get('config', {})
+                            )
+                            
+                            if update_workflow(existing.id, update_data):
+                                stats["updated"] += 1
+                                logger.info(f"Updated system workflow from filesystem: {workflow_name}")
+                            else:
+                                logger.warning(f"Failed to update system workflow: {workflow_name}")
                         else:
                             # Custom workflows in database take priority
                             logger.debug(f"Custom workflow exists in DB: {workflow_name}")
