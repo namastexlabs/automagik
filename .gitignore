@@ -262,6 +262,7 @@ data/
 # External agents directory (dev environment only)
 external_agents/
 stan_agents/
+flashed_agents/
 
 ####################
 # Documentation

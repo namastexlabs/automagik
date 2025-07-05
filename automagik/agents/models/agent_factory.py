@@ -602,7 +602,7 @@ class AgentFactory:
             Agent instance (cached for session if applicable)
         """
         # For conversational agents, use session-based caching
-        conversational_agents = set()  # Removed flashinho agents
+        conversational_agents = set()  # External agents managed separately
         
         if agent_name in conversational_agents and session_id:
             session_key = f"{agent_name}:{session_id}"

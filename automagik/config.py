@@ -47,8 +47,7 @@ class Settings(BaseSettings):
     # Notion (Optional)
     NOTION_TOKEN: Optional[str] = Field(None, description="Notion integration token")
 
-    # BlackPearl, Omie, Google Drive, Evolution (Optional)
-    BLACKPEARL_TOKEN: Optional[str] = Field(None, description="BlackPearl API token")
+    # Google Drive (Optional)
     GOOGLE_DRIVE_TOKEN: Optional[str] = Field(None, description="Google Drive API token")
     
     # Evolution
@@ -56,16 +55,8 @@ class Settings(BaseSettings):
     EVOLUTION_API_URL: Optional[str] = Field(None, description="Evolution API URL")
     EVOLUTION_INSTANCE: str = Field("agent", description="Evolution API instance name")
 
-    # BlackPearl API URL and DB URI
-    BLACKPEARL_API_URL: Optional[str] = Field(None, description="BlackPearl API URL")
-    BLACKPEARL_DB_URI: Optional[str] = Field(None, description="BlackPearl database URI")
-
-
     # Discord
     DISCORD_BOT_TOKEN: Optional[str] = Field(None, description="Discord bot token for authentication")
-
-    # Meeting Bot
-    MEETING_BOT_URL: Optional[str] = Field(None, description="Meeting bot webhook service URL for creating bots")
 
     # Database Configuration
     AUTOMAGIK_DATABASE_TYPE: str = Field("sqlite", description="Database type (sqlite or postgresql)")
@@ -143,11 +134,6 @@ class Settings(BaseSettings):
         description="Number of retry attempts for LLM calls on transient errors (rate limits, 5xx)"
     )
 
-    # Airtable (Optional)
-    AIRTABLE_TOKEN: Optional[str] = Field(None, description="Airtable personal access token (PAT)")
-    AIRTABLE_DEFAULT_BASE_ID: Optional[str] = Field(None, description="Default Airtable base ID for tools if not provided explicitly")
-    AIRTABLE_TEST_BASE_ID: Optional[str] = Field(None, description="Airtable base ID specifically for integration testing (separate from production)")
-    AIRTABLE_TEST_TABLE: Optional[str] = Field(None, description="Airtable table ID/name for integration testing")
 
     # Uvicorn request handling limits
     AUTOMAGIK_UVICORN_LIMIT_CONCURRENCY: int = Field(
