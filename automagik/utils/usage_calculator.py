@@ -88,12 +88,12 @@ class UnifiedUsageCalculator:
                 
                 for message in result.all_messages():
                     if hasattr(message, 'usage') and message.usage:
-                        total_input += getattr(message.usage, 'request_tokens', 0)
-                        total_output += getattr(message.usage, 'response_tokens', 0)
+                        total_input += getattr(message.usage, 'request_tokens', 0) or 0
+                        total_output += getattr(message.usage, 'response_tokens', 0) or 0
                         # PydanticAI specific: extract cache tokens from details
                         if hasattr(message.usage, 'details') and message.usage.details:
-                            cache_creation = getattr(message.usage.details, 'cache_creation_input_tokens', 0)
-                            cache_read = getattr(message.usage.details, 'cache_read_input_tokens', 0)
+                            cache_creation = getattr(message.usage.details, 'cache_creation_input_tokens', 0) or 0
+                            cache_read = getattr(message.usage.details, 'cache_read_input_tokens', 0) or 0
                             total_cached += cache_creation + cache_read
                 
                 breakdown.input_tokens = total_input
