@@ -1,0 +1,15 @@
+# Tracing System Dependencies
+
+# Core dependencies (already in main project)
+# - httpx
+# - pydantic
+
+# Optional observability providers (add as needed)
+# langwatch  # Official LangWatch SDK when available
+# langfuse   # For Langfuse integration
+# opentelemetry-api  # For full OTLP support
+# opentelemetry-sdk
+# opentelemetry-exporter-otlp
+
+# Note: These are optional and should be added to the main
+# project's pyproject.toml when actually integrating the providers
