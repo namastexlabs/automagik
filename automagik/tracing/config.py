@@ -15,7 +15,7 @@ class TracingConfig:
     
     # Telemetry settings  
     telemetry_enabled: bool = True
-    telemetry_endpoint: str = "https://telemetry.namastex.ai/v1/traces"
+    telemetry_endpoint: str = "https://telemetry.namastex.ai/v1/otlp"
     telemetry_anonymous_id: Optional[str] = None
     
     # Privacy settings

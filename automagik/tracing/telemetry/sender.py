@@ -53,10 +53,11 @@ class TelemetrySender:
             )
             
             if response.status_code == 200:
-                logger.debug(f"Successfully sent {len(events)} telemetry events")
+                logger.info(f"✅ Successfully sent {len(events)} telemetry events to {self.endpoint}")
                 return True
             else:
-                logger.warning(f"Telemetry send failed with status {response.status_code}")
+                logger.warning(f"❌ Telemetry send failed with status {response.status_code} to {self.endpoint}")
+                logger.debug(f"Response: {response.text}")
                 return False
                 
         except Exception as e:
