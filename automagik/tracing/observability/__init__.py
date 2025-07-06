@@ -37,18 +37,24 @@ class ObservabilityManager:
         for provider_name in self.config.observability_providers:
             try:
                 if provider_name == "langwatch":
-                    from .providers.langwatch import LangWatchProvider
-                    provider = LangWatchProvider()
-                    provider.initialize({})
-                    self.providers[provider_name] = provider
-                    logger.info(f"Initialized LangWatch provider")
+                    try:
+                        from .providers.langwatch import LangWatchProvider
+                        provider = LangWatchProvider()
+                        provider.initialize({})
+                        self.providers[provider_name] = provider
+                        logger.info(f"Initialized LangWatch provider")
+                    except ImportError:
+                        logger.warning("LangWatch provider module not found")
                     
                 elif provider_name == "langfuse":
-                    from .providers.langfuse import LangfuseProvider
-                    provider = LangfuseProvider()
-                    provider.initialize({})
-                    self.providers[provider_name] = provider
-                    logger.info(f"Initialized Langfuse provider")
+                    try:
+                        from .providers.langfuse import LangfuseProvider
+                        provider = LangfuseProvider()
+                        provider.initialize({})
+                        self.providers[provider_name] = provider
+                        logger.info(f"Initialized Langfuse provider")
+                    except ImportError:
+                        logger.warning("Langfuse provider module not found")
                     
                 # Add more providers as needed
                 
@@ -63,6 +69,27 @@ class ObservabilityManager:
         """Start tracing an agent run."""
         # Implementation would create spans with all providers
         pass
+    
+    def trace_http_request(self, method: str, path: str, headers: dict = None):
+        """Start tracing an HTTP request.
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: Request path
+            headers: Request headers (optional)
+            
+        Returns:
+            Context manager for the trace
+        """
+        from contextlib import contextmanager
+        
+        @contextmanager
+        def dummy_context():
+            # For now, return a simple context that does nothing
+            # This will be enhanced when providers are properly integrated
+            yield None
+            
+        return dummy_context()
     
     def shutdown(self):
         """Shutdown all providers gracefully."""
