@@ -25,7 +25,7 @@ class TracingConfig:
     # Performance settings
     max_queue_size: int = 10000
     batch_size: int = 50
-    batch_timeout_ms: int = 100
+    batch_timeout_ms: int = 5000  # 5 seconds
     max_workers: int = 2
     
     # Sampling settings
