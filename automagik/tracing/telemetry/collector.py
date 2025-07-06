@@ -172,6 +172,29 @@ class TelemetryCollector:
         )
         self.track_event(event)
     
+    def track_http_request(self, method: str, path: str, status_code: int, duration_ms: float):
+        """Track HTTP request (anonymized).
+        
+        Args:
+            method: HTTP method
+            path: Request path (should be anonymized)
+            status_code: Response status code
+            duration_ms: Request duration in milliseconds
+        """
+        event = TelemetryEvent(
+            event_type=EventType.API_REQUEST,
+            anonymous_id=self.anonymous_id,
+            session_id=self.session_id,
+            attributes={
+                "event.method": method,
+                "event.path": path,
+                "event.status_code": status_code,
+                "event.duration_ms": duration_ms,
+                "event.success": 200 <= status_code < 400
+            }
+        )
+        self.track_event(event)
+    
     def track_event(self, event: TelemetryEvent):
         """Track a telemetry event.
         
