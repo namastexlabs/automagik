@@ -49,7 +49,7 @@ class TracingManager:
     @property
     def observability(self) -> Optional['ObservabilityManager']:
         """Get observability manager (lazy loaded)."""
-        if self._observability is None and not self._initialized:
+        if self._observability is None:
             if self.config.observability_enabled and self.config.observability_providers:
                 try:
                     from .observability import ObservabilityManager
@@ -63,7 +63,7 @@ class TracingManager:
     @property
     def telemetry(self) -> Optional['TelemetryCollector']:
         """Get telemetry collector (lazy loaded)."""
-        if self._telemetry is None and not self._initialized:
+        if self._telemetry is None:
             if self.config.telemetry_enabled:
                 try:
                     from .telemetry import TelemetryCollector
