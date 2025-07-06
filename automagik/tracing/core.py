@@ -68,7 +68,7 @@ class TracingManager:
                 try:
                     from .telemetry import TelemetryCollector
                     self._telemetry = TelemetryCollector(self.config)
-                    logger.debug("Telemetry collector initialized")
+                    logger.info(f"📊 Telemetry collector initialized - endpoint: {self.config.telemetry_endpoint}")
                 except Exception as e:
                     logger.warning(f"Failed to initialize telemetry: {e}")
                     self._telemetry = None
