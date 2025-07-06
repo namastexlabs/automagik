@@ -609,11 +609,6 @@ class AutomagikAgent(ABC, Generic[T]):
         sampling_decision = self._should_sample(kwargs)
         should_sample = sampling_decision.should_sample if sampling_decision else False
         
-        # TEMPORARY: Force sampling for debugging LangWatch
-        if self.tracing and self.tracing.observability:
-            should_sample = True
-            logger.info("🔍 FORCING SAMPLING FOR LANGWATCH DEBUG")
-        
         # Start observability trace if sampled
         trace_ctx = None
         if should_sample and self.tracing and self.tracing.observability:
