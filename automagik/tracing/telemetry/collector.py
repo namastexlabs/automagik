@@ -130,6 +130,7 @@ class TelemetryCollector:
             success: Whether the run succeeded
             duration_ms: Execution duration in milliseconds
         """
+        logger.info(f"📊 Tracking agent run: {agent_type} ({framework}) - success: {success}, duration: {duration_ms:.2f}ms")
         event = AgentRunEvent(
             agent_type=agent_type,
             framework=framework,
