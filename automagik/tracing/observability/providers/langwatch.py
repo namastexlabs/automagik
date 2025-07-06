@@ -50,17 +50,24 @@ class LangWatchProvider(ObservabilityProvider):
         if os.getenv("LANGWATCH_ENDPOINT"):
             self.endpoint = os.getenv("LANGWATCH_ENDPOINT")
         
-        # Initialize async tracer for non-blocking sends
-        self.async_tracer = AsyncTracer(
-            max_workers=1,
-            queue_size=1000,
-            batch_size=10,
-            batch_timeout_ms=100,
-            processor=self._process_trace_batch
-        )
+        # Defer async tracer initialization to avoid import issues
+        self.async_tracer = None
+        self._tracer_config = {
+            "max_workers": 1,
+            "queue_size": 1000,
+            "batch_size": 10,
+            "batch_timeout_ms": 100,
+            "processor": self._process_trace_batch
+        }
         
         self.enabled = True
         logger.info(f"🔍 LangWatch provider initialized with endpoint: {self.endpoint} and API key: {self.api_key[:10]}...")
+    
+    def _ensure_tracer(self):
+        """Ensure async tracer is initialized."""
+        if self.async_tracer is None:
+            from ...performance import AsyncTracer
+            self.async_tracer = AsyncTracer(**self._tracer_config)
     
     @contextmanager
     def start_trace(
@@ -100,6 +107,7 @@ class LangWatchProvider(ObservabilityProvider):
         }
         
         # Queue for async sending
+        self._ensure_tracer()
         if self.async_tracer:
             self.async_tracer.trace_event(trace_event)
         
@@ -120,6 +128,7 @@ class LangWatchProvider(ObservabilityProvider):
                 "span_id": span_id,
                 "timestamp": time.time()
             }
+            self._ensure_tracer()
             if self.async_tracer:
                 self.async_tracer.trace_event(end_event)
     
@@ -153,6 +162,7 @@ class LangWatchProvider(ObservabilityProvider):
             "timestamp": time.time()
         }
         
+        self._ensure_tracer()
         if self.async_tracer:
             self.async_tracer.trace_event(event)
             logger.debug(f"Event queued for LangWatch: {event['type']} for trace {event['trace_id']}")
@@ -177,6 +187,7 @@ class LangWatchProvider(ObservabilityProvider):
             "timestamp": time.time()
         }
         
+        self._ensure_tracer()
         if self.async_tracer:
             self.async_tracer.trace_event(event)
     
@@ -199,6 +210,7 @@ class LangWatchProvider(ObservabilityProvider):
             "timestamp": time.time()
         }
         
+        self._ensure_tracer()
         if self.async_tracer:
             self.async_tracer.trace_event(event)
     
@@ -247,15 +259,25 @@ class LangWatchProvider(ObservabilityProvider):
                 
                 # Convert event to span
                 if event["type"] == "llm_call":
+                    # Extract vendor from model name
+                    model = event.get("model", "unknown")
+                    vendor = "openai" if "gpt" in model else "anthropic" if "claude" in model else "unknown"
+                    
                     span = {
                         "type": "llm",
-                        "vendor": "openai",  # Extract from model name
-                        "model": event.get("model", "unknown"),
+                        "span_id": event.get("span_id", str(uuid.uuid4())),
+                        "vendor": vendor,
+                        "model": model,
                         "input": {
-                            "messages": event.get("messages", [])
+                            "type": "chat_messages",
+                            "value": event.get("messages", [])
                         },
                         "output": {
-                            "content": event.get("response", "")
+                            "type": "chat_messages",
+                            "value": [{
+                                "role": "assistant",
+                                "content": event.get("response", "")
+                            }]
                         },
                         "params": {},
                         "metrics": event.get("usage", {}),
@@ -268,9 +290,16 @@ class LangWatchProvider(ObservabilityProvider):
                 elif event["type"] == "tool_call":
                     span = {
                         "type": "tool",
+                        "span_id": event.get("span_id", str(uuid.uuid4())),
                         "name": event.get("tool_name", "unknown"),
-                        "input": event.get("args", {}),
-                        "output": event.get("result", {}),
+                        "input": {
+                            "type": "json",
+                            "value": event.get("args", {})
+                        },
+                        "output": {
+                            "type": "json",
+                            "value": event.get("result", {})
+                        },
                         "timestamps": {
                             "started_at": int(event["timestamp"] * 1000),
                             "finished_at": int(event["timestamp"] * 1000) + 500
