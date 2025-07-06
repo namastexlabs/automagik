@@ -534,22 +534,27 @@ class AutomagikAgent(ABC, Generic[T]):
             }
         )
     
-    def _log_usage_to_observability(self, usage: Dict[str, Any]):
+    def _log_usage_to_observability(self, usage: Dict[str, Any], messages: List[Dict[str, str]] = None, response: str = None):
         """Log token usage to observability providers.
         
         Args:
             usage: Usage dictionary with token counts and costs
+            messages: Optional messages sent to LLM
+            response: Optional response from LLM
         """
         if not self.tracing or not self.tracing.observability:
             return
         
+        logger.info(f"📊 Logging usage to observability - providers: {list(self.tracing.observability.providers.keys())}")
+        
         # Log to each active provider
-        for provider in self.tracing.observability.providers.values():
+        for provider_name, provider in self.tracing.observability.providers.items():
             try:
+                logger.info(f"📝 Sending to {provider_name} - usage: {usage}")
                 provider.log_llm_call(
                     model=self.config.model,
-                    messages=[],  # Would include actual messages in production
-                    response="",  # Would include response in production
+                    messages=messages or [],
+                    response=response or "",
                     usage=usage
                 )
             except Exception as e:
@@ -603,6 +608,11 @@ class AutomagikAgent(ABC, Generic[T]):
         # Determine if we should trace this run
         sampling_decision = self._should_sample(kwargs)
         should_sample = sampling_decision.should_sample if sampling_decision else False
+        
+        # TEMPORARY: Force sampling for debugging LangWatch
+        if self.tracing and self.tracing.observability:
+            should_sample = True
+            logger.info("🔍 FORCING SAMPLING FOR LANGWATCH DEBUG")
         
         # Start observability trace if sampled
         trace_ctx = None
@@ -781,8 +791,27 @@ class AutomagikAgent(ABC, Generic[T]):
                 result = await self._postprocess_response(result)
                 
                 # Log usage if available (for observability)
+                logger.info(f"🔍 Checking for usage data - has usage: {hasattr(result, 'usage')}, usage value: {getattr(result, 'usage', None)}, should_sample: {should_sample}")
                 if hasattr(result, 'usage') and result.usage and should_sample:
-                    self._log_usage_to_observability(result.usage)
+                    # Pass the actual messages and response
+                    self._log_usage_to_observability(
+                        result.usage,
+                        messages=[{"role": "user", "content": processed_input}],
+                        response=result.text if hasattr(result, 'text') else str(result)
+                    )
+                elif should_sample:
+                    # Even without usage data, log the LLM call
+                    logger.info("📝 No usage data, but logging LLM call anyway")
+                    for provider_name, provider in self.tracing.observability.providers.items():
+                        try:
+                            provider.log_llm_call(
+                                model=self.config.model,
+                                messages=[{"role": "user", "content": processed_input}],
+                                response=result.text if hasattr(result, 'text') else str(result),
+                                usage={}
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to log to {provider_name}: {e}")
                 
                 # Restore original model if we temporarily switched
                 try:
