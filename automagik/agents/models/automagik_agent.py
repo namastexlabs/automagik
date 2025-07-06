@@ -5,6 +5,7 @@ from abc import ABC
 import uuid
 import asyncio
 import os
+import time
 
 from automagik.agents.models.dependencies import BaseDependencies
 from automagik.agents.models.response import AgentResponse
@@ -24,6 +25,16 @@ from automagik.agents.common.tool_registry import ToolRegistry
 from automagik.agents.common.session_manager import validate_agent_id
 from automagik.agents.common.dependencies_helper import close_http_client
 from automagik.agents.common.multi_prompt_manager import MultiPromptManager
+
+# Import tracing support
+try:
+    from automagik.tracing import get_tracing_manager
+    from automagik.tracing.performance import SamplingDecision
+    TRACING_AVAILABLE = True
+except ImportError:
+    TRACING_AVAILABLE = False
+    get_tracing_manager = None
+    SamplingDecision = None
 
 # Import functions that tests expect to mock at module level
 try:
@@ -207,6 +218,17 @@ class AutomagikAgent(ABC, Generic[T]):
         # Initialize AI framework (will be set during initialization)
         self.ai_framework: Optional[AgentAIFramework] = None
         self._framework_initialized = False
+        
+        # Initialize tracing manager if available
+        self.tracing = None
+        self.sampler = None
+        if TRACING_AVAILABLE:
+            try:
+                self.tracing = get_tracing_manager()
+                if self.tracing and self.tracing.observability:
+                    self.sampler = self.tracing.observability.sampler
+            except Exception as e:
+                logger.debug(f"Tracing initialization skipped: {e}")
         
         # Framework registry
         self._framework_registry = {
@@ -486,6 +508,53 @@ class AutomagikAgent(ABC, Generic[T]):
             logger.info(f"📝 Text-only content, using {self._text_framework} framework")
             return self._text_framework
     
+    def _should_sample(self, kwargs: Dict[str, Any]) -> Optional['SamplingDecision']:
+        """Determine if this run should be sampled for detailed tracing.
+        
+        Args:
+            kwargs: Run kwargs that might influence sampling
+            
+        Returns:
+            SamplingDecision with result and reason, or None if tracing unavailable
+        """
+        if not TRACING_AVAILABLE or not self.tracing or not self.tracing.observability or not self.sampler:
+            return None
+        
+        # Check if this is the first run for this agent type
+        is_first = kwargs.get("is_first_run", False)
+        
+        return self.sampler.should_sample(
+            trace_type=f"agent.{self.name}",
+            duration_ms=None,  # Not known yet
+            is_error=False,
+            attributes={
+                "is_first_occurrence": is_first,
+                "session_id": kwargs.get("session_id"),
+                "has_multimodal": bool(kwargs.get("multimodal_content"))
+            }
+        )
+    
+    def _log_usage_to_observability(self, usage: Dict[str, Any]):
+        """Log token usage to observability providers.
+        
+        Args:
+            usage: Usage dictionary with token counts and costs
+        """
+        if not self.tracing or not self.tracing.observability:
+            return
+        
+        # Log to each active provider
+        for provider in self.tracing.observability.providers.values():
+            try:
+                provider.log_llm_call(
+                    model=self.config.model,
+                    messages=[],  # Would include actual messages in production
+                    response="",  # Would include response in production
+                    usage=usage
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log usage to provider: {e}")
+
     async def _run_agent(self,
                                 input_text: str,
                                 system_prompt: Optional[str] = None,
@@ -525,6 +594,30 @@ class AutomagikAgent(ABC, Generic[T]):
             
         if not self.dependencies:
             raise RuntimeError("Dependencies not set - call set_dependencies() first")
+        
+        # Tracing: Record start time
+        start_time = time.time()
+        success = False
+        error_type = None
+        
+        # Determine if we should trace this run
+        sampling_decision = self._should_sample(kwargs)
+        should_sample = sampling_decision.should_sample if sampling_decision else False
+        
+        # Start observability trace if sampled
+        trace_ctx = None
+        if should_sample and self.tracing and self.tracing.observability:
+            trace_ctx = self.tracing.observability.trace_agent_run(
+                agent_name=self.name,
+                session_id=kwargs.get("session_id", self.context.get("session_id", "unknown")),
+                message_preview=input_text[:100] if input_text else ""
+            )
+            trace_ctx.__enter__()
+            
+            # Log sampling decision
+            if hasattr(trace_ctx, 'attributes'):
+                trace_ctx.attributes["sampling.reason"] = sampling_decision.reason
+                trace_ctx.attributes["sampling.rate"] = sampling_decision.sample_rate
             
         try:
             # 1. Handle Evolution/WhatsApp payload
@@ -687,6 +780,10 @@ class AutomagikAgent(ABC, Generic[T]):
                 # 9. Postprocess response using channel handler
                 result = await self._postprocess_response(result)
                 
+                # Log usage if available (for observability)
+                if hasattr(result, 'usage') and result.usage and should_sample:
+                    self._log_usage_to_observability(result.usage)
+                
                 # Restore original model if we temporarily switched
                 try:
                     if self._original_model and self.dependencies and hasattr(self.dependencies, "model_name"):
@@ -695,15 +792,79 @@ class AutomagikAgent(ABC, Generic[T]):
                 finally:
                     self._original_model = None
                 
+                success = True
                 return result
             
         except Exception as e:
+            error_type = type(e).__name__
+            
+            # Log error to observability if sampled
+            if should_sample and self.tracing and self.tracing.observability:
+                for provider in self.tracing.observability.providers.values():
+                    try:
+                        provider.log_error(e, {
+                            "agent": self.name,
+                            "session_id": kwargs.get("session_id", self.context.get("session_id"))
+                        })
+                    except Exception as log_error:
+                        logger.debug(f"Failed to log error to provider: {log_error}")
+            
+            # Always track errors in telemetry (anonymous)
+            if self.tracing and self.tracing.telemetry:
+                try:
+                    self.tracing.telemetry.track_error(
+                        error_type=error_type,
+                        component=f"agent.{self.name}"
+                    )
+                except Exception as tel_error:
+                    logger.debug(f"Failed to track error in telemetry: {tel_error}")
+            
             logger.error(f"Framework run failed: {e}")
             return AgentResponse(
                 text=f"Error running agent: {str(e)}",
                 success=False,
                 error_message=str(e)
             )
+        
+        finally:
+            # Calculate duration
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Close observability trace if it was opened
+            if trace_ctx:
+                try:
+                    trace_ctx.__exit__(None, None, None)
+                except Exception as e:
+                    logger.debug(f"Failed to close trace context: {e}")
+            
+            # Always send anonymous telemetry (not sampled)
+            if self.tracing and self.tracing.telemetry:
+                try:
+                    self.tracing.telemetry.track_agent_run(
+                        agent_type=self.name,
+                        framework=self.framework_type,
+                        success=success,
+                        duration_ms=duration_ms
+                    )
+                except Exception as tel_error:
+                    logger.debug(f"Failed to track agent run in telemetry: {tel_error}")
+                
+                # Track feature usage
+                try:
+                    # Track framework selection
+                    self.tracing.telemetry.track_feature_usage(
+                        f"framework.{self.framework_type}",
+                        category="agent_framework"
+                    )
+                    
+                    # Track multimodal usage if applicable
+                    if multimodal_content:
+                        self.tracing.telemetry.track_feature_usage(
+                            "multimodal_content",
+                            category="agent_capability"
+                        )
+                except Exception as feat_error:
+                    logger.debug(f"Failed to track feature usage: {feat_error}")
     
     async def _process_channel_payload(self, channel_payload: Optional[Dict]) -> None:
         """Process channel payload using appropriate channel handler."""

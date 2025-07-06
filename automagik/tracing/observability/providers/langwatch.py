@@ -214,23 +214,89 @@ class LangWatchProvider(ObservabilityProvider):
         Args:
             events: Events to send
         """
-        # In a real implementation, this would use httpx to send to LangWatch
-        # For now, just log that we would send
-        logger.debug(f"Would send {len(events)} events to LangWatch")
+        import asyncio
+        import httpx
         
-        # TODO: Implement actual HTTP sending
-        # headers = {
-        #     "Authorization": f"Bearer {self.api_key}",
-        #     "Content-Type": "application/json"
-        # }
-        # 
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.post(
-        #         self.endpoint,
-        #         json={"events": events},
-        #         headers=headers
-        #     )
-        #     response.raise_for_status()
+        async def send():
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "X-Source": "automagik-agents"
+            }
+            
+            # LangWatch expects a specific format
+            # Convert our events to LangWatch format
+            traces = []
+            for event in events:
+                if event["type"] == "trace_start":
+                    trace = {
+                        "id": event["trace_id"],
+                        "project_id": "automagik-agents",
+                        "thread_id": event.get("span_id"),
+                        "customer_id": event.get("attributes", {}).get("user.id"),
+                        "labels": event.get("attributes", {}).get("labels", []),
+                        "metadata": event.get("attributes", {}),
+                        "timestamps": {
+                            "started_at": int(event["timestamp"] * 1000),
+                            "updated_at": int(event["timestamp"] * 1000)
+                        }
+                    }
+                    traces.append(trace)
+                elif event["type"] == "llm_call":
+                    # Add LLM span to trace
+                    span = {
+                        "type": "llm",
+                        "id": event.get("span_id", str(uuid.uuid4())),
+                        "parent_id": event.get("trace_id"),
+                        "model": event["model"],
+                        "input": {"messages": event["messages"]},
+                        "output": {"content": event["response"]},
+                        "metrics": event.get("usage", {}),
+                        "timestamps": {
+                            "started_at": int(event["timestamp"] * 1000),
+                            "first_token_at": int(event["timestamp"] * 1000) + 100,
+                            "completed_at": int(event["timestamp"] * 1000) + 1000
+                        }
+                    }
+                    # Add to appropriate trace
+                    for trace in traces:
+                        if trace["id"] == event["trace_id"]:
+                            if "spans" not in trace:
+                                trace["spans"] = []
+                            trace["spans"].append(span)
+                            break
+            
+            if not traces:
+                return
+            
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        self.endpoint,
+                        json={"traces": traces},
+                        headers=headers,
+                        timeout=10.0
+                    )
+                    
+                    if response.status_code == 200:
+                        logger.debug(f"Successfully sent {len(events)} events to LangWatch")
+                    else:
+                        logger.warning(f"LangWatch API returned {response.status_code}: {response.text}")
+                        
+            except Exception as e:
+                logger.debug(f"Failed to send to LangWatch: {e}")
+        
+        # Run async in sync context
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        if loop.is_running():
+            asyncio.create_task(send())
+        else:
+            loop.run_until_complete(send())
     
     def flush(self) -> None:
         """Flush any pending traces."""

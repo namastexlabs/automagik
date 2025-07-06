@@ -20,4 +20,15 @@ def get_tracing_manager() -> 'TracingManager':
     return _tracing_manager
 
 
-__all__ = ['get_tracing_manager']
+# Export decorators for convenience
+try:
+    from .decorators import trace_cli_command, trace_async_cli_command, trace_function
+    __all__ = [
+        'get_tracing_manager',
+        'trace_cli_command',
+        'trace_async_cli_command',
+        'trace_function'
+    ]
+except ImportError:
+    # If decorators module doesn't exist yet, just export the manager
+    __all__ = ['get_tracing_manager']

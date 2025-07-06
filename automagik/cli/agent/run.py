@@ -17,6 +17,21 @@ import logging
 # Import settings right at the beginning to ensure it's defined before use
 from automagik.config import settings
 
+# Import tracing decorators if available
+try:
+    from automagik.tracing.decorators import trace_cli_command, trace_async_cli_command
+except ImportError:
+    # Create no-op decorators if tracing is not available
+    def trace_cli_command(command_name=None, track_args=True):
+        def decorator(func):
+            return func
+        return decorator
+    
+    def trace_async_cli_command(command_name=None, track_args=True):
+        def decorator(func):
+            return func
+        return decorator
+
 # Create app for the run command
 run_app = typer.Typer(no_args_is_help=True)
 
@@ -186,6 +201,7 @@ async def get_user_by_id(user_id: int) -> Dict[str, Any]:
         }
 
 
+@trace_async_cli_command(command_name="run_agent")
 async def run_agent(
     agent_name: str, input_message: str, session_name: str = None, user_id: int = 1,
     multimodal_content: Dict[str, str] = None
@@ -404,6 +420,7 @@ async def process_single_message(
 
 
 @run_app.command()
+@trace_cli_command(command_name="agent_run_message")
 def message(
     agent: str = typer.Option(..., "--agent", "-a", help="Agent to use"),
     session: Optional[str] = typer.Option(

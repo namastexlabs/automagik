@@ -205,17 +205,36 @@ class TelemetryCollector:
         if not events:
             return
         
-        # Convert to OTLP format
-        otlp_data = self._convert_to_otlp(events)
+        # Send using async in sync context
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            # No event loop in thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         
-        # In a real implementation, this would send to the endpoint
-        # For now, just log that we would send
-        logger.debug(
-            f"Would send {len(events)} telemetry events to {self.config.telemetry_endpoint}"
-        )
+        # Import sender
+        from .sender import TelemetrySender
         
-        # TODO: Implement actual HTTP sending with httpx
-        # This is where you'd use httpx to POST to telemetry_endpoint
+        async def send():
+            sender = TelemetrySender(self.config.telemetry_endpoint)
+            try:
+                success = await sender.send_batch(events, self.anonymous_id, self.session_id)
+                if success:
+                    logger.debug(f"Sent {len(events)} telemetry events")
+                else:
+                    logger.debug(f"Failed to send telemetry batch")
+            finally:
+                await sender.close()
+        
+        # Run in event loop
+        if loop.is_running():
+            # Schedule as task if loop is already running
+            asyncio.create_task(send())
+        else:
+            # Run directly if no loop running
+            loop.run_until_complete(send())
     
     def _convert_to_otlp(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Convert events to OTLP format.

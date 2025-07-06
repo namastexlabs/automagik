@@ -268,6 +268,18 @@ def create_app() -> FastAPI:
             raise e
         
         
+        # Initialize tracing system
+        try:
+            logger.info("📊 Initializing tracing system...")
+            from automagik.tracing import get_tracing_manager
+            tracing = get_tracing_manager()
+            if tracing:
+                logger.info(f"✅ Tracing system initialized - Telemetry: {tracing.telemetry is not None}, Observability: {tracing.observability is not None}")
+            else:
+                logger.info("📊 Tracing system disabled or not configured")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not initialize tracing system: {e}")
+        
         # Initialize agents after core services are ready
         await initialize_all_agents()
         
@@ -375,6 +387,14 @@ def create_app() -> FastAPI:
 
     # Add authentication middleware
     app.add_middleware(APIKeyMiddleware)
+    
+    # Add tracing middleware if available
+    try:
+        from automagik.tracing.middleware import TracingMiddleware
+        app.add_middleware(TracingMiddleware)
+        logger.info("✅ Added tracing middleware")
+    except ImportError:
+        logger.debug("Tracing middleware not available, skipping")
     
     # Set up database message store regardless of environment
     try:
