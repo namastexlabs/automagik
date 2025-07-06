@@ -54,16 +54,17 @@ class TracingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             status_code = response.status_code
             
-            # Log response if sampled
+            # Log response if sampled (skip if provider doesn't have log_http_response)
             if should_sample and self.tracing.observability:
                 for provider in self.tracing.observability.providers.values():
-                    try:
-                        provider.log_http_response(
-                            status_code=status_code,
-                            response_headers=dict(response.headers) if hasattr(response, 'headers') else {}
-                        )
-                    except Exception as e:
-                        logger.debug(f"Failed to log response: {e}")
+                    if hasattr(provider, 'log_http_response'):
+                        try:
+                            provider.log_http_response(
+                                status_code=status_code,
+                                response_headers=dict(response.headers) if hasattr(response, 'headers') else {}
+                            )
+                        except Exception as e:
+                            logger.debug(f"Failed to log response: {e}")
             
             return response
             
