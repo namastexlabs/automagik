@@ -23,7 +23,7 @@ class LangWatchProvider(ObservabilityProvider):
     def __init__(self):
         """Initialize LangWatch provider."""
         self.api_key: Optional[str] = None
-        self.endpoint: str = "https://app.langwatch.ai/api/v1/traces"
+        self.endpoint: str = "https://app.langwatch.ai/api/collector"
         self.enabled = False
         
         # Performance components
@@ -60,7 +60,7 @@ class LangWatchProvider(ObservabilityProvider):
         )
         
         self.enabled = True
-        logger.info(f"LangWatch provider initialized with endpoint: {self.endpoint}")
+        logger.info(f"🔍 LangWatch provider initialized with endpoint: {self.endpoint} and API key: {self.api_key[:10]}...")
     
     @contextmanager
     def start_trace(
@@ -131,8 +131,16 @@ class LangWatchProvider(ObservabilityProvider):
         usage: Dict[str, Any]
     ) -> None:
         """Log LLM interaction to LangWatch."""
-        if not self.enabled or not self.current_trace_id:
+        if not self.enabled:
+            logger.debug("LangWatch not enabled, skipping LLM call logging")
             return
+            
+        if not self.current_trace_id:
+            logger.warning("No active trace, creating new trace for LLM call")
+            self.current_trace_id = str(uuid.uuid4())
+            self.current_span_id = str(uuid.uuid4())
+        
+        logger.info(f"📝 Logging LLM call to LangWatch - model: {model}, messages: {len(messages)}, usage: {usage}")
         
         event = {
             "type": "llm_call",
@@ -147,6 +155,7 @@ class LangWatchProvider(ObservabilityProvider):
         
         if self.async_tracer:
             self.async_tracer.trace_event(event)
+            logger.debug(f"Event queued for LangWatch: {event['type']} for trace {event['trace_id']}")
     
     def log_tool_call(
         self,
@@ -219,52 +228,58 @@ class LangWatchProvider(ObservabilityProvider):
         
         async def send():
             headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "X-Source": "automagik-agents"
+                "X-Auth-Token": self.api_key,
+                "Content-Type": "application/json"
             }
             
-            # LangWatch expects a specific format
             # Convert our events to LangWatch format
-            traces = []
+            # Group events by trace_id
+            traces_map = {}
+            
             for event in events:
-                if event["type"] == "trace_start":
-                    trace = {
-                        "id": event["trace_id"],
-                        "project_id": "automagik-agents",
-                        "thread_id": event.get("span_id"),
-                        "customer_id": event.get("attributes", {}).get("user.id"),
-                        "labels": event.get("attributes", {}).get("labels", []),
-                        "metadata": event.get("attributes", {}),
-                        "timestamps": {
-                            "started_at": int(event["timestamp"] * 1000),
-                            "updated_at": int(event["timestamp"] * 1000)
-                        }
+                trace_id = event.get("trace_id", "unknown")
+                
+                if trace_id not in traces_map:
+                    traces_map[trace_id] = {
+                        "trace_id": trace_id,
+                        "spans": []
                     }
-                    traces.append(trace)
-                elif event["type"] == "llm_call":
-                    # Add LLM span to trace
+                
+                # Convert event to span
+                if event["type"] == "llm_call":
                     span = {
                         "type": "llm",
-                        "id": event.get("span_id", str(uuid.uuid4())),
-                        "parent_id": event.get("trace_id"),
-                        "model": event["model"],
-                        "input": {"messages": event["messages"]},
-                        "output": {"content": event["response"]},
+                        "vendor": "openai",  # Extract from model name
+                        "model": event.get("model", "unknown"),
+                        "input": {
+                            "messages": event.get("messages", [])
+                        },
+                        "output": {
+                            "content": event.get("response", "")
+                        },
+                        "params": {},
                         "metrics": event.get("usage", {}),
                         "timestamps": {
                             "started_at": int(event["timestamp"] * 1000),
-                            "first_token_at": int(event["timestamp"] * 1000) + 100,
-                            "completed_at": int(event["timestamp"] * 1000) + 1000
+                            "finished_at": int(event["timestamp"] * 1000) + 1000
                         }
                     }
-                    # Add to appropriate trace
-                    for trace in traces:
-                        if trace["id"] == event["trace_id"]:
-                            if "spans" not in trace:
-                                trace["spans"] = []
-                            trace["spans"].append(span)
-                            break
+                    traces_map[trace_id]["spans"].append(span)
+                elif event["type"] == "tool_call":
+                    span = {
+                        "type": "tool",
+                        "name": event.get("tool_name", "unknown"),
+                        "input": event.get("args", {}),
+                        "output": event.get("result", {}),
+                        "timestamps": {
+                            "started_at": int(event["timestamp"] * 1000),
+                            "finished_at": int(event["timestamp"] * 1000) + 500
+                        }
+                    }
+                    traces_map[trace_id]["spans"].append(span)
+            
+            # Only send traces that have spans
+            traces = [trace for trace in traces_map.values() if trace["spans"]]
             
             if not traces:
                 return
@@ -273,15 +288,17 @@ class LangWatchProvider(ObservabilityProvider):
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
                         self.endpoint,
-                        json={"traces": traces},
+                        json=traces[0] if len(traces) == 1 else {"traces": traces},
                         headers=headers,
                         timeout=10.0
                     )
                     
                     if response.status_code == 200:
-                        logger.debug(f"Successfully sent {len(events)} events to LangWatch")
+                        logger.info(f"✅ Successfully sent {len(events)} events to LangWatch")
+                    elif response.status_code == 201:
+                        logger.info(f"✅ Successfully created trace in LangWatch")
                     else:
-                        logger.warning(f"LangWatch API returned {response.status_code}: {response.text}")
+                        logger.warning(f"❌ LangWatch API returned {response.status_code}: {response.text}")
                         
             except Exception as e:
                 logger.debug(f"Failed to send to LangWatch: {e}")
