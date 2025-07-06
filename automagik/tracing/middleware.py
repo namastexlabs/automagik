@@ -22,8 +22,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with tracing."""
-        # Skip tracing for health checks and docs
-        if request.url.path in ["/health", "/", "/api/v1/docs", "/api/v1/openapi.json"]:
+        # Skip ALL tracing for health checks and docs
+        skip_paths = ["/health", "/", "/api/v1/docs", "/api/v1/openapi.json", "/health/workflow-services"]
+        if request.url.path in skip_paths:
             return await call_next(request)
         
         start_time = time.time()
