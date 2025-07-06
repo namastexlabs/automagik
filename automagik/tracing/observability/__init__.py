@@ -66,9 +66,48 @@ class ObservabilityManager:
         return list(self.providers.keys())
     
     def trace_agent_run(self, agent_name: str, session_id: str, message_preview: str):
-        """Start tracing an agent run."""
-        # Implementation would create spans with all providers
-        pass
+        """Start tracing an agent run.
+        
+        Args:
+            agent_name: Name of the agent
+            session_id: Session ID
+            message_preview: Preview of the message
+            
+        Returns:
+            Trace context that can be used with context manager
+        """
+        from contextlib import contextmanager
+        
+        @contextmanager
+        def trace_context():
+            # Start trace with all providers
+            contexts = {}
+            for name, provider in self.providers.items():
+                try:
+                    ctx = provider.start_trace(
+                        name=f"agent.{agent_name}",
+                        kind="agent_run",
+                        attributes={
+                            "agent.name": agent_name,
+                            "session.id": session_id,
+                            "message.preview": message_preview[:100] if message_preview else ""
+                        }
+                    )
+                    contexts[name] = ctx.__enter__()
+                except Exception as e:
+                    logger.debug(f"Failed to start trace with {name}: {e}")
+            
+            # Yield combined context
+            yield contexts
+            
+            # Clean up all contexts
+            for name, ctx in contexts.items():
+                try:
+                    ctx.__exit__(None, None, None)
+                except Exception as e:
+                    logger.debug(f"Failed to close trace with {name}: {e}")
+        
+        return trace_context()
     
     def trace_http_request(self, method: str, path: str, headers: dict = None):
         """Start tracing an HTTP request.
