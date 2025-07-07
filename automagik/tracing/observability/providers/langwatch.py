@@ -172,25 +172,40 @@ class LangWatchProvider(ObservabilityProvider):
         self,
         tool_name: str,
         args: Dict[str, Any],
-        result: Any
+        result: Any,
+        duration_ms: Optional[float] = None,
+        error: Optional[str] = None
     ) -> None:
-        """Log tool execution to LangWatch."""
+        """Log tool execution to LangWatch with proper span structure."""
         if not self.enabled or not self.current_trace_id:
             return
         
+        logger.info(f"🔧 Logging tool call to LangWatch - tool: {tool_name}, args: {len(str(args))}, result: {len(str(result))}")
+        
+        # Create a unique span ID for this tool call
+        tool_span_id = str(uuid.uuid4())
+        start_time = time.time()
+        
+        # Enhanced tool call event with proper span structure
         event = {
             "type": "tool_call",
             "trace_id": self.current_trace_id,
-            "span_id": self.current_span_id,
+            "span_id": tool_span_id,
+            "parent_span_id": self.current_span_id,  # Link to parent span
             "tool_name": tool_name,
-            "args": args,
-            "result": str(result)[:1000],  # Truncate for safety
-            "timestamp": time.time()
+            "args": self._sanitize_tool_args(args),
+            "result": self._sanitize_tool_result(result),
+            "duration_ms": duration_ms or 100,  # Default duration if not provided
+            "status": "error" if error else "success",
+            "error": error,
+            "timestamp": start_time,
+            "finished_at": start_time + (duration_ms or 100) / 1000
         }
         
         self._ensure_tracer()
         if self.async_tracer:
             self.async_tracer.trace_event(event)
+            logger.debug(f"Tool call event queued for LangWatch: {tool_name} for trace {event['trace_id']}")
     
     def log_error(
         self,
@@ -209,6 +224,45 @@ class LangWatchProvider(ObservabilityProvider):
             "error_message": str(error),
             "context": context,
             "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(event)
+    
+    def log_memory_operation(
+        self,
+        operation: str,  # "store", "retrieve", "list"
+        key: Optional[str] = None,
+        content: Optional[str] = None,
+        result: Any = None,
+        duration_ms: Optional[float] = None,
+        error: Optional[str] = None
+    ) -> None:
+        """Log memory operations as separate spans with detailed context."""
+        if not self.enabled or not self.current_trace_id:
+            return
+        
+        logger.info(f"💾 Logging memory operation to LangWatch - operation: {operation}, key: {key}")
+        
+        memory_span_id = str(uuid.uuid4())
+        start_time = time.time()
+        
+        # Create specific memory operation span
+        event = {
+            "type": "memory_operation",
+            "trace_id": self.current_trace_id,
+            "span_id": memory_span_id,
+            "parent_span_id": self.current_span_id,
+            "operation": operation,
+            "key": key,
+            "content_length": len(str(content)) if content else 0,
+            "result": str(result)[:500] if result else None,  # Truncate for safety
+            "duration_ms": duration_ms or 50,
+            "status": "error" if error else "success",
+            "error": error,
+            "timestamp": start_time,
+            "finished_at": start_time + (duration_ms or 50) / 1000
         }
         
         self._ensure_tracer()
@@ -237,16 +291,18 @@ class LangWatchProvider(ObservabilityProvider):
             if self.async_tracer:
                 self.async_tracer.trace_event(event)
         
-        # Log tool calls as separate spans
+        # Log tool calls as separate spans with enhanced information
         if "tool_calls" in metadata and metadata["tool_calls"]:
             for tool_call in metadata["tool_calls"]:
                 self.log_tool_call(
                     tool_name=tool_call.get("name", "unknown"),
                     args=tool_call.get("args", {}),
-                    result=tool_call.get("result", "")
+                    result=tool_call.get("result", ""),
+                    duration_ms=tool_call.get("duration_ms"),
+                    error=tool_call.get("error")
                 )
         
-        # Store metadata for the current trace
+        # Store metadata for the current trace with enhanced agent context
         metadata_event = {
             "type": "trace_metadata",
             "trace_id": self.current_trace_id,
@@ -256,7 +312,13 @@ class LangWatchProvider(ObservabilityProvider):
                 "agent_id": metadata.get("agent_id"),
                 "framework": metadata.get("framework"),
                 "session_id": metadata.get("session_id"),
-                "multimodal": metadata.get("multimodal", False)
+                "user_id": metadata.get("user_id"),
+                "thread_id": metadata.get("thread_id"),  # For conversation grouping
+                "customer_id": metadata.get("customer_id"),  # For multi-tenancy
+                "multimodal": metadata.get("multimodal", False),
+                "model": metadata.get("model"),
+                "temperature": metadata.get("temperature"),
+                "max_tokens": metadata.get("max_tokens")
             },
             "timestamp": time.time()
         }
@@ -280,8 +342,27 @@ class LangWatchProvider(ObservabilityProvider):
         
         self.circuit_breaker.call(send_batch)
     
+    def _sanitize_tool_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize tool arguments for LangWatch."""
+        sanitized = {}
+        for key, value in args.items():
+            if isinstance(value, str) and len(value) > 1000:
+                sanitized[key] = value[:1000] + "... [truncated]"
+            elif key.lower() in ['password', 'token', 'key', 'secret']:
+                sanitized[key] = "[REDACTED]"
+            else:
+                sanitized[key] = value
+        return sanitized
+    
+    def _sanitize_tool_result(self, result: Any) -> str:
+        """Sanitize tool result for LangWatch."""
+        result_str = str(result)
+        if len(result_str) > 2000:
+            return result_str[:2000] + "... [truncated]"
+        return result_str
+    
     def _send_to_langwatch(self, events: List[Dict[str, Any]]) -> None:
-        """Send events to LangWatch API.
+        """Send events to LangWatch API with enhanced span formatting.
         
         Args:
             events: Events to send
@@ -295,8 +376,7 @@ class LangWatchProvider(ObservabilityProvider):
                 "Content-Type": "application/json"
             }
             
-            # Convert our events to LangWatch format
-            # Group events by trace_id
+            # Convert our events to LangWatch format with proper span structure
             traces_map = {}
             
             for event in events:
@@ -309,11 +389,11 @@ class LangWatchProvider(ObservabilityProvider):
                         "metadata": {}
                     }
                 
-                # Convert event to span
+                # Convert event to proper LangWatch span format
                 if event["type"] == "llm_call":
-                    # Extract vendor from model name
+                    # Extract vendor from model name with better detection
                     model = event.get("model", "unknown")
-                    vendor = "openai" if "gpt" in model else "anthropic" if "claude" in model else "unknown"
+                    vendor = self._detect_llm_vendor(model)
                     
                     span = {
                         "type": "llm",
@@ -331,36 +411,100 @@ class LangWatchProvider(ObservabilityProvider):
                                 "content": event.get("response", "")
                             }]
                         },
-                        "params": {},
+                        "params": {
+                            "temperature": event.get("temperature"),
+                            "max_tokens": event.get("max_tokens")
+                        },
                         "metrics": event.get("usage", {}),
                         "timestamps": {
                             "started_at": int(event["timestamp"] * 1000),
-                            "finished_at": int(event["timestamp"] * 1000) + 1000
+                            "finished_at": int((event.get("finished_at", event["timestamp"]) * 1000))
                         }
                     }
                     traces_map[trace_id]["spans"].append(span)
+                    
                 elif event["type"] == "tool_call":
+                    # Enhanced tool span with better categorization
+                    tool_name = event.get("tool_name", "unknown")
+                    tool_category = self._categorize_tool(tool_name)
+                    
                     span = {
-                        "type": "tool",
+                        "type": "span",  # Generic span for tools
                         "span_id": event.get("span_id", str(uuid.uuid4())),
-                        "name": event.get("tool_name", "unknown"),
+                        "parent_span_id": event.get("parent_span_id"),
+                        "name": f"{tool_category}: {tool_name}",
                         "input": {
                             "type": "json",
                             "value": event.get("args", {})
                         },
                         "output": {
                             "type": "json",
-                            "value": event.get("result", {})
+                            "value": {
+                                "result": event.get("result", ""),
+                                "status": event.get("status", "success")
+                            }
+                        },
+                        "metrics": {
+                            "duration_ms": event.get("duration_ms", 0)
                         },
                         "timestamps": {
                             "started_at": int(event["timestamp"] * 1000),
-                            "finished_at": int(event["timestamp"] * 1000) + 500
-                        }
+                            "finished_at": int(event.get("finished_at", event["timestamp"]) * 1000)
+                        },
+                        "error": event.get("error")
                     }
                     traces_map[trace_id]["spans"].append(span)
+                    
+                elif event["type"] == "memory_operation":
+                    # Special span for memory operations
+                    operation = event.get("operation", "unknown")
+                    
+                    span = {
+                        "type": "span",
+                        "span_id": event.get("span_id", str(uuid.uuid4())),
+                        "parent_span_id": event.get("parent_span_id"),
+                        "name": f"Memory: {operation}",
+                        "input": {
+                            "type": "json",
+                            "value": {
+                                "operation": operation,
+                                "key": event.get("key"),
+                                "content_length": event.get("content_length", 0)
+                            }
+                        },
+                        "output": {
+                            "type": "json",
+                            "value": {
+                                "result": event.get("result", ""),
+                                "status": event.get("status", "success")
+                            }
+                        },
+                        "metrics": {
+                            "duration_ms": event.get("duration_ms", 0)
+                        },
+                        "timestamps": {
+                            "started_at": int(event["timestamp"] * 1000),
+                            "finished_at": int(event.get("finished_at", event["timestamp"]) * 1000)
+                        },
+                        "error": event.get("error")
+                    }
+                    traces_map[trace_id]["spans"].append(span)
+                    
                 elif event["type"] == "trace_metadata":
-                    # Add metadata to the trace
-                    traces_map[trace_id]["metadata"].update(event.get("metadata", {}))
+                    # Add metadata to the trace with better structure
+                    trace_metadata = event.get("metadata", {})
+                    
+                    # Extract key fields for LangWatch
+                    if "user_id" in trace_metadata:
+                        traces_map[trace_id]["user_id"] = trace_metadata["user_id"]
+                    if "thread_id" in trace_metadata:
+                        traces_map[trace_id]["thread_id"] = trace_metadata["thread_id"]
+                    if "customer_id" in trace_metadata:
+                        traces_map[trace_id]["customer_id"] = trace_metadata["customer_id"]
+                    
+                    # Store all metadata
+                    traces_map[trace_id]["metadata"].update(trace_metadata)
+                    
                 elif event["type"] == "metadata":
                     # Add additional metadata
                     category = event.get("category", "general")
@@ -374,22 +518,56 @@ class LangWatchProvider(ObservabilityProvider):
             
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        self.endpoint,
-                        json=traces[0] if len(traces) == 1 else {"traces": traces},
-                        headers=headers,
-                        timeout=10.0
-                    )
-                    
-                    if response.status_code == 200:
-                        logger.info(f"✅ Successfully sent {len(events)} events to LangWatch")
-                    elif response.status_code == 201:
-                        logger.info(f"✅ Successfully created trace in LangWatch")
-                    else:
-                        logger.warning(f"❌ LangWatch API returned {response.status_code}: {response.text}")
+                    # Send each trace separately for better LangWatch handling
+                    for trace in traces:
+                        response = await client.post(
+                            self.endpoint,
+                            json=trace,
+                            headers=headers,
+                            timeout=10.0
+                        )
                         
+                        if response.status_code in [200, 201]:
+                            logger.info(f"✅ Successfully sent trace {trace['trace_id']} with {len(trace['spans'])} spans to LangWatch")
+                        else:
+                            logger.warning(f"❌ LangWatch API returned {response.status_code} for trace {trace['trace_id']}: {response.text}")
+                            
             except Exception as e:
                 logger.debug(f"Failed to send to LangWatch: {e}")
+    
+    def _detect_llm_vendor(self, model: str) -> str:
+        """Detect LLM vendor from model name."""
+        model_lower = model.lower()
+        if "gpt" in model_lower or "openai" in model_lower:
+            return "openai"
+        elif "claude" in model_lower or "anthropic" in model_lower:
+            return "anthropic"
+        elif "gemini" in model_lower or "google" in model_lower:
+            return "google"
+        elif "llama" in model_lower or "meta" in model_lower:
+            return "meta"
+        elif "mistral" in model_lower:
+            return "mistral"
+        elif "groq" in model_lower:
+            return "groq"
+        else:
+            return "unknown"
+    
+    def _categorize_tool(self, tool_name: str) -> str:
+        """Categorize tool for better span naming."""
+        tool_lower = tool_name.lower()
+        if "memory" in tool_lower or "store" in tool_lower or "get_memory" in tool_lower:
+            return "Memory"
+        elif "time" in tool_lower or "date" in tool_lower:
+            return "DateTime"
+        elif "search" in tool_lower:
+            return "Search"
+        elif "message" in tool_lower or "send" in tool_lower:
+            return "Communication"
+        elif "multimodal" in tool_lower or "image" in tool_lower or "audio" in tool_lower:
+            return "Multimodal"
+        else:
+            return "Tool"
         
         # Run async in sync context
         try:
