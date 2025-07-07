@@ -14,8 +14,18 @@ def get_tracing_manager() -> 'TracingManager':
     global _tracing_manager
     
     if _tracing_manager is None:
+        import os
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Check if tracing is enabled
+        enabled = os.environ.get('AUTOMAGIK_TRACING_ENABLED', 'true').lower() == 'true'
+        logger.info(f"🔍 Tracing initialization - enabled: {enabled}, env: {os.environ.get('AUTOMAGIK_TRACING_ENABLED', 'not set')}")
+        
         from .core import TracingManager
+        logger.info("🚀 Creating TracingManager instance...")
         _tracing_manager = TracingManager()
+        logger.info(f"✅ TracingManager created: {_tracing_manager}")
     
     return _tracing_manager
 

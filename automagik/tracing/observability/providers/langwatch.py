@@ -151,13 +151,14 @@ class LangWatchProvider(ObservabilityProvider):
         
         logger.info(f"📝 Logging LLM call to LangWatch - model: {model}, messages: {len(messages)}, usage: {usage}")
         
+        # Log full system prompt and conversation
         event = {
             "type": "llm_call",
             "trace_id": self.current_trace_id,
             "span_id": self.current_span_id,
             "model": model,
-            "messages": messages,
-            "response": str(response)[:1000],  # Truncate for safety
+            "messages": messages,  # This now includes system prompt and full history
+            "response": str(response),  # Full response
             "usage": usage,
             "timestamp": time.time()
         }
@@ -214,6 +215,56 @@ class LangWatchProvider(ObservabilityProvider):
         if self.async_tracer:
             self.async_tracer.trace_event(event)
     
+    def log_metadata(
+        self,
+        metadata: Dict[str, Any]
+    ) -> None:
+        """Log additional metadata and context to LangWatch."""
+        if not self.enabled or not self.current_trace_id:
+            return
+        
+        # Log memory variables if present
+        if "memory_variables" in metadata and metadata["memory_variables"]:
+            event = {
+                "type": "metadata",
+                "trace_id": self.current_trace_id,
+                "span_id": str(uuid.uuid4()),
+                "category": "memory_variables",
+                "data": metadata["memory_variables"],
+                "timestamp": time.time()
+            }
+            self._ensure_tracer()
+            if self.async_tracer:
+                self.async_tracer.trace_event(event)
+        
+        # Log tool calls as separate spans
+        if "tool_calls" in metadata and metadata["tool_calls"]:
+            for tool_call in metadata["tool_calls"]:
+                self.log_tool_call(
+                    tool_name=tool_call.get("name", "unknown"),
+                    args=tool_call.get("args", {}),
+                    result=tool_call.get("result", "")
+                )
+        
+        # Store metadata for the current trace
+        metadata_event = {
+            "type": "trace_metadata",
+            "trace_id": self.current_trace_id,
+            "span_id": self.current_span_id,
+            "metadata": {
+                "agent_name": metadata.get("agent_name"),
+                "agent_id": metadata.get("agent_id"),
+                "framework": metadata.get("framework"),
+                "session_id": metadata.get("session_id"),
+                "multimodal": metadata.get("multimodal", False)
+            },
+            "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(metadata_event)
+    
     def _process_trace_batch(self, events: List[Dict[str, Any]]) -> None:
         """Process a batch of trace events.
         
@@ -254,7 +305,8 @@ class LangWatchProvider(ObservabilityProvider):
                 if trace_id not in traces_map:
                     traces_map[trace_id] = {
                         "trace_id": trace_id,
-                        "spans": []
+                        "spans": [],
+                        "metadata": {}
                     }
                 
                 # Convert event to span
@@ -306,6 +358,13 @@ class LangWatchProvider(ObservabilityProvider):
                         }
                     }
                     traces_map[trace_id]["spans"].append(span)
+                elif event["type"] == "trace_metadata":
+                    # Add metadata to the trace
+                    traces_map[trace_id]["metadata"].update(event.get("metadata", {}))
+                elif event["type"] == "metadata":
+                    # Add additional metadata
+                    category = event.get("category", "general")
+                    traces_map[trace_id]["metadata"][category] = event.get("data", {})
             
             # Only send traces that have spans
             traces = [trace for trace in traces_map.values() if trace["spans"]]

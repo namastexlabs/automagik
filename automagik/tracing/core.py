@@ -50,13 +50,15 @@ class TracingManager:
     def observability(self) -> Optional['ObservabilityManager']:
         """Get observability manager (lazy loaded)."""
         if self._observability is None:
+            logger.info(f"🔍 Observability check - enabled: {self.config.observability_enabled}, providers: {self.config.observability_providers}")
             if self.config.observability_enabled and self.config.observability_providers:
                 try:
                     from .observability import ObservabilityManager
+                    logger.info("📊 Creating ObservabilityManager...")
                     self._observability = ObservabilityManager(self.config)
-                    logger.debug("Observability manager initialized")
+                    logger.info(f"✅ Observability manager initialized with providers: {list(self._observability.providers.keys()) if self._observability else 'None'}")
                 except Exception as e:
-                    logger.warning(f"Failed to initialize observability: {e}")
+                    logger.error(f"❌ Failed to initialize observability: {e}", exc_info=True)
                     self._observability = None
         return self._observability
     

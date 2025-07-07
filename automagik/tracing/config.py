@@ -61,13 +61,16 @@ class TracingConfig:
         # Detect available providers based on API keys
         if config.observability_enabled:
             providers = []
-            if os.getenv("LANGWATCH_API_KEY"):
+            langwatch_key = os.getenv("LANGWATCH_API_KEY")
+            if langwatch_key:
                 providers.append("langwatch")
+                print(f"🔑 LangWatch API key detected: {langwatch_key[:10]}...")
             if os.getenv("LANGFUSE_PUBLIC_KEY"):
                 providers.append("langfuse")
             if os.getenv("LANGSMITH_API_KEY"):
                 providers.append("langsmith")
             config.observability_providers = providers
+            print(f"📊 Observability providers configured: {providers}")
         
         # Telemetry configuration
         config.telemetry_enabled = os.getenv(
