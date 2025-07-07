@@ -941,7 +941,6 @@ async def inject_message_to_running_workflow(
         message_data = {
             "id": str(uuid.uuid4()),
             "message": request.message,
-            "priority": request.priority,
             "injected_at": datetime.utcnow().isoformat(),
             "run_id": run_id,
             "processed": False
@@ -958,13 +957,8 @@ async def inject_message_to_running_workflow(
             except (json.JSONDecodeError, IOError):
                 existing_messages = []
         
-        # Add new message to queue (priority ordering)
-        if request.priority == "urgent":
-            # Insert urgent messages at the front
-            existing_messages.insert(0, message_data)
-        else:
-            # Normal and low priority messages go to the end
-            existing_messages.append(message_data)
+        # Add new message to queue (FIFO order)
+        existing_messages.append(message_data)
         
         # Write updated message queue
         try:
@@ -992,7 +986,6 @@ async def inject_message_to_running_workflow(
             injected_messages.append({
                 "message_id": message_data["id"],
                 "injected_at": message_data["injected_at"],
-                "priority": request.priority,
                 "message_preview": request.message[:100] + ("..." if len(request.message) > 100 else "")
             })
             
@@ -1014,7 +1007,6 @@ async def inject_message_to_running_workflow(
             "message_id": message_data["id"],
             "run_id": run_id,
             "message": "Message queued for injection into running workflow",
-            "priority": request.priority,
             "queue_position": len(existing_messages),
             "injected_at": message_data["injected_at"],
             "workspace_path": str(workspace_path)

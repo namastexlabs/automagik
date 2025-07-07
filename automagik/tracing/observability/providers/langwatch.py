@@ -342,8 +342,21 @@ class LangWatchProvider(ObservabilityProvider):
         
         self.circuit_breaker.call(send_batch)
     
-    def _sanitize_tool_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_tool_args(self, args: Any) -> Dict[str, Any]:
         """Sanitize tool arguments for LangWatch."""
+        # Handle case where args is a string (like from PydanticAI)
+        if isinstance(args, str):
+            try:
+                import json
+                args = json.loads(args)
+            except (json.JSONDecodeError, ValueError):
+                # If it's not valid JSON, treat it as a raw string argument
+                return {"raw_args": args}
+        
+        # Handle case where args is not a dictionary
+        if not isinstance(args, dict):
+            return {"value": str(args)}
+        
         sanitized = {}
         for key, value in args.items():
             if isinstance(value, str) and len(value) > 1000:
