@@ -137,25 +137,31 @@ class LangWatchProvider(ObservabilityProvider):
         model: str,
         messages: List[Dict[str, str]],
         response: Any,
-        usage: Dict[str, Any]
+        usage: Dict[str, Any],
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        parent_span_id: Optional[str] = None
     ) -> None:
         """Log LLM interaction to LangWatch."""
         if not self.enabled:
             logger.debug("LangWatch not enabled, skipping LLM call logging")
             return
             
+        # Use provided trace_id or current trace_id or create new one
+        used_trace_id = trace_id or self.current_trace_id or str(uuid.uuid4())
+        used_span_id = span_id or self.current_span_id or str(uuid.uuid4())
         if not self.current_trace_id:
-            logger.warning("No active trace, creating new trace for LLM call")
-            self.current_trace_id = str(uuid.uuid4())
-            self.current_span_id = str(uuid.uuid4())
+            self.current_trace_id = used_trace_id
+            self.current_span_id = used_span_id
         
         logger.info(f"📝 Logging LLM call to LangWatch - model: {model}, messages: {len(messages)}, usage: {usage}")
         
         # Log full system prompt and conversation
         event = {
             "type": "llm_call",
-            "trace_id": self.current_trace_id,
-            "span_id": self.current_span_id,
+            "trace_id": used_trace_id,
+            "span_id": used_span_id,
+            "parent_span_id": parent_span_id,
             "model": model,
             "messages": messages,  # This now includes system prompt and full history
             "response": str(response),  # Full response
@@ -174,10 +180,17 @@ class LangWatchProvider(ObservabilityProvider):
         args: Dict[str, Any],
         result: Any,
         duration_ms: Optional[float] = None,
-        error: Optional[str] = None
+        error: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        parent_span_id: Optional[str] = None
     ) -> None:
         """Log tool execution to LangWatch with proper span structure."""
-        if not self.enabled or not self.current_trace_id:
+        if not self.enabled:
+            return
+        
+        # Use provided trace_id or current trace_id
+        used_trace_id = trace_id or self.current_trace_id
+        if not used_trace_id:
             return
         
         logger.info(f"🔧 Logging tool call to LangWatch - tool: {tool_name}, args: {len(str(args))}, result: {len(str(result))}")
@@ -189,9 +202,9 @@ class LangWatchProvider(ObservabilityProvider):
         # Enhanced tool call event with proper span structure
         event = {
             "type": "tool_call",
-            "trace_id": self.current_trace_id,
+            "trace_id": used_trace_id,
             "span_id": tool_span_id,
-            "parent_span_id": self.current_span_id,  # Link to parent span
+            "parent_span_id": parent_span_id or self.current_span_id,  # Use provided parent_span_id or fallback to current
             "tool_name": tool_name,
             "args": self._sanitize_tool_args(args),
             "result": self._sanitize_tool_result(result),
@@ -411,6 +424,7 @@ class LangWatchProvider(ObservabilityProvider):
                     span = {
                         "type": "llm",
                         "span_id": event.get("span_id", str(uuid.uuid4())),
+                        "parent_span_id": event.get("parent_span_id"),
                         "vendor": vendor,
                         "model": model,
                         "input": {
@@ -441,21 +455,22 @@ class LangWatchProvider(ObservabilityProvider):
                     tool_name = event.get("tool_name", "unknown")
                     tool_category = self._categorize_tool(tool_name)
                     
+                    # Clean result text for tool output - extract meaningful user-facing text
+                    tool_result = event.get("result", "")
+                    clean_result = self._extract_clean_tool_result(tool_result, tool_name)
+                    
                     span = {
                         "type": "span",  # Generic span for tools
                         "span_id": event.get("span_id", str(uuid.uuid4())),
                         "parent_span_id": event.get("parent_span_id"),
                         "name": f"{tool_category}: {tool_name}",
                         "input": {
-                            "type": "json",
-                            "value": event.get("args", {})
+                            "type": "text",
+                            "value": f"Calling {tool_name}"
                         },
                         "output": {
-                            "type": "json",
-                            "value": {
-                                "result": event.get("result", ""),
-                                "status": event.get("status", "success")
-                            }
+                            "type": "text",
+                            "value": clean_result
                         },
                         "metrics": {
                             "duration_ms": event.get("duration_ms", 0)
@@ -522,6 +537,57 @@ class LangWatchProvider(ObservabilityProvider):
                     # Add additional metadata
                     category = event.get("category", "general")
                     traces_map[trace_id]["metadata"][category] = event.get("data", {})
+                
+                elif event["type"] == "trace_start":
+                    # Initialize trace with metadata
+                    trace_metadata = event.get("metadata", {})
+                    
+                    # Extract key LangWatch fields
+                    if "user_id" in trace_metadata:
+                        traces_map[trace_id]["user_id"] = trace_metadata["user_id"]
+                    if "thread_id" in trace_metadata:
+                        traces_map[trace_id]["thread_id"] = trace_metadata["thread_id"]
+                    if "customer_id" in trace_metadata:
+                        traces_map[trace_id]["customer_id"] = trace_metadata["customer_id"]
+                    
+                    # Store all metadata
+                    traces_map[trace_id]["metadata"].update(trace_metadata)
+                    traces_map[trace_id]["input"] = {"value": event.get("input", "")}
+                
+                elif event["type"] in ["agent_config", "input_processing", "output_generation"]:
+                    # Create spans for agent lifecycle events with clean text outputs
+                    span_name_map = {
+                        "agent_config": "Agent Configuration",
+                        "input_processing": "Input Processing", 
+                        "output_generation": "Output Generation"
+                    }
+                    
+                    # Get the output and ensure it's clean text
+                    output_text = event.get("output", "Completed successfully")
+                    
+                    span = {
+                        "type": "span",
+                        "span_id": event.get("span_id", str(uuid.uuid4())),
+                        "parent_span_id": event.get("parent_span_id"),
+                        "name": span_name_map[event["type"]],
+                        "input": {
+                            "type": "text",
+                            "value": event.get("input", "")
+                        },
+                        "output": {
+                            "type": "text", 
+                            "value": output_text
+                        },
+                        "timestamps": {
+                            "started_at": int(event["timestamp"] * 1000),
+                            "finished_at": int(event["timestamp"] * 1000)
+                        }
+                    }
+                    traces_map[trace_id]["spans"].append(span)
+                
+                elif event["type"] == "trace_end":
+                    # Set final output for the trace
+                    traces_map[trace_id]["output"] = {"value": event.get("output", "Agent execution completed")}
             
             # Only send traces that have spans
             traces = [trace for trace in traces_map.values() if trace["spans"]]
@@ -593,18 +659,56 @@ class LangWatchProvider(ObservabilityProvider):
             return "Multimodal"
         else:
             return "Tool"
-        
-        # Run async in sync context
+    
+    def _extract_clean_tool_result(self, tool_result: Any, tool_name: str) -> str:
+        """Extract clean, user-friendly text from tool result."""
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        if loop.is_running():
-            asyncio.create_task(send())
-        else:
-            loop.run_until_complete(send())
+            # Handle different tool result structures
+            if isinstance(tool_result, dict):
+                # For get_current_time tool specifically
+                if tool_name == "get_current_time" and "result" in tool_result:
+                    return f"Current time: {tool_result['result']}"
+                
+                # For dictionary results, extract the most relevant field
+                if "result" in tool_result:
+                    result_value = tool_result["result"]
+                    if isinstance(result_value, str):
+                        return result_value
+                    else:
+                        return str(result_value)
+                
+                # Try other common result fields
+                for key in ["content", "text", "message", "output", "value"]:
+                    if key in tool_result:
+                        return str(tool_result[key])
+                
+                # If no obvious result field, create a summary
+                summary_parts = []
+                for key, value in tool_result.items():
+                    if key not in ["timestamp", "metadata"] and value is not None:
+                        summary_parts.append(f"{key}: {value}")
+                
+                if summary_parts:
+                    return "; ".join(summary_parts[:3])  # Limit to first 3 fields
+                
+                return "Tool executed successfully"
+            
+            elif isinstance(tool_result, str):
+                return tool_result
+            
+            elif tool_result is None:
+                return "Tool executed successfully"
+            
+            else:
+                # For other types, convert to string but keep it clean
+                result_str = str(tool_result)
+                if len(result_str) > 100:
+                    return result_str[:100] + "..."
+                return result_str
+                
+        except Exception as e:
+            logger.warning(f"Error extracting clean tool result: {e}")
+            return "Tool executed"
     
     def flush(self) -> None:
         """Flush any pending traces."""
@@ -615,3 +719,123 @@ class LangWatchProvider(ObservabilityProvider):
         """Cleanup LangWatch resources."""
         if self.async_tracer:
             self.async_tracer.shutdown(timeout=2.0)
+    
+    # Enhanced tracing methods for better user experience
+    
+    def start_trace(self, trace_id: str, span_id: str, name: str, input_text: str, metadata: Dict[str, Any]) -> None:
+        """Start a new trace with comprehensive metadata for LangWatch."""
+        self.current_trace_id = trace_id
+        self.current_span_id = span_id
+        
+        # Create trace start event with full context
+        event = {
+            "type": "trace_start",
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "name": name,
+            "input": input_text,
+            "metadata": metadata,
+            "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(event)
+    
+    def log_agent_config(self, trace_id: str, span_id: str, parent_span_id: str, agent_name: str, model: str, system_prompt: str, memory_variables: Dict, framework: str) -> None:
+        """Log agent configuration as a dedicated span."""
+        
+        # Create clean text summary for configuration
+        config_summary = f"Agent: {agent_name}\nModel: {model}\nFramework: {framework}\nMemory Variables: {len(memory_variables)}"
+        
+        event = {
+            "type": "agent_config",
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "parent_span_id": parent_span_id,
+            "input": f"Configuring agent {agent_name}",
+            "output": config_summary,
+            "agent_name": agent_name,
+            "model": model,
+            "system_prompt": system_prompt[:500] + "..." if len(system_prompt) > 500 else system_prompt,
+            "memory_variables": list(memory_variables.keys()) if memory_variables else [],
+            "framework": framework,
+            "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(event)
+    
+    def log_input_processing(self, trace_id: str, span_id: str, parent_span_id: str, raw_input: str, processed_input: str, message_history: List, multimodal_content: bool) -> None:
+        """Log input processing as a dedicated span."""
+        
+        # Create clean text output for input processing
+        processing_summary = f"Input processed successfully"
+        if message_history:
+            processing_summary += f" (with {len(message_history)} previous messages)"
+        if multimodal_content:
+            processing_summary += " (multimodal content detected)"
+        
+        event = {
+            "type": "input_processing",
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "parent_span_id": parent_span_id,
+            "input": raw_input,
+            "output": processing_summary,
+            "raw_input": raw_input,
+            "processed_input": processed_input,
+            "message_history_length": len(message_history) if message_history else 0,
+            "multimodal": multimodal_content,
+            "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(event)
+    
+    def log_output_generation(self, trace_id: str, span_id: str, parent_span_id: str, raw_output: str, final_output: str, tool_calls: List, usage: Dict) -> None:
+        """Log output generation as a dedicated span."""
+        
+        # Create clean text summary for output generation
+        generation_summary = f"Generated response"
+        if tool_calls:
+            generation_summary += f" (used {len(tool_calls)} tools)"
+        if usage.get('total_tokens'):
+            generation_summary += f" - {usage['total_tokens']} tokens"
+        
+        event = {
+            "type": "output_generation",
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "parent_span_id": parent_span_id,
+            "input": "Generating final response",
+            "output": final_output,  # Clean final text output
+            "raw_output": raw_output[:1000] + "..." if len(raw_output) > 1000 else raw_output,
+            "final_output": final_output,
+            "tool_calls_count": len(tool_calls),
+            "usage": usage,
+            "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(event)
+    
+    def complete_trace(self, trace_id: str, final_output: str) -> None:
+        """Complete the trace and trigger sending to LangWatch."""
+        end_event = {
+            "type": "trace_end",
+            "trace_id": trace_id,
+            "span_id": self.current_span_id,
+            "output": final_output,  # Set final trace output
+            "timestamp": time.time()
+        }
+        
+        self._ensure_tracer()
+        if self.async_tracer:
+            self.async_tracer.trace_event(end_event)
+            # Force flush to send immediately
+            if hasattr(self.async_tracer, 'flush'):
+                self.async_tracer.flush()
