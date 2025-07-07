@@ -58,7 +58,7 @@ class MemoryHandler:
                     
                     # If not found, create it with default value
                     if not existing_memory:
-                        logger.info(f"Creating missing memory variable: {var_name} for user: {user_id}")
+                        logger.debug(f"Creating missing memory variable: {var_name} for user: {user_id}")
                         
                         # Prepare a proper description based on the variable name
                         description = "Auto-created template variable for SimpleAgent"
@@ -87,7 +87,7 @@ class MemoryHandler:
                         
                         memory_id = create_memory(memory)
                         if memory_id:
-                            logger.info(f"Created memory variable: {var_name} with ID: {memory_id} for user: {user_id}")
+                            logger.debug(f"Created memory variable: {var_name} with ID: {memory_id} for user: {user_id}")
                         else:
                             logger.error(f"Failed to create memory variable: {var_name}")
                             success = False
@@ -269,14 +269,14 @@ class MemoryHandler:
                     
                 try:
                     # Fetch memory content
-                    logger.info(f"Fetching memory variable: {var_name} with context {context}")
+                    logger.debug(f"Fetching memory variable: {var_name} with context {context}")
                     memory_result = await read_memory(context, name=var_name)
                     
                     if isinstance(memory_result, dict):
                         # Check if we have success and content
                         if memory_result.get("success", False) and "content" in memory_result:
                             memory_vars[var_name] = memory_result["content"]
-                            logger.info(f"Successfully fetched memory variable: {var_name}")
+                            logger.debug(f"Successfully fetched memory variable: {var_name}")
                         else:
                             # If not successful or no content, use a default value
                             memory_vars[var_name] = "No data available"

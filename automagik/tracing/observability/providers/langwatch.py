@@ -154,7 +154,7 @@ class LangWatchProvider(ObservabilityProvider):
             self.current_trace_id = used_trace_id
             self.current_span_id = used_span_id
         
-        logger.info(f"📝 Logging LLM call to LangWatch - model: {model}, messages: {len(messages)}, usage: {usage}")
+        logger.debug(f"Logging LLM call to LangWatch - model: {model}, messages: {len(messages)}")
         
         # Log full system prompt and conversation
         event = {
@@ -193,7 +193,7 @@ class LangWatchProvider(ObservabilityProvider):
         if not used_trace_id:
             return
         
-        logger.info(f"🔧 Logging tool call to LangWatch - tool: {tool_name}, args: {len(str(args))}, result: {len(str(result))}")
+        logger.debug(f"Logging tool call to LangWatch - tool: {tool_name}")
         
         # Create a unique span ID for this tool call
         tool_span_id = str(uuid.uuid4())
