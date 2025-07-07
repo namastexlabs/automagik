@@ -84,16 +84,16 @@ def create_agent(agent_name=None):
 
 # Canonical exports for common agent classes
 SimpleAgent = import_module("automagik.agents.pydanticai.simple.agent").SimpleAgent  # type: ignore
-StanAgent = import_module("automagik.agents.pydanticai.stan.agent").StanAgent  # type: ignore
-StanEmailAgent = import_module("automagik.agents.pydanticai.stan_email.agent").StanEmailAgent  # type: ignore
+# StanAgent = import_module("automagik.agents.pydanticai.stan.agent").StanAgent  # type: ignore  # Commented out - missing module
+# StanEmailAgent = import_module("automagik.agents.pydanticai.stan_email.agent").StanEmailAgent  # type: ignore  # Commented out - missing module
 SofiaAgent = import_module("automagik.agents.pydanticai.sofia.agent").SofiaAgent  # type: ignore
 SummaryAgent = import_module("automagik.agents.pydanticai.summary.agent").SummaryAgent  # type: ignore
 PromptMakerAgent = import_module("automagik.agents.pydanticai.prompt_maker.agent").PromptMakerAgent  # type: ignore
 
 __all__ = [
     "SimpleAgent",
-    "StanAgent",
-    "StanEmailAgent",
+    # "StanAgent",  # Commented out - missing module
+    # "StanEmailAgent",  # Commented out - missing module
     "SofiaAgent",
     "SummaryAgent",
     "PromptMakerAgent",
