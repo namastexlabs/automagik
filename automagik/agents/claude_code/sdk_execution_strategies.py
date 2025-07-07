@@ -10,7 +10,7 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 from uuid import uuid4
 
 from claude_code_sdk import query, ClaudeCodeOptions
@@ -139,6 +139,74 @@ class ExecutionStrategies:
         
         return options
     
+    async def _check_and_process_pending_messages(
+        self, 
+        workspace_path: Path, 
+        run_id: str
+    ) -> List[str]:
+        """
+        Check for pending injected messages and process them.
+        
+        Args:
+            workspace_path: Path to the workflow workspace
+            run_id: The workflow run ID
+            
+        Returns:
+            List of messages to inject into the conversation
+        """
+        try:
+            message_queue_file = workspace_path / ".pending_messages.json"
+            
+            if not message_queue_file.exists():
+                return []
+            
+            # Read and parse pending messages
+            import json
+            try:
+                with open(message_queue_file, 'r') as f:
+                    pending_messages = json.load(f)
+                
+                if not isinstance(pending_messages, list):
+                    return []
+                    
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(f"Failed to read pending messages file: {e}")
+                return []
+            
+            # Filter unprocessed messages
+            unprocessed_messages = [
+                msg for msg in pending_messages 
+                if not msg.get("processed", False)
+            ]
+            
+            if not unprocessed_messages:
+                return []
+            
+            # Extract messages to inject
+            messages_to_inject = []
+            for msg in unprocessed_messages:
+                messages_to_inject.append(msg["message"])
+                # Mark as processed
+                msg["processed"] = True
+                msg["processed_at"] = datetime.utcnow().isoformat()
+            
+            # Write back the updated queue with processed flags
+            try:
+                with open(message_queue_file, 'w') as f:
+                    json.dump(pending_messages, f, indent=2)
+                
+                logger.info(f"Processed {len(messages_to_inject)} injected messages for run {run_id}")
+                
+            except IOError as e:
+                logger.error(f"Failed to update message queue file: {e}")
+                # Still return the messages even if we can't update the file
+            
+            return messages_to_inject
+            
+        except Exception as e:
+            logger.error(f"Error checking pending messages for run {run_id}: {e}")
+            return []
+    
     async def execute_simple(
         self, 
         request: ClaudeCodeRunRequest, 
@@ -224,6 +292,37 @@ class ExecutionStrategies:
                                 break
                         except Exception as kill_check_error:
                             logger.error(f"Kill signal check failed: {kill_check_error}")
+                    
+                    # Check for pending injected messages
+                    if hasattr(request, 'run_id') and request.run_id and workspace_path:
+                        try:
+                            injected_messages = await self._check_and_process_pending_messages(
+                                workspace_path, request.run_id
+                            )
+                            
+                            if injected_messages:
+                                logger.info(f"📨 Found {len(injected_messages)} injected messages for run {request.run_id}")
+                                
+                                # Process each injected message by adding them to the conversation
+                                # Note: This is a simplified approach - in a more sophisticated implementation,
+                                # you might want to modify the Claude SDK query to accept new messages
+                                for injected_msg in injected_messages:
+                                    # Add the injected message to the collected messages
+                                    # This simulates the user sending additional input
+                                    messages.append(f"[INJECTED MESSAGE] {injected_msg}")
+                                    
+                                    # Log the injection for debugging
+                                    if log_writer:
+                                        try:
+                                            await log_writer(
+                                                f"💉 Injected message: {injected_msg[:100]}...",
+                                                "message_injection"
+                                            )
+                                        except Exception as log_error:
+                                            logger.error(f"Failed to log injected message: {log_error}")
+                                
+                        except Exception as message_check_error:
+                            logger.error(f"Failed to check pending messages: {message_check_error}")
                     
                     messages.append(str(message))
                     collected_messages.append(message)

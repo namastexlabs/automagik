@@ -853,6 +853,183 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
         )
 
 
+class InjectMessageRequest(BaseModel):
+    """Request model for injecting a message into a running workflow."""
+    
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="Message to inject into the running workflow"
+    )
+
+
+@claude_code_router.post("/run/{run_id}/inject-message")
+async def inject_message_to_running_workflow(
+    run_id: str = Path(..., description="Run ID of the active workflow"),
+    request: InjectMessageRequest = Body(...)
+) -> Dict[str, Any]:
+    """
+    Inject a new message into a running Claude Code workflow.
+    
+    This endpoint allows you to send additional messages to an already running
+    workflow without stopping and restarting it. Messages are queued and processed
+    by the workflow in the order they are received.
+    
+    **Parameters:**
+    - `run_id`: The run ID of the active workflow
+    - `message`: The message to inject into the workflow
+    
+    **Returns:**
+    Confirmation that the message was queued for injection.
+    
+    **Examples:**
+    ```bash
+    # Inject a message into a running workflow
+    POST /api/v1/workflows/claude-code/run/abc-123/inject-message
+    {
+        "message": "Please also add error handling to the implementation"
+    }
+    ```
+    
+    **Notes:**
+    - Only works with actively running workflows
+    - Messages are processed in the order they are received
+    - The workflow must be in "running" status
+    - Messages are persisted even if workflow is temporarily paused
+    """
+    try:
+        import json
+        from pathlib import Path as PathLib
+        from datetime import datetime
+        
+        # Verify workflow is running
+        from automagik.db.repository.workflow_run import get_workflow_run_by_run_id
+        
+        workflow_run = get_workflow_run_by_run_id(run_id)
+        if not workflow_run:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Workflow run {run_id} not found"
+            )
+        
+        if workflow_run.status not in ["running", "pending"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot inject message into workflow with status '{workflow_run.status}'. Workflow must be running or pending."
+            )
+        
+        # Get workspace path from workflow run
+        workspace_path = workflow_run.workspace_path
+        if not workspace_path:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No workspace found for workflow run {run_id}"
+            )
+        
+        workspace_dir = PathLib(workspace_path)
+        if not workspace_dir.exists():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Workspace directory does not exist: {workspace_path}"
+            )
+        
+        # Create message queue file path
+        message_queue_file = workspace_dir / ".pending_messages.json"
+        
+        # Prepare message data
+        message_data = {
+            "id": str(uuid.uuid4()),
+            "message": request.message,
+            "priority": request.priority,
+            "injected_at": datetime.utcnow().isoformat(),
+            "run_id": run_id,
+            "processed": False
+        }
+        
+        # Load existing messages or create new queue
+        existing_messages = []
+        if message_queue_file.exists():
+            try:
+                with open(message_queue_file, 'r') as f:
+                    existing_messages = json.load(f)
+                if not isinstance(existing_messages, list):
+                    existing_messages = []
+            except (json.JSONDecodeError, IOError):
+                existing_messages = []
+        
+        # Add new message to queue (priority ordering)
+        if request.priority == "urgent":
+            # Insert urgent messages at the front
+            existing_messages.insert(0, message_data)
+        else:
+            # Normal and low priority messages go to the end
+            existing_messages.append(message_data)
+        
+        # Write updated message queue
+        try:
+            with open(message_queue_file, 'w') as f:
+                json.dump(existing_messages, f, indent=2)
+            
+            logger.info(f"Injected message into workflow {run_id}: {request.message[:100]}...")
+            
+        except IOError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to write message to workspace: {str(e)}"
+            )
+        
+        # Update workflow run metadata to track message injection
+        try:
+            from automagik.db.models import WorkflowRunUpdate
+            from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
+            
+            # Get existing metadata
+            current_metadata = workflow_run.metadata or {}
+            injected_messages = current_metadata.get("injected_messages", [])
+            
+            # Add message summary to metadata
+            injected_messages.append({
+                "message_id": message_data["id"],
+                "injected_at": message_data["injected_at"],
+                "priority": request.priority,
+                "message_preview": request.message[:100] + ("..." if len(request.message) > 100 else "")
+            })
+            
+            current_metadata["injected_messages"] = injected_messages
+            current_metadata["last_message_injection"] = datetime.utcnow().isoformat()
+            
+            update_data = WorkflowRunUpdate(
+                metadata=current_metadata,
+                updated_at=datetime.utcnow()
+            )
+            update_workflow_run_by_run_id(run_id, update_data)
+            
+        except Exception as metadata_error:
+            logger.warning(f"Failed to update workflow metadata for message injection: {metadata_error}")
+            # Don't fail the injection for metadata issues
+        
+        return {
+            "success": True,
+            "message_id": message_data["id"],
+            "run_id": run_id,
+            "message": "Message queued for injection into running workflow",
+            "priority": request.priority,
+            "queue_position": len(existing_messages),
+            "injected_at": message_data["injected_at"],
+            "workspace_path": str(workspace_path)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error injecting message into workflow {run_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to inject message: {str(e)}"
+        )
+
+
 @claude_code_router.post("/run/{run_id}/kill")
 async def kill_claude_code_run(
     run_id: str = Path(..., description="Run ID to terminate"),

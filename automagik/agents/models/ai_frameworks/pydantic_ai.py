@@ -186,23 +186,26 @@ class PydanticAIFramework(AgentAIFramework):
         
         try:
             if hasattr(result, 'all_messages'):
-                # First pass: collect tool results
+                # First pass: collect tool results from ToolReturnPart
                 for message in result.all_messages():
-                    if hasattr(message, 'content') and hasattr(message, 'tool_call_id'):
-                        if message.tool_call_id:  # This is a tool response
-                            tool_results[message.tool_call_id] = message.content
+                    if hasattr(message, 'parts') and message.parts:
+                        for part in message.parts:
+                            # Check if this is a tool return part
+                            if hasattr(part, 'tool_call_id') and hasattr(part, 'content') and 'ToolReturnPart' in str(type(part)):
+                                tool_results[part.tool_call_id] = part.content
                 
-                # Second pass: extract tool calls and match with results
+                # Second pass: extract tool calls from ToolCallPart and match with results
                 for message in result.all_messages():
-                    if hasattr(message, 'tool_calls') and message.tool_calls:
-                        for tool_call in message.tool_calls:
-                            tool_call_id = getattr(tool_call, 'id', None)
-                            tool_calls.append({
-                                'name': tool_call.function.name,
-                                'args': tool_call.function.arguments,
-                                'id': tool_call_id,
-                                'result': tool_results.get(tool_call_id, None)
-                            })
+                    if hasattr(message, 'parts') and message.parts:
+                        for part in message.parts:
+                            # Check if this is a tool call part
+                            if hasattr(part, 'tool_call_id') and hasattr(part, 'tool_name') and hasattr(part, 'args') and 'ToolCallPart' in str(type(part)):
+                                tool_calls.append({
+                                    'name': part.tool_name,
+                                    'args': part.args,
+                                    'id': part.tool_call_id,
+                                    'result': tool_results.get(part.tool_call_id, None)
+                                })
                             
         except Exception as e:
             logger.error(f"Error extracting tool calls: {e}")
