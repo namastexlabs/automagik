@@ -675,7 +675,7 @@ class AutomagikAgent(ABC, Generic[T]):
             if not message_type:
                 message_type = "text"
                 
-            logger.info(f"🔍 Framework selection: message_type={message_type}, multimodal_content={bool(multimodal_content)}")
+            logger.debug(f"Framework selection: message_type={message_type}, multimodal_content={bool(multimodal_content)}")
             
             optimal_framework = self._select_optimal_framework(
                 input_text,  # Use input_text for framework selection instead of processed_input
@@ -786,7 +786,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 result = await self._postprocess_response(result)
                 
                 # Log usage if available (for observability)
-                logger.info(f"🔍 Checking for usage data - has usage: {hasattr(result, 'usage')}, usage value: {getattr(result, 'usage', None)}, should_sample: {should_sample}")
+                logger.debug(f"Checking for usage data - has usage: {hasattr(result, 'usage')}, should_sample: {should_sample}")
                 if should_sample and self.tracing and self.tracing.observability:
                     # Create comprehensive trace following LangWatch best practices
                     self._create_enhanced_trace(
@@ -2019,7 +2019,7 @@ class AutomagikAgent(ABC, Generic[T]):
         
         for provider_name, provider in self.tracing.observability.providers.items():
             try:
-                logger.info(f"📝 Creating enhanced trace for {provider_name}")
+                logger.debug(f"Creating enhanced trace for {provider_name}")
                 
                 # 1. Start the main agent execution trace
                 provider.start_trace(

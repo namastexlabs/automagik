@@ -19,11 +19,16 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
             "/api/v1/agent" in request.url.path and
             request.headers.get("content-type", "").startswith("application/json")):
             
-            # Store original body to restore it later
-            original_body = await request.body()
-            
-            # If empty body, continue with normal processing
-            if not original_body:
+            try:
+                # Store original body to restore it later
+                original_body = await request.body()
+                
+                # If empty body, continue with normal processing
+                if not original_body:
+                    return await call_next(request)
+            except Exception as e:
+                # If client disconnected or any other error reading body, skip middleware processing
+                logger.debug(f"Client disconnected or error reading request body: {e}")
                 return await call_next(request)
                 
             try:
