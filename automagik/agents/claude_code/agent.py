@@ -19,7 +19,6 @@ from automagik.agents.models.automagik_agent import AutomagikAgent
 from automagik.agents.models.dependencies import AutomagikAgentsDependencies
 from automagik.agents.models.response import AgentResponse
 from automagik.memory.message_history import MessageHistory
-from automagik.db import get_session, update_session
 
 # Import execution components
 from .executor_factory import ExecutorFactory
@@ -94,7 +93,7 @@ class ClaudeCodeAgent(AutomagikAgent):
         # Register default tools (not applicable for local execution)
         # Tools are managed via workflow configurations
         
-        logger.debug(f"ClaudeCodeAgent initialized successfully in local mode")
+        logger.debug("ClaudeCodeAgent initialized successfully in local mode")
     
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj: Optional[MessageHistory] = None,
@@ -1092,10 +1091,26 @@ class ClaudeCodeAgent(AutomagikAgent):
                     logger.error(f"📝 AUTO-COMMIT: 💥 EXCEPTION for run {run_id}: {commit_error}")
                     # Don't fail the workflow for commit errors
             else:
-                logger.info(f"📝 AUTO-COMMIT: ⏭️  SKIPPED - Conditions not met")
+                logger.info("📝 AUTO-COMMIT: ⏭️  SKIPPED - Conditions not met")
             
         except Exception as e:
             logger.error(f"Error in background workflow execution: {str(e)}")
+            
+            # Update workflow_runs table with failure status
+            try:
+                from automagik.db.models import WorkflowRunUpdate
+                from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
+                
+                update_data = WorkflowRunUpdate(
+                    status="failed",
+                    error_message=str(e),
+                    completed_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                update_workflow_run_by_run_id(run_id, update_data)
+                logger.info(f"Updated workflow run {run_id} status to failed: {str(e)}")
+            except Exception as workflow_update_error:
+                logger.error(f"Failed to update workflow run status: {workflow_update_error}")
             
             # Update session with error status
             try:
