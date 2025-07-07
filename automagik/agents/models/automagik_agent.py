@@ -788,60 +788,15 @@ class AutomagikAgent(ABC, Generic[T]):
                 # Log usage if available (for observability)
                 logger.info(f"🔍 Checking for usage data - has usage: {hasattr(result, 'usage')}, usage value: {getattr(result, 'usage', None)}, should_sample: {should_sample}")
                 if should_sample and self.tracing and self.tracing.observability:
-                    # Build full message history for tracing
-                    full_messages = []
-                    
-                    # Add message history if available (which already includes system prompt)
-                    if message_history:
-                        for msg in message_history:
-                            if isinstance(msg, dict):
-                                full_messages.append(msg)
-                    else:
-                        # Only add system prompt if no message history
-                        if system_prompt:
-                            full_messages.append({"role": "system", "content": system_prompt})
-                    
-                    # Add current user input
-                    full_messages.append({"role": "user", "content": processed_input})
-                    
-                    # Log comprehensive data to observability
-                    for provider_name, provider in self.tracing.observability.providers.items():
-                        try:
-                            logger.info(f"📝 Sending comprehensive trace to {provider_name}")
-                            
-                            # Log the LLM call with full context
-                            provider.log_llm_call(
-                                model=self.config.model,
-                                messages=full_messages,
-                                response=result.text if hasattr(result, 'text') else str(result),
-                                usage=result.usage if hasattr(result, 'usage') and result.usage else {}
-                            )
-                            
-                            # Log tool calls as separate spans
-                            if hasattr(result, 'tool_calls') and result.tool_calls:
-                                for tool_call in result.tool_calls:
-                                    if isinstance(tool_call, dict):
-                                        provider.log_tool_call(
-                                            tool_name=tool_call.get("name", "unknown"),
-                                            args=tool_call.get("args", {}),
-                                            result=tool_call.get("result", "")
-                                        )
-                            
-                            # Log additional context
-                            if hasattr(provider, 'log_metadata'):
-                                provider.log_metadata({
-                                    "agent_name": self.name,
-                                    "agent_id": self.db_id,
-                                    "framework": self.framework_type,
-                                    "session_id": kwargs.get("session_id", self.context.get("session_id")),
-                                    "memory_variables": self.memory_variables if hasattr(self, 'memory_variables') else {},
-                                    "context": self.context,
-                                    "multimodal": bool(multimodal_content),
-                                    "tool_count": len(result.tool_calls) if hasattr(result, 'tool_calls') else 0
-                                })
-                            
-                        except Exception as e:
-                            logger.error(f"Failed to log to {provider_name}: {e}")
+                    # Create comprehensive trace following LangWatch best practices
+                    self._create_enhanced_trace(
+                        processed_input, 
+                        result, 
+                        message_history, 
+                        system_prompt, 
+                        multimodal_content,
+                        kwargs
+                    )
                 
                 # Restore original model if we temporarily switched
                 try:
@@ -2044,3 +1999,129 @@ class AutomagikAgent(ABC, Generic[T]):
 
         # Single-prompt behaviour: just load active template for given status key
         return await self.load_active_prompt_template(status_key=str(status))
+
+    def _create_enhanced_trace(self, processed_input, result, message_history, system_prompt, multimodal_content, kwargs):
+        """Create enhanced LangWatch trace following best practices for agent observability."""
+        import time
+        import uuid
+        
+        # Generate unique IDs for this trace with proper hierarchy
+        trace_id = str(uuid.uuid4())
+        run_id = kwargs.get("run_id", str(uuid.uuid4()))
+        session_id = kwargs.get("session_id", self.context.get("session_id"))
+        
+        # Create span IDs for proper hierarchy
+        root_span_id = str(uuid.uuid4())
+        config_span_id = str(uuid.uuid4())
+        input_span_id = str(uuid.uuid4())
+        llm_span_id = str(uuid.uuid4())
+        output_span_id = str(uuid.uuid4())
+        
+        for provider_name, provider in self.tracing.observability.providers.items():
+            try:
+                logger.info(f"📝 Creating enhanced trace for {provider_name}")
+                
+                # 1. Start the main agent execution trace
+                provider.start_trace(
+                    trace_id=trace_id,
+                    span_id=root_span_id,
+                    name=f"Agent: {self.name}",
+                    input_text=processed_input,
+                    metadata={
+                        "user_id": kwargs.get("user_id", self.context.get("user_id")),
+                        "thread_id": session_id,  # LangWatch uses thread_id for conversations
+                        "agent_name": self.name,
+                        "agent_id": self.db_id,
+                        "framework": self.framework_type,
+                        "run_id": run_id,
+                        "session_origin": kwargs.get("session_origin", "automagik"),
+                        "multimodal": bool(multimodal_content),
+                        "message_type": kwargs.get("message_type", "text")
+                    }
+                )
+                
+                # 2. Log agent configuration as a child span
+                provider.log_agent_config(
+                    trace_id=trace_id,
+                    span_id=config_span_id,
+                    parent_span_id=root_span_id,
+                    agent_name=self.name,
+                    model=self.config.model,
+                    system_prompt=system_prompt,
+                    memory_variables=getattr(self, 'memory_variables', {}),
+                    framework=self.framework_type
+                )
+                
+                # 3. Log input processing span as child
+                provider.log_input_processing(
+                    trace_id=trace_id,
+                    span_id=input_span_id,
+                    parent_span_id=root_span_id,
+                    raw_input=processed_input,
+                    processed_input=processed_input,
+                    message_history=message_history,
+                    multimodal_content=multimodal_content
+                )
+                
+                # 4. Log the main LLM execution as child
+                full_messages = self._build_conversation_messages(message_history, system_prompt, processed_input)
+                provider.log_llm_call(
+                    model=self.config.model,
+                    messages=full_messages,
+                    response=result.text if hasattr(result, 'text') else str(result),
+                    usage=result.usage if hasattr(result, 'usage') and result.usage else {},
+                    trace_id=trace_id,
+                    span_id=llm_span_id,
+                    parent_span_id=root_span_id
+                )
+                
+                # 5. Log tool executions as children of LLM span
+                if hasattr(result, 'tool_calls') and result.tool_calls:
+                    for tool_call in result.tool_calls:
+                        if isinstance(tool_call, dict):
+                            provider.log_tool_call(
+                                tool_name=tool_call.get("name", "unknown"),
+                                args=tool_call.get("args", {}),
+                                result=tool_call.get("result", ""),
+                                trace_id=trace_id,
+                                parent_span_id=llm_span_id  # Tools are children of LLM
+                            )
+                
+                # 6. Log output generation span as child
+                provider.log_output_generation(
+                    trace_id=trace_id,
+                    span_id=output_span_id,
+                    parent_span_id=root_span_id,
+                    raw_output=str(result),
+                    final_output=result.text if hasattr(result, 'text') else str(result),
+                    tool_calls=getattr(result, 'tool_calls', []),
+                    usage=getattr(result, 'usage', {})
+                )
+                
+                # 7. Complete the trace
+                provider.complete_trace(
+                    trace_id=trace_id,
+                    final_output=result.text if hasattr(result, 'text') else str(result)
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to create enhanced trace for {provider_name}: {e}")
+    
+    def _build_conversation_messages(self, message_history, system_prompt, current_input):
+        """Build complete conversation message array for tracing."""
+        messages = []
+        
+        # Add message history if available (which already includes system prompt)
+        if message_history:
+            for msg in message_history:
+                if isinstance(msg, dict):
+                    messages.append(msg)
+        else:
+            # Only add system prompt if no message history
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+        
+        # Add current user input
+        messages.append({"role": "user", "content": current_input})
+        
+        return messages
