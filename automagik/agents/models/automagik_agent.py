@@ -787,24 +787,50 @@ class AutomagikAgent(ABC, Generic[T]):
                 
                 # Log usage if available (for observability)
                 logger.info(f"🔍 Checking for usage data - has usage: {hasattr(result, 'usage')}, usage value: {getattr(result, 'usage', None)}, should_sample: {should_sample}")
-                if hasattr(result, 'usage') and result.usage and should_sample:
-                    # Pass the actual messages and response
-                    self._log_usage_to_observability(
-                        result.usage,
-                        messages=[{"role": "user", "content": processed_input}],
-                        response=result.text if hasattr(result, 'text') else str(result)
-                    )
-                elif should_sample:
-                    # Even without usage data, log the LLM call
-                    logger.info("📝 No usage data, but logging LLM call anyway")
+                if should_sample and self.tracing and self.tracing.observability:
+                    # Build full message history for tracing
+                    full_messages = []
+                    
+                    # Add system prompt if available
+                    if system_prompt:
+                        full_messages.append({"role": "system", "content": system_prompt})
+                    
+                    # Add message history if available
+                    if message_history:
+                        for msg in message_history:
+                            if isinstance(msg, dict):
+                                full_messages.append(msg)
+                    
+                    # Add current user input
+                    full_messages.append({"role": "user", "content": processed_input})
+                    
+                    # Log comprehensive data to observability
                     for provider_name, provider in self.tracing.observability.providers.items():
                         try:
+                            logger.info(f"📝 Sending comprehensive trace to {provider_name}")
+                            
+                            # Log the LLM call with full context
                             provider.log_llm_call(
                                 model=self.config.model,
-                                messages=[{"role": "user", "content": processed_input}],
+                                messages=full_messages,
                                 response=result.text if hasattr(result, 'text') else str(result),
-                                usage={}
+                                usage=result.usage if hasattr(result, 'usage') and result.usage else {}
                             )
+                            
+                            # Log additional context
+                            if hasattr(provider, 'log_metadata'):
+                                provider.log_metadata({
+                                    "agent_name": self.name,
+                                    "agent_id": self.db_id,
+                                    "framework": self.framework_type,
+                                    "session_id": kwargs.get("session_id", self.context.get("session_id")),
+                                    "memory_variables": self.memory_variables if hasattr(self, 'memory_variables') else {},
+                                    "context": self.context,
+                                    "multimodal": bool(multimodal_content),
+                                    "tool_calls": getattr(result, 'tool_calls', []) if hasattr(result, 'tool_calls') else [],
+                                    "tool_outputs": getattr(result, 'tool_outputs', []) if hasattr(result, 'tool_outputs') else []
+                                })
+                            
                         except Exception as e:
                             logger.error(f"Failed to log to {provider_name}: {e}")
                 
