@@ -182,16 +182,26 @@ class PydanticAIFramework(AgentAIFramework):
     def extract_tool_calls(self, result: Any) -> List[Dict[str, Any]]:
         """Extract tool calls from PydanticAI result."""
         tool_calls = []
+        tool_results = {}  # Map tool call IDs to results
         
         try:
             if hasattr(result, 'all_messages'):
+                # First pass: collect tool results
+                for message in result.all_messages():
+                    if hasattr(message, 'content') and hasattr(message, 'tool_call_id'):
+                        if message.tool_call_id:  # This is a tool response
+                            tool_results[message.tool_call_id] = message.content
+                
+                # Second pass: extract tool calls and match with results
                 for message in result.all_messages():
                     if hasattr(message, 'tool_calls') and message.tool_calls:
                         for tool_call in message.tool_calls:
+                            tool_call_id = getattr(tool_call, 'id', None)
                             tool_calls.append({
                                 'name': tool_call.function.name,
-                                'arguments': tool_call.function.arguments,
-                                'id': getattr(tool_call, 'id', None)
+                                'args': tool_call.function.arguments,
+                                'id': tool_call_id,
+                                'result': tool_results.get(tool_call_id, None)
                             })
                             
         except Exception as e:

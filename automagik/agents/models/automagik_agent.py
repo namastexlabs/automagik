@@ -791,15 +791,15 @@ class AutomagikAgent(ABC, Generic[T]):
                     # Build full message history for tracing
                     full_messages = []
                     
-                    # Add system prompt if available
-                    if system_prompt:
-                        full_messages.append({"role": "system", "content": system_prompt})
-                    
-                    # Add message history if available
+                    # Add message history if available (which already includes system prompt)
                     if message_history:
                         for msg in message_history:
                             if isinstance(msg, dict):
                                 full_messages.append(msg)
+                    else:
+                        # Only add system prompt if no message history
+                        if system_prompt:
+                            full_messages.append({"role": "system", "content": system_prompt})
                     
                     # Add current user input
                     full_messages.append({"role": "user", "content": processed_input})
@@ -817,6 +817,16 @@ class AutomagikAgent(ABC, Generic[T]):
                                 usage=result.usage if hasattr(result, 'usage') and result.usage else {}
                             )
                             
+                            # Log tool calls as separate spans
+                            if hasattr(result, 'tool_calls') and result.tool_calls:
+                                for tool_call in result.tool_calls:
+                                    if isinstance(tool_call, dict):
+                                        provider.log_tool_call(
+                                            tool_name=tool_call.get("name", "unknown"),
+                                            args=tool_call.get("args", {}),
+                                            result=tool_call.get("result", "")
+                                        )
+                            
                             # Log additional context
                             if hasattr(provider, 'log_metadata'):
                                 provider.log_metadata({
@@ -827,8 +837,7 @@ class AutomagikAgent(ABC, Generic[T]):
                                     "memory_variables": self.memory_variables if hasattr(self, 'memory_variables') else {},
                                     "context": self.context,
                                     "multimodal": bool(multimodal_content),
-                                    "tool_calls": getattr(result, 'tool_calls', []) if hasattr(result, 'tool_calls') else [],
-                                    "tool_outputs": getattr(result, 'tool_outputs', []) if hasattr(result, 'tool_outputs') else []
+                                    "tool_count": len(result.tool_calls) if hasattr(result, 'tool_calls') else 0
                                 })
                             
                         except Exception as e:
