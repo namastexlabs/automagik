@@ -198,7 +198,7 @@ def map_agent_id(ctx: Optional[RunContext], agent_id_raw: Optional[str] = None) 
     if user_id is None:
         logger.warning("user_id could not be determined; proceeding without user-specific filter")
     
-    logger.info(f"Final resolved IDs: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
+    logger.debug(f"Final resolved IDs: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
     return agent_id, user_id, session_id
 
 def _convert_to_memory_object(memory_dict: Dict[str, Any]) -> Memory:
@@ -438,7 +438,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
         if memory_id:
             logger.info(f"Reading memory by ID: {memory_id}")
         elif name:
-            logger.info(f"Reading memory by name: {name}")
+            logger.debug(f"Reading memory by name: {name}")
         elif list_all:
             logger.info(f"Listing all memories for agent {agent_id}")
         else:
@@ -446,11 +446,11 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                 success=False,
                 message="Either memory_id, name, or list_all must be provided"
             ).model_dump()
-            logger.info(f"Read memory result: {result}")
+            logger.debug(f"Read memory result: {result}")
             return result
         
         # Log context
-        logger.info(f"Context: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
+        logger.debug(f"Context: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
         
         # If list_all is True, return all memories
         if list_all:
@@ -471,7 +471,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                     message=f"Found {len(memory_objects)} memories",
                     memories=memory_objects
                 ).model_dump()
-                logger.info(f"Read memory result: {result}")
+                logger.debug(f"Read memory result: {result}")
                 return result
             except Exception as e:
                 logger.error(f"Error listing memories: {str(e)}")
@@ -479,7 +479,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                     success=False,
                     message=f"Error listing memories: {str(e)}"
                 ).model_dump()
-                logger.info(f"Read memory result: {result}")
+                logger.debug(f"Read memory result: {result}")
                 return result
         
         # Try to read specific memory
@@ -490,7 +490,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                 memory = get_memory_in_db(memory_id=memory_id)
             elif name:
                 # Get memory by name - ensure we pass both agent_id and user_id
-                logger.info(f"Querying memory by name '{name}' with agent_id={agent_id}, user_id={user_id}")
+                logger.debug(f"Querying memory by name '{name}' with agent_id={agent_id}, user_id={user_id}")
                 memories = list_memories_in_db(agent_id=agent_id, user_id=user_id, name_pattern=name)
                 if not memories and user_id:
                     # If no memories found with specific user_id, try with just agent_id
@@ -506,7 +506,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                     success=False,
                     message="Memory not found"
                 ).model_dump()
-                logger.info(f"Read memory result: {result}")
+                logger.debug(f"Read memory result: {result}")
                 return result
             
             # Convert to Memory object
@@ -519,7 +519,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                 content=memory_obj.content,
                 memory=memory_obj
             ).model_dump()
-            logger.info(f"Read memory result: {result}")
+            logger.debug(f"Read memory result: {result}")
             return result
         except Exception as e:
             logger.error(f"Error reading memory: {str(e)}")
@@ -527,7 +527,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
                 success=False,
                 message=f"Error reading memory: {str(e)}"
             ).model_dump()
-            logger.info(f"Read memory result: {result}")
+            logger.debug(f"Read memory result: {result}")
             return result
     except Exception as e:
         logger.error(f"Error in read_memory: {str(e)}")
@@ -535,7 +535,7 @@ async def read_memory(ctx: RunContext[Dict], memory_id: Optional[str] = None,
             success=False,
             message=f"Error in read_memory: {str(e)}"
         ).model_dump()
-        logger.info(f"Read memory result: {result}")
+        logger.debug(f"Read memory result: {result}")
         return result
 
 @invalidate_memory_cache
@@ -569,7 +569,7 @@ async def create_memory(ctx: RunContext[Dict], name: str, content: Union[str, Di
         
         # Log what we're doing
         logger.info(f"Creating memory: name={name}, scope={scope}, read_mode={read_mode}")
-        logger.info(f"Context: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
+        logger.debug(f"Context: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
         
         # Format content
         processed_content = format_memory_content(content)
@@ -674,7 +674,7 @@ async def update_memory(ctx: RunContext[Dict], content: Union[str, Dict[str, Any
             ).model_dump()
         
         # Log context
-        logger.info(f"Context: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
+        logger.debug(f"Context: agent_id={agent_id}, user_id={user_id}, session_id={session_id}")
         
         # Format content
         processed_content = format_memory_content(content)

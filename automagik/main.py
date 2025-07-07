@@ -485,6 +485,13 @@ def create_app() -> FastAPI:
             response = await call_next(request)
             return response
         except Exception as exc:
+            # Handle client disconnects gracefully without logging as errors
+            from starlette.requests import ClientDisconnect
+            if isinstance(exc, ClientDisconnect):
+                logger.debug(f"Client disconnected from {request.url}")
+                # Return a basic response that won't be sent anyway since client disconnected
+                return JSONResponse(status_code=499, content={"detail": "Client disconnected"})
+            
             # Log the error with traceback so we can diagnose pre-router failures
             logger.error(f"❌ Unhandled exception in request {request.url}: {exc}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
