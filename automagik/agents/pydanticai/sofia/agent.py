@@ -100,7 +100,7 @@ class SofiaAgent(BaseSimpleAgent):
     async def run(self, input_text: str, *, multimodal_content=None, 
                  system_message=None, message_history_obj=None,
                  channel_payload: Optional[Dict] = None,
-                 message_limit: Optional[int] = None) -> AgentResponse:
+                 message_limit: Optional[int] = None, **kwargs) -> AgentResponse:
         """Run the agent with explicit reliability features including retry logic and semaphore control.
         
         This override shows explicit retry logic and semaphore usage for tests while still
@@ -121,14 +121,15 @@ class SofiaAgent(BaseSimpleAgent):
                     if not self._framework_initialized:
                         await self._initialize_pydantic_agent()
                     
-                    # Use the framework implementation with semaphore control
-                    result = await self._run_agent(
+                    # Use the base class run method to ensure tracing is properly handled
+                    result = await super().run(
                         input_text=input_text,
-                        system_prompt=system_message,
-                        message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20) if message_history_obj else [],
                         multimodal_content=multimodal_content,
+                        system_message=system_message,
+                        message_history_obj=message_history_obj,
                         channel_payload=channel_payload,
-                        message_limit=message_limit
+                        message_limit=message_limit,
+                        **kwargs
                     )
                     
                     # Check if result indicates success (successful completion)
