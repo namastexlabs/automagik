@@ -384,6 +384,7 @@ class LangWatchProvider(ObservabilityProvider):
         import httpx
         
         async def send():
+            logger.info(f"🎯 Starting async send to LangWatch with {len(events)} events")
             headers = {
                 "X-Auth-Token": self.api_key,
                 "Content-Type": "application/json"
@@ -526,7 +527,12 @@ class LangWatchProvider(ObservabilityProvider):
             # Only send traces that have spans
             traces = [trace for trace in traces_map.values() if trace["spans"]]
             
+            logger.info(f"🚀 Preparing to send {len(traces)} traces to LangWatch")
+            for trace in traces:
+                logger.info(f"  - Trace {trace['trace_id']}: {len(trace['spans'])} spans")
+            
             if not traces:
+                logger.info("⚠️ No traces with spans to send to LangWatch")
                 return
             
             try:
@@ -540,13 +546,28 @@ class LangWatchProvider(ObservabilityProvider):
                             timeout=10.0
                         )
                         
+                        logger.info(f"📤 LangWatch API response: {response.status_code} for trace {trace['trace_id']}")
                         if response.status_code in [200, 201]:
                             logger.info(f"✅ Successfully sent trace {trace['trace_id']} with {len(trace['spans'])} spans to LangWatch")
                         else:
                             logger.warning(f"❌ LangWatch API returned {response.status_code} for trace {trace['trace_id']}: {response.text}")
                             
             except Exception as e:
-                logger.debug(f"Failed to send to LangWatch: {e}")
+                logger.error(f"Failed to send to LangWatch: {e}")
+        
+        # Execute the async function
+        try:
+            # Check if there's a running loop
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(send())
+                logger.info("📋 LangWatch send task created in existing loop")
+            except RuntimeError:
+                # No running loop, run in a new one
+                asyncio.run(send())
+                logger.info("📋 LangWatch send completed in new loop")
+        except Exception as e:
+            logger.error(f"Failed to send to LangWatch: {e}")
     
     def _detect_llm_vendor(self, model: str) -> str:
         """Detect LLM vendor from model name."""
