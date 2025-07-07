@@ -44,14 +44,13 @@ def start_workflow(workflow_name: str, message: str) -> Dict[str, Any]:
         print(response.text)
         return {}
 
-def inject_message(run_id: str, message: str, priority: str = "normal") -> Dict[str, Any]:
+def inject_message(run_id: str, message: str) -> Dict[str, Any]:
     """Inject a message into a running workflow."""
     
     url = f"{API_BASE_URL}/workflows/claude-code/run/{run_id}/inject-message"
     
     payload = {
-        "message": message,
-        "priority": priority
+        "message": message
     }
     
     print(f"💉 Injecting message into {run_id}...")
@@ -107,16 +106,14 @@ def main():
     # Step 4: Inject a message
     inject_result = inject_message(
         run_id,
-        "Please also compare microservices with monolithic architecture",
-        "normal"
+        "Please also compare microservices with monolithic architecture"
     )
     
-    # Step 5: Inject an urgent message
+    # Step 5: Inject another message
     time.sleep(2)
-    inject_result_urgent = inject_message(
+    inject_result_2 = inject_message(
         run_id,
-        "Focus specifically on scalability differences",
-        "urgent"
+        "Focus specifically on scalability differences"
     )
     
     # Step 6: Check final status
