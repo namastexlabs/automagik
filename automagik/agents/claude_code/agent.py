@@ -26,6 +26,9 @@ from .models import ClaudeCodeRunRequest, ClaudeCodeRunResponse
 from .log_manager import get_log_manager
 from .utils import get_current_git_branch_with_fallback
 
+# Import tracing
+from automagik.tracing import get_tracing_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -675,6 +678,53 @@ class ClaudeCodeAgent(AutomagikAgent):
         # Track execution timing for message persistence
         start_time = time.time()
         
+        # Initialize tracing
+        tracing = get_tracing_manager()
+        trace_id = str(uuid.uuid4())
+        root_span_id = str(uuid.uuid4())
+        langwatch_provider = None
+        
+        # Get LangWatch provider if available
+        if tracing and tracing.observability:
+            for provider in tracing.observability.providers.values():
+                if hasattr(provider, 'log_metadata'):
+                    langwatch_provider = provider
+                    break
+        
+        # Helper function for logging to LangWatch
+        def log_workflow_trace(event_type: str, span_id: str, parent_span_id: Optional[str] = None, 
+                              name: Optional[str] = None, attributes: Optional[Dict[str, Any]] = None):
+            """Log workflow trace to LangWatch if available."""
+            if langwatch_provider:
+                langwatch_provider.log_metadata({
+                    "trace_id": trace_id,
+                    "span_id": span_id,
+                    "parent_span_id": parent_span_id,
+                    "event_type": event_type,
+                    "name": name or f"claude_code.workflow.{workflow_name}",
+                    "attributes": attributes or {},
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+        
+        # Start root trace for workflow execution
+        log_workflow_trace(
+            event_type="trace_start",
+            span_id=root_span_id,
+            attributes={
+                "workflow_name": workflow_name,
+                "run_id": run_id,
+                "session_id": session_id,
+                "user_id": kwargs.get("user_id"),
+                "git_branch": kwargs.get("git_branch"),
+                "repository_url": kwargs.get("repository_url"),
+                "persistent": kwargs.get("persistent", True),
+                "temp_workspace": kwargs.get("temp_workspace", False),
+                "auto_merge": kwargs.get("auto_merge", False),
+                "max_turns": kwargs.get("max_turns"),
+                "input_length": len(input_text)
+            }
+        )
+        
         try:
             # Look up existing Claude session ID from database if session_id provided
             claude_session_id_for_resumption = None
@@ -776,6 +826,24 @@ class ClaudeCodeAgent(AutomagikAgent):
             
             # Create workspace for this workflow run
             workspace_path = None
+            workspace_span_id = str(uuid.uuid4())
+            
+            # Log workspace creation span
+            log_workflow_trace(
+                event_type="span_start",
+                span_id=workspace_span_id,
+                parent_span_id=root_span_id,
+                name="claude_code.workspace.creation",
+                attributes={
+                    "repository_url": request.repository_url,
+                    "git_branch": request.git_branch,
+                    "persistent": request.persistent,
+                    "temp_workspace": request.temp_workspace
+                }
+            )
+            
+            workspace_start_time = time.time()
+            
             if hasattr(self.executor, 'environment_manager') and self.executor.environment_manager:
                 # Use prepare_workspace for external repositories, create_workspace for local worktrees
                 if request.repository_url:
@@ -798,23 +866,55 @@ class ClaudeCodeAgent(AutomagikAgent):
                         git_branch=request.git_branch
                     )
                     logger.info(f"Created workspace for run {run_id}: {workspace_path}")
-                
-                # Update workflow run with workspace path
-                if workspace_path and run_id:
-                    try:
-                        from automagik.db.models import WorkflowRunUpdate
-                        from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
-                        
-                        update_data = WorkflowRunUpdate(
-                            workspace_path=str(workspace_path)
-                        )
-                        update_workflow_run_by_run_id(run_id, update_data)
-                        logger.info(f"Updated workflow run {run_id} with workspace path: {workspace_path}")
-                    except Exception as e:
-                        logger.error(f"Failed to update workspace path: {e}")
+            
+            # Log workspace creation completion
+            log_workflow_trace(
+                event_type="span_end",
+                span_id=workspace_span_id,
+                parent_span_id=root_span_id,
+                name="claude_code.workspace.creation",
+                attributes={
+                    "workspace_path": str(workspace_path) if workspace_path else None,
+                    "duration_ms": (time.time() - workspace_start_time) * 1000
+                }
+            )
+            
+            # Update workflow run with workspace path
+            if workspace_path and run_id:
+                try:
+                    from automagik.db.models import WorkflowRunUpdate
+                    from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
+                    
+                    update_data = WorkflowRunUpdate(
+                        workspace_path=str(workspace_path)
+                    )
+                    update_workflow_run_by_run_id(run_id, update_data)
+                    logger.info(f"Updated workflow run {run_id} with workspace path: {workspace_path}")
+                except Exception as e:
+                    logger.error(f"Failed to update workspace path: {e}")
 
             # Execute the workflow - use standard execution to avoid SDK TaskGroup issues
             # The SDK executor can extract data from the result without streaming complications
+            execution_span_id = str(uuid.uuid4())
+            
+            # Log Claude execution span
+            log_workflow_trace(
+                event_type="span_start",
+                span_id=execution_span_id,
+                parent_span_id=root_span_id,
+                name="claude_code.execution",
+                attributes={
+                    "workflow_name": workflow_name,
+                    "session_id": session_id,
+                    "run_id": run_id,
+                    "workspace": str(workspace_path) if workspace_path else ".",
+                    "max_turns": request.max_turns,
+                    "timeout": request.timeout
+                }
+            )
+            
+            execution_start_time = time.time()
+            
             result = await self.executor.execute_claude_task(
                 request=request,
                 agent_context={
@@ -823,7 +923,26 @@ class ClaudeCodeAgent(AutomagikAgent):
                     "run_id": run_id,  # Ensure run_id is always present for logging
                     "db_id": self.db_id,
                     "workspace": str(workspace_path) if workspace_path else ".",  # Add workspace path
-                    "user_id": kwargs.get("user_id")  # Pass user_id for temp workspace creation
+                    "user_id": kwargs.get("user_id"),  # Pass user_id for temp workspace creation
+                    "trace_id": trace_id,  # Pass trace context for SDK executor
+                    "parent_span_id": execution_span_id
+                }
+            )
+            
+            # Log Claude execution completion
+            log_workflow_trace(
+                event_type="span_end",
+                span_id=execution_span_id,
+                parent_span_id=root_span_id,
+                name="claude_code.execution",
+                attributes={
+                    "success": result.get("success", False),
+                    "claude_session_id": result.get("session_id"),
+                    "turns_used": result.get("turn_count", 0),
+                    "total_tokens": result.get("token_details", {}).get("total_tokens", 0),
+                    "cost_usd": result.get("cost_usd", 0.0),
+                    "duration_ms": (time.time() - execution_start_time) * 1000,
+                    "tools_used": result.get("tools_used", [])
                 }
             )
             
@@ -1095,6 +1214,35 @@ class ClaudeCodeAgent(AutomagikAgent):
             
         except Exception as e:
             logger.error(f"Error in background workflow execution: {str(e)}")
+            
+            # Log trace completion with error
+            log_workflow_trace(
+                event_type="trace_end",
+                span_id=root_span_id,
+                attributes={
+                    "success": False,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "duration_ms": (time.time() - start_time) * 1000
+                }
+            )
+            raise
+        finally:
+            # Log successful trace completion
+            if 'e' not in locals():
+                log_workflow_trace(
+                    event_type="trace_end",
+                    span_id=root_span_id,
+                    attributes={
+                        "success": result.get("success", False) if 'result' in locals() else False,
+                        "duration_ms": (time.time() - start_time) * 1000,
+                        "final_status": "completed" if ('result' in locals() and result.get("success", False)) else "failed",
+                        "total_tokens": result.get("token_details", {}).get("total_tokens", 0) if 'result' in locals() else 0,
+                        "cost_usd": result.get("cost_usd", 0.0) if 'result' in locals() else 0.0,
+                        "auto_commit": kwargs.get('auto_merge', False),
+                        "workspace_path": str(workspace_path) if 'workspace_path' in locals() and workspace_path else None
+                    }
+                )
             
             # Update workflow_runs table with failure status
             try:
