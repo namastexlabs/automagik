@@ -42,7 +42,7 @@ def optimized_test_dependencies():
         test_mode=True,
         disable_memory_operations=True,
         mock_external_apis=True,
-        model_name="openai:gpt-4.1-mini",  # Use faster model for tests
+        model_name="gpt-4.1-mini",  # Use faster model for tests
         model_settings={"temperature": 0.0}  # Deterministic responses
     )
 

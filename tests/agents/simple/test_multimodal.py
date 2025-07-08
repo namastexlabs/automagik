@@ -12,7 +12,7 @@ class TestSimpleAgentMultimodal:
     def simple_agent(self):
         """Create SimpleAgent instance for testing."""
         config = {
-            "model_name": "openai:gpt-4.1-mini",  # Multimodal capable model
+            "model_name": "gpt-4.1-mini",  # Multimodal capable model
             "max_tokens": "1000",
         }
         return SimpleAgent(config)

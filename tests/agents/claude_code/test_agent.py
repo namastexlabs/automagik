@@ -32,7 +32,7 @@ class TestClaudeCodeAgentInitialization:
         agent = ClaudeCodeAgent(config)
         
         # Verify initialization
-        assert agent.description == "Containerized Claude CLI agent for autonomous code tasks"
+        assert agent.description == "Claude Code agent for autonomous development workflows"
         assert agent.config.get("agent_type") == "claude-code"
         assert agent.config.get("framework") == "claude-cli"
         assert agent.config.get("max_concurrent_sessions") == 5
