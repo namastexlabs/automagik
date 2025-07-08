@@ -21,6 +21,9 @@ from .sdk_process_manager import ProcessManager
 from .sdk_metrics_handler import MetricsHandler
 from .log_manager import get_log_manager
 
+# Import tracing
+from automagik.tracing import get_tracing_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -219,6 +222,11 @@ class ExecutionStrategies:
         
         logger.info(f"SDK Executor: Starting simple execution for run_id: {run_id}, session: {session_id}")
         
+        # Extract tracing context from agent_context
+        trace_id = agent_context.get("trace_id")
+        parent_span_id = agent_context.get("parent_span_id")
+        tracing = get_tracing_manager() if trace_id else None
+        
         # Initialize metrics handler
         metrics_handler = MetricsHandler()
         
@@ -337,6 +345,46 @@ class ExecutionStrategies:
                     # Track turns and tokens for real-time progress
                     if hasattr(message, 'type') and message.type == 'assistant':
                         turn_count += 1
+                        
+                        # Log message turn span if tracing is enabled
+                        if tracing and trace_id:
+                            # Get LangWatch provider if available
+                            langwatch_provider = None
+                            if tracing.observability:
+                                for provider in tracing.observability.providers.values():
+                                    if hasattr(provider, 'log_metadata'):
+                                        langwatch_provider = provider
+                                        break
+                            
+                            if langwatch_provider:
+                                turn_span_id = str(uuid4())
+                                langwatch_provider.log_metadata({
+                                    "trace_id": trace_id,
+                                    "span_id": turn_span_id,
+                                    "parent_span_id": parent_span_id,
+                                    "event_type": "span_start",
+                                    "name": f"claude_code.message.turn_{turn_count}",
+                                    "attributes": {
+                                        "turn_number": turn_count,
+                                        "workflow_name": request.workflow_name,
+                                        "message_type": "assistant"
+                                    },
+                                    "timestamp": datetime.utcnow().isoformat()
+                                })
+                                
+                                # Log turn completion with token usage
+                                langwatch_provider.log_metadata({
+                                    "trace_id": trace_id,
+                                    "span_id": turn_span_id,
+                                    "parent_span_id": parent_span_id,
+                                    "event_type": "span_end",
+                                    "name": f"claude_code.message.turn_{turn_count}",
+                                    "attributes": {
+                                        "tokens_used": token_count - last_token_count if 'last_token_count' in locals() else token_count
+                                    },
+                                    "timestamp": datetime.utcnow().isoformat()
+                                })
+                                last_token_count = token_count
                         
                     if hasattr(message, 'usage') and message.usage:
                         if hasattr(message.usage, 'total_tokens'):
