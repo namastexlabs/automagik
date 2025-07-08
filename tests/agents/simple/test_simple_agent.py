@@ -10,7 +10,7 @@ class TestSimpleAgent:
     def basic_config(self):
         """Basic configuration for Simple agent."""
         return {
-            "model_name": "openai:gpt-4.1-mini",
+            "model_name": "gpt-4.1-mini",
             "model_provider": "openai",
             "temperature": "0.1",
             "max_tokens": "1000"
@@ -57,7 +57,7 @@ class TestSimpleAgentFeatures:
     def agent_config(self):
         """Configuration for feature testing."""
         return {
-            "model_name": "openai:gpt-4.1-mini",
+            "model_name": "gpt-4.1-mini",
             "model_provider": "openai"
         }
     

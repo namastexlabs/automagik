@@ -13,7 +13,7 @@ class TestSimpleAgentEvolution:
     def simple_agent(self):
         """Create SimpleAgent instance for testing."""
         config = {
-            "model_name": "openai:gpt-4.1-mini",
+            "model_name": "gpt-4.1-mini",
             "max_tokens": "1000",
         }
         return SimpleAgent(config)

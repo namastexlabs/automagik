@@ -19,7 +19,7 @@ class TestSimpleAgentTools(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.config = {
-            "model": "openai:gpt-4.1-mini",  # Updated to match the current default
+            "model": "gpt-4.1-mini",  # Updated to match the current default
             "enable_duckduckgo_search": "true",
             "agent_id": "test-agent"
         }

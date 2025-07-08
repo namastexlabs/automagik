@@ -24,10 +24,9 @@ class TestSofiaAgent:
         assert agent.tool_registry is not None
     
     def test_agent_has_specialized_tools(self, basic_config):
-        """Test that Sofia agent has specialized tools like Airtable integration."""
+        """Test that Sofia agent has specialized tools for WhatsApp integration."""
         agent = SofiaAgent(basic_config)
         # Check for specialized tool wrapper methods
-        assert hasattr(agent, '_create_airtable_agent_wrapper')
         assert hasattr(agent, '_create_send_reaction_wrapper')
         assert hasattr(agent, '_create_send_text_wrapper')
     

@@ -16,9 +16,8 @@ class TestAgentFactoryIntegration:
     
     @pytest.mark.integration
     @patch('pathlib.Path.exists')
-    @patch('automagik.agents.claude_code.agent.ContainerManager')
     @patch('automagik.agents.claude_code.agent.ExecutorFactory')
-    def test_agent_factory_discovery(self, mock_executor_factory, mock_container_class, mock_exists):
+    def test_agent_factory_discovery(self, mock_executor_factory, mock_exists):
         """Test that ClaudeCodeAgent is discoverable by AgentFactory."""
         # Mock credentials exist
         mock_exists.return_value = True

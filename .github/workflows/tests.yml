@@ -40,13 +40,15 @@ jobs:
     
     - name: Run unit tests
       run: |
-        pytest tests/agents/simple/test_simple_agent.py \
-               tests/agents/sofia/test_sofia_agent.py \
-               tests/agents/claude_code/test_agent.py \
-               tests/agents/claude_code/test_models.py \
-               tests/api/test_agent_routes.py \
-               tests/api/test_system_endpoints.py \
-               -v --cov=automagik --cov-report=xml --cov-report=term
+        # Run all tests except integration tests
+        pytest tests/ \
+               -v \
+               --ignore=tests/integration/ \
+               --ignore=tests/perf/ \
+               --cov=automagik \
+               --cov-report=xml \
+               --cov-report=term \
+               -m "not slow"
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

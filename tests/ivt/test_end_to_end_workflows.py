@@ -18,7 +18,7 @@ class TestEndToEndWorkflows:
     def agent_config(self):
         """Common configuration using default model preference."""
         return {
-            "model_name": "openai:gpt-4.1-mini",  # User specified default
+            "model_name": "gpt-4.1-mini",  # User specified default
             "max_tokens": "1000",
         }
     

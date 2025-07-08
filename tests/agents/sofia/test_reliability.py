@@ -12,7 +12,7 @@ class TestSofiaAgentReliability:
     def sofia_agent(self):
         """Create SofiaAgent instance for testing."""
         config = {
-            "model_name": "openai:gpt-4.1-mini",
+            "model_name": "gpt-4.1-mini",
             "max_tokens": "1000",
         }
         return SofiaAgent(config)
