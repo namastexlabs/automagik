@@ -377,6 +377,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],  # Allows all headers
     )
 
+    # Add request logging middleware
+    try:
+        from automagik.api.middleware import RequestLoggingMiddleware
+        app.add_middleware(RequestLoggingMiddleware)
+        logger.info("✅ Added request logging middleware")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to add request logging middleware: {str(e)}")
+
     # Add JSON parsing middleware to fix malformed JSON
     try:
         from automagik.api.middleware import JSONParsingMiddleware
