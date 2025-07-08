@@ -1,11 +1,63 @@
 import logging
 import json
 import re
+import time
 from typing import Callable, Any, Dict
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to log all incoming HTTP requests and responses.
+    """
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Start timer
+        start_time = time.time()
+        
+        # Get request details
+        method = request.method
+        path = request.url.path
+        client_host = request.client.host if request.client else "unknown"
+        
+        # Log request
+        logger.info(f"📨 {method} {path} - Client: {client_host}")
+        
+        # Get request headers (excluding sensitive ones)
+        safe_headers = {}
+        for key, value in request.headers.items():
+            if key.lower() not in ['authorization', 'x-api-key', 'cookie']:
+                safe_headers[key] = value
+            else:
+                safe_headers[key] = "***REDACTED***"
+        
+        logger.debug(f"Request headers: {safe_headers}")
+        
+        # Process request
+        try:
+            response = await call_next(request)
+            
+            # Calculate response time
+            process_time = time.time() - start_time
+            
+            # Log response
+            status_emoji = "✅" if 200 <= response.status_code < 300 else "❌" if response.status_code >= 400 else "⚠️"
+            logger.info(f"{status_emoji} {method} {path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+            
+            # Add custom headers
+            response.headers["X-Process-Time"] = str(process_time)
+            
+            return response
+            
+        except Exception as e:
+            # Log error
+            process_time = time.time() - start_time
+            logger.error(f"❌ {method} {path} - Error: {str(e)} - Time: {process_time:.3f}s")
+            raise
+
 
 class JSONParsingMiddleware(BaseHTTPMiddleware):
     """
