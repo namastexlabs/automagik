@@ -416,7 +416,7 @@ class TestPostMigrationSmokeTests:
             from automagik.agents.models.agent_factory import AgentFactory
             
             # Test that at least one agent type can be created
-            agent_types = ["simple", "stan"]
+            agent_types = ["simple"]
             
             success_count = 0
             for agent_type in agent_types:

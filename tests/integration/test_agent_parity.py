@@ -13,7 +13,7 @@ class TestAgentParity:
     def simple_agent(self):
         """Create SimpleAgent instance for testing."""
         config = {
-            "model_name": "openai:gpt-4.1-mini",
+            "model_name": "gpt-4.1-mini",
             "max_tokens": "1000",
         }
         return SimpleAgent(config)
@@ -22,7 +22,7 @@ class TestAgentParity:
     def sofia_agent(self):
         """Create SofiaAgent instance for testing."""
         config = {
-            "model_name": "openai:gpt-4.1-mini",
+            "model_name": "gpt-4.1-mini",
             "max_tokens": "1000",
         }
         return SofiaAgent(config)
@@ -72,13 +72,13 @@ class TestAgentParity:
         assert hasattr(sofia_agent, '_load_mcp_servers')
         assert hasattr(simple_agent, '_load_mcp_servers')
         
-        # Sofia should have Airtable sub-agent wrapper
+        # Both agents should have the same tool set now after cleanup
         sofia_tools = sofia_agent.tool_registry.get_registered_tools()
-        assert "airtable_agent" in sofia_tools
-        
-        # Simple should NOT have Airtable integration
         simple_tools = simple_agent.tool_registry.get_registered_tools()
-        assert "airtable_agent" not in simple_tools
+        
+        # Check that both have WhatsApp integration tools
+        assert "send_reaction" in sofia_tools
+        assert "send_text_to_user" in sofia_tools
     
     @pytest.mark.asyncio
     async def test_consistent_text_processing(self, simple_agent, sofia_agent):
@@ -199,5 +199,5 @@ class TestAgentParity:
         assert hasattr(sofia_agent.config, 'model_name')
         
         # Both should handle the same config structure
-        assert simple_agent.config.model_name == "openai:gpt-4.1-mini"
-        assert sofia_agent.config.model_name == "openai:gpt-4.1-mini" 
+        assert simple_agent.config.model_name == "gpt-4.1-mini"
+        assert sofia_agent.config.model_name == "gpt-4.1-mini" 

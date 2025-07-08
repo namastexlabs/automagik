@@ -20,7 +20,7 @@ class TestAutomagikAgentsDependencies(unittest.TestCase):
         self.assertIsNone(self.deps.message_history)
         self.assertEqual(self.deps.duckduckgo_enabled, False)
         self.assertIsNone(self.deps.tavily_api_key)
-        self.assertEqual(self.deps.model_name, "openai:gpt-4.1-mini")
+        self.assertEqual(self.deps.model_name, "gpt-4.1-mini")
         self.assertEqual(self.deps.model_settings, {})
         
     def test_model_settings(self):
@@ -85,7 +85,7 @@ class TestAutomagikAgentsDependencies(unittest.TestCase):
         self.deps.configure_for_multimodal.assert_called_once_with(True)
                 
         # Test with different models - we'll skip the assertions since we mocked the method
-        self.deps.model_name = "openai:gpt-4.1-mini"
+        self.deps.model_name = "gpt-4.1-mini"
         self.deps.configure_for_multimodal(True)
         
         self.deps.model_name = "openai:gpt-4.1"

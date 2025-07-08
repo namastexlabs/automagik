@@ -19,7 +19,7 @@ class TestCrossAgentParity:
     def agent_config(self):
         """Common configuration for both agents."""
         return {
-            "model_name": "openai:gpt-4.1-mini",  # Default model preference
+            "model_name": "gpt-4.1-mini",  # Default model preference
             "max_tokens": "1000",
         }
     
@@ -208,7 +208,7 @@ class TestCrossAgentParity:
         
         # Both should use the same model
         assert simple_agent.config.model_name == sofia_agent.config.model_name
-        assert simple_agent.config.model_name == "openai:gpt-4.1-mini"  # Default preference
+        assert simple_agent.config.model_name == "gpt-4.1-mini"  # Default preference
         
         # Both should have dependency objects
         assert simple_agent.dependencies is not None
