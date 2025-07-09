@@ -702,12 +702,12 @@ check-release: ## 🔍 Check if ready for release (clean working directory)
 			exit 1; \
 		fi; \
 	fi
-	@# Check if main branch is up to date with origin
+	@# Check if we can fast-forward to origin (no conflicts)
 	@git fetch origin main --quiet; \
-	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ]; then \
-		echo -e "$(FONT_YELLOW)$(WARNING) Local main branch differs from origin/main$(FONT_RESET)"; \
-		echo -e "$(FONT_YELLOW)Consider pulling latest changes or pushing your commits.$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)Run: git pull origin main$(FONT_RESET)"; \
+	if ! git merge-base --is-ancestor origin/main HEAD; then \
+		echo -e "$(FONT_YELLOW)$(WARNING) Local branch has diverged from origin/main$(FONT_RESET)"; \
+		echo -e "$(FONT_YELLOW)This may indicate conflicts or missing remote changes.$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Consider: git pull --rebase origin main$(FONT_RESET)"; \
 		read -p "Continue anyway? [y/N] " -n 1 -r; \
 		echo; \
 		if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
