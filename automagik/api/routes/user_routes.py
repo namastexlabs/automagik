@@ -1,7 +1,8 @@
 import logging
-from fastapi import APIRouter, Query, Path
+from fastapi import APIRouter, Query, Path, Depends
 from automagik.api.models import UserCreate, UserUpdate, UserInfo, UserListResponse
 from automagik.api.controllers.user_controller import get_users, create_user, get_user, update_user_data, delete_user
+from automagik.auth import verify_api_key
 
 # Create router for user endpoints
 user_router = APIRouter()
@@ -14,7 +15,8 @@ logger = logging.getLogger(__name__)
            description="Returns a paginated list of users.\n\n**Requires Authentication**: This endpoint requires an API key.")
 async def list_users_route(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page")
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    _: bool = Depends(verify_api_key)
 ):
     """
     Get a paginated list of users
@@ -24,7 +26,10 @@ async def list_users_route(
 @user_router.post("/users", response_model=UserInfo, tags=["Users"],
             summary="Create User",
             description="Creates a new user with email, phone_number, and/or user_data fields.\n\n**Requires Authentication**: This endpoint requires an API key.")
-async def create_user_route(user_create: UserCreate):
+async def create_user_route(
+    user_create: UserCreate,
+    _: bool = Depends(verify_api_key)
+):
     """
     Create a new user
     """
@@ -33,7 +38,10 @@ async def create_user_route(user_create: UserCreate):
 @user_router.get("/users/{user_identifier}", response_model=UserInfo, tags=["Users"],
             summary="Get User",
             description="Returns details for a specific user by ID, email, or phone number.\n\n**Requires Authentication**: This endpoint requires an API key.")
-async def get_user_route(user_identifier: str = Path(..., description="The user ID, email, or phone number")):
+async def get_user_route(
+    user_identifier: str = Path(..., description="The user ID, email, or phone number"),
+    _: bool = Depends(verify_api_key)
+):
     """
     Get a user by ID, email, or phone number
     """
@@ -42,7 +50,11 @@ async def get_user_route(user_identifier: str = Path(..., description="The user 
 @user_router.put("/users/{user_identifier}", response_model=UserInfo, tags=["Users"],
             summary="Update User",
             description="Updates an existing user identified by ID, email, or phone number.\n\n**Requires Authentication**: This endpoint requires an API key.")
-async def update_user_route(user_update: UserUpdate, user_identifier: str = Path(..., description="The user ID, email, or phone number")):
+async def update_user_route(
+    user_update: UserUpdate,
+    user_identifier: str = Path(..., description="The user ID, email, or phone number"),
+    _: bool = Depends(verify_api_key)
+):
     """
     Update a user by ID, email, or phone number
     """
@@ -51,7 +63,10 @@ async def update_user_route(user_update: UserUpdate, user_identifier: str = Path
 @user_router.delete("/users/{user_identifier}", tags=["Users"],
                summary="Delete User",
                description="Deletes a user account by ID, email, or phone number.\n\n**Requires Authentication**: This endpoint requires an API key.")
-async def delete_user_route(user_identifier: str = Path(..., description="The user ID, email, or phone number")):
+async def delete_user_route(
+    user_identifier: str = Path(..., description="The user ID, email, or phone number"),
+    _: bool = Depends(verify_api_key)
+):
     """
     Delete a user by ID, email, or phone number
     """

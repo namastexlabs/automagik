@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, ValidationError, Field
 
-from automagik.auth import get_api_key as verify_api_key
+from automagik.auth import verify_api_key
 from automagik.db.repository.mcp import (
     get_mcp_config_by_name,
     list_mcp_configs,
@@ -222,7 +222,7 @@ def validate_mcp_config_request(config_request: MCPConfigRequest) -> None:
 async def list_mcp_configs_endpoint(
     agent_name: Optional[str] = Query(None, description="Filter configs by agent name"),
     enabled_only: bool = Query(True, description="Only return enabled configurations"),
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ):
     """List all MCP configurations.
     
@@ -258,7 +258,7 @@ async def list_mcp_configs_endpoint(
 @router.post("/configs", response_model=MCPConfigResponse, status_code=201)
 async def create_mcp_config_endpoint(
     config_request: MCPConfigRequest,
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ):
     """Create a new MCP configuration.
     
@@ -322,7 +322,7 @@ async def create_mcp_config_endpoint(
 async def update_mcp_config_endpoint(
     name: str,
     config_request: MCPConfigRequest,
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ):
     """Update an existing MCP configuration.
     
@@ -392,7 +392,7 @@ async def update_mcp_config_endpoint(
 @router.get("/configs/{name}", response_model=MCPConfigResponse)
 async def get_mcp_config_endpoint(
     name: str,
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ):
     """Get a specific MCP configuration by name.
     
@@ -425,7 +425,7 @@ async def get_mcp_config_endpoint(
 async def get_agent_mcp_configs_endpoint(
     agent_name: str,
     enabled_only: bool = Query(True, description="Only return enabled configurations"),
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ):
     """Get all MCP configurations assigned to a specific agent.
     
@@ -465,7 +465,7 @@ async def get_agent_mcp_configs_endpoint(
 @router.delete("/configs/{name}", status_code=204)
 async def delete_mcp_config_endpoint(
     name: str,
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ):
     """Delete an MCP configuration.
     

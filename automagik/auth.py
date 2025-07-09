@@ -26,25 +26,27 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         if request.url.path in no_auth_paths:
             return await call_next(request)
 
+        # Check for API key in multiple formats
         api_key = request.headers.get(API_KEY_NAME) or request.query_params.get(API_KEY_NAME)
+        
+        # Also check for Bearer token (from Swagger UI authorize button)
         if api_key is None:
-            return JSONResponse(status_code=401, content={"detail": "x-api-key is missing in headers or query parameters"})
+            auth_header = request.headers.get("authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                api_key = auth_header[7:]  # Remove "Bearer " prefix
+        
+        if api_key is None:
+            return JSONResponse(status_code=401, content={"detail": "API key is missing. Provide via x-api-key header, query parameter, or Authorization: Bearer header"})
         if api_key != settings.AUTOMAGIK_API_KEY:
             return JSONResponse(status_code=401, content={"detail": "Invalid API Key"})
             
         return await call_next(request)
 
 async def get_api_key(x_api_key: Optional[str] = Header(None, alias=API_KEY_NAME)):
-    """Dependency to validate API key in FastAPI routes.
+    """Legacy dependency function for backward compatibility.
     
-    Args:
-        x_api_key: The API key provided in the request header
-        
-    Returns:
-        The validated API key
-        
-    Raises:
-        HTTPException: If API key is missing or invalid
+    Note: This function exposes x-api-key parameter in Swagger docs.
+    Use verify_api_key() for routes that should only show Bearer auth.
     """
     if x_api_key is None:
         raise HTTPException(
@@ -58,4 +60,17 @@ async def get_api_key(x_api_key: Optional[str] = Header(None, alias=API_KEY_NAME
             detail="Invalid API key"
         )
     
-    return x_api_key 
+    return x_api_key
+
+async def verify_api_key():
+    """Dependency to validate API key without exposing parameters in Swagger docs.
+    
+    This function relies on the APIKeyMiddleware to handle authentication,
+    so it only validates that authentication has already passed.
+    
+    Returns:
+        True if authentication passed (middleware ensures this)
+    """
+    # Since the middleware already validated the API key,
+    # if we reach this point, authentication has passed
+    return True 
