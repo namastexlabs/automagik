@@ -919,13 +919,47 @@ async def inject_message_to_running_workflow(
                 detail=f"Cannot inject message into workflow with status '{workflow_run.status}'. Workflow must be running or pending."
             )
         
-        # Get workspace path from workflow run
+        # Handle workspace initialization timing - poll for workspace path
         workspace_path = workflow_run.workspace_path
         if not workspace_path:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No workspace found for workflow run {run_id}"
-            )
+            # Workspace not ready yet, implement retry logic for pending workflows
+            if workflow_run.status == "pending":
+                # Wait for workspace initialization with exponential backoff
+                max_retries = 10
+                base_delay = 0.5  # Start with 500ms
+                
+                for attempt in range(max_retries):
+                    await asyncio.sleep(base_delay * (2 ** attempt))  # Exponential backoff
+                    
+                    # Re-fetch workflow run to check for workspace
+                    updated_workflow = get_workflow_run_by_run_id(run_id)
+                    if updated_workflow and updated_workflow.workspace_path:
+                        workspace_path = updated_workflow.workspace_path
+                        break
+                    
+                    # If workflow status changed to running, continue waiting
+                    if updated_workflow and updated_workflow.status == "running":
+                        continue
+                    
+                    # If workflow failed or completed, stop retrying
+                    if updated_workflow and updated_workflow.status in ["failed", "completed", "killed"]:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Workflow {run_id} is no longer active (status: {updated_workflow.status})"
+                        )
+                
+                # If still no workspace after retries
+                if not workspace_path:
+                    raise HTTPException(
+                        status_code=408,
+                        detail=f"Workspace initialization timeout for workflow run {run_id}. Please try again in a few moments."
+                    )
+            else:
+                # For non-pending workflows, workspace should already exist
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No workspace found for workflow run {run_id}"
+                )
         
         workspace_dir = PathLib(workspace_path)
         if not workspace_dir.exists():

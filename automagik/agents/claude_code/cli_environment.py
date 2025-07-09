@@ -107,8 +107,9 @@ class CLIEnvironmentManager:
             # Default branch naming logic - hierarchical structure
             current_branch = await self._get_current_branch(repo_root)
             if workflow_name and persistent:
-                # For persistent: feat/NMSTX-500-test-feature-builder, feat/NMSTX-500-test-feature-doctor
-                branch_name = f"{current_branch}-{workflow_name}"
+                # For persistent: include run_id to ensure unique branch names
+                # This prevents "already used by worktree" errors
+                branch_name = f"{current_branch}-{workflow_name}-{run_id[:8]}"
             else:
                 # For temporary: feat/NMSTX-500-test-feature-builder-runuuid
                 branch_name = f"{current_branch}-{workflow_name or 'temp'}-{run_id[:8]}"
@@ -116,9 +117,10 @@ class CLIEnvironmentManager:
         # If workflow_name is provided, create persistent or temp worktree based on parameter
         if workflow_name:
             if persistent:
-                # For persistent: use branch name as directory (feat-NMSTX-500-test-feature-builder)
+                # For persistent: include a short run_id suffix to ensure uniqueness
+                # This prevents database constraint violations while keeping paths readable
                 safe_branch_name = branch_name.replace("/", "-")
-                worktree_path = repo_root / "worktrees" / safe_branch_name
+                worktree_path = repo_root / "worktrees" / f"{safe_branch_name}-{run_id[:8]}"
             else:
                 # For temporary: use branch name as directory (feat-NMSTX-500-test-feature-builder-runuuid)
                 safe_branch_name = branch_name.replace("/", "-")
