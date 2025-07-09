@@ -12,7 +12,7 @@ async def custom_docs():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>FastAPI - Swagger UI</title>
+        <title>Automagik API - Swagger UI</title>
         <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
         <link rel="shortcut icon" href="https://fastapi.tiangolo.com/img/favicon.png">
     </head>
@@ -44,7 +44,7 @@ async def custom_redoc():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>FastAPI - ReDoc</title>
+        <title>Automagik API - ReDoc</title>
         <link rel="shortcut icon" href="https://fastapi.tiangolo.com/img/favicon.png">
         <meta name="viewport" content="width=device-width, initial-scale=1">
     </head>
@@ -74,25 +74,36 @@ async def get_openapi_json(request: Request):
         routes=app.routes,
     )
     
-    # Add API Key security scheme
+    # Add multiple authentication schemes
     openapi_schema["components"] = openapi_schema.get("components", {})
     openapi_schema["components"]["securitySchemes"] = {
-        "APIKeyHeader": {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "API Key",
+            "description": "Enter your API key as the bearer token (recommended for Swagger UI)"
+        },
+        "ApiKeyHeader": {
             "type": "apiKey",
             "in": "header",
             "name": "x-api-key",
-            "description": "API key authentication"
+            "description": "API key in x-api-key header (alternative method)"
         },
-        "APIKeyQuery": {
+        "ApiKeyQuery": {
             "type": "apiKey",
             "in": "query",
             "name": "x-api-key",
-            "description": "API key authentication via query parameter"
+            "description": "API key as query parameter (alternative method)"
         }
     }
     
     # Apply security to all endpoints except those that don't need auth
-    security_requirement = [{"APIKeyHeader": []}, {"APIKeyQuery": []}]
+    # Multiple security schemes as alternatives (user can choose any one)
+    security_requirement = [
+        {"BearerAuth": []},
+        {"ApiKeyHeader": []},
+        {"ApiKeyQuery": []}
+    ]
     no_auth_paths = ["/", "/health", "/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"]
     
     # Update the schema to use /api/v1 prefix in the OpenAPI docs
@@ -107,10 +118,11 @@ async def get_openapi_json(request: Request):
                 operation["security"] = security_requirement
                 
                 # Add authentication description to each endpoint
+                auth_info = "\n\n**Requires Authentication**: This endpoint requires an API key. You can authenticate using any of these methods:\n- **Bearer Token**: Use the 'Authorize' button above (recommended for Swagger UI)\n- **Header**: Include `x-api-key: your-api-key` in request headers\n- **Query Parameter**: Add `?x-api-key=your-api-key` to the URL"
                 if "description" in operation:
-                    operation["description"] += "\n\n**Requires Authentication**: This endpoint requires an API key."
+                    operation["description"] += auth_info
                 else:
-                    operation["description"] = "**Requires Authentication**: This endpoint requires an API key."
+                    operation["description"] = "**Requires Authentication**: This endpoint requires an API key." + auth_info
         
         paths[path] = path_item
         
