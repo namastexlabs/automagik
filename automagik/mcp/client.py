@@ -107,6 +107,9 @@ class MCPManager:
         self._servers: Dict[str, MCPServerStdio | MCPServerHTTP] = {}
         self._config_cache: Dict[str, MCPConfig] = {}
         self._agent_tools_cache: Dict[str, List[PydanticTool]] = {}
+        self._tools_cache: Dict[str, Dict[str, Any]] = {}
+        self._tools_cache_timestamp: Optional[float] = None
+        self._tools_cache_ttl = 300  # 5 minutes
         self._initialized = False
         self._config_file_path = Path(".mcp.json")
         self._file_observer: Optional[Observer] = None
@@ -720,42 +723,75 @@ class MCPManager:
         
         return servers
     
-    async def list_available_tools(self) -> Dict[str, Dict[str, Any]]:
-        """List all available tools from all running MCP servers.
+    async def list_available_tools(self, force_refresh: bool = False) -> Dict[str, Dict[str, Any]]:
+        """List all available tools from all running MCP servers with caching.
         
+        Args:
+            force_refresh: If True, bypass cache and refresh tools
+            
         Returns:
             Dictionary mapping tool names to tool information
         """
+        import time
+        current_time = time.time()
+        
+        # Check cache validity
+        if (not force_refresh and 
+            self._tools_cache_timestamp and 
+            current_time - self._tools_cache_timestamp < self._tools_cache_ttl and 
+            self._tools_cache):
+            logger.debug("Returning cached MCP tools")
+            return self._tools_cache
+        
+        logger.debug("Refreshing MCP tools cache")
         all_tools = {}
         
         for server_name, server in self._servers.items():
             try:
-                # Get tools from server
-                async with server as running_server:
-                    tools = await running_server.list_tools()
-                    
-                    for tool in tools:
-                        # Create unique tool name with server prefix
-                        tool_name = f"{server_name}__{tool.name}"
+                config = self._config_cache.get(server_name)
+                if not config:
+                    logger.debug(f"No config found for server {server_name}")
+                    continue
+                
+                # Handle different server types
+                server_type = config.get_server_type()
+                
+                if server_type == 'stdio':
+                    # For stdio servers, use the server directly
+                    async with server as running_server:
+                        tools = await running_server.list_tools()
                         
-                        tool_info = {
-                            'description': tool.description,
-                            'server_name': server_name,
-                            'original_name': tool.name,
-                            'tool_data': {
-                                'name': tool.name,
+                        for tool in tools:
+                            # Create unique tool name with server prefix
+                            tool_name = f"{server_name}__{tool.name}"
+                            
+                            tool_info = {
                                 'description': tool.description,
-                                'parameters_json_schema': tool.parameters_json_schema,
-                                'outer_typed_dict_key': getattr(tool, 'outer_typed_dict_key', None),
-                                'strict': getattr(tool, 'strict', None)
+                                'server_name': server_name,
+                                'original_name': tool.name,
+                                'tool_data': {
+                                    'name': tool.name,
+                                    'description': tool.description,
+                                    'parameters_json_schema': tool.parameters_json_schema,
+                                    'outer_typed_dict_key': getattr(tool, 'outer_typed_dict_key', None),
+                                    'strict': getattr(tool, 'strict', None)
+                                }
                             }
-                        }
-                        
-                        all_tools[tool_name] = tool_info
+                            
+                            all_tools[tool_name] = tool_info
+                            
+                elif server_type == 'sse':
+                    # For SSE servers, skip for now as they require different handling
+                    logger.debug(f"Skipping SSE server {server_name} - not yet supported in tool discovery")
+                    continue
                         
             except Exception as e:
                 logger.warning(f"Failed to list tools from server {server_name}: {e}")
                 continue
+        
+        # Update cache
+        self._tools_cache = all_tools
+        self._tools_cache_timestamp = current_time
         
         return all_tools
     
