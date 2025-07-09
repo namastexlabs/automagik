@@ -892,6 +892,17 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             "tool_outputs": tool_outputs,
         }
         
+        # Add the current user_id to the response
+        # First check if the agent updated the user_id during execution
+        final_user_id = effective_user_id
+        if hasattr(agent, 'user_id') and agent.user_id:
+            final_user_id = agent.user_id
+        elif message_history and hasattr(message_history, 'user_id') and message_history.user_id:
+            final_user_id = message_history.user_id
+        
+        if final_user_id:
+            response_data["user_id"] = str(final_user_id)
+        
         # Add usage information if available
         if usage_info:
             response_data["usage"] = usage_info
