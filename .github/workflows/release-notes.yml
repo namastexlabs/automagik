@@ -29,6 +29,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.sha }}
 
       - name: 🏷️ Determine Target Tag
         id: tag
