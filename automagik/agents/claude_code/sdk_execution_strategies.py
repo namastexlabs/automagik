@@ -351,6 +351,13 @@ class ExecutionStrategies:
             
             # Execute SDK query directly (SDK handles max_turns properly)
             try:
+                # Initialize streaming buffer for large responses (especially brain workflow)
+                streaming_buffer = None
+                if hasattr(request, 'workflow_name') and request.workflow_name == 'brain':
+                    from .stream_utils import StreamingBuffer
+                    streaming_buffer = StreamingBuffer(max_chunk_size=16384, max_buffer_size=512000)
+                    logger.info(f"Initialized streaming buffer for brain workflow with 512KB max size")
+                
                 async for message in query(prompt=request.message, options=options):
                     # Check for kill signal before processing each message
                     if hasattr(request, 'run_id') and request.run_id:
@@ -443,8 +450,26 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                         except Exception as message_check_error:
                             logger.error(f"Failed to check pending messages: {message_check_error}")
                     
-                    messages.append(str(message))
-                    collected_messages.append(message)
+                    # Process message with streaming buffer for brain workflow
+                    if streaming_buffer:
+                        message_str = str(message)
+                        completed_messages = streaming_buffer.add_chunk(message_str)
+                        
+                        # Add completed messages to our collection
+                        for completed_msg in completed_messages:
+                            messages.append(completed_msg)
+                        
+                        # Always add the raw message to collected_messages for SDK tracking
+                        collected_messages.append(message)
+                        
+                        # Log buffer stats periodically
+                        if len(messages) % 10 == 0:
+                            buffer_stats = streaming_buffer.get_stats()
+                            logger.debug(f"Buffer stats: {buffer_stats}")
+                    else:
+                        # Standard processing for non-brain workflows
+                        messages.append(str(message))
+                        collected_messages.append(message)
                     
                     # Log message to individual workflow log file
                     if log_writer:
@@ -585,11 +610,63 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                     logger.info("SDK Executor: Stream ended successfully (EndOfStream is normal after completion)")
                 elif "JSONDecodeError" in str(stream_error) or "json.decoder.JSONDecodeError" in str(type(stream_error)):
                     logger.error(f"SDK Executor: JSON decode error in stream - likely malformed response: {stream_error}")
-                    # Try to continue if we have some messages
-                    if messages:
-                        logger.info(f"Continuing with {len(messages)} messages collected before JSON error")
+                    
+                    # For brain workflow, try to recover using streaming buffer
+                    if streaming_buffer and hasattr(request, 'workflow_name') and request.workflow_name == 'brain':
+                        logger.info("Attempting to recover from JSON decode error using streaming buffer")
+                        try:
+                            # Get any remaining content from buffer
+                            remaining_content = streaming_buffer.get_final_content()
+                            if remaining_content:
+                                logger.info(f"Recovered {len(remaining_content)} chars from streaming buffer")
+                                
+                                # Use brain-specific error handling
+                                from .stream_utils import handle_brain_workflow_json_error
+                                recovery_info = handle_brain_workflow_json_error(
+                                    stream_error, remaining_content, request.workflow_name
+                                )
+                                
+                                # Add recovered content based on what we found
+                                if recovery_info.get("partial_content"):
+                                    partial = recovery_info["partial_content"]
+                                    logger.info(f"Recovered {partial['count']} {partial['type']} from buffer")
+                                    
+                                    # Add partial content as messages
+                                    if partial["type"] == "memory_operations":
+                                        for memory_op in partial["content"]:
+                                            messages.append(f"Recovered memory operation: {memory_op}")
+                                    elif partial["type"] == "yaml_structures":
+                                        for yaml_section in partial["content"]:
+                                            messages.append(f"Recovered YAML section: {yaml_section}")
+                                
+                                elif recovery_info.get("fallback_content"):
+                                    fallback = recovery_info["fallback_content"]
+                                    logger.info(f"Using fallback content: {fallback['type']}")
+                                    messages.append(f"Recovered content: {fallback['content']}")
+                                
+                                else:
+                                    # Even if no structured recovery, add raw content
+                                    messages.append(remaining_content)
+                            
+                            # Get buffer stats for debugging
+                            buffer_stats = streaming_buffer.get_stats()
+                            logger.info(f"Buffer stats: {buffer_stats}")
+                            
+                            # Continue with whatever messages we have
+                            if messages:
+                                logger.info(f"Continuing with {len(messages)} messages after brain workflow recovery")
+                            else:
+                                logger.warning("No messages recovered from brain workflow, raising error")
+                                raise stream_error
+                        except Exception as buffer_error:
+                            logger.error(f"Brain workflow buffer recovery failed: {buffer_error}")
+                            raise stream_error
                     else:
-                        raise stream_error
+                        # Try to continue if we have some messages
+                        if messages:
+                            logger.info(f"Continuing with {len(messages)} messages collected before JSON error")
+                        else:
+                            raise stream_error
                 else:
                     logger.error(f"SDK Executor: Stream error: {stream_error}")
                     raise stream_error
