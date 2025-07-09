@@ -177,11 +177,13 @@ jobs:
             1. Read the commits.txt file to understand the actual changes between versions
             2. Return ONLY the release notes markdown - start immediately with the markdown content
             3. NO preambles, explanations, or introductory text - go straight to the release notes
-            4. Focus on architectural improvements, agent capabilities, workflow enhancements
-            5. Use professional technical language for developers and AI engineers
-            6. Group changes by impact: Features, Improvements, Bug Fixes, Infrastructure
-            7. Include specific technical details that matter to users
-            8. Make it clear how these changes improve the AI agent orchestration experience
+            4. Your response MUST start with exactly: # 🧞 What's New in v${{ steps.tag.outputs.tag }}
+            5. Focus on architectural improvements, agent capabilities, workflow enhancements
+            6. Use professional technical language for developers and AI engineers
+            7. Group changes by impact: Features, Improvements, Bug Fixes, Infrastructure
+            8. Include specific technical details that matter to users
+            9. Make it clear how these changes improve the AI agent orchestration experience
+            10. Do NOT include any source code, file contents, or technical implementation details
             
             **Expected Format (start directly with this structure):**
             
@@ -262,31 +264,59 @@ jobs:
                 releaseNotes = executionLog.content;
                 console.log(`✅ Found content field with ${releaseNotes.length} characters`);
               }
-              // Method 4: Deep search for text content
+              // Method 4: Parse execution log structure properly
               else {
-                const findTextContent = (obj, path = '') => {
-                  if (typeof obj === 'string' && obj.length > 100 && obj.includes('#')) {
-                    return obj;
+                // Look for Claude's response in the execution log structure
+                const findReleaseNotes = (obj, depth = 0) => {
+                  // Prevent infinite recursion
+                  if (depth > 10) return null;
+                  
+                  if (typeof obj === 'string') {
+                    // Check if this looks like release notes markdown
+                    if (obj.includes('# 🧞 What\'s New in v') || 
+                        (obj.includes('# ') && obj.includes('## ') && obj.length > 200 && obj.length < 5000)) {
+                      return obj;
+                    }
+                    return null;
                   }
+                  
                   if (typeof obj === 'object' && obj !== null) {
+                    // Check assistant messages first
+                    if (obj.role === 'assistant' && obj.content) {
+                      const content = Array.isArray(obj.content) ? obj.content.find(c => c.type === 'text')?.text : obj.content;
+                      if (content && typeof content === 'string' && content.includes('# 🧞 What\'s New in v')) {
+                        return content;
+                      }
+                    }
+                    
+                    // Recursively search object properties
                     for (const [key, value] of Object.entries(obj)) {
-                      const result = findTextContent(value, `${path}.${key}`);
+                      const result = findReleaseNotes(value, depth + 1);
                       if (result) return result;
                     }
                   }
+                  
                   return null;
                 };
                 
-                const foundContent = findTextContent(executionLog);
+                const foundContent = findReleaseNotes(executionLog);
                 if (foundContent) {
                   releaseNotes = foundContent;
-                  console.log(`✅ Found content via deep search with ${releaseNotes.length} characters`);
+                  console.log(`✅ Found release notes via structured search with ${releaseNotes.length} characters`);
                 }
               }
               
-              if (!releaseNotes || releaseNotes.length < 100) {
+              // Additional validation to ensure we have proper release notes
+              if (!releaseNotes || releaseNotes.length < 100 || 
+                  !releaseNotes.includes('# 🧞 What\'s New in v') || 
+                  releaseNotes.includes('import logging') || 
+                  releaseNotes.includes('def ') || 
+                  releaseNotes.includes('class ')) {
                 // Generate fallback release notes
-                console.log('⚠️ No valid release notes found, generating fallback');
+                console.log('⚠️ No valid release notes found or extracted content looks like source code, generating fallback');
+                if (releaseNotes && releaseNotes.length > 100) {
+                  console.log(`⚠️ Rejected content preview: ${releaseNotes.substring(0, 200)}...`);
+                }
                 releaseNotes = '# 🚀 Automagik Agents ${{ steps.tag.outputs.tag }}\\n\\n' +
                   '## 📋 Release Summary\\n\\n' +
                   'This release includes ${{ steps.changes.outputs.commits }} commits with improvements and updates to the Automagik Agents framework.\\n\\n' +
