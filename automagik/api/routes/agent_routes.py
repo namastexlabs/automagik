@@ -12,8 +12,7 @@ from pydantic import ValidationError, BaseModel, Field
 from automagik.api.models import (
     AgentInfo, AgentRunRequest, AgentCreateRequest, AgentUpdateRequest, 
     AgentCreateResponse, AgentUpdateResponse, AgentDeleteResponse,
-    AgentCopyRequest, AgentCopyResponse,
-    ToolInfo, ToolExecuteRequest, ToolExecuteResponse
+    AgentCopyRequest, AgentCopyResponse
 )
 from automagik.api.controllers.agent_controller import list_registered_agents, handle_agent_run
 from automagik.utils.session_queue import get_session_queue
@@ -21,7 +20,7 @@ from automagik.db.repository import session as session_repo
 from automagik.db.repository import user as user_repo
 from automagik.db.repository import agent as agent_repo
 from automagik.db.repository import prompt as prompt_repo
-from automagik.db.models import Agent, Prompt, PromptCreate
+from automagik.db.models import Agent, PromptCreate
 from automagik.config import settings
 
 # Create router for agent endpoints
@@ -29,6 +28,29 @@ agent_router = APIRouter()
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+
+
+def resolve_agent_by_identifier(identifier: str) -> Optional[Agent]:
+    """Resolve an agent by either name or ID.
+    
+    Args:
+        identifier: Either agent name (string) or agent ID (numeric string)
+        
+    Returns:
+        Agent object if found, None otherwise
+    """
+    # Try to parse as integer ID first
+    try:
+        agent_id = int(identifier)
+        agent = agent_repo.get_agent(agent_id)
+        if agent:
+            return agent
+    except ValueError:
+        # Not a numeric ID, continue to name lookup
+        pass
+    
+    # Try to find by name
+    return agent_repo.get_agent_by_name(identifier)
 
 
 class AsyncRunResponse(BaseModel):
@@ -631,11 +653,11 @@ async def list_agents():
     """
     return await list_registered_agents()
 
-@agent_router.post("/agent/{agent_name}/run", response_model=Dict[str, Any], tags=["Agents"],
+@agent_router.post("/agent/{agent_identifier}/run", response_model=Dict[str, Any], tags=["Agents"],
             summary="Run Agent",
-            description="Execute an agent with the specified name. Supports agent execution with configurable parameters and session management.")
+            description="Execute an agent with the specified name or ID. Supports agent execution with configurable parameters and session management.")
 async def run_agent(
-    agent_name: str,
+    agent_identifier: str,
     agent_request: AgentRunRequest = Body(..., description="Agent request parameters including message content and session configuration")
 ):
     """
@@ -673,6 +695,16 @@ async def run_agent(
     }
     ```
     """
+    # Resolve agent by identifier
+    agent = resolve_agent_by_identifier(agent_identifier)
+    if not agent:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent '{agent_identifier}' not found"
+        )
+    
+    logger.info(f"Starting agent run for: {agent.name} (ID: {agent.id})")
+    
     try:
         # Use session queue to ensure ordered processing per session
         session_queue = get_session_queue()
@@ -697,7 +729,7 @@ async def run_agent(
             queue_key,
             agent_request.message_content,
             _processor,
-            agent_name=agent_name,
+            agent_name=agent.name,
             prototype_request=agent_request,
         )
 
@@ -706,18 +738,18 @@ async def run_agent(
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.error(f"Error running agent {agent_name}: {e}")
+        logger.error(f"Error running agent {agent.name}: {e}")
         return JSONResponse(
             status_code=500,
             content={"error": f"Error running agent: {str(e)}"}
         )
 
 
-@agent_router.post("/agent/{agent_name}/run/async", response_model=AsyncRunResponse, tags=["Agents"],
+@agent_router.post("/agent/{agent_identifier}/run/async", response_model=AsyncRunResponse, tags=["Agents"],
             summary="Run Agent Asynchronously",
             description="Start an agent run asynchronously and return immediately with a run ID.")
 async def run_agent_async(
-    agent_name: str,
+    agent_identifier: str,
     background_tasks: BackgroundTasks,
     agent_request: AgentRunRequest = Body(..., description="Agent request parameters")
 ):
@@ -742,6 +774,16 @@ async def run_agent_async(
     }
     ```
     """
+    # Resolve agent by identifier
+    agent = resolve_agent_by_identifier(agent_identifier)
+    if not agent:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent '{agent_identifier}' not found"
+        )
+    
+    logger.info(f"Starting async agent run for: {agent.name} (ID: {agent.id})")
+    
     # Generate run ID
     run_id = str(uuid.uuid4())
     
@@ -783,7 +825,7 @@ async def run_agent_async(
             metadata={
                 "run_id": run_id,
                 "run_status": "pending",
-                "agent_name": agent_name,
+                "agent_name": agent.name,
                 "created_at": datetime.utcnow().isoformat(),
                 "request": agent_request.dict()
             }
@@ -797,7 +839,7 @@ async def run_agent_async(
         background_tasks.add_task(
             execute_agent_async,
             run_id,
-            agent_name,
+            agent.name,
             agent_request,
             str(session_id)
         )
@@ -809,8 +851,8 @@ async def run_agent_async(
     return AsyncRunResponse(
         run_id=run_id,
         status="pending",
-        message=f"Agent {agent_name} run started",
-        agent_name=agent_name
+        message=f"Agent {agent.name} run started",
+        agent_name=agent.name
     )
 
 
@@ -1032,20 +1074,20 @@ async def create_agent(request: AgentCreateRequest):
         raise HTTPException(status_code=500, detail=f"Failed to create agent: {str(e)}")
 
 
-@agent_router.put("/agent/{agent_name}", response_model=AgentUpdateResponse, tags=["Agents"],
+@agent_router.put("/agent/{agent_identifier}", response_model=AgentUpdateResponse, tags=["Agents"],
                  summary="Update an existing agent",
                  description="Update an existing agent's configuration.")
-async def update_agent(agent_name: str, request: AgentUpdateRequest):
+async def update_agent(agent_identifier: str, request: AgentUpdateRequest):
     """Update an existing agent."""
     try:
-        logger.info(f"Updating agent: {agent_name}")
+        logger.info(f"Updating agent: {agent_identifier}")
         
         # Get existing agent
-        existing_agent = agent_repo.get_agent_by_name(agent_name)
+        existing_agent = resolve_agent_by_identifier(agent_identifier)
         if not existing_agent:
             raise HTTPException(
                 status_code=404,
-                detail=f"Agent '{agent_name}' not found"
+                detail=f"Agent '{agent_identifier}' not found"
             )
         
         # Update fields that were provided
@@ -1066,38 +1108,38 @@ async def update_agent(agent_name: str, request: AgentUpdateRequest):
         if agent_id is None:
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to update agent {agent_name}"
+                detail=f"Failed to update agent {existing_agent.name}"
             )
         
-        logger.info(f"Successfully updated agent {agent_name}")
+        logger.info(f"Successfully updated agent {existing_agent.name}")
         
         return AgentUpdateResponse(
             status="success",
-            message=f"Agent '{agent_name}' updated successfully",
-            agent_name=agent_name
+            message=f"Agent '{existing_agent.name}' updated successfully",
+            agent_name=existing_agent.name
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating agent {agent_name}: {e}")
+        logger.error(f"Error updating agent {agent_identifier}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update agent: {str(e)}")
 
 
-@agent_router.delete("/agent/{agent_name}", response_model=AgentDeleteResponse, tags=["Agents"],
+@agent_router.delete("/agent/{agent_identifier}", response_model=AgentDeleteResponse, tags=["Agents"],
                     summary="Delete an agent",
-                    description="Delete an agent by name.")
-async def delete_agent(agent_name: str):
-    """Delete an agent by name."""
+                    description="Delete an agent by name or ID.")
+async def delete_agent(agent_identifier: str):
+    """Delete an agent by name or ID."""
     try:
-        logger.info(f"Deleting agent: {agent_name}")
+        logger.info(f"Deleting agent: {agent_identifier}")
         
         # Get existing agent
-        existing_agent = agent_repo.get_agent_by_name(agent_name)
+        existing_agent = resolve_agent_by_identifier(agent_identifier)
         if not existing_agent:
             raise HTTPException(
                 status_code=404,
-                detail=f"Agent '{agent_name}' not found"
+                detail=f"Agent '{agent_identifier}' not found"
             )
         
         # Delete the agent from database
@@ -1106,38 +1148,38 @@ async def delete_agent(agent_name: str):
         if not success:
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to delete agent {agent_name}"
+                detail=f"Failed to delete agent {existing_agent.name}"
             )
         
-        logger.info(f"Successfully deleted agent {agent_name}")
+        logger.info(f"Successfully deleted agent {existing_agent.name}")
         
         return AgentDeleteResponse(
             status="success",
-            message=f"Agent '{agent_name}' deleted successfully",
-            agent_name=agent_name
+            message=f"Agent '{existing_agent.name}' deleted successfully",
+            agent_name=existing_agent.name
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting agent {agent_name}: {e}")
+        logger.error(f"Error deleting agent {agent_identifier}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")
 
 
-@agent_router.post("/agent/{source_agent_name}/copy", response_model=AgentCopyResponse, tags=["Agents"],
+@agent_router.post("/agent/{source_agent_identifier}/copy", response_model=AgentCopyResponse, tags=["Agents"],
                   summary="Copy an existing agent with modifications",
                   description="Create a copy of an existing agent with optional prompt and configuration changes.")
-async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
+async def copy_agent(source_agent_identifier: str, request: AgentCopyRequest):
     """Copy an existing agent with modifications."""
     try:
-        logger.info(f"Copying agent {source_agent_name} to {request.new_name}")
+        logger.info(f"Copying agent {source_agent_identifier} to {request.new_name}")
         
         # Get source agent
-        source_agent = agent_repo.get_agent_by_name(source_agent_name)
+        source_agent = resolve_agent_by_identifier(source_agent_identifier)
         if not source_agent:
             raise HTTPException(
                 status_code=404,
-                detail=f"Source agent '{source_agent_name}' not found"
+                detail=f"Source agent '{source_agent_identifier}' not found"
             )
         
         # Check if new agent name already exists
@@ -1171,7 +1213,7 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
             name=request.new_name,
             type=source_agent.type,
             model=request.model or source_agent.model,
-            description=request.description or f"Copy of {source_agent_name}",
+            description=request.description or f"Copy of {source_agent.name}",
             config=new_config,
             active=True,
             active_default_prompt_id=None  # Will be set after prompt creation
@@ -1213,12 +1255,12 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
                 detail=f"Failed to create copied agent {request.new_name}"
             )
         
-        logger.info(f"Successfully copied agent {source_agent_name} to {request.new_name} with ID {agent_id}")
+        logger.info(f"Successfully copied agent {source_agent.name} to {request.new_name} with ID {agent_id}")
         
         return AgentCopyResponse(
             status="success",
-            message=f"Agent '{source_agent_name}' copied to '{request.new_name}' successfully",
-            source_agent=source_agent_name,
+            message=f"Agent '{source_agent.name}' copied to '{request.new_name}' successfully",
+            source_agent=source_agent.name,
             new_agent=request.new_name,
             agent_id=agent_id
         )
@@ -1226,7 +1268,7 @@ async def copy_agent(source_agent_name: str, request: AgentCopyRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error copying agent {source_agent_name}: {e}")
+        logger.error(f"Error copying agent {source_agent_identifier}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to copy agent: {str(e)}")
 
 
