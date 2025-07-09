@@ -285,7 +285,7 @@ class ToolDiscoveryService:
         return list(set(capabilities))  # Remove duplicates
     
     async def _discover_mcp_tools(self) -> List[Dict[str, Any]]:
-        """Discover all MCP tools using proper PydanticAI AsyncExitStack patterns."""
+        """Discover all MCP tools using the singleton MCP manager."""
         tools = []
         
         # Check if PydanticAI MCP is available
@@ -294,122 +294,45 @@ class ToolDiscoveryService:
             return tools
         
         try:
-            import asyncio
-            # Get list of MCP servers from database
-            mcp_configs = list_mcp_configs()
-            if not mcp_configs:
-                logger.debug("No MCP configurations found")
+            # Use the singleton MCP manager instead of creating new servers
+            from automagik.mcp.client import get_mcp_manager
+            
+            mcp_manager = await get_mcp_manager()
+            if not mcp_manager:
+                logger.warning("MCP manager not available - skipping MCP tool discovery")
                 return tools
             
-            # Prepare server instances for AsyncExitStack management
-            server_instances = []
-            for config in mcp_configs:
+            # Get tools from all running MCP servers
+            logger.debug("Discovering MCP tools from singleton manager")
+            
+            # List all available tools from the MCP manager
+            available_tools = await mcp_manager.list_available_tools()
+            
+            logger.info(f"Successfully discovered {len(available_tools)} MCP tools from singleton manager")
+            
+            # Convert to our internal format
+            for tool_name, tool_info in available_tools.items():
                 try:
-                    # Extract configuration data for MCPServerStdio
-                    server_config = config.config
-                    server_type = server_config.get("type", "stdio")
+                    tool_data = {
+                        'name': tool_name,
+                        'description': tool_info.get('description', ''),
+                        'server_name': tool_info.get('server_name', ''),
+                        'type': 'mcp',
+                        'tool_data': tool_info.get('tool_data', {}),
+                        'mcp_server_name': tool_info.get('server_name', ''),
+                        'mcp_tool_name': tool_info.get('original_name', tool_name),
+                        'parameters_schema': tool_info.get('tool_data', {}).get('parameters_json_schema', {}),
+                        'capabilities': self._infer_capabilities(tool_name, tool_info.get('description', '')),
+                        'categories': self._infer_mcp_categories(tool_name, tool_info.get('description', ''))
+                    }
                     
-                    # Only handle stdio servers for now (SSE servers need different handling)
-                    if server_type != "stdio":
-                        logger.debug(f"Skipping non-stdio server {config.name} (type: {server_type})")
-                        continue
-                    
-                    # Get command and args from config
-                    command = server_config.get("command")
-                    args = server_config.get("args", [])
-                    env = server_config.get("env", {})
-                    
-                    if not command:
-                        logger.warning(f"No command specified for MCP server {config.name}")
-                        continue
-                    
-                    # Create MCPServerStdio instance with proper configuration
-                    server = MCPServerStdio(
-                        command=command,
-                        args=args if isinstance(args, list) else [],
-                        env=env if isinstance(env, dict) else {},
-                        tool_prefix=config.name  # Use server name as tool prefix
-                    )
-                    
-                    server_instances.append((config.name, server))
-                    logger.debug(f"Prepared MCP server {config.name} for discovery")
+                    tools.append(tool_data)
+                    logger.debug(f"Added MCP tool: {tool_name}")
                     
                 except Exception as e:
-                    logger.warning(f"Failed to prepare MCP server {config.name}: {e}")
+                    logger.warning(f"Failed to process MCP tool {tool_name}: {e}")
                     continue
-            
-            if not server_instances:
-                logger.debug("No valid stdio MCP servers to discover")
-                return tools
-            
-            # Use AsyncExitStack to manage all servers properly - PydanticAI official pattern
-            # Add timeout to prevent hanging during CTRL+C
-            try:
-                async with asyncio.timeout(30.0):  # 30 second timeout
-                    async with AsyncExitStack() as exit_stack:
-                        entered_servers = []
-                        
-                        # Enter each server's async context (starts subprocesses)
-                        for name, server in server_instances:
-                            try:
-                                logger.debug(f"Starting MCP server {name}...")
-                                # This starts the subprocess and enters async context
-                                entered_server = await exit_stack.enter_async_context(server)
-                                entered_servers.append((name, entered_server))
-                                logger.debug(f"Successfully started MCP server {name}")
-                                
-                            except Exception as e:
-                                logger.warning(f"Failed to start MCP server {name}: {e}")
-                                continue
-                        
-                        # Now we can safely list tools from all running servers
-                        logger.info(f"Discovering tools from {len(entered_servers)} MCP servers")
-                        
-                        for name, server in entered_servers:
-                            try:
-                                logger.debug(f"Listing tools from server {name}...")
-                                server_tools = await server.list_tools()
-                                
-                                logger.debug(f"Found {len(server_tools)} tools from server {name}")
-                                
-                                for tool in server_tools:
-                                    try:
-                                        # Convert PydanticAI ToolDefinition to our internal tool format
-                                        tool_info = {
-                                            'name': tool.name,
-                                            'description': tool.description,
-                                            'server_name': name,
-                                            'type': 'mcp',
-                                            'tool_data': {
-                                                'name': tool.name,
-                                                'description': tool.description,
-                                                'parameters_json_schema': tool.parameters_json_schema,
-                                                'outer_typed_dict_key': getattr(tool, 'outer_typed_dict_key', None),
-                                                'strict': getattr(tool, 'strict', None)
-                                            },
-                                            'input_schema': tool.parameters_json_schema,
-                                            'capabilities': self._infer_capabilities(tool.name, tool.description)
-                                        }
-                                        tools.append(tool_info)
-                                        
-                                    except Exception as e:
-                                        logger.warning(f"Failed to process tool {tool.name} from {name}: {e}")
-                                        continue
-                                    
-                            except Exception as e:
-                                logger.error(f"Failed to list tools from {name}: {e}")
-                                continue
-                        
-                        logger.info(f"Successfully discovered {len(tools)} MCP tools from {len(entered_servers)} servers")
-                        
-                        # AsyncExitStack automatically calls __aexit__ on all servers when we exit this block
-                        # This ensures proper cleanup of all subprocess connections
-            except asyncio.TimeoutError:
-                logger.warning("MCP tool discovery timed out after 30 seconds")
-            except KeyboardInterrupt:
-                logger.info("MCP tool discovery interrupted by user")
-            except Exception as e:
-                logger.error(f"Error during MCP tool discovery: {e}")
+                    
         except Exception as e:
             logger.error(f"Error during MCP tool discovery: {e}")
         
@@ -486,10 +409,8 @@ class ToolDiscoveryService:
         
         return list(set(categories))
     
-    async def sync_tools_to_database(self) -> Dict[str, int]:
-        """Synchronize discovered tools with database."""
-        discovered = await self.discover_all_tools(force_refresh=True)
-        
+    async def sync_discovered_tools_to_database(self, discovered: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
+        """Synchronize already discovered tools with database."""
         created_count = 0
         updated_count = 0
         error_count = 0
@@ -536,6 +457,11 @@ class ToolDiscoveryService:
             "errors": error_count,
             "total": len(all_tools)
         }
+        
+    async def sync_tools_to_database(self) -> Dict[str, int]:
+        """Synchronize discovered tools with database."""
+        discovered = await self.discover_all_tools(force_refresh=True)
+        return await self.sync_discovered_tools_to_database(discovered)
 
 
 # Global instance
