@@ -2,6 +2,7 @@ import logging
 import json
 import re
 import time
+import uuid
 from typing import Callable, Any, Dict
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,7 +15,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     Middleware to log all incoming HTTP requests and responses.
     """
     
+    def __init__(self, app):
+        super().__init__(app)
+        self.request_counter = 0
+    
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Generate simple request ID (counter-based for simplicity)
+        self.request_counter += 1
+        request_id = f"R{self.request_counter:04d}"
+        
+        # Store request ID in request state for access in other parts of the app
+        request.state.request_id = request_id
+        
         # Start timer
         start_time = time.time()
         
@@ -24,7 +36,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         client_host = request.client.host if request.client else "unknown"
         
         # Log request
-        logger.info(f"📨 {method} {path} - Client: {client_host}")
+        logger.info(f"[{request_id}] 📨 {method} {path} - Client: {client_host}")
         
         # Get request headers (excluding sensitive ones)
         safe_headers = {}
@@ -34,7 +46,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             else:
                 safe_headers[key] = "***REDACTED***"
         
-        logger.debug(f"Request headers: {safe_headers}")
+        logger.debug(f"[{request_id}] Request headers: {safe_headers}")
         
         # Process request
         try:
@@ -45,17 +57,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             
             # Log response
             status_emoji = "✅" if 200 <= response.status_code < 300 else "❌" if response.status_code >= 400 else "⚠️"
-            logger.info(f"{status_emoji} {method} {path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+            logger.info(f"[{request_id}] {status_emoji} {method} {path} - Status: {response.status_code} - Time: {process_time:.3f}s")
             
             # Add custom headers
             response.headers["X-Process-Time"] = str(process_time)
+            response.headers["X-Request-ID"] = request_id
             
             return response
             
         except Exception as e:
             # Log error
             process_time = time.time() - start_time
-            logger.error(f"❌ {method} {path} - Error: {str(e)} - Time: {process_time:.3f}s")
+            logger.error(f"[{request_id}] ❌ {method} {path} - Error: {str(e)} - Time: {process_time:.3f}s")
             raise
 
 
