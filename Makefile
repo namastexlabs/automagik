@@ -664,10 +664,32 @@ check-release: ## 🔍 Check if ready for release (clean working directory)
 	$(call print_status,Checking release readiness...)
 	@# Check for uncommitted changes
 	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
-		echo -e "$(FONT_YELLOW)Please commit or stash your changes before publishing.$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)Run: git status$(FONT_RESET)"; \
-		exit 1; \
+		CHANGED_FILES=$$(git status --porcelain | awk '{print $$2}'); \
+		if [ "$$CHANGED_FILES" = "pyproject.toml" ] && [ "$$(git diff --name-only)" = "pyproject.toml" ]; then \
+			VERSION_DIFF=$$(git diff pyproject.toml | grep "^[+-]version" | wc -l); \
+			if [ "$$VERSION_DIFF" = "2" ]; then \
+				echo -e "$(FONT_YELLOW)$(INFO) Only version bump detected in pyproject.toml$(FONT_RESET)"; \
+				echo -e "$(FONT_CYAN)Auto-committing version bump...$(FONT_RESET)"; \
+				NEW_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
+				git add pyproject.toml; \
+				git commit -m "chore: bump version to $$NEW_VERSION" \
+					-m "" \
+					-m "🧞 Automagik Genie" \
+					-m "" \
+					-m "Co-Authored-By: Automagik Genie <genie@namastex.ai>"; \
+				echo -e "$(FONT_GREEN)$(SUCCESS) Version bump committed automatically$(FONT_RESET)"; \
+			else \
+				echo -e "$(FONT_RED)$(ERROR) pyproject.toml has non-version changes!$(FONT_RESET)"; \
+				echo -e "$(FONT_YELLOW)Please review and commit manually.$(FONT_RESET)"; \
+				exit 1; \
+			fi; \
+		else \
+			echo -e "$(FONT_RED)$(ERROR) Uncommitted changes detected!$(FONT_RESET)"; \
+			echo -e "$(FONT_YELLOW)Changed files: $$CHANGED_FILES$(FONT_RESET)"; \
+			echo -e "$(FONT_YELLOW)Please commit or stash your changes before publishing.$(FONT_RESET)"; \
+			echo -e "$(FONT_CYAN)Run: git status$(FONT_RESET)"; \
+			exit 1; \
+		fi; \
 	fi
 	@# Check if on main branch
 	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
@@ -710,6 +732,8 @@ publish: check-release ## 🚀 Create GitHub release (triggers automated PyPI pu
 	@# Get version from pyproject.toml
 	@VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	echo -e "$(FONT_CYAN)Publishing version: v$$VERSION$(FONT_RESET)"; \
+	echo -e "$(FONT_CYAN)Pushing any commits to GitHub$(FONT_RESET)"; \
+	git push origin main; \
 	if ! git tag | grep -q "^v$$VERSION$$"; then \
 		echo -e "$(FONT_CYAN)Creating git tag v$$VERSION$(FONT_RESET)"; \
 		git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
