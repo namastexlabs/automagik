@@ -1,0 +1,225 @@
+{
+  "timestamp": "2025-07-07T10:08:04.049739",
+  "total_tests": 14,
+  "passed": 11,
+  "failed": 3,
+  "duration_seconds": 19.70805335044861,
+  "test_results": [
+    {
+      "test_name": "Health Endpoint",
+      "success": true,
+      "duration_ms": 6.629467010498047,
+      "details": {
+        "status": "healthy",
+        "version": "0.4.7"
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Workflow Health",
+      "success": true,
+      "duration_ms": 20.527124404907227,
+      "details": {
+        "status": "healthy",
+        "timestamp": "2025-07-07T13:07:44.349981",
+        "agent_available": true,
+        "workflows": {
+          "claude": true,
+          "surgeon": true,
+          "flashinho_thinker": true,
+          "brain": true,
+          "builder": true,
+          "lina": true,
+          "shipper": true,
+          "genie": true,
+          "guardian": true
+        },
+        "container_manager": false,
+        "feature_enabled": true,
+        "claude_cli_path": "SDK Executor (Post-Migration)"
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "List Workflows",
+      "success": true,
+      "duration_ms": 3.774881362915039,
+      "details": {
+        "count": 8,
+        "workflows": [
+          "brain",
+          "builder",
+          "genie",
+          "shipper",
+          "surgeon",
+          "guardian",
+          "lina",
+          "flashinho_thinker"
+        ]
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Start Workflow",
+      "success": true,
+      "duration_ms": 43.60246658325195,
+      "details": {
+        "run_id": "6ca2bfda-e13f-4709-8e11-684c36cfe944",
+        "session_id": "9a178153-9296-4026-ac6d-c3eeb7556e73",
+        "workflow_name": "flashinho_thinker"
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Workflow Status",
+      "success": true,
+      "duration_ms": 63.08341026306152,
+      "details": {
+        "run_id": "2c2ef4a8-5334-4075-ac6e-236c0ee80d39",
+        "status": "running",
+        "workflow_name": "flashinho_thinker"
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "List Workflow Runs",
+      "success": true,
+      "duration_ms": 5.49626350402832,
+      "details": {
+        "total_runs": 5,
+        "page": 1,
+        "has_next": false
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Filter Workflow Runs",
+      "success": true,
+      "duration_ms": 10.402679443359375,
+      "details": {
+        "completed_runs": 1
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Message Injection",
+      "success": false,
+      "duration_ms": 2050.588607788086,
+      "details": {
+        "status_code": 400,
+        "error": "{\"detail\":\"No workspace found for workflow run ad177a00-477f-4ee1-a550-b02957622c20\"}"
+      },
+      "error_message": "{\"detail\":\"No workspace found for workflow run ad177a00-477f-4ee1-a550-b02957622c20\"}"
+    },
+    {
+      "test_name": "Multiple Message Injection",
+      "success": false,
+      "duration_ms": 2050.922155380249,
+      "details": {
+        "error": "Failed to inject message 1: {'status_code': 400, 'error': '{\"detail\":\"No workspace found for workflow run e0b903a3-9175-41f3-876d-ef65d45f4e5c\"}'}"
+      },
+      "error_message": "Failed to inject message 1: {'status_code': 400, 'error': '{\"detail\":\"No workspace found for workflow run e0b903a3-9175-41f3-876d-ef65d45f4e5c\"}'}"
+    },
+    {
+      "test_name": "Session Continuation",
+      "success": true,
+      "duration_ms": 5088.98138999939,
+      "details": {
+        "initial_run_id": "ec1977b8-051a-40b4-85fc-9840e689152d",
+        "continue_run_id": "4c2ba56c-4d12-4c8e-9aa0-9e3e2671caed",
+        "session_id": "c200c337-ad8c-4062-b4c3-11c154acc019"
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Invalid Repository Error",
+      "success": true,
+      "duration_ms": 5060.065269470215,
+      "details": {
+        "run_id": "20ce1226-df43-4330-955c-9904975300b7",
+        "status": "failed"
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Workflow Kill",
+      "success": true,
+      "duration_ms": 3064.8210048675537,
+      "details": {
+        "run_id": "24ec63d4-6956-459d-82c5-de92ef8b68ba",
+        "kill_method": "graceful",
+        "kill_duration_ms": 10
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Concurrent Workflows",
+      "success": true,
+      "duration_ms": 179.73852157592773,
+      "details": {
+        "concurrent_workflows": 3,
+        "run_ids": [
+          "19f56da0-91a8-4ce0-a323-9c709c582b3e",
+          "aa50798d-422e-4a02-9904-9e0892340d15",
+          "622539f3-e6aa-49c5-aa56-11faf67ba908"
+        ]
+      },
+      "error_message": null
+    },
+    {
+      "test_name": "Rapid Message Injection",
+      "success": false,
+      "duration_ms": 2059.211254119873,
+      "details": {
+        "error": "Failed rapid injection 1"
+      },
+      "error_message": "Failed rapid injection 1"
+    }
+  ],
+  "summary": {
+    "Health": {
+      "passed": 1,
+      "failed": 0
+    },
+    "Workflow": {
+      "passed": 3,
+      "failed": 0
+    },
+    "List": {
+      "passed": 2,
+      "failed": 0
+    },
+    "Start": {
+      "passed": 1,
+      "failed": 0
+    },
+    "Filter": {
+      "passed": 1,
+      "failed": 0
+    },
+    "Message": {
+      "passed": 0,
+      "failed": 1
+    },
+    "Multiple": {
+      "passed": 0,
+      "failed": 1
+    },
+    "Session": {
+      "passed": 1,
+      "failed": 0
+    },
+    "Invalid": {
+      "passed": 1,
+      "failed": 0
+    },
+    "Concurrent": {
+      "passed": 1,
+      "failed": 0
+    },
+    "Rapid": {
+      "passed": 0,
+      "failed": 1
+    }
+  }
+}

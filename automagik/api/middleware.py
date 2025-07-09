@@ -229,14 +229,14 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
         # Extract other simple string fields
         simple_fields = ['message_type', 'session_name', 'user_id', 'session_origin']
         for field in simple_fields:
-            match = re.search(f'"{field}"\s*:\s*"([^"]*)"', body_str)
+            match = re.search(rf'"{field}"\s*:\s*"([^"]*)"', body_str)
             if match:
                 data[field] = match.group(1)
         
         # Extract numeric fields
         numeric_fields = ['message_limit']
         for field in numeric_fields:
-            match = re.search(f'"{field}"\s*:\s*(\d+)', body_str)
+            match = re.search(rf'"{field}"\s*:\s*(\d+)', body_str)
             if match:
                 data[field] = int(match.group(1))
                 
