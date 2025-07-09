@@ -2,8 +2,10 @@
 
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, Path, status
+from fastapi import APIRouter, HTTPException, Query, Path, status, Depends
 from pydantic import BaseModel, Field
+
+from automagik.auth import verify_api_key
 
 from automagik.db.repository.settings import (
     create_setting,
@@ -72,7 +74,8 @@ class SettingUpdateRequest(BaseModel):
 )
 async def list_settings_route(
     category: Optional[str] = Query(None, description="Filter by category"),
-    exclude_encrypted: bool = Query(False, description="Exclude encrypted settings from results")
+    exclude_encrypted: bool = Query(False, description="Exclude encrypted settings from results"),
+    _: bool = Depends(verify_api_key)
 ):
     """Get a list of all settings with optional filtering."""
     try:
@@ -114,7 +117,10 @@ async def list_settings_route(
     summary="Get Setting by Key",
     description="Retrieve a specific setting by its key.\n\n**Requires Authentication**: This endpoint requires an API key."
 )
-async def get_setting_route(key: str = Path(..., description="The setting key")):
+async def get_setting_route(
+    key: str = Path(..., description="The setting key"),
+    _: bool = Depends(verify_api_key)
+):
     """Get a setting by its key."""
     try:
         setting = get_setting_by_key(key)
@@ -154,7 +160,10 @@ async def get_setting_route(key: str = Path(..., description="The setting key"))
     summary="Create or Update Setting",
     description="Create a new setting or update an existing one (upsert behavior).\n\n**Requires Authentication**: This endpoint requires an API key."
 )
-async def create_setting_route(setting_request: SettingCreateRequest):
+async def create_setting_route(
+    setting_request: SettingCreateRequest,
+    _: bool = Depends(verify_api_key)
+):
     """Create or update a setting."""
     try:
         # Validate category
@@ -217,7 +226,8 @@ async def create_setting_route(setting_request: SettingCreateRequest):
 )
 async def update_setting_route(
     setting_update: SettingUpdateRequest,
-    key: str = Path(..., description="The setting key")
+    key: str = Path(..., description="The setting key"),
+    _: bool = Depends(verify_api_key)
 ):
     """Update a setting by its key."""
     try:
@@ -290,7 +300,10 @@ async def update_setting_route(
     summary="Delete Setting",
     description="Delete a setting by its key.\n\n**Requires Authentication**: This endpoint requires an API key."
 )
-async def delete_setting_route(key: str = Path(..., description="The setting key")):
+async def delete_setting_route(
+    key: str = Path(..., description="The setting key"),
+    _: bool = Depends(verify_api_key)
+):
     """Delete a setting by its key."""
     try:
         # Check if setting exists

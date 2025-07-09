@@ -7,7 +7,7 @@ import logging
 
 from automagik.services.model_discovery import ModelDiscoveryService
 from automagik.db import get_agent_by_name, execute_query
-from automagik.auth import get_api_key as verify_api_key
+from automagik.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ async def get_agent_model(agent_name: str, api_key: str = Depends(verify_api_key
 async def update_agent_model(
     agent_name: str, 
     request: ModelUpdate,
-    api_key: str = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key)
 ) -> dict:
     """Update model for an agent."""
     agent = get_agent_by_name(agent_name)

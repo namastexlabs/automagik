@@ -5,7 +5,7 @@ import json  # Add json import
 import re  # Move re import here
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, Body, BackgroundTasks, Depends
 from starlette.responses import JSONResponse
 from starlette import status
 from pydantic import ValidationError, BaseModel, Field
@@ -22,6 +22,7 @@ from automagik.db.repository import agent as agent_repo
 from automagik.db.repository import prompt as prompt_repo
 from automagik.db.models import Agent, PromptCreate
 from automagik.config import settings
+from automagik.auth import verify_api_key
 
 # Create router for agent endpoints
 agent_router = APIRouter()
@@ -647,7 +648,7 @@ async def clean_and_parse_agent_run_payload(request: Request) -> AgentRunRequest
 @agent_router.get("/agents", response_model=List[AgentInfo], tags=["Agents"], 
            summary="List Registered Agents",
            description="Returns a list of all registered agents available in the database.")
-async def list_agents():
+async def list_agents(_: bool = Depends(verify_api_key)):
     """
     Get a list of all registered agents
     """
@@ -658,7 +659,8 @@ async def list_agents():
             description="Execute an agent with the specified name or ID. Supports agent execution with configurable parameters and session management.")
 async def run_agent(
     agent_identifier: str,
-    agent_request: AgentRunRequest = Body(..., description="Agent request parameters including message content and session configuration")
+    agent_request: AgentRunRequest = Body(..., description="Agent request parameters including message content and session configuration"),
+    _: bool = Depends(verify_api_key)
 ):
     """
     Run an agent with the specified parameters
