@@ -376,11 +376,18 @@ class MCPManager:
                 # Start with current process environment to include .env variables
                 process_env = os.environ.copy()
                 
-                # Debug: Check if OPENAI_API_KEY is present
-                if 'OPENAI_API_KEY' in process_env:
-                    logger.debug(f"OPENAI_API_KEY is present in environment for {config.name}")
-                else:
-                    logger.debug(f"WARNING: OPENAI_API_KEY not found in environment for {config.name}")
+                # Explicitly pass critical environment variables to FastMCP servers
+                critical_env_vars = [
+                    'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY',
+                    'AUTOMAGIK_API_KEY', 'AUTOMAGIK_DATABASE_URL', 'PATH'
+                ]
+                
+                for var in critical_env_vars:
+                    if var in os.environ:
+                        process_env[var] = os.environ[var]
+                        logger.debug(f"Passed {var} to MCP server {config.name}")
+                    elif var == 'OPENAI_API_KEY':
+                        logger.warning(f"OPENAI_API_KEY not found in environment for {config.name}")
                 
                 # Update with any specific env vars from config
                 if env:
@@ -712,6 +719,45 @@ class MCPManager:
             servers.append(server_info)
         
         return servers
+    
+    async def list_available_tools(self) -> Dict[str, Dict[str, Any]]:
+        """List all available tools from all running MCP servers.
+        
+        Returns:
+            Dictionary mapping tool names to tool information
+        """
+        all_tools = {}
+        
+        for server_name, server in self._servers.items():
+            try:
+                # Get tools from server
+                async with server as running_server:
+                    tools = await running_server.list_tools()
+                    
+                    for tool in tools:
+                        # Create unique tool name with server prefix
+                        tool_name = f"{server_name}__{tool.name}"
+                        
+                        tool_info = {
+                            'description': tool.description,
+                            'server_name': server_name,
+                            'original_name': tool.name,
+                            'tool_data': {
+                                'name': tool.name,
+                                'description': tool.description,
+                                'parameters_json_schema': tool.parameters_json_schema,
+                                'outer_typed_dict_key': getattr(tool, 'outer_typed_dict_key', None),
+                                'strict': getattr(tool, 'strict', None)
+                            }
+                        }
+                        
+                        all_tools[tool_name] = tool_info
+                        
+            except Exception as e:
+                logger.warning(f"Failed to list tools from server {server_name}: {e}")
+                continue
+        
+        return all_tools
     
     @asynccontextmanager
     async def get_server(self, server_name: str):

@@ -29,8 +29,8 @@ async def initialize_tools() -> None:
             logger.info("⚠️ Tool discovery interrupted, continuing with minimal setup")
             discovered = {"code_tools": [], "mcp_tools": []}
         
-        # Sync tools to database
-        sync_stats = await discovery_service.sync_tools_to_database()
+        # Sync tools to database using already discovered tools
+        sync_stats = await discovery_service.sync_discovered_tools_to_database(discovered)
         
         code_count = len(discovered.get("code_tools", []))
         mcp_count = len(discovered.get("mcp_tools", []))
