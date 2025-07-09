@@ -1244,37 +1244,50 @@ class ClaudeCodeAgent(AutomagikAgent):
                     }
                 )
             
-            # Update workflow_runs table with failure status
-            try:
-                from automagik.db.models import WorkflowRunUpdate
-                from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
+            # Update workflow_runs table with failure status if there was an error
+            if 'e' in locals():
+                try:
+                    from automagik.db.models import WorkflowRunUpdate
+                    from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
+                    
+                    update_data = WorkflowRunUpdate(
+                        status="failed",
+                        error_message=str(e),
+                        completed_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    update_workflow_run_by_run_id(run_id, update_data)
+                    logger.info(f"Updated workflow run {run_id} status to failed: {str(e)}")
+                except Exception as workflow_update_error:
+                    logger.error(f"Failed to update workflow run status: {workflow_update_error}")
                 
-                update_data = WorkflowRunUpdate(
-                    status="failed",
-                    error_message=str(e),
-                    completed_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
-                )
-                update_workflow_run_by_run_id(run_id, update_data)
-                logger.info(f"Updated workflow run {run_id} status to failed: {str(e)}")
-            except Exception as workflow_update_error:
-                logger.error(f"Failed to update workflow run status: {workflow_update_error}")
-            
-            # Update session with error status
-            try:
-                from automagik.db import get_session, update_session
-                session_obj = get_session(uuid.UUID(session_id))
-                if session_obj:
-                    metadata = session_obj.metadata or {}
-                    metadata.update({
-                        "run_status": "failed",
-                        "error": str(e),
-                        "completed_at": datetime.utcnow().isoformat(),
-                    })
-                    session_obj.metadata = metadata
-                    update_session(session_obj)
-            except Exception as update_error:
-                logger.error(f"Failed to update session status: {update_error}")
+                # Update session with error status
+                if 'session_id' in locals() and session_id:
+                    try:
+                        from automagik.db import get_session, update_session
+                        # Check if session_id is already a UUID or needs conversion
+                        if isinstance(session_id, str):
+                            try:
+                                session_uuid = uuid.UUID(session_id)
+                            except ValueError:
+                                logger.error(f"Invalid session_id format: {session_id}")
+                                session_uuid = None
+                        else:
+                            session_uuid = session_id
+                            
+                        if session_uuid:
+                            session_obj = get_session(session_uuid)
+                            if session_obj:
+                                metadata = session_obj.metadata or {}
+                                metadata.update({
+                                    "run_status": "failed",
+                                    "error": str(e),
+                                    "completed_at": datetime.utcnow().isoformat(),
+                                })
+                                session_obj.metadata = metadata
+                                update_session(session_obj)
+                    except Exception as update_error:
+                        logger.error(f"Failed to update session status: {update_error}")
     
     async def get_run_status(self, run_id: str) -> Dict[str, Any]:
         """Get the status of an async run.
