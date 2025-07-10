@@ -363,31 +363,116 @@ class CLIEnvironmentManager:
                 except Exception as e:
                     logger.warning(f"Failed to copy {config_file}: {e}")
         
-        # Copy workflow-specific configuration if provided
+        # Setup workflow-specific configuration from database
         if workflow_name:
-            workflow_src = Path(__file__).parent / "workflows" / workflow_name
-            workflow_dst = workspace / "workflow"
+            await self._setup_workflow_from_database(workspace, workflow_name)
+    
+    async def _setup_workflow_from_database(self, workspace: Path, workflow_name: str) -> None:
+        """Setup workflow configuration from database values.
+        
+        This method prioritizes database values over filesystem files to ensure
+        consistency with the /run endpoint which validates against database workflows.
+        
+        Args:
+            workspace: Workspace directory path
+            workflow_name: Workflow name to load from database
+        """
+        try:
+            # Import database functions
+            from automagik.db import get_workflow_by_name
+            import json
             
-            if workflow_src.exists():
-                try:
-                    shutil.copytree(workflow_src, workflow_dst, dirs_exist_ok=True)
-                    logger.debug(f"Copied workflow {workflow_name} to workspace")
-                    
-                    # SURGICAL FIX: Copy prompt.md to workspace root where SDK expects it
-                    workflow_prompt = workflow_dst / "prompt.md"
-                    root_prompt = workspace / "prompt.md" 
-                    if workflow_prompt.exists():
-                        shutil.copy2(workflow_prompt, root_prompt)
-                        logger.info("Copied prompt.md to workspace root for SDK")
-                    
-                    # Also copy workflow-specific configs to workspace root
-                    for config_file in config_files:
-                        workflow_config = workflow_dst / config_file
-                        if workflow_config.exists() and not (workspace / config_file).exists():
-                            shutil.copy2(workflow_config, workspace / config_file)
-                            
-                except Exception as e:
-                    logger.warning(f"Failed to copy workflow {workflow_name}: {e}")
+            # Get workflow from database
+            workflow = get_workflow_by_name(workflow_name)
+            
+            if workflow:
+                logger.info(f"Loading workflow '{workflow_name}' from database")
+                
+                # 1. Create prompt.md from database prompt_template
+                if workflow.prompt_template:
+                    prompt_file = workspace / "prompt.md"
+                    try:
+                        prompt_file.write_text(workflow.prompt_template)
+                        logger.info(f"Created prompt.md from database ({len(workflow.prompt_template)} chars)")
+                    except Exception as e:
+                        logger.error(f"Failed to write prompt.md: {e}")
+                
+                # 2. Create allowed_tools.json from database allowed_tools
+                if workflow.allowed_tools:
+                    allowed_tools_file = workspace / "allowed_tools.json"
+                    try:
+                        with open(allowed_tools_file, 'w') as f:
+                            json.dump(workflow.allowed_tools, f, indent=2)
+                        logger.info(f"Created allowed_tools.json with {len(workflow.allowed_tools)} tools")
+                    except Exception as e:
+                        logger.error(f"Failed to write allowed_tools.json: {e}")
+                
+                # 3. Create .mcp.json from database mcp_config
+                if workflow.mcp_config:
+                    mcp_config_file = workspace / ".mcp.json"
+                    try:
+                        with open(mcp_config_file, 'w') as f:
+                            json.dump(workflow.mcp_config, f, indent=2)
+                        logger.info(f"Created .mcp.json from database configuration")
+                    except Exception as e:
+                        logger.error(f"Failed to write .mcp.json: {e}")
+                
+                # 4. Create additional config files from workflow.config if present
+                if workflow.config:
+                    # Store additional configuration in a workflow-specific config file
+                    workflow_config_file = workspace / "workflow_config.json"
+                    try:
+                        with open(workflow_config_file, 'w') as f:
+                            json.dump(workflow.config, f, indent=2)
+                        logger.info(f"Created workflow_config.json from database")
+                    except Exception as e:
+                        logger.error(f"Failed to write workflow_config.json: {e}")
+                
+                logger.info(f"Successfully setup database workflow '{workflow_name}' in workspace")
+                
+            else:
+                # Fallback to filesystem-based workflow if not found in database
+                logger.warning(f"Workflow '{workflow_name}' not found in database, falling back to filesystem")
+                await self._setup_workflow_from_filesystem(workspace, workflow_name)
+                
+        except Exception as e:
+            logger.error(f"Failed to setup workflow from database: {e}")
+            # Fallback to filesystem-based workflow
+            await self._setup_workflow_from_filesystem(workspace, workflow_name)
+    
+    async def _setup_workflow_from_filesystem(self, workspace: Path, workflow_name: str) -> None:
+        """Fallback: Setup workflow configuration from filesystem (original behavior).
+        
+        Args:
+            workspace: Workspace directory path
+            workflow_name: Workflow name to copy from filesystem
+        """
+        workflow_src = Path(__file__).parent / "workflows" / workflow_name
+        workflow_dst = workspace / "workflow"
+        
+        if workflow_src.exists():
+            try:
+                shutil.copytree(workflow_src, workflow_dst, dirs_exist_ok=True)
+                logger.debug(f"Copied filesystem workflow {workflow_name} to workspace")
+                
+                # Copy prompt.md to workspace root where SDK expects it
+                workflow_prompt = workflow_dst / "prompt.md"
+                root_prompt = workspace / "prompt.md" 
+                if workflow_prompt.exists():
+                    shutil.copy2(workflow_prompt, root_prompt)
+                    logger.info("Copied prompt.md to workspace root for SDK")
+                
+                # Also copy workflow-specific configs to workspace root
+                config_files = [".env", ".mcp.json", "allowed_tools.json", ".credentials.json"]
+                for config_file in config_files:
+                    workflow_config = workflow_dst / config_file
+                    if workflow_config.exists() and not (workspace / config_file).exists():
+                        shutil.copy2(workflow_config, workspace / config_file)
+                        
+            except Exception as e:
+                logger.warning(f"Failed to copy filesystem workflow {workflow_name}: {e}")
+        else:
+            logger.warning(f"Filesystem workflow {workflow_name} not found at {workflow_src}")
     
     async def auto_commit_snapshot(self, workspace: Path, run_id: str, message: str = None) -> bool:
         """Automatically commit all changes as a snapshot in the worktree.
