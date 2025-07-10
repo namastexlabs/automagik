@@ -1,1 +1,0 @@
-"""Solid Stan scripts for Automagik agents.""" 
