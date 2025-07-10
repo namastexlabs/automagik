@@ -296,22 +296,29 @@ async def run_claude_workflow(
                 status_code=404, detail="Claude-Code agent not available"
             )
 
-        # Get available workflows
-        workflows = await agent.get_available_workflows()
-        if workflow_name not in workflows:
-            available = list(workflows.keys())
-            raise HTTPException(
-                status_code=404,
-                detail=f"Workflow '{workflow_name}' not found. Available: {available}",
-            )
-
-        # Validate workflow is valid
-        workflow_info = workflows[workflow_name]
-        if not workflow_info.get("valid", False):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}",
-            )
+        # Get available workflows from database (consistent with /manage endpoint)
+        from automagik.db import list_workflows
+        db_workflows = list_workflows(active_only=True)
+        db_workflow_names = [w.name for w in db_workflows]
+        
+        # Check if workflow exists in database first
+        if workflow_name not in db_workflow_names:
+            # Fallback: check filesystem workflows for development
+            workflows = await agent.get_available_workflows()
+            if workflow_name not in workflows:
+                available = db_workflow_names if db_workflow_names else list(workflows.keys())
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Workflow '{workflow_name}' not found. Available: {available}",
+                )
+            
+            # Validate filesystem workflow is valid
+            workflow_info = workflows[workflow_name]
+            if not workflow_info.get("valid", False):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}",
+                )
 
         # Generate unique run ID with collision protection
         try:
@@ -1243,11 +1250,18 @@ async def claude_code_health() -> Dict[str, Any]:
             if agent:
                 health_status["agent_available"] = True
 
-                # Check workflows
-                workflows = await agent.get_available_workflows()
+                # Check workflows (consistent with /manage and /run endpoints)
+                from automagik.db import list_workflows
+                db_workflows = list_workflows(active_only=True)
                 health_status["workflows"] = {
-                    name: info.get("valid", False) for name, info in workflows.items()
+                    w.name: True for w in db_workflows  # DB workflows are considered valid
                 }
+                
+                # Also include filesystem-only workflows for development visibility
+                fs_workflows = await agent.get_available_workflows()
+                for name, info in fs_workflows.items():
+                    if name not in health_status["workflows"]:
+                        health_status["workflows"][name] = info.get("valid", False)
 
                 # Check container manager
                 if hasattr(agent, "container_manager"):
