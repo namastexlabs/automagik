@@ -141,7 +141,7 @@ class AgnoFramework(AgentAIFramework):
                 # For now, use the standard vision model which can handle audio transcription
                 logger.info(f"Audio model {model_name} requested, using vision-capable model for audio transcription")
                 return OpenAIChat(
-                    id="gpt-4o",  # Use the vision model which supports audio
+                    id="gpt-4.1",  # Use the vision model which supports audio
                     temperature=self.config.temperature
                 )
             return OpenAIChat(
