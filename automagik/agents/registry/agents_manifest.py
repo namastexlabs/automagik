@@ -28,10 +28,10 @@ def load_agents_manifest():
             framework=Framework.PYDANTIC_AI,
             default_model="openai:gpt-4o-mini",
             description="Enhanced simple agent with multimodal capabilities",
-            fallback_models=["openai:gpt-4o", "anthropic:claude-3-5-sonnet-20241022"],
+            fallback_models=["openai:gpt-4.1", "anthropic:claude-3-5-sonnet-20241022"],
             framework_preferences={
                 "pydanticai": "openai:gpt-4o-mini",
-                "agno": "openai:gpt-4o"
+                "agno": "openai:gpt-4.1"
             },
             supported_media=["text", "image", "audio", "document"],
             default_config={
@@ -72,7 +72,7 @@ def load_agents_manifest():
             name="sofia",
             agent_class=SofiaAgent,
             framework=Framework.PYDANTIC_AI,
-            default_model="openai:gpt-4o",
+            default_model="openai:gpt-4.1",
             description="AI assistant for meeting coordination and Airtable management",
             fallback_models=["openai:gpt-4o-mini", "anthropic:claude-3-5-sonnet-20241022"],
             supported_media=["text"],
@@ -98,7 +98,7 @@ def load_agents_manifest():
             framework=Framework.PYDANTIC_AI,
             default_model="openai:gpt-4o-mini",
             description="Discord bot agent with multimodal support",
-            fallback_models=["openai:gpt-4o", "anthropic:claude-3-5-sonnet-20241022"],
+            fallback_models=["openai:gpt-4.1", "anthropic:claude-3-5-sonnet-20241022"],
             supported_media=["text", "image", "audio"],
             default_config={
                 "discord_integration": True,
@@ -123,7 +123,7 @@ def load_agents_manifest():
             framework=Framework.PYDANTIC_AI,
             default_model="anthropic:claude-3-5-sonnet-20241022",
             description="Automagik Genie orchestrator agent", 
-            fallback_models=["openai:gpt-4o", "anthropic:claude-3-5-haiku-20241022"],
+            fallback_models=["openai:gpt-4.1", "anthropic:claude-3-5-haiku-20241022"],
             supported_media=["text"],
             default_config={
                 "orchestration": True,
@@ -214,7 +214,7 @@ def _discover_external_agents():
                         framework=Framework.PYDANTIC_AI,  # Default framework for externals
                         default_model="openai:gpt-4o-mini",  # Default model
                         description=f"External agent: {agent_dir.name}",
-                        fallback_models=["openai:gpt-4o", "anthropic:claude-3-5-sonnet-20241022"],
+                        fallback_models=["openai:gpt-4.1", "anthropic:claude-3-5-sonnet-20241022"],
                         factory_function=create_agent_fn,  # For backward compatibility
                         external_api_keys=getattr(agent_class, 'EXTERNAL_API_KEYS', []),
                         package_env_file=getattr(agent_class, 'PACKAGE_ENV_FILE', None)

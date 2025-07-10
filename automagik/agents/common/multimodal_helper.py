@@ -138,7 +138,7 @@ def configure_agent_for_multimodal(agent_config: Dict[str, Any]) -> Dict[str, An
     """
     # Ensure vision-capable model is set
     if "vision_model" not in agent_config:
-        agent_config["vision_model"] = "openai:gpt-4o"
+        agent_config["vision_model"] = "openai:gpt-4.1"
     
     # Enable multimodal support
     agent_config.setdefault("supported_media", ["image", "audio", "document"])
