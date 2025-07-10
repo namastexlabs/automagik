@@ -26,7 +26,7 @@ class SimpleAgnoAgent(AutomagikAgent):
         config["framework_type"] = "agno"
         
         # Enable multimodal by default
-        config.setdefault("model", "openai:gpt-4o")  # Multimodal model (supports images and audio transcription)
+        config.setdefault("model", "openai:gpt-4.1")  # Multimodal model (supports images and audio transcription)
         config.setdefault("supported_media", ["image", "audio", "document", "video"])
         
         # Debug logging
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         # Create agent with Agno
         agent = SimpleAgnoAgent({
             "name": "simple_agno_demo",
-            "model": "openai:gpt-4o"
+            "model": "openai:gpt-4.1"
         })
         
         # Initialize framework

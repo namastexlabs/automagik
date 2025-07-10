@@ -88,7 +88,7 @@ agents_by_fw = AgentRegistry.list_by_framework()
 ### Updating Models
 ```python
 # Change model for specific agent
-AgentRegistry.update_agent_model("flashinho", "openai:gpt-4o")
+AgentRegistry.update_agent_model("flashinho", "openai:gpt-4.1")
 
 # Change model for specific framework
 AgentRegistry.update_agent_model("flashinho", "anthropic:claude-3-5-sonnet", framework="pydanticai")
@@ -141,7 +141,7 @@ AgentRegistry.register(
     name="critical_agent",
     agent_class=CriticalAgent,
     framework=Framework.PYDANTIC_AI,
-    default_model="openai:gpt-4o",
+    default_model="openai:gpt-4.1",
     fallback_models=[
         "openai:gpt-4o-mini",
         "anthropic:claude-3-5-sonnet",

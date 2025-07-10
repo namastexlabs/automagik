@@ -243,7 +243,7 @@ class AutomagikAgent(ABC, Generic[T]):
         self._text_framework = FrameworkType.PYDANTIC_AI.value  # PydanticAI for text-only
         
         # Multimodal configuration defaults (overridable via `config` or `update_config`).
-        self.vision_model: str = self.config.get("vision_model", "openai:gpt-4o")
+        self.vision_model: str = self.config.get("vision_model", "openai:gpt-4.1")
         # List of supported media types – kept for possible future gating
         self.supported_media: List[str] = self.config.get(
             "supported_media", ["image", "audio", "document"]
@@ -1961,7 +1961,7 @@ class AutomagikAgent(ABC, Generic[T]):
             
         model_lower = model_name.lower()
         vision_indicators = [
-            "vision", "gpt-4o", "gpt-4-vision", 
+            "vision", "gpt-4.1", "gpt-4-vision", 
             "gemini-2.5-pro", "gemini-2.5-flash",  # Gemini models are vision-capable
             "gemini-pro-vision", "gemini-flash-vision",  # Explicit vision variants
             "claude-3", "claude-sonnet", "claude-haiku",  # Claude 3 models

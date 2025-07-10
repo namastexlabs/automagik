@@ -76,7 +76,7 @@ class MultimodalSpecialistAgent(AutomagikAgent):
     def __init__(self, config: Dict[str, Any]) -> None:
         # Force Agno framework for multimodal content
         config["framework_type"] = "agno"
-        config["model"] = config.get("model", "openai:gpt-4o")  # Multimodal-capable model
+        config["model"] = config.get("model", "openai:gpt-4.1")  # Multimodal-capable model
         
         super().__init__(config)
         
@@ -92,7 +92,7 @@ class MultimodalSpecialistAgent(AutomagikAgent):
         # Optimize for multimodal content
         self.supported_media = ["image", "audio", "video", "document"]
         self.auto_enhance_prompts = True
-        self.vision_model = config.get("model", "openai:gpt-4o")
+        self.vision_model = config.get("model", "openai:gpt-4.1")
         
     async def process_multimodal_request(self, content_types: Dict[str, Any]) -> str:
         """
