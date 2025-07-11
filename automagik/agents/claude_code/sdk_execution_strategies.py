@@ -540,6 +540,14 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                         logger.debug(f"ResultMessage - turns: {getattr(message, 'num_turns', 0)}, duration: {getattr(message, 'duration_ms', 0)}ms")
                         collected_messages.append(message)
                         
+                    elif hasattr(message, '__class__') and message.__class__.__name__ == 'UserMessage':
+                        # User message (tool responses, etc)
+                        if hasattr(message, 'content'):
+                            content_text = str(message.content)
+                            logger.debug(f"UserMessage content: {content_text[:200]}...")
+                            messages.append(content_text)
+                        collected_messages.append(message)
+                        
                     else:
                         # Unknown message type - log it
                         logger.warning(f"Unknown message type: {type(message).__name__}")
