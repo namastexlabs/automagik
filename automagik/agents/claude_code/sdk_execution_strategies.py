@@ -8,6 +8,7 @@ import logging
 import os
 import time
 import traceback
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
@@ -282,6 +283,31 @@ class ExecutionStrategies:
         # Ensure Node.js is available
         ensure_node_in_path()
         
+        # Also ensure Claude CLI is available
+        if not shutil.which('claude'):
+            # Try to find Claude in common Node.js locations
+            claude_paths = [
+                os.path.expanduser('~/.nvm/versions/node/*/bin/claude'),
+                '/usr/local/bin/claude',
+                os.path.expanduser('~/.volta/bin/claude'),
+                os.path.expanduser('~/.fnm/node-versions/*/installation/bin/claude')
+            ]
+            
+            import glob
+            for pattern in claude_paths:
+                matches = glob.glob(pattern)
+                for match in matches:
+                    if os.path.isfile(match) and os.access(match, os.X_OK):
+                        # Add Claude's directory to PATH
+                        claude_dir = os.path.dirname(match)
+                        current_path = os.environ.get('PATH', '')
+                        if claude_dir not in current_path:
+                            os.environ['PATH'] = f"{claude_dir}:{current_path}"
+                            logger.info(f"Added Claude CLI directory to PATH: {claude_dir}")
+                        break
+                if shutil.which('claude'):
+                    break
+        
         # Start heartbeat updates
         heartbeat_task = None
         if hasattr(request, 'run_id') and request.run_id:
@@ -359,6 +385,14 @@ class ExecutionStrategies:
                     logger.info(f"Initialized streaming buffer for brain workflow with 512KB max size")
                 
                 logger.info(f"🚀 Starting query with prompt: {request.message[:100]}...")
+                logger.info(f"📁 Working directory: {options.cwd}")
+                logger.info(f"📝 System prompt length: {len(options.system_prompt) if options.system_prompt else 0} chars")
+                
+                # Debug environment
+                logger.info(f"🔍 CLAUDECODE env: {os.environ.get('CLAUDECODE', 'not set')}")
+                logger.info(f"🔍 CLAUDE_CODE_ENTRYPOINT env: {os.environ.get('CLAUDE_CODE_ENTRYPOINT', 'not set')}")
+                logger.info(f"🔍 PATH contains claude: {'claude' in os.environ.get('PATH', '')}")
+                
                 message_count = 0
                 async for message in query(prompt=request.message, options=options):
                     message_count += 1
