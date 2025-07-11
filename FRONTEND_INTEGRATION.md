@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide provides comprehensive instructions for frontend applications to integrate with the Automagik workflow system. The API provides full workflow lifecycle management including starting, monitoring, message injection, and status tracking.
+This guide provides comprehensive instructions for frontend applications to integrate with the Automagik workflow system. The API provides full workflow lifecycle management including starting, monitoring, and status tracking.
 
 ## How to Use Workflows
 
@@ -110,15 +110,8 @@ const pollInterval = setInterval(async () => {
 // Wait for workflow to be running
 await new Promise(resolve => setTimeout(resolve, 5000));
 
-// Inject additional instructions
-try {
-  await injectMessage(runId, 'Please also add comprehensive unit tests with 90% coverage');
-  console.log('Additional instructions sent');
-} catch (error) {
-  if (error.status === 408) {
-    console.log('Workflow still initializing, retry in a few seconds');
-  }
-}
+// Monitor workflow progress
+console.log('Workflow is running, monitoring progress...');
 ```
 
 #### Step 4: Handle Completion
@@ -155,8 +148,7 @@ async function fixBugWithValidation(bugDescription) {
   // Wait for initial analysis
   await new Promise(resolve => setTimeout(resolve, 10000));
   
-  // Request test creation
-  await injectMessage(run_id, 'Create a test that reproduces this bug before fixing');
+  // Let workflow continue with test creation
   
   // Monitor until completion
   return monitorWorkflow(run_id);
@@ -426,51 +418,6 @@ await killWorkflow('run_abc123');
 console.log('Workflow killed');
 ```
 
-## Message Injection
-
-### Inject Messages into Running Workflows
-
-```javascript
-async function injectMessage(runId, message, retries = 3) {
-  const payload = { message };
-  
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/workflows/claude-code/run/${runId}/inject-message`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload)
-        }
-      );
-      
-      if (response.status === 408) {
-        // Timeout - workspace not ready, wait and retry
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-        continue;
-      }
-      
-      return handleAPIResponse(response);
-    } catch (error) {
-      if (attempt === retries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-    }
-  }
-}
-
-// Usage
-try {
-  const result = await injectMessage('run_abc123', 'Please also add unit tests');
-  console.log('Message injected:', result.message_id);
-} catch (error) {
-  if (error.status === 400) {
-    console.log('Workflow not in valid state for injection');
-  } else {
-    console.error('Injection failed:', error.message);
-  }
-}
-```
 
 ## React Integration Example
 
@@ -523,16 +470,6 @@ const WorkflowManager = () => {
     }
   };
 
-  const injectMessageToWorkflow = async (runId, message) => {
-    try {
-      await injectMessage(runId, message);
-      // Optionally refresh status
-      await loadRuns();
-    } catch (error) {
-      console.error('Failed to inject message:', error);
-      throw error;
-    }
-  };
 
   return (
     <div className="workflow-manager">
@@ -562,7 +499,6 @@ const WorkflowManager = () => {
           <WorkflowStatus 
             key={run.run_id} 
             run={run} 
-            onInjectMessage={injectMessageToWorkflow}
           />
         ))}
       </div>
@@ -570,9 +506,8 @@ const WorkflowManager = () => {
   );
 };
 
-const WorkflowStatus = ({ run, onInjectMessage }) => {
+const WorkflowStatus = ({ run }) => {
   const [status, setStatus] = useState(run);
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -587,16 +522,6 @@ const WorkflowStatus = ({ run, onInjectMessage }) => {
     return () => clearInterval(interval);
   }, [run.run_id]);
 
-  const handleInjectMessage = async () => {
-    if (!message.trim()) return;
-    
-    try {
-      await onInjectMessage(run.run_id, message);
-      setMessage('');
-    } catch (error) {
-      alert('Failed to inject message: ' + error.message);
-    }
-  };
 
   return (
     <div className="workflow-status">
@@ -606,19 +531,6 @@ const WorkflowStatus = ({ run, onInjectMessage }) => {
       </div>
       <p>Progress: {status.progress?.turns}/{status.progress?.max_turns || '∞'}</p>
       <p>Cost: ${status.metrics?.cost_usd?.toFixed(4) || '0.0000'}</p>
-      
-      {status.status === 'running' && (
-        <div className="message-injection">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Inject message..."
-            onKeyPress={(e) => e.key === 'Enter' && handleInjectMessage()}
-          />
-          <button onClick={handleInjectMessage}>Inject</button>
-        </div>
-      )}
     </div>
   );
 };

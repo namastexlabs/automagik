@@ -25,7 +25,6 @@ from .log_manager import get_log_manager
 from .sdk_options_builder import SDKOptionsBuilder
 from .sdk_message_processor import SDKMessageProcessor
 from .sdk_progress_tracker import SDKProgressTracker
-from .sdk_message_injection import SDKMessageInjector
 from .sdk_cli_manager import SDKCLIManager
 
 # Import tracing
@@ -67,30 +66,11 @@ class ExecutionStrategies:
         self.process_manager = ProcessManager()
         self.options_builder = SDKOptionsBuilder()
         self.cli_manager = SDKCLIManager()
-        self.message_injector = SDKMessageInjector()
     
     def build_options(self, workspace: Path, **kwargs):
         """Build options with file-based configuration loading."""
         return self.options_builder.build_options(workspace, **kwargs)
     
-    async def _check_and_process_pending_messages(
-        self, 
-        workspace_path: Path, 
-        run_id: str
-    ) -> List[str]:
-        """Check for pending injected messages and process them."""
-        return await self.message_injector.check_and_process_pending_messages(workspace_path, run_id)
-    
-    async def _build_enhanced_prompt_with_injected_messages(
-        self,
-        original_prompt: str,
-        collected_messages: List[Any],
-        injected_messages: List[str]
-    ) -> str:
-        """Build an enhanced prompt that includes conversation history and injected messages."""
-        return self.message_injector.build_enhanced_prompt_with_injected_messages(
-            original_prompt, collected_messages, injected_messages
-        )
     
     async def execute_simple(
         self, 
@@ -245,63 +225,6 @@ class ExecutionStrategies:
                         except Exception as kill_check_error:
                             logger.error(f"Kill signal check failed: {kill_check_error}")
                     
-                    # Check for pending injected messages
-                    if hasattr(request, 'run_id') and request.run_id and workspace_path:
-                        try:
-                            injected_messages = await self._check_and_process_pending_messages(
-                                workspace_path, request.run_id
-                            )
-                            
-                            if injected_messages:
-                                logger.info(f"📨 Found {len(injected_messages)} injected messages for run {request.run_id}")
-                                
-                                # IMPLEMENT PROPER MESSAGE INJECTION VIA CONVERSATION RESTART
-                                # Instead of just appending to messages, we need to restart the conversation
-                                # with the injected messages included as user input
-                                
-                                # Build enhanced prompt with conversation history + injected messages
-                                enhanced_prompt = await self._build_enhanced_prompt_with_injected_messages(
-                                    request.message, collected_messages, injected_messages
-                                )
-                                
-                                # Log the injection for debugging
-                                if log_writer:
-                                    for injected_msg in injected_messages:
-                                        try:
-                                            await log_writer(
-                                                f"💉 Injecting message: {injected_msg[:100]}...",
-                                                "message_injection"
-                                            )
-                                        except Exception as log_error:
-                                            logger.error(f"Failed to log injected message: {log_error}")
-                                
-                                # Restart conversation with enhanced prompt
-                                logger.info(f"🔄 Restarting conversation with {len(injected_messages)} injected messages")
-                                
-                                # Note: We use direct injection instead of conversation restart
-                                # Direct injection is simpler and more reliable under PM2
-                                
-                                # Use direct injection
-                                logger.info(f"📢 Using direct message injection for {len(injected_messages)} messages")
-                                
-                                # Add injected messages to the conversation
-                                for i, injected_msg in enumerate(injected_messages):
-                                    injection_notice = self.message_injector.format_injection_notice(injected_msg, i)
-                                    messages.append(injection_notice)
-                                    logger.info(f"💬 Added injected message {i+1} to conversation flow")
-                                    
-                                    # Log the injection
-                                    if log_writer:
-                                        try:
-                                            await log_writer(
-                                                f"💉 DIRECT INJECTION: {injected_msg[:100]}...", 
-                                                "message_injection"
-                                            )
-                                        except Exception as log_error:
-                                            logger.error(f"Failed to log injected message: {log_error}")
-                                
-                        except Exception as message_check_error:
-                            logger.error(f"Failed to check pending messages: {message_check_error}")
                     
                     # Process message using the message processor
                     processing_result = message_processor.process_message(message, messages, collected_messages)
@@ -840,50 +763,3 @@ class CancellationManager:
             logger.error(f"Failed to cancel session {execution_id}: {e}")
             return False
 
-    async def _build_enhanced_prompt_with_injected_messages(
-        self,
-        original_message: str,
-        conversation_history: List[str],
-        injected_messages: List[str]
-    ) -> str:
-        """
-        Build an enhanced prompt that includes conversation history and injected messages.
-        This creates a new conversation context that incorporates all previous exchanges
-        plus the newly injected user messages.
-        """
-        try:
-            # Build conversation reconstruction
-            enhanced_prompt_parts = []
-            
-            # Add original user message
-            enhanced_prompt_parts.append(f"ORIGINAL REQUEST:\n{original_message}")
-            
-            # Add conversation history if any
-            if conversation_history:
-                enhanced_prompt_parts.append("\nCONVERSATION HISTORY:")
-                for i, msg in enumerate(conversation_history[-5:]):  # Last 5 messages for context
-                    enhanced_prompt_parts.append(f"[{i+1}] {msg}")
-            
-            # Add injected messages as new user input
-            enhanced_prompt_parts.append("\nADDITIONAL USER REQUESTS:")
-            for i, injected_msg in enumerate(injected_messages):
-                enhanced_prompt_parts.append(f"[INJECTED-{i+1}] {injected_msg}")
-            
-            # Add instruction for Claude to handle the enhanced context
-            enhanced_prompt_parts.append("""
-INSTRUCTIONS: 
-Please continue your work taking into account both the original request and the additional user requests above. 
-Integrate the new requirements seamlessly with your current progress. 
-Acknowledge the additional requests and incorporate them into your ongoing work.
-""")
-            
-            enhanced_prompt = "\n".join(enhanced_prompt_parts)
-            logger.debug(f"Built enhanced prompt with {len(injected_messages)} injected messages")
-            
-            return enhanced_prompt
-            
-        except Exception as e:
-            logger.error(f"Failed to build enhanced prompt: {e}")
-            # Fallback to original message with simple injection
-            fallback = f"{original_message}\n\nADDITIONAL REQUESTS: " + " ".join(injected_messages)
-            return fallback
