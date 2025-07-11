@@ -358,23 +358,35 @@ class ExecutionStrategies:
                     streaming_buffer = StreamingBuffer(max_chunk_size=16384, max_buffer_size=512000)
                     logger.info(f"Initialized streaming buffer for brain workflow with 512KB max size")
                 
+                logger.info(f"🚀 Starting query with prompt: {request.message[:100]}...")
+                message_count = 0
                 async for message in query(prompt=request.message, options=options):
+                    message_count += 1
+                    logger.info(f"📨 Received message {message_count}: {type(message).__name__}")
+                    
+                    # TEMPORARILY DISABLED: Blocking database operations causing workflow hang
+                    # TODO: Move these checks outside the message processing loop
+                    
                     # Check for kill signal before processing each message
                     if hasattr(request, 'run_id') and request.run_id:
                         try:
-                            process_info = self.process_manager.get_process_info(request.run_id)
-                            if process_info and process_info.status == "killed":
-                                logger.info(f"🛑 Workflow {request.run_id} killed during execution, stopping...")
-                                break
+                            # TEMPORARILY DISABLED: This blocks the async generator
+                            # process_info = self.process_manager.get_process_info(request.run_id)
+                            # if process_info and process_info.status == "killed":
+                            #     logger.info(f"🛑 Workflow {request.run_id} killed during execution, stopping...")
+                            #     break
+                            pass
                         except Exception as kill_check_error:
                             logger.error(f"Kill signal check failed: {kill_check_error}")
                     
                     # Check for pending injected messages
                     if hasattr(request, 'run_id') and request.run_id and workspace_path:
                         try:
-                            injected_messages = await self._check_and_process_pending_messages(
-                                workspace_path, request.run_id
-                            )
+                            # TEMPORARILY DISABLED: This blocks the async generator
+                            # injected_messages = await self._check_and_process_pending_messages(
+                            #     workspace_path, request.run_id
+                            # )
+                            injected_messages = []  # Skip for now
                             
                             if injected_messages:
                                 logger.info(f"📨 Found {len(injected_messages)} injected messages for run {request.run_id}")
@@ -450,24 +462,53 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                         except Exception as message_check_error:
                             logger.error(f"Failed to check pending messages: {message_check_error}")
                     
-                    # Process message with streaming buffer for brain workflow
-                    if streaming_buffer:
-                        message_str = str(message)
-                        completed_messages = streaming_buffer.add_chunk(message_str)
-                        
-                        # Add completed messages to our collection
-                        for completed_msg in completed_messages:
-                            messages.append(completed_msg)
-                        
-                        # Always add the raw message to collected_messages for SDK tracking
+                    # Process different message types from Claude SDK
+                    # SystemMessage: initialization data
+                    # AssistantMessage: actual response content
+                    # ResultMessage: final result with metadata
+                    
+                    if hasattr(message, '__class__') and message.__class__.__name__ == 'SystemMessage':
+                        # System message with init data
+                        logger.debug(f"SystemMessage with data: {getattr(message, 'data', {})}")
                         collected_messages.append(message)
                         
-                        # Log buffer stats periodically
-                        if len(messages) % 10 == 0:
-                            buffer_stats = streaming_buffer.get_stats()
-                            logger.debug(f"Buffer stats: {buffer_stats}")
+                    elif hasattr(message, '__class__') and message.__class__.__name__ == 'AssistantMessage':
+                        # Assistant message with actual response content
+                        if hasattr(message, 'content'):
+                            # Extract text from content blocks
+                            content_text = ""
+                            for block in message.content:
+                                if hasattr(block, 'text'):
+                                    content_text += block.text
+                                    
+                            logger.debug(f"AssistantMessage content: {content_text[:200]}...")
+                            
+                            # Process message with streaming buffer for brain workflow
+                            if streaming_buffer:
+                                completed_messages = streaming_buffer.add_chunk(content_text)
+                                
+                                # Add completed messages to our collection
+                                for completed_msg in completed_messages:
+                                    messages.append(completed_msg)
+                                
+                                # Log buffer stats periodically
+                                if len(messages) % 10 == 0:
+                                    buffer_stats = streaming_buffer.get_stats()
+                                    logger.debug(f"Buffer stats: {buffer_stats}")
+                            else:
+                                # Standard processing for non-brain workflows
+                                messages.append(content_text)
+                                
+                        collected_messages.append(message)
+                        
+                    elif hasattr(message, '__class__') and message.__class__.__name__ == 'ResultMessage':
+                        # Result message with final metadata
+                        logger.debug(f"ResultMessage - turns: {getattr(message, 'num_turns', 0)}, duration: {getattr(message, 'duration_ms', 0)}ms")
+                        collected_messages.append(message)
+                        
                     else:
-                        # Standard processing for non-brain workflows
+                        # Unknown message type - log it
+                        logger.warning(f"Unknown message type: {type(message).__name__}")
                         messages.append(str(message))
                         collected_messages.append(message)
                     
@@ -479,7 +520,7 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                             logger.error(f"Failed to write to workflow log: {log_error}")
                     
                     # Track turns and tokens for real-time progress
-                    if hasattr(message, 'type') and message.type == 'assistant':
+                    if hasattr(message, '__class__') and message.__class__.__name__ == 'AssistantMessage':
                         turn_count += 1
                         
                         # Log message turn span if tracing is enabled
@@ -522,9 +563,14 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                                 })
                                 last_token_count = token_count
                         
-                    if hasattr(message, 'usage') and message.usage:
-                        if hasattr(message.usage, 'total_tokens'):
-                            token_count = message.usage.total_tokens
+                    # Extract usage from ResultMessage
+                    if hasattr(message, '__class__') and message.__class__.__name__ == 'ResultMessage':
+                        if hasattr(message, 'usage') and message.usage:
+                            # Extract total tokens from usage dict
+                            if isinstance(message.usage, dict):
+                                token_count = message.usage.get('total_tokens', token_count)
+                            elif hasattr(message.usage, 'total_tokens'):
+                                token_count = message.usage.total_tokens
                     
                     # Real-time progress update every turn
                     if hasattr(request, 'run_id') and request.run_id and turn_count > 0:
@@ -552,7 +598,7 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                             logger.error(f"Real-time progress update failed: {progress_error}")
                     
                     # Capture session ID from first SystemMessage
-                    if (hasattr(message, 'subtype') and message.subtype == 'init' and 
+                    if (hasattr(message, '__class__') and message.__class__.__name__ == 'SystemMessage' and
                         hasattr(message, 'data') and 'session_id' in message.data):
                         actual_claude_session_id = message.data['session_id']
                         logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
@@ -750,66 +796,39 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                 total_cost = 0.0
                 total_tokens = 0
                 
-                # Look for completion result in messages (success OR max_turns)
+                # Look for ResultMessage in collected messages
                 for msg in collected_messages:
                     try:
-                        # Check if msg is a dictionary (Claude SDK JSON format)
-                        if isinstance(msg, dict) and msg.get('subtype') in ['success', 'error_max_turns']:
-                            logger.info(f"Processing completion message: {msg.get('subtype')}")
+                        # Check for ResultMessage from Claude SDK
+                        if hasattr(msg, '__class__') and msg.__class__.__name__ == 'ResultMessage':
+                            logger.info(f"Processing ResultMessage")
                             
-                            # For max_turns, create a meaningful result message
-                            if msg.get('subtype') == 'error_max_turns':
-                                final_result = f"Workflow completed {msg.get('num_turns', 0)} turns (max_turns limit reached)"
+                            # Extract result based on error status
+                            if hasattr(msg, 'is_error') and msg.is_error:
+                                final_result = f"Workflow completed {getattr(msg, 'num_turns', 0)} turns (error or limit reached)"
                             else:
-                                final_result = msg.get('result')
+                                final_result = getattr(msg, 'result', "Workflow completed successfully")
                             
-                            total_cost = msg.get('total_cost_usd', 0.0)
-                            if 'usage' in msg and isinstance(msg['usage'], dict):
-                                usage = msg['usage']
-                                total_tokens = (usage.get('input_tokens', 0) + 
-                                              usage.get('cache_creation_input_tokens', 0) + 
-                                              usage.get('cache_read_input_tokens', 0) + 
-                                              usage.get('output_tokens', 0))
+                            # Extract metrics
+                            total_cost = getattr(msg, 'total_cost_usd', 0.0)
+                            
+                            # Extract usage - check if it's a dict or object
+                            if hasattr(msg, 'usage'):
+                                usage = msg.usage
+                                if isinstance(usage, dict):
+                                    total_tokens = usage.get('total_tokens', 0)
+                                elif hasattr(usage, 'total_tokens'):
+                                    total_tokens = usage.total_tokens
+                                else:
+                                    # Try to calculate from components
+                                    total_tokens = (getattr(usage, 'input_tokens', 0) + 
+                                                  getattr(usage, 'output_tokens', 0))
                                 logger.info(f"Extracted metrics: cost={total_cost}, tokens={total_tokens}")
                             break  # Found the completion result, stop looking
-                    except Exception as msg_error:
-                        logger.error(f"Error processing completion message: {msg_error}")
-                        continue
-                    
-                    # Check for completion result in object attributes
-                    if hasattr(msg, 'subtype') and msg.subtype in ['success', 'error_max_turns']:
-                        # For max_turns, create a meaningful result message
-                        if msg.subtype == 'error_max_turns':
-                            final_result = f"Workflow completed {getattr(msg, 'num_turns', 0)} turns (max_turns limit reached)"
-                        else:
-                            final_result = getattr(msg, 'result', None)
-                        
-                        total_cost = getattr(msg, 'total_cost_usd', 0.0)
-                        if hasattr(msg, 'usage'):
-                            usage = msg.usage
-                            total_tokens = (usage.get('input_tokens', 0) + 
-                                          usage.get('cache_creation_input_tokens', 0) + 
-                                          usage.get('cache_read_input_tokens', 0) + 
-                                          usage.get('output_tokens', 0))
-                        break  # Found the completion result, stop looking
-                    
-                    # Check for completion result in msg.data structure
-                    elif hasattr(msg, 'data') and isinstance(msg.data, dict):
-                        if msg.data.get('subtype') in ['success', 'error_max_turns']:
-                            # For max_turns, create a meaningful result message
-                            if msg.data.get('subtype') == 'error_max_turns':
-                                final_result = f"Workflow completed {msg.data.get('num_turns', 0)} turns (max_turns limit reached)"
-                            else:
-                                final_result = msg.data.get('result')
                             
-                            total_cost = msg.data.get('total_cost_usd', 0.0)
-                            if 'usage' in msg.data:
-                                usage = msg.data['usage']
-                                total_tokens = (usage.get('input_tokens', 0) + 
-                                              usage.get('cache_creation_input_tokens', 0) + 
-                                              usage.get('cache_read_input_tokens', 0) + 
-                                              usage.get('output_tokens', 0))
-                            break  # Found the completion result, stop looking
+                    except Exception as msg_error:
+                        logger.error(f"Error processing result message: {msg_error}")
+                        continue
                 
                 if not final_result:
                     final_result = result_text
