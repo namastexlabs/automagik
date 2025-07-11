@@ -61,7 +61,7 @@ class ProcessManager:
                 workflow_name=request.workflow_name,
                 session_id=agent_context.get('session_id'),
                 user_id=agent_context.get('user_id'),
-                workspace_path=agent_context.get('workspace', '.')
+                workspace_path=str(agent_context.get('workspace', f'/tmp/claude-code-temp/{run_id}'))
             )
             
             success = create_workflow_process(process_data)

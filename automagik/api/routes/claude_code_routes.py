@@ -8,9 +8,10 @@ import logging
 import uuid
 import asyncio
 import json
+import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Path, Body, Query
+from fastapi import APIRouter, HTTPException, Path, Body, Query, Depends
 from pydantic import BaseModel, Field, computed_field
 
 # Import race condition helpers
@@ -42,6 +43,7 @@ from automagik.agents.claude_code.models import (
 )
 from automagik.db.repository import user as user_repo
 from automagik.db.repository.workflow_run import get_workflow_run_by_run_id
+from automagik.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -1226,6 +1228,171 @@ async def kill_claude_code_run(
         logger.error(f"Error killing Claude-Code run {run_id}: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to kill run: {str(e)}"
+        )
+
+
+@claude_code_router.post("/run/{run_id}/cleanup")
+async def cleanup_claude_code_workspace(
+    run_id: str,
+    force: bool = Query(False, description="Force cleanup even if workflow is still running"),
+    api_key: str = Depends(verify_api_key)
+) -> Dict[str, Any]:
+    """
+    Clean up workspace and resources for a completed Claude-Code workflow.
+    
+    **Purpose:**
+    Removes workspace directories, temporary files, and resources created during workflow execution.
+    
+    **Parameters:**
+    - `run_id`: Unique identifier for the workflow run
+    - `force`: If true, cleanup workspace even if workflow is still running (use with caution)
+    
+    **Returns:**
+    Cleanup status and details about what was removed.
+    
+    **Example:**
+    ```bash
+    # Normal cleanup after completion
+    POST /api/v1/workflows/claude-code/run/run_abc123/cleanup
+    
+    # Force cleanup (emergency)
+    POST /api/v1/workflows/claude-code/run/run_abc123/cleanup?force=true
+    ```
+    """
+    try:
+        cleanup_start_time = time.time()
+        
+        # Get workflow run details
+        workflow_run = get_workflow_run_by_run_id(run_id)
+        if not workflow_run:
+            raise HTTPException(
+                status_code=404, detail=f"Workflow run not found: {run_id}"
+            )
+        
+        workflow_name = workflow_run.workflow_name
+        
+        # Check if workflow is still running (unless force cleanup)
+        if not force and workflow_run.status in ["pending", "running"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Workflow is still {workflow_run.status}. Use force=true to cleanup anyway."
+            )
+        
+        # Initialize cleanup result
+        cleanup_result = {
+            "workspace_removed": False,
+            "temp_files_removed": False,
+            "git_worktree_removed": False,
+            "process_cleaned": False,
+            "workspace_path": None,
+            "errors": []
+        }
+        
+        # Get workspace information from environment manager
+        try:
+            from automagik.agents.claude_code.cli_environment import CLIEnvironmentManager
+            env_manager = CLIEnvironmentManager()
+            
+            # Try to find workspace based on run_id
+            from automagik.utils.project import get_project_root, resolve_workspace_from_run_id
+            
+            project_root = get_project_root()
+            workspace_candidates = resolve_workspace_from_run_id(run_id)
+            
+            # Clean up found workspaces
+            for workspace_path in workspace_candidates:
+                try:
+                    if workspace_path.exists():
+                        cleanup_result["workspace_path"] = str(workspace_path)
+                        
+                        # If it's a git worktree, remove it properly
+                        if (workspace_path.parent.name == "worktrees" and 
+                            (workspace_path / ".git").exists()):
+                            
+                            # Remove git worktree
+                            import subprocess
+                            try:
+                                subprocess.run([
+                                    "git", "worktree", "remove", "--force", str(workspace_path)
+                                ], cwd=str(project_root), check=True, 
+                                capture_output=True)
+                                cleanup_result["git_worktree_removed"] = True
+                            except subprocess.CalledProcessError:
+                                # Fallback to regular directory removal
+                                import shutil
+                                shutil.rmtree(workspace_path)
+                                cleanup_result["workspace_removed"] = True
+                        else:
+                            # Regular directory cleanup
+                            import shutil
+                            shutil.rmtree(workspace_path)
+                            cleanup_result["workspace_removed"] = True
+                            
+                        logger.info(f"Cleaned up workspace: {workspace_path}")
+                        
+                except Exception as e:
+                    error_msg = f"Failed to remove workspace {workspace_path}: {str(e)}"
+                    cleanup_result["errors"].append(error_msg)
+                    logger.warning(error_msg)
+            
+            # Clean up any orphaned processes
+            try:
+                agent = AgentFactory.get_agent("claude_code")
+                if agent and hasattr(agent, 'executor'):
+                    process_manager = getattr(agent.executor, 'process_manager', None)
+                    if process_manager and hasattr(process_manager, 'cleanup_process'):
+                        cleanup_success = process_manager.cleanup_process(run_id)
+                        cleanup_result["process_cleaned"] = cleanup_success
+            except Exception as e:
+                error_msg = f"Failed to cleanup processes: {str(e)}"
+                cleanup_result["errors"].append(error_msg)
+        
+        except Exception as e:
+            error_msg = f"Workspace cleanup failed: {str(e)}"
+            cleanup_result["errors"].append(error_msg)
+            logger.error(error_msg)
+        
+        # Update workflow run with cleanup status
+        cleanup_time = datetime.utcnow()
+        cleanup_duration = time.time() - cleanup_start_time
+        
+        try:
+            from automagik.db.models import WorkflowRunUpdate
+            update_data = WorkflowRunUpdate(
+                workspace_cleaned_up=True,
+                metadata={
+                    **(workflow_run.metadata or {}),
+                    "cleanup_performed_at": cleanup_time.isoformat(),
+                    "cleanup_duration_ms": int(cleanup_duration * 1000),
+                    "cleanup_result": cleanup_result
+                }
+            )
+            update_workflow_run_by_run_id(run_id, update_data)
+        except Exception as e:
+            logger.warning(f"Failed to update workflow run with cleanup status: {e}")
+        
+        # Determine overall success
+        overall_success = (
+            (cleanup_result["workspace_removed"] or cleanup_result["git_worktree_removed"]) and
+            len(cleanup_result["errors"]) == 0
+        )
+        
+        return {
+            "success": overall_success,
+            "run_id": run_id,
+            "workflow_name": workflow_name,
+            "cleanup_time": cleanup_time.isoformat(),
+            "cleanup_duration_ms": int(cleanup_duration * 1000),
+            "cleanup_details": cleanup_result,
+            "message": f"Workspace cleanup {'completed successfully' if overall_success else 'completed with errors'} in {cleanup_duration:.2f}s"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cleaning up workspace for run {run_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to cleanup workspace: {str(e)}"
         )
 
 
