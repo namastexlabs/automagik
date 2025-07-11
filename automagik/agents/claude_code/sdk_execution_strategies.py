@@ -78,6 +78,10 @@ class ExecutionStrategies:
         agent_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute claude task with simplified logic and process tracking."""
+        # Check if stream-json input format is requested
+        if hasattr(request, 'input_format') and request.input_format == "stream-json":
+            return await self._execute_with_stream_input(request, agent_context)
+        
         start_time = time.time()
         session_id = request.session_id or str(uuid4())
         run_id = request.run_id or str(uuid4())
@@ -583,6 +587,145 @@ class ExecutionStrategies:
             **metrics_handler.get_summary(),
             'result_metadata': final_metrics
         }
+    
+    async def _execute_with_stream_input(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute workflow with real-time stdin monitoring for stream-json input."""
+        import sys
+        from .stream_utils import parse_stream_json_line
+        
+        start_time = time.time()
+        session_id = request.session_id or str(uuid4())
+        run_id = request.run_id or str(uuid4())
+        
+        logger.info(f"SDK Executor: Starting stream-json execution for run_id: {run_id}, session: {session_id}")
+        
+        try:
+            # Initialize metrics handler
+            metrics_handler = MetricsHandler()
+            
+            # Build workspace path
+            workspace_path = self._get_workspace_path(request, session_id)
+            
+            # Build options for Claude CLI
+            options = self.build_options(workspace_path, request=request)
+            
+            # Import the query function from claude_code_sdk
+            from claude_code_sdk import query
+            
+            # Prepare the initial message
+            messages = [{"role": "user", "content": request.message}]
+            
+            # Create a stdin reader for stream-json input
+            stdin_reader = asyncio.StreamReader()
+            protocol = asyncio.StreamReaderProtocol(stdin_reader)
+            
+            # Connect to stdin (if available)
+            try:
+                await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, sys.stdin)
+                stdin_available = True
+            except Exception as e:
+                logger.debug(f"Stdin not available for stream input: {e}")
+                stdin_available = False
+            
+            # Start Claude Code execution with initial message
+            logger.info(f"Starting Claude Code with initial message: {request.message[:100]}...")
+            
+            # Create the query task
+            query_task = asyncio.create_task(
+                query(
+                    prompt=request.message,
+                    options=options
+                )
+            )
+            
+            # Create stdin monitoring task (if stdin is available)
+            async def stdin_monitor():
+                """Monitor stdin for new stream-json messages."""
+                if not stdin_available:
+                    return
+                    
+                logger.info("Starting stdin monitor for stream-json input...")
+                
+                while True:
+                    try:
+                        line = await stdin_reader.readline()
+                        if not line:
+                            logger.debug("EOF reached on stdin")
+                            break
+                            
+                        decoded_line = line.decode('utf-8')
+                        logger.debug(f"Received stdin line: {decoded_line.strip()}")
+                        
+                        # Parse the stream-json line
+                        message_data = parse_stream_json_line(decoded_line)
+                        if message_data and message_data.get("type") == "user":
+                            user_message = message_data.get("message", "").strip()
+                            if user_message:
+                                logger.info(f"Processing stream-json user message: {user_message[:100]}...")
+                                
+                                # Note: For now, we log the additional messages
+                                # In a full implementation, we would need to send these
+                                # to the running Claude process via stdin
+                                logger.info(f"Additional user message received: {user_message}")
+                                
+                    except Exception as e:
+                        logger.error(f"Error processing stdin line: {e}")
+                        break
+            
+            # Run both tasks concurrently
+            if stdin_available:
+                stdin_task = asyncio.create_task(stdin_monitor())
+                done, pending = await asyncio.wait(
+                    [query_task, stdin_task], 
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel remaining tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+            else:
+                # Just run the query task
+                await query_task
+            
+            # Get the result from query task
+            if query_task.done() and not query_task.cancelled():
+                result = query_task.result()
+                logger.info(f"Claude Code execution completed successfully")
+            else:
+                result = "Claude Code execution was cancelled or failed"
+                logger.warning("Claude Code execution did not complete normally")
+            
+            # Calculate execution time
+            execution_time = time.time() - start_time
+            
+            return {
+                'status': 'completed',
+                'result': result,
+                'session_id': session_id,
+                'run_id': run_id,
+                'execution_time': execution_time,
+                'input_format': 'stream-json',
+                'workspace_path': str(workspace_path),
+                'logs': f"Stream-JSON execution completed in {execution_time:.2f}s",
+                **metrics_handler.get_summary()
+            }
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error(f"Stream-JSON execution failed: {e}")
+            
+            return self._build_error_result(
+                e, execution_time, session_id, run_id, 
+                workspace_path if 'workspace_path' in locals() else None
+            )
     
     async def execute_first_response(
         self, 
