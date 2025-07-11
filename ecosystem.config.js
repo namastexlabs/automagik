@@ -74,7 +74,9 @@ module.exports = {
         AUTOMAGIK_API_KEY: envVars.AUTOMAGIK_API_KEY || "namastex888",
 	AUTOMAGIK_ENV: envVars.AUTOMAGIK_ENV || 'production',
         NODE_ENV: 'production',
-        PYTHONUNBUFFERED: '1' // Ensure Python logs are flushed immediately
+        PYTHONUNBUFFERED: '1', // Ensure Python logs are flushed immediately
+        // Add NVM Node.js paths to ensure Claude CLI is available
+        PATH: `/home/cezar/.nvm/versions/node/v22.16.0/bin:${process.env.PATH || '/usr/local/bin:/usr/bin:/bin'}`
       },
       instances: 1,
       exec_mode: 'fork',
