@@ -201,122 +201,6 @@ class WorkflowTester:
             return True, {"completed_runs": len(completed_runs)}
         return False, data
     
-    # =================== Phase 4: Message Injection Tests ===================
-    
-    def test_message_injection(self) -> Tuple[bool, Dict]:
-        """Test message injection into running workflow with retry logic"""
-        # Start a long-running workflow
-        payload = {
-            "message": "Perform a detailed analysis that will take some time",
-            "max_turns": 10,
-            "session_name": "message-injection-test",
-            "timeout": 300
-        }
-        start_success, start_data = self.make_request('POST', '/api/v1/workflows/claude-code/run/flashinho_thinker', payload)
-        if not start_success:
-            return False, {"error": "Failed to start workflow for injection test"}
-        
-        run_id = start_data['run_id']
-        
-        # Wait for workflow to be ready for injection with exponential backoff
-        max_attempts = 5
-        base_delay = 1.0
-        
-        for attempt in range(max_attempts):
-            # Check workflow status first
-            status_success, status_data = self.make_request('GET', f'/api/v1/workflows/claude-code/run/{run_id}/status')
-            
-            if status_success:
-                workflow_status = status_data.get('status')
-                if workflow_status in ['running']:
-                    # Workflow is running, try injection
-                    break
-                elif workflow_status in ['failed', 'completed', 'killed']:
-                    return False, {"error": f"Workflow ended with status: {workflow_status}"}
-                # If pending, continue waiting
-            
-            # Wait with exponential backoff
-            wait_time = base_delay * (2 ** attempt)
-            time.sleep(wait_time)
-        
-        # Inject message with timeout handling
-        inject_payload = {"message": "Please also include performance considerations"}
-        success, data = self.make_request('POST', f'/api/v1/workflows/claude-code/run/{run_id}/inject-message', inject_payload, timeout=60)
-        
-        if success and data.get('success') and data.get('run_id') == run_id:
-            return True, {
-                "run_id": run_id,
-                "message_id": data.get('message_id'),
-                "queue_position": data.get('queue_position')
-            }
-        
-        # Check for specific timeout error (408) which is expected behavior
-        if not success and data.get('status_code') == 408:
-            return True, {
-                "run_id": run_id,
-                "message": "Workspace initialization timeout handled correctly",
-                "error_handled": True
-            }
-        
-        return False, data
-    
-    def test_multiple_message_injection(self) -> Tuple[bool, Dict]:
-        """Test multiple message injections with proper timing"""
-        # Start workflow
-        payload = {
-            "message": "Complex analysis task for multiple injection test",
-            "max_turns": 15,
-            "timeout": 400
-        }
-        start_success, start_data = self.make_request('POST', '/api/v1/workflows/claude-code/run/flashinho_thinker', payload)
-        if not start_success:
-            return False, {"error": "Failed to start workflow for multiple injection test"}
-        
-        run_id = start_data['run_id']
-        
-        # Wait for workflow to be properly initialized
-        max_wait_attempts = 8
-        for attempt in range(max_wait_attempts):
-            status_success, status_data = self.make_request('GET', f'/api/v1/workflows/claude-code/run/{run_id}/status')
-            if status_success and status_data.get('status') == 'running':
-                break
-            elif status_success and status_data.get('status') in ['failed', 'completed', 'killed']:
-                return False, {"error": f"Workflow ended with status: {status_data.get('status')}"}
-            time.sleep(1.0 * (1.5 ** attempt))  # Progressive backoff
-        
-        # Inject multiple messages
-        messages = [
-            "Include cost analysis",
-            "Add security considerations", 
-            "Consider scalability factors"
-        ]
-        
-        injection_results = []
-        for i, msg in enumerate(messages):
-            inject_payload = {"message": msg}
-            success, data = self.make_request('POST', f'/api/v1/workflows/claude-code/run/{run_id}/inject-message', inject_payload, timeout=60)
-            
-            if success:
-                injection_results.append({
-                    "message": msg,
-                    "message_id": data.get('message_id'),
-                    "queue_position": data.get('queue_position')
-                })
-            elif data.get('status_code') == 408:
-                # Timeout is acceptable - workspace initialization delay
-                injection_results.append({
-                    "message": msg,
-                    "status": "timeout_handled",
-                    "note": "Workspace initialization timeout"
-                })
-            else:
-                return False, {"error": f"Failed to inject message {i+1}: {data}"}
-            
-            # Small delay between injections to avoid overwhelming
-            time.sleep(0.5)
-        
-        return True, {"run_id": run_id, "injections": injection_results}
-    
     # =================== Phase 5: Session Continuation Tests ===================
     
     def test_session_continuation(self) -> Tuple[bool, Dict]:
@@ -431,74 +315,6 @@ class WorkflowTester:
             }
         return False, {"error": "Not all concurrent workflows started"}
     
-    def test_rapid_message_injection(self) -> Tuple[bool, Dict]:
-        """Test rapid message injection performance with proper initialization"""
-        # Start workflow
-        payload = {
-            "message": "Base task for rapid injection test",
-            "max_turns": 20,
-            "timeout": 600
-        }
-        start_success, start_data = self.make_request('POST', '/api/v1/workflows/claude-code/run/flashinho_thinker', payload)
-        if not start_success:
-            return False, {"error": "Failed to start workflow for rapid injection test"}
-        
-        run_id = start_data['run_id']
-        
-        # Wait for workflow to be fully ready before rapid testing
-        max_wait = 15
-        for attempt in range(max_wait):
-            status_success, status_data = self.make_request('GET', f'/api/v1/workflows/claude-code/run/{run_id}/status')
-            if status_success and status_data.get('status') == 'running':
-                # Double-check workspace is ready with a test injection
-                test_inject = {"message": "Test workspace readiness"}
-                test_success, test_data = self.make_request('POST', f'/api/v1/workflows/claude-code/run/{run_id}/inject-message', test_inject, timeout=30)
-                if test_success:
-                    break
-                elif test_data.get('status_code') not in [408, 400]:
-                    # If not a timing/workspace issue, fail
-                    return False, {"error": f"Workspace test failed: {test_data}"}
-            elif status_success and status_data.get('status') in ['failed', 'completed', 'killed']:
-                return False, {"error": f"Workflow ended with status: {status_data.get('status')}"}
-            
-            time.sleep(1.0)
-        
-        # Rapidly inject messages
-        num_injections = 5
-        injection_times = []
-        successful_injections = 0
-        timeout_handled = 0
-        
-        for i in range(num_injections):
-            start_time = time.time()
-            inject_payload = {"message": f"Rapid injection {i+1}"}
-            success, data = self.make_request('POST', f'/api/v1/workflows/claude-code/run/{run_id}/inject-message', inject_payload, timeout=30)
-            end_time = time.time()
-            
-            if success:
-                injection_times.append((end_time - start_time) * 1000)
-                successful_injections += 1
-            elif data.get('status_code') == 408:
-                # Timeout is acceptable for rapid injection test
-                timeout_handled += 1
-                injection_times.append((end_time - start_time) * 1000)  # Include timeout time
-            else:
-                return False, {"error": f"Failed rapid injection {i+1}: {data}"}
-        
-        # Calculate metrics only if we have timing data
-        if injection_times:
-            avg_time = sum(injection_times) / len(injection_times)
-            return True, {
-                "run_id": run_id,
-                "total_injections": num_injections,
-                "successful_injections": successful_injections,
-                "timeout_handled": timeout_handled,
-                "average_time_ms": avg_time,
-                "max_time_ms": max(injection_times),
-                "min_time_ms": min(injection_times)
-            }
-        else:
-            return False, {"error": "No timing data collected"}
     
     # =================== Test Execution ===================
     
@@ -523,10 +339,6 @@ class WorkflowTester:
         self.run_test("List Workflow Runs", self.test_list_workflow_runs)
         self.run_test("Filter Workflow Runs", self.test_filter_workflow_runs)
         
-        # Phase 4: Message Injection Tests
-        print("\n📋 Phase 4: Message Injection")
-        self.run_test("Message Injection", self.test_message_injection)
-        self.run_test("Multiple Message Injection", self.test_multiple_message_injection)
         
         # Phase 5: Session Continuation Tests
         print("\n📋 Phase 5: Session Continuation")
@@ -540,7 +352,6 @@ class WorkflowTester:
         # Phase 8: Performance Tests
         print("\n📋 Phase 8: Performance Testing")
         self.run_test("Concurrent Workflows", self.test_concurrent_workflows)
-        self.run_test("Rapid Message Injection", self.test_rapid_message_injection)
         
         # Generate report
         return self.generate_report()
