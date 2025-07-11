@@ -1,0 +1,12 @@
+[
+  "mcp__agent_memory__search_memory_facts",
+  "mcp__agent_memory__search_memory_nodes", 
+  "mcp__agent_memory__add_memory",
+  "mcp__agent_memory__get_memory_context",
+  "TodoWrite",
+  "Task",
+  "Read",
+  "Write",
+  "Glob",
+  "Grep"
+]

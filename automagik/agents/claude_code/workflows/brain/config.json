@@ -1,0 +1,26 @@
+{
+  "display_name": "Brain - Knowledge Orchestrator",
+  "description": "Intelligence orchestrator specialized in knowledge management, memory operations, pattern analysis, and learning synthesis",
+  "category": "analysis",
+  "active": true,
+  "is_system_workflow": true,
+  "priority": "high",
+  "execution_timeout": 300,
+  "memory_focus": true,
+  "capabilities": [
+    "knowledge_search",
+    "pattern_analysis", 
+    "memory_synthesis",
+    "team_preference_analysis",
+    "intelligence_delivery",
+    "learning_storage"
+  ],
+  "specialties": [
+    "memory_search",
+    "pattern_recognition",
+    "knowledge_synthesis",
+    "team_context_analysis",
+    "historical_analysis",
+    "confidence_assessment"
+  ]
+}
