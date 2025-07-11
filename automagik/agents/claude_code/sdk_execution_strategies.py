@@ -284,29 +284,53 @@ class ExecutionStrategies:
         ensure_node_in_path()
         
         # Also ensure Claude CLI is available
-        if not shutil.which('claude'):
+        claude_cli = shutil.which('claude')
+        if not claude_cli:
+            logger.warning("Claude CLI not found in PATH, searching common locations...")
+            
             # Try to find Claude in common Node.js locations
             claude_paths = [
                 os.path.expanduser('~/.nvm/versions/node/*/bin/claude'),
                 '/usr/local/bin/claude',
                 os.path.expanduser('~/.volta/bin/claude'),
-                os.path.expanduser('~/.fnm/node-versions/*/installation/bin/claude')
+                os.path.expanduser('~/.fnm/node-versions/*/installation/bin/claude'),
+                os.path.expanduser('~/n/bin/claude'),
+                '/opt/homebrew/bin/claude',
+                '/usr/bin/claude'
             ]
             
             import glob
             for pattern in claude_paths:
-                matches = glob.glob(pattern)
-                for match in matches:
-                    if os.path.isfile(match) and os.access(match, os.X_OK):
-                        # Add Claude's directory to PATH
-                        claude_dir = os.path.dirname(match)
-                        current_path = os.environ.get('PATH', '')
-                        if claude_dir not in current_path:
-                            os.environ['PATH'] = f"{claude_dir}:{current_path}"
-                            logger.info(f"Added Claude CLI directory to PATH: {claude_dir}")
-                        break
-                if shutil.which('claude'):
+                try:
+                    matches = glob.glob(pattern)
+                    # Sort matches to get the latest version if multiple exist
+                    matches.sort(reverse=True)
+                    
+                    for match in matches:
+                        if os.path.isfile(match) and os.access(match, os.X_OK):
+                            # Add Claude's directory to PATH
+                            claude_dir = os.path.dirname(match)
+                            current_path = os.environ.get('PATH', '')
+                            if claude_dir not in current_path:
+                                os.environ['PATH'] = f"{claude_dir}:{current_path}"
+                                logger.info(f"Added Claude CLI directory to PATH: {claude_dir}")
+                            
+                            claude_cli = shutil.which('claude')
+                            if claude_cli:
+                                logger.info(f"Claude CLI now available at: {claude_cli}")
+                                break
+                except Exception as e:
+                    logger.debug(f"Error checking pattern {pattern}: {e}")
+                    
+                if claude_cli:
                     break
+                    
+            if not claude_cli:
+                logger.error("Claude CLI not found after searching all common locations!")
+                logger.error(f"Current PATH: {os.environ.get('PATH', 'NOT SET')}")
+                raise RuntimeError("Claude CLI is required but not found. Please ensure Claude Code is installed.")
+        else:
+            logger.info(f"Claude CLI found at: {claude_cli}")
         
         # Start heartbeat updates
         heartbeat_task = None
