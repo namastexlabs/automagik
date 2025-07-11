@@ -564,6 +564,7 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                     # Track turns and tokens for real-time progress
                     if hasattr(message, '__class__') and message.__class__.__name__ == 'AssistantMessage':
                         turn_count += 1
+                        logger.info(f"🔄 Turn {turn_count} - AssistantMessage received")
                         
                         # Log message turn span if tracing is enabled
                         if tracing and trace_id:
@@ -610,12 +611,21 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                         if hasattr(message, 'usage') and message.usage:
                             # Extract total tokens from usage dict
                             if isinstance(message.usage, dict):
-                                token_count = message.usage.get('total_tokens', token_count)
+                                # Calculate total tokens from components
+                                input_tokens = message.usage.get('input_tokens', 0)
+                                output_tokens = message.usage.get('output_tokens', 0)
+                                cache_creation = message.usage.get('cache_creation_input_tokens', 0)
+                                cache_read = message.usage.get('cache_read_input_tokens', 0)
+                                token_count = input_tokens + output_tokens + cache_creation + cache_read
+                                logger.info(f"📊 Token usage - Input: {input_tokens}, Output: {output_tokens}, Cache: {cache_creation + cache_read}, Total: {token_count}")
                             elif hasattr(message.usage, 'total_tokens'):
                                 token_count = message.usage.total_tokens
                     
-                    # Real-time progress update every turn
-                    if hasattr(request, 'run_id') and request.run_id and turn_count > 0:
+                    # Real-time progress update after each AssistantMessage
+                    if hasattr(request, 'run_id') and request.run_id and (
+                        (hasattr(message, '__class__') and message.__class__.__name__ == 'AssistantMessage') or
+                        (hasattr(message, '__class__') and message.__class__.__name__ == 'ResultMessage')
+                    ):
                         try:
                             from ...db.models import WorkflowRunUpdate
                             from ...db.repository.workflow_run import update_workflow_run_by_run_id
@@ -634,7 +644,11 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                                 total_tokens=token_count,
                                 metadata=progress_metadata
                             )
-                            update_workflow_run_by_run_id(request.run_id, progress_update)
+                            update_success = update_workflow_run_by_run_id(request.run_id, progress_update)
+                            if update_success:
+                                logger.info(f"📈 Updated progress - Turns: {turn_count}, Tokens: {token_count}")
+                            else:
+                                logger.warning(f"Failed to update progress in database")
                             
                         except Exception as progress_error:
                             logger.error(f"Real-time progress update failed: {progress_error}")
@@ -825,7 +839,7 @@ Please acknowledge this additional request and incorporate it into your ongoing 
         execution_time = time.time() - start_time
         result_text = '\n'.join(messages) if messages else "Subprocess execution completed"
         
-        logger.info(f"SDK Executor: Completed successfully - Turns: {metrics_handler.total_turns}, Tools: {len(metrics_handler.tools_used)}")
+        logger.info(f"SDK Executor: Completed successfully - Turns: {turn_count}, Tokens: {token_count}, Tools: {len(metrics_handler.tools_used)}")
         
         # Update workflow_runs table with success BEFORE marking process completed
         if hasattr(request, 'run_id') and request.run_id:
@@ -875,6 +889,14 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                 if not final_result:
                     final_result = result_text
                 
+                # Also include turn count in final update
+                final_metadata = {
+                    "final_turns": turn_count,
+                    "max_turns": request.max_turns,
+                    "total_tokens": total_tokens,
+                    "run_status": "completed"
+                }
+                
                 update_data = WorkflowRunUpdate(
                     status="completed",
                     completed_at=datetime.utcnow(),
@@ -882,7 +904,8 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                     result=final_result,
                     total_tokens=total_tokens,
                     cost_estimate=total_cost,
-                    duration_seconds=int(execution_time)
+                    duration_seconds=int(execution_time),
+                    metadata=final_metadata
                 )
                 
                 update_success = update_workflow_run_by_run_id(request.run_id, update_data)
