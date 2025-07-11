@@ -289,35 +289,38 @@ async def run_claude_workflow(
                            "Temporary workspaces are isolated environments without git integration."
                 )
         
-        # Validate workflow exists
-        agent = AgentFactory.get_agent("claude_code")
-        if not agent:
-            raise HTTPException(
-                status_code=404, detail="Claude-Code agent not available"
-            )
-
+        # Validate workflow exists - check database only
         # Get available workflows from database (consistent with /manage endpoint)
         from automagik.db import list_workflows
         db_workflows = list_workflows(active_only=True)
         db_workflow_names = [w.name for w in db_workflows]
         
-        # Check if workflow exists in database first
+        # Check if workflow exists in database
         if workflow_name not in db_workflow_names:
-            # Fallback: check filesystem workflows for development
-            workflows = await agent.get_available_workflows()
-            if workflow_name not in workflows:
-                available = db_workflow_names if db_workflow_names else list(workflows.keys())
+            # For development, also check filesystem
+            try:
+                from pathlib import Path
+                workflows_dir = Path(__file__).parent.parent.parent / "agents" / "claude_code" / "workflows"
+                filesystem_workflows = []
+                if workflows_dir.exists():
+                    for workflow_path in workflows_dir.iterdir():
+                        if workflow_path.is_dir() and (workflow_path / "prompt.md").exists():
+                            filesystem_workflows.append(workflow_path.name)
+                
+                if workflow_name not in filesystem_workflows:
+                    available = db_workflow_names + filesystem_workflows
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Workflow '{workflow_name}' not found. Available: {available}",
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to check filesystem workflows: {e}")
+                available = db_workflow_names
                 raise HTTPException(
                     status_code=404,
                     detail=f"Workflow '{workflow_name}' not found. Available: {available}",
-                )
-            
-            # Validate filesystem workflow is valid
-            workflow_info = workflows[workflow_name]
-            if not workflow_info.get("valid", False):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}",
                 )
 
         # Generate unique run ID with collision protection
@@ -461,9 +464,44 @@ async def run_claude_workflow(
                     )
                     update_workflow_run_by_run_id(run_id, update_data)
                     
-                    # Execute workflow
-                    current_agent = AgentFactory.get_agent("claude_code")
-                    await current_agent.execute_workflow_background(**execution_params)
+                    # Execute workflow directly using SDK executor
+                    # Bypass agent factory to avoid initialization issues
+                    from automagik.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+                    from automagik.agents.claude_code.cli_environment import CLIEnvironmentManager
+                    from automagik.agents.claude_code.models import ClaudeCodeRunRequest
+                    
+                    env_manager = CLIEnvironmentManager()
+                    sdk_executor = ClaudeSDKExecutor(environment_manager=env_manager)
+                    
+                    # Create proper request object
+                    sdk_request = ClaudeCodeRunRequest(
+                        message=execution_params.get("input_text"),
+                        workflow_name=execution_params.get("workflow_name"),
+                        session_id=execution_params.get("session_id"),
+                        run_id=execution_params.get("run_id"),
+                        max_turns=execution_params.get("max_turns"),
+                        timeout=execution_params.get("timeout"),
+                        repository_url=execution_params.get("repository_url"),
+                        git_branch=execution_params.get("git_branch"),
+                        persistent=execution_params.get("persistent"),
+                        temp_workspace=execution_params.get("temp_workspace"),
+                        model="sonnet"  # default model
+                    )
+                    
+                    # Create agent context
+                    agent_context = {
+                        "user_id": execution_params.get("user_id"),
+                        "run_id": execution_params.get("run_id"),
+                        "session_name": execution_params.get("session_name", f"claude-code-{workflow_name}-{run_id}")
+                    }
+                    
+                    # Execute workflow through SDK executor
+                    result = await sdk_executor.execute_claude_task(
+                        request=sdk_request,
+                        agent_context=agent_context
+                    )
+                    
+                    logger.info(f"Workflow {run_id} completed via direct SDK execution")
                     
                 except Exception as e:
                     logger.error(f"Workflow execution failed for {run_id}: {e}")
