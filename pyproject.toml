@@ -123,3 +123,8 @@ tests-root = "tests"
 test-framework = "pytest"
 ignore-paths = []
 formatter-cmds = ["ruff check --exit-zero --fix $file", "ruff format $file"]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+]

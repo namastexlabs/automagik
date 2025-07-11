@@ -6,7 +6,6 @@ detailed execution metrics, progress tracking, and status information that
 feeds the status endpoint with rich details.
 """
 
-import json
 import logging
 import sys
 import time
