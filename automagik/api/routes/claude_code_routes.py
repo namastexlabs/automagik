@@ -900,24 +900,24 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
         )
 
 
-class InjectMessageRequest(BaseModel):
-    """Request model for injecting a message into a running workflow."""
+class AddMessageRequest(BaseModel):
+    """Request model for adding a message to a running workflow."""
     
     message: str = Field(
         ...,
         min_length=1,
         max_length=10000,
-        description="Message to inject into the running workflow"
+        description="Message to add to the running workflow"
     )
 
 
-@claude_code_router.post("/run/{run_id}/inject-message")
-async def inject_message_to_running_workflow(
+@claude_code_router.post("/run/{run_id}/add-message")
+async def add_message_to_running_workflow(
     run_id: str = Path(..., description="Run ID of the active workflow"),
-    request: InjectMessageRequest = Body(...)
+    request: AddMessageRequest = Body(...)
 ) -> Dict[str, Any]:
     """
-    Inject a new message into a running Claude Code workflow.
+    Add a new message to a running Claude Code workflow.
     
     This endpoint allows you to send additional messages to an already running
     workflow without stopping and restarting it. Messages are queued and processed
@@ -925,15 +925,15 @@ async def inject_message_to_running_workflow(
     
     **Parameters:**
     - `run_id`: The run ID of the active workflow
-    - `message`: The message to inject into the workflow
+    - `message`: The message to add to the workflow
     
     **Returns:**
-    Confirmation that the message was queued for injection.
+    Confirmation that the message was queued for processing.
     
     **Examples:**
     ```bash
-    # Inject a message into a running workflow
-    POST /api/v1/workflows/claude-code/run/abc-123/inject-message
+    # Add a message to a running workflow
+    POST /api/v1/workflows/claude-code/run/abc-123/add-message
     {
         "message": "Please also add error handling to the implementation"
     }
@@ -963,7 +963,7 @@ async def inject_message_to_running_workflow(
         if workflow_run.status not in ["running", "pending"]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot inject message into workflow with status '{workflow_run.status}'. Workflow must be running or pending."
+                detail=f"Cannot add message to workflow with status '{workflow_run.status}'. Workflow must be running or pending."
             )
         
         # Handle workspace initialization timing - poll for workspace path
@@ -1022,7 +1022,7 @@ async def inject_message_to_running_workflow(
         message_data = {
             "id": str(uuid.uuid4()),
             "message": request.message,
-            "injected_at": datetime.utcnow().isoformat(),
+            "added_at": datetime.utcnow().isoformat(),
             "run_id": run_id,
             "processed": False
         }
@@ -1054,24 +1054,24 @@ async def inject_message_to_running_workflow(
                 detail=f"Failed to write message to workspace: {str(e)}"
             )
         
-        # Update workflow run metadata to track message injection
+        # Update workflow run metadata to track added messages
         try:
             from automagik.db.models import WorkflowRunUpdate
             from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
             
             # Get existing metadata
             current_metadata = workflow_run.metadata or {}
-            injected_messages = current_metadata.get("injected_messages", [])
+            added_messages = current_metadata.get("added_messages", [])
             
             # Add message summary to metadata
-            injected_messages.append({
+            added_messages.append({
                 "message_id": message_data["id"],
-                "injected_at": message_data["injected_at"],
+                "added_at": message_data["added_at"],
                 "message_preview": request.message[:100] + ("..." if len(request.message) > 100 else "")
             })
             
-            current_metadata["injected_messages"] = injected_messages
-            current_metadata["last_message_injection"] = datetime.utcnow().isoformat()
+            current_metadata["added_messages"] = added_messages
+            current_metadata["last_message_added"] = datetime.utcnow().isoformat()
             
             update_data = WorkflowRunUpdate(
                 metadata=current_metadata,
@@ -1080,26 +1080,26 @@ async def inject_message_to_running_workflow(
             update_workflow_run_by_run_id(run_id, update_data)
             
         except Exception as metadata_error:
-            logger.warning(f"Failed to update workflow metadata for message injection: {metadata_error}")
-            # Don't fail the injection for metadata issues
+            logger.warning(f"Failed to update workflow metadata for added message: {metadata_error}")
+            # Don't fail the add operation for metadata issues
         
         return {
             "success": True,
             "message_id": message_data["id"],
             "run_id": run_id,
-            "message": "Message queued for injection into running workflow",
+            "message": "Message queued for processing in running workflow",
             "queue_position": len(existing_messages),
-            "injected_at": message_data["injected_at"],
+            "added_at": message_data["added_at"],
             "workspace_path": str(workspace_path)
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error injecting message into workflow {run_id}: {e}")
+        logger.error(f"Error adding message to workflow {run_id}: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to inject message: {str(e)}"
+            detail=f"Failed to add message: {str(e)}"
         )
 
 
