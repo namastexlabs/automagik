@@ -487,6 +487,7 @@ async def run_claude_workflow(
                         git_branch=execution_params.get("git_branch"),
                         persistent=execution_params.get("persistent"),
                         temp_workspace=execution_params.get("temp_workspace"),
+                        input_format=execution_params.get("input_format", "text"),
                         model="sonnet"  # default model
                     )
                     
