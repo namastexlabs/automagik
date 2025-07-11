@@ -144,7 +144,12 @@ class ExecutionStrategies:
             logger.info(f"Using temporary workspace: {workspace_path} (user_id: {user_id})")
         else:
             # Extract workspace from agent context (normal flow)
-            workspace_path = Path(agent_context.get('workspace', '.'))
+            workspace_path = Path(agent_context.get('workspace', f'/tmp/claude-code-temp/{request.run_id}'))
+            
+            # Ensure the workspace directory exists
+            if not workspace_path.exists():
+                workspace_path.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created workspace directory: {workspace_path}")
         
         # Update database with workspace_path immediately after determining it
         if hasattr(request, 'run_id') and request.run_id:
@@ -215,6 +220,7 @@ class ExecutionStrategies:
                 logger.info(f"🔍 Python executable: {sys.executable}")
                 logger.info(f"🔍 Working directory (cwd): {os.getcwd()}")
                 logger.info(f"🔍 PM2_HOME: {os.environ.get('PM2_HOME', 'not set')}")
+                import shutil
                 logger.info(f"🔍 Which claude: {shutil.which('claude')}")
                 
                 message_count = 0
@@ -562,7 +568,7 @@ class ExecutionStrategies:
                 
                 # Also include turn count in final update
                 final_metadata = {
-                    "final_turns": turn_count,
+                    "final_turns": progress_tracker.turn_count,
                     "max_turns": request.max_turns,
                     "total_tokens": total_tokens,
                     "run_status": "completed"
