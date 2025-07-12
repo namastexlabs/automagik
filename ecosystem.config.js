@@ -74,7 +74,34 @@ module.exports = {
         AUTOMAGIK_API_KEY: envVars.AUTOMAGIK_API_KEY || "namastex888",
 	AUTOMAGIK_ENV: envVars.AUTOMAGIK_ENV || 'production',
         NODE_ENV: 'production',
-        PYTHONUNBUFFERED: '1' // Ensure Python logs are flushed immediately
+        PYTHONUNBUFFERED: '1', // Ensure Python logs are flushed immediately
+        // Claude CLI environment variables
+        CLAUDECODE: '1',
+        CLAUDE_CODE_ENTRYPOINT: 'cli',
+        // Add NVM Node.js paths to ensure Claude CLI is available
+        // Dynamically find the NVM path
+        PATH: (() => {
+          // Get home directory in a cross-platform way
+          const homeDir = process.env.HOME || process.env.USERPROFILE || '/home/' + (process.env.USER || 'user');
+          
+          // Try multiple possible NVM paths
+          const possibleNvmPaths = [
+            process.env.NVM_BIN,  // If NVM_BIN is set
+            `${homeDir}/.nvm/versions/node/v22.16.0/bin`,  // Common NVM path
+            `${homeDir}/.nvm/versions/node/v22.11.0/bin`,  // Another version
+            `${homeDir}/.nvm/versions/node/v20.11.0/bin`,  // LTS version
+            '/usr/local/bin',  // System-wide installation
+            '/opt/nodejs/bin', // Alternative installation
+          ].filter(Boolean);  // Remove undefined/null values
+          
+          // Get base PATH or default
+          const basePath = process.env.PATH || '/usr/local/bin:/usr/bin:/bin';
+          
+          // Combine all paths, removing duplicates
+          const allPaths = [...new Set([...possibleNvmPaths, ...basePath.split(':')])];
+          
+          return allPaths.join(':');
+        })()
       },
       instances: 1,
       exec_mode: 'fork',

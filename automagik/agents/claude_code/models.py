@@ -55,6 +55,10 @@ class ClaudeCodeRunRequest(BaseModel):
         default=False,
         description="Use temporary isolated workspace without git integration"
     )
+    input_format: Optional[str] = Field(
+        default="text",
+        description="Input format for workflow execution (text or stream-json)"
+    )
     
     @validator('message')
     def message_not_empty(cls, v):
@@ -68,6 +72,13 @@ class ClaudeCodeRunRequest(BaseModel):
         """Validate workflow name format."""
         if not v or not v.replace('-', '').replace('_', '').isalnum():
             raise ValueError('Workflow name must be alphanumeric with dashes or underscores')
+        return v
+    
+    @validator('input_format')
+    def input_format_valid(cls, v):
+        """Validate input format."""
+        if v not in ["text", "stream-json"]:
+            raise ValueError('Input format must be either "text" or "stream-json"')
         return v
     
     @validator('temp_workspace')

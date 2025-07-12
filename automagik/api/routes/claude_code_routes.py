@@ -8,9 +8,10 @@ import logging
 import uuid
 import asyncio
 import json
+import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Path, Body, Query
+from fastapi import APIRouter, HTTPException, Path, Body, Query, Depends
 from pydantic import BaseModel, Field, computed_field
 
 # Import race condition helpers
@@ -42,6 +43,7 @@ from automagik.agents.claude_code.models import (
 )
 from automagik.db.repository import user as user_repo
 from automagik.db.repository.workflow_run import get_workflow_run_by_run_id
+from automagik.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -289,29 +291,39 @@ async def run_claude_workflow(
                            "Temporary workspaces are isolated environments without git integration."
                 )
         
-        # Validate workflow exists
-        agent = AgentFactory.get_agent("claude_code")
-        if not agent:
-            raise HTTPException(
-                status_code=404, detail="Claude-Code agent not available"
-            )
-
-        # Get available workflows
-        workflows = await agent.get_available_workflows()
-        if workflow_name not in workflows:
-            available = list(workflows.keys())
-            raise HTTPException(
-                status_code=404,
-                detail=f"Workflow '{workflow_name}' not found. Available: {available}",
-            )
-
-        # Validate workflow is valid
-        workflow_info = workflows[workflow_name]
-        if not workflow_info.get("valid", False):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Workflow '{workflow_name}' is not valid: {workflow_info.get('description', 'Unknown error')}",
-            )
+        # Validate workflow exists - check database only
+        # Get available workflows from database (consistent with /manage endpoint)
+        from automagik.db import list_workflows
+        db_workflows = list_workflows(active_only=True)
+        db_workflow_names = [w.name for w in db_workflows]
+        
+        # Check if workflow exists in database
+        if workflow_name not in db_workflow_names:
+            # For development, also check filesystem
+            try:
+                from pathlib import Path
+                workflows_dir = Path(__file__).parent.parent.parent / "agents" / "claude_code" / "workflows"
+                filesystem_workflows = []
+                if workflows_dir.exists():
+                    for workflow_path in workflows_dir.iterdir():
+                        if workflow_path.is_dir() and (workflow_path / "prompt.md").exists():
+                            filesystem_workflows.append(workflow_path.name)
+                
+                if workflow_name not in filesystem_workflows:
+                    available = db_workflow_names + filesystem_workflows
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Workflow '{workflow_name}' not found. Available: {available}",
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to check filesystem workflows: {e}")
+                available = db_workflow_names
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Workflow '{workflow_name}' not found. Available: {available}",
+                )
 
         # Generate unique run ID with collision protection
         try:
@@ -454,9 +466,45 @@ async def run_claude_workflow(
                     )
                     update_workflow_run_by_run_id(run_id, update_data)
                     
-                    # Execute workflow
-                    current_agent = AgentFactory.get_agent("claude_code")
-                    await current_agent.execute_workflow_background(**execution_params)
+                    # Execute workflow directly using SDK executor
+                    # Bypass agent factory to avoid initialization issues
+                    from automagik.agents.claude_code.sdk_executor import ClaudeSDKExecutor
+                    from automagik.agents.claude_code.cli_environment import CLIEnvironmentManager
+                    from automagik.agents.claude_code.models import ClaudeCodeRunRequest
+                    
+                    env_manager = CLIEnvironmentManager()
+                    sdk_executor = ClaudeSDKExecutor(environment_manager=env_manager)
+                    
+                    # Create proper request object
+                    sdk_request = ClaudeCodeRunRequest(
+                        message=execution_params.get("input_text"),
+                        workflow_name=execution_params.get("workflow_name"),
+                        session_id=execution_params.get("session_id"),
+                        run_id=execution_params.get("run_id"),
+                        max_turns=execution_params.get("max_turns"),
+                        timeout=execution_params.get("timeout"),
+                        repository_url=execution_params.get("repository_url"),
+                        git_branch=execution_params.get("git_branch"),
+                        persistent=execution_params.get("persistent"),
+                        temp_workspace=execution_params.get("temp_workspace"),
+                        input_format=execution_params.get("input_format", "text"),
+                        model="sonnet"  # default model
+                    )
+                    
+                    # Create agent context
+                    agent_context = {
+                        "user_id": execution_params.get("user_id"),
+                        "run_id": execution_params.get("run_id"),
+                        "session_name": execution_params.get("session_name", f"claude-code-{workflow_name}-{run_id}")
+                    }
+                    
+                    # Execute workflow through SDK executor
+                    result = await sdk_executor.execute_claude_task(
+                        request=sdk_request,
+                        agent_context=agent_context
+                    )
+                    
+                    logger.info(f"Workflow {run_id} completed via direct SDK execution")
                     
                 except Exception as e:
                     logger.error(f"Workflow execution failed for {run_id}: {e}")
@@ -853,207 +901,6 @@ async def list_claude_code_workflows() -> List[WorkflowInfo]:
         )
 
 
-class InjectMessageRequest(BaseModel):
-    """Request model for injecting a message into a running workflow."""
-    
-    message: str = Field(
-        ...,
-        min_length=1,
-        max_length=10000,
-        description="Message to inject into the running workflow"
-    )
-
-
-@claude_code_router.post("/run/{run_id}/inject-message")
-async def inject_message_to_running_workflow(
-    run_id: str = Path(..., description="Run ID of the active workflow"),
-    request: InjectMessageRequest = Body(...)
-) -> Dict[str, Any]:
-    """
-    Inject a new message into a running Claude Code workflow.
-    
-    This endpoint allows you to send additional messages to an already running
-    workflow without stopping and restarting it. Messages are queued and processed
-    by the workflow in the order they are received.
-    
-    **Parameters:**
-    - `run_id`: The run ID of the active workflow
-    - `message`: The message to inject into the workflow
-    
-    **Returns:**
-    Confirmation that the message was queued for injection.
-    
-    **Examples:**
-    ```bash
-    # Inject a message into a running workflow
-    POST /api/v1/workflows/claude-code/run/abc-123/inject-message
-    {
-        "message": "Please also add error handling to the implementation"
-    }
-    ```
-    
-    **Notes:**
-    - Only works with actively running workflows
-    - Messages are processed in the order they are received
-    - The workflow must be in "running" status
-    - Messages are persisted even if workflow is temporarily paused
-    """
-    try:
-        import json
-        from pathlib import Path as PathLib
-        from datetime import datetime
-        
-        # Verify workflow is running
-        from automagik.db.repository.workflow_run import get_workflow_run_by_run_id
-        
-        workflow_run = get_workflow_run_by_run_id(run_id)
-        if not workflow_run:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Workflow run {run_id} not found"
-            )
-        
-        if workflow_run.status not in ["running", "pending"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot inject message into workflow with status '{workflow_run.status}'. Workflow must be running or pending."
-            )
-        
-        # Handle workspace initialization timing - poll for workspace path
-        workspace_path = workflow_run.workspace_path
-        if not workspace_path:
-            # Workspace not ready yet, implement retry logic for pending workflows
-            if workflow_run.status == "pending":
-                # Wait for workspace initialization with exponential backoff
-                max_retries = 10
-                base_delay = 0.5  # Start with 500ms
-                
-                for attempt in range(max_retries):
-                    await asyncio.sleep(base_delay * (2 ** attempt))  # Exponential backoff
-                    
-                    # Re-fetch workflow run to check for workspace
-                    updated_workflow = get_workflow_run_by_run_id(run_id)
-                    if updated_workflow and updated_workflow.workspace_path:
-                        workspace_path = updated_workflow.workspace_path
-                        break
-                    
-                    # If workflow status changed to running, continue waiting
-                    if updated_workflow and updated_workflow.status == "running":
-                        continue
-                    
-                    # If workflow failed or completed, stop retrying
-                    if updated_workflow and updated_workflow.status in ["failed", "completed", "killed"]:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Workflow {run_id} is no longer active (status: {updated_workflow.status})"
-                        )
-                
-                # If still no workspace after retries
-                if not workspace_path:
-                    raise HTTPException(
-                        status_code=408,
-                        detail=f"Workspace initialization timeout for workflow run {run_id}. Please try again in a few moments."
-                    )
-            else:
-                # For non-pending workflows, workspace should already exist
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"No workspace found for workflow run {run_id}"
-                )
-        
-        workspace_dir = PathLib(workspace_path)
-        if not workspace_dir.exists():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Workspace directory does not exist: {workspace_path}"
-            )
-        
-        # Create message queue file path
-        message_queue_file = workspace_dir / ".pending_messages.json"
-        
-        # Prepare message data
-        message_data = {
-            "id": str(uuid.uuid4()),
-            "message": request.message,
-            "injected_at": datetime.utcnow().isoformat(),
-            "run_id": run_id,
-            "processed": False
-        }
-        
-        # Load existing messages or create new queue
-        existing_messages = []
-        if message_queue_file.exists():
-            try:
-                with open(message_queue_file, 'r') as f:
-                    existing_messages = json.load(f)
-                if not isinstance(existing_messages, list):
-                    existing_messages = []
-            except (json.JSONDecodeError, IOError):
-                existing_messages = []
-        
-        # Add new message to queue (FIFO order)
-        existing_messages.append(message_data)
-        
-        # Write updated message queue
-        try:
-            with open(message_queue_file, 'w') as f:
-                json.dump(existing_messages, f, indent=2)
-            
-            logger.info(f"Injected message into workflow {run_id}: {request.message[:100]}...")
-            
-        except IOError as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to write message to workspace: {str(e)}"
-            )
-        
-        # Update workflow run metadata to track message injection
-        try:
-            from automagik.db.models import WorkflowRunUpdate
-            from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
-            
-            # Get existing metadata
-            current_metadata = workflow_run.metadata or {}
-            injected_messages = current_metadata.get("injected_messages", [])
-            
-            # Add message summary to metadata
-            injected_messages.append({
-                "message_id": message_data["id"],
-                "injected_at": message_data["injected_at"],
-                "message_preview": request.message[:100] + ("..." if len(request.message) > 100 else "")
-            })
-            
-            current_metadata["injected_messages"] = injected_messages
-            current_metadata["last_message_injection"] = datetime.utcnow().isoformat()
-            
-            update_data = WorkflowRunUpdate(
-                metadata=current_metadata,
-                updated_at=datetime.utcnow()
-            )
-            update_workflow_run_by_run_id(run_id, update_data)
-            
-        except Exception as metadata_error:
-            logger.warning(f"Failed to update workflow metadata for message injection: {metadata_error}")
-            # Don't fail the injection for metadata issues
-        
-        return {
-            "success": True,
-            "message_id": message_data["id"],
-            "run_id": run_id,
-            "message": "Message queued for injection into running workflow",
-            "queue_position": len(existing_messages),
-            "injected_at": message_data["injected_at"],
-            "workspace_path": str(workspace_path)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error injecting message into workflow {run_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to inject message: {str(e)}"
-        )
 
 
 @claude_code_router.post("/run/{run_id}/kill")
@@ -1184,6 +1031,171 @@ async def kill_claude_code_run(
         )
 
 
+@claude_code_router.post("/run/{run_id}/cleanup")
+async def cleanup_claude_code_workspace(
+    run_id: str,
+    force: bool = Query(False, description="Force cleanup even if workflow is still running"),
+    api_key: str = Depends(verify_api_key)
+) -> Dict[str, Any]:
+    """
+    Clean up workspace and resources for a completed Claude-Code workflow.
+    
+    **Purpose:**
+    Removes workspace directories, temporary files, and resources created during workflow execution.
+    
+    **Parameters:**
+    - `run_id`: Unique identifier for the workflow run
+    - `force`: If true, cleanup workspace even if workflow is still running (use with caution)
+    
+    **Returns:**
+    Cleanup status and details about what was removed.
+    
+    **Example:**
+    ```bash
+    # Normal cleanup after completion
+    POST /api/v1/workflows/claude-code/run/run_abc123/cleanup
+    
+    # Force cleanup (emergency)
+    POST /api/v1/workflows/claude-code/run/run_abc123/cleanup?force=true
+    ```
+    """
+    try:
+        cleanup_start_time = time.time()
+        
+        # Get workflow run details
+        workflow_run = get_workflow_run_by_run_id(run_id)
+        if not workflow_run:
+            raise HTTPException(
+                status_code=404, detail=f"Workflow run not found: {run_id}"
+            )
+        
+        workflow_name = workflow_run.workflow_name
+        
+        # Check if workflow is still running (unless force cleanup)
+        if not force and workflow_run.status in ["pending", "running"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Workflow is still {workflow_run.status}. Use force=true to cleanup anyway."
+            )
+        
+        # Initialize cleanup result
+        cleanup_result = {
+            "workspace_removed": False,
+            "temp_files_removed": False,
+            "git_worktree_removed": False,
+            "process_cleaned": False,
+            "workspace_path": None,
+            "errors": []
+        }
+        
+        # Get workspace information from environment manager
+        try:
+            from automagik.agents.claude_code.cli_environment import CLIEnvironmentManager
+            env_manager = CLIEnvironmentManager()
+            
+            # Try to find workspace based on run_id
+            from automagik.utils.project import get_project_root, resolve_workspace_from_run_id
+            
+            project_root = get_project_root()
+            workspace_candidates = resolve_workspace_from_run_id(run_id)
+            
+            # Clean up found workspaces
+            for workspace_path in workspace_candidates:
+                try:
+                    if workspace_path.exists():
+                        cleanup_result["workspace_path"] = str(workspace_path)
+                        
+                        # If it's a git worktree, remove it properly
+                        if (workspace_path.parent.name == "worktrees" and 
+                            (workspace_path / ".git").exists()):
+                            
+                            # Remove git worktree
+                            import subprocess
+                            try:
+                                subprocess.run([
+                                    "git", "worktree", "remove", "--force", str(workspace_path)
+                                ], cwd=str(project_root), check=True, 
+                                capture_output=True)
+                                cleanup_result["git_worktree_removed"] = True
+                            except subprocess.CalledProcessError:
+                                # Fallback to regular directory removal
+                                import shutil
+                                shutil.rmtree(workspace_path)
+                                cleanup_result["workspace_removed"] = True
+                        else:
+                            # Regular directory cleanup
+                            import shutil
+                            shutil.rmtree(workspace_path)
+                            cleanup_result["workspace_removed"] = True
+                            
+                        logger.info(f"Cleaned up workspace: {workspace_path}")
+                        
+                except Exception as e:
+                    error_msg = f"Failed to remove workspace {workspace_path}: {str(e)}"
+                    cleanup_result["errors"].append(error_msg)
+                    logger.warning(error_msg)
+            
+            # Clean up any orphaned processes
+            try:
+                agent = AgentFactory.get_agent("claude_code")
+                if agent and hasattr(agent, 'executor'):
+                    process_manager = getattr(agent.executor, 'process_manager', None)
+                    if process_manager and hasattr(process_manager, 'cleanup_process'):
+                        cleanup_success = process_manager.cleanup_process(run_id)
+                        cleanup_result["process_cleaned"] = cleanup_success
+            except Exception as e:
+                error_msg = f"Failed to cleanup processes: {str(e)}"
+                cleanup_result["errors"].append(error_msg)
+        
+        except Exception as e:
+            error_msg = f"Workspace cleanup failed: {str(e)}"
+            cleanup_result["errors"].append(error_msg)
+            logger.error(error_msg)
+        
+        # Update workflow run with cleanup status
+        cleanup_time = datetime.utcnow()
+        cleanup_duration = time.time() - cleanup_start_time
+        
+        try:
+            from automagik.db.models import WorkflowRunUpdate
+            update_data = WorkflowRunUpdate(
+                workspace_cleaned_up=True,
+                metadata={
+                    **(workflow_run.metadata or {}),
+                    "cleanup_performed_at": cleanup_time.isoformat(),
+                    "cleanup_duration_ms": int(cleanup_duration * 1000),
+                    "cleanup_result": cleanup_result
+                }
+            )
+            update_workflow_run_by_run_id(run_id, update_data)
+        except Exception as e:
+            logger.warning(f"Failed to update workflow run with cleanup status: {e}")
+        
+        # Determine overall success
+        overall_success = (
+            (cleanup_result["workspace_removed"] or cleanup_result["git_worktree_removed"]) and
+            len(cleanup_result["errors"]) == 0
+        )
+        
+        return {
+            "success": overall_success,
+            "run_id": run_id,
+            "workflow_name": workflow_name,
+            "cleanup_time": cleanup_time.isoformat(),
+            "cleanup_duration_ms": int(cleanup_duration * 1000),
+            "cleanup_details": cleanup_result,
+            "message": f"Workspace cleanup {'completed successfully' if overall_success else 'completed with errors'} in {cleanup_duration:.2f}s"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cleaning up workspace for run {run_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to cleanup workspace: {str(e)}"
+        )
+
+
 @claude_code_router.get("/health")
 async def claude_code_health() -> Dict[str, Any]:
     """
@@ -1243,11 +1255,18 @@ async def claude_code_health() -> Dict[str, Any]:
             if agent:
                 health_status["agent_available"] = True
 
-                # Check workflows
-                workflows = await agent.get_available_workflows()
+                # Check workflows (consistent with /manage and /run endpoints)
+                from automagik.db import list_workflows
+                db_workflows = list_workflows(active_only=True)
                 health_status["workflows"] = {
-                    name: info.get("valid", False) for name, info in workflows.items()
+                    w.name: True for w in db_workflows  # DB workflows are considered valid
                 }
+                
+                # Also include filesystem-only workflows for development visibility
+                fs_workflows = await agent.get_available_workflows()
+                for name, info in fs_workflows.items():
+                    if name not in health_status["workflows"]:
+                        health_status["workflows"][name] = info.get("valid", False)
 
                 # Check container manager
                 if hasattr(agent, "container_manager"):
