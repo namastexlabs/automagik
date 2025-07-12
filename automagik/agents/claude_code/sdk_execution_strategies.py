@@ -6,6 +6,7 @@ This module contains different execution strategies and cancellation logic.
 import asyncio
 import logging
 import os
+import sys
 import time
 import traceback
 from datetime import datetime
@@ -13,13 +14,18 @@ from pathlib import Path
 from typing import Dict, Any, List
 from uuid import uuid4
 
-from claude_code_sdk import query, ClaudeCodeOptions
-from ...utils.nodejs_detection import ensure_node_in_path
+from claude_code_sdk import query
 
 from .models import ClaudeCodeRunRequest
 from .sdk_process_manager import ProcessManager
 from .sdk_metrics_handler import MetricsHandler
 from .log_manager import get_log_manager
+
+# Import new refactored modules
+from .sdk_options_builder import SDKOptionsBuilder
+from .sdk_message_processor import SDKMessageProcessor
+from .sdk_progress_tracker import SDKProgressTracker
+from .sdk_cli_manager import SDKCLIManager
 
 # Import tracing
 from automagik.tracing import get_tracing_manager
@@ -58,202 +64,13 @@ class ExecutionStrategies:
     def __init__(self, environment_manager=None):
         self.environment_manager = environment_manager
         self.process_manager = ProcessManager()
+        self.options_builder = SDKOptionsBuilder()
+        self.cli_manager = SDKCLIManager()
     
-    def build_options(self, workspace: Path, **kwargs) -> ClaudeCodeOptions:
+    def build_options(self, workspace: Path, **kwargs):
         """Build options with file-based configuration loading."""
-        options = ClaudeCodeOptions()
-        
-        # Set working directory (SDK uses cwd, not workspace)
-        options.cwd = str(workspace)
-        
-        # Load system prompt from prompt.md
-        prompt_file = workspace / "prompt.md"
-        if prompt_file.exists():
-            try:
-                prompt_content = prompt_file.read_text().strip()
-                if prompt_content:
-                    options.system_prompt = prompt_content
-                    logger.info(f"Loaded system prompt from {prompt_file} ({len(prompt_content)} chars)")
-                else:
-                    logger.debug("prompt.md is empty, using default Claude Code behavior")
-            except Exception as e:
-                logger.error(f"Failed to load prompt.md: {e}")
-        else:
-            logger.debug("No prompt.md found, using vanilla Claude Code")
-        
-        # Load allowed tools if file exists
-        if 'allowed_tools' not in kwargs:
-            allowed_tools_file = workspace / "allowed_tools.json"
-            if allowed_tools_file.exists():
-                try:
-                    import json
-                    with open(allowed_tools_file) as f:
-                        tools_list = json.load(f)
-                        if isinstance(tools_list, list):
-                            options.allowed_tools = tools_list
-                            logger.info(f"Loaded {len(tools_list)} allowed tools from file")
-                except Exception as e:
-                    logger.error(f"Failed to load allowed_tools.json: {e}")
-        
-        # Load disallowed tools if file exists
-        if 'disallowed_tools' not in kwargs:
-            disallowed_tools_file = workspace / "disallowed_tools.json"
-            if disallowed_tools_file.exists():
-                try:
-                    import json
-                    with open(disallowed_tools_file) as f:
-                        tools_list = json.load(f)
-                        if isinstance(tools_list, list):
-                            options.disallowed_tools = tools_list
-                            logger.info(f"Loaded {len(tools_list)} disallowed tools from file")
-                except Exception as e:
-                    logger.error(f"Failed to load disallowed_tools.json: {e}")
-        
-        # Load MCP configuration
-        mcp_config_file = workspace / ".mcp.json"
-        if mcp_config_file.exists():
-            try:
-                import json
-                with open(mcp_config_file) as f:
-                    mcp_data = json.load(f)
-                    
-                if 'mcpServers' in mcp_data and isinstance(mcp_data['mcpServers'], dict):
-                    options.mcp_servers = mcp_data['mcpServers']
-                    logger.info(f"Loaded {len(mcp_data['mcpServers'])} MCP servers from config")
-                else:
-                    logger.warning(".mcp.json must contain 'mcpServers' object")
-                    
-            except Exception as e:
-                logger.error(f"Failed to load .mcp.json: {e}")
-        
-        # Apply explicit kwargs (highest priority)
-        for key, value in kwargs.items():
-            if hasattr(options, key) and value is not None:
-                setattr(options, key, value)
-        
-        # Handle session resumption
-        if 'session_id' in kwargs and kwargs['session_id']:
-            options.resume = kwargs['session_id']
-            logger.info(f"Setting session resumption with Claude session ID: {kwargs['session_id']}")
-        
-        # Set permission mode to bypass tool permission prompts
-        options.permission_mode = "bypassPermissions"
-        logger.info("Set permission_mode to bypassPermissions for automated workflow execution")
-        
-        return options
+        return self.options_builder.build_options(workspace, **kwargs)
     
-    async def _check_and_process_pending_messages(
-        self, 
-        workspace_path: Path, 
-        run_id: str
-    ) -> List[str]:
-        """
-        Check for pending injected messages and process them.
-        
-        Args:
-            workspace_path: Path to the workflow workspace
-            run_id: The workflow run ID
-            
-        Returns:
-            List of messages to inject into the conversation
-        """
-        try:
-            message_queue_file = workspace_path / ".pending_messages.json"
-            
-            if not message_queue_file.exists():
-                return []
-            
-            # Read and parse pending messages
-            import json
-            try:
-                with open(message_queue_file, 'r') as f:
-                    pending_messages = json.load(f)
-                
-                if not isinstance(pending_messages, list):
-                    return []
-                    
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(f"Failed to read pending messages file: {e}")
-                return []
-            
-            # Filter unprocessed messages
-            unprocessed_messages = [
-                msg for msg in pending_messages 
-                if not msg.get("processed", False)
-            ]
-            
-            if not unprocessed_messages:
-                return []
-            
-            # Extract messages to inject
-            messages_to_inject = []
-            for msg in unprocessed_messages:
-                messages_to_inject.append(msg["message"])
-                # Mark as processed
-                msg["processed"] = True
-                msg["processed_at"] = datetime.utcnow().isoformat()
-            
-            # Write back the updated queue with processed flags
-            try:
-                with open(message_queue_file, 'w') as f:
-                    json.dump(pending_messages, f, indent=2)
-                
-                logger.info(f"Processed {len(messages_to_inject)} injected messages for run {run_id}")
-                
-            except IOError as e:
-                logger.error(f"Failed to update message queue file: {e}")
-                # Still return the messages even if we can't update the file
-            
-            return messages_to_inject
-            
-        except Exception as e:
-            logger.error(f"Error checking pending messages for run {run_id}: {e}")
-            return []
-    
-    async def _build_enhanced_prompt_with_injected_messages(
-        self,
-        original_prompt: str,
-        collected_messages: List[Any],
-        injected_messages: List[str]
-    ) -> str:
-        """
-        Build an enhanced prompt that includes conversation history and injected messages.
-        
-        Args:
-            original_prompt: The original user prompt
-            collected_messages: Messages collected so far in the conversation
-            injected_messages: New messages to inject
-            
-        Returns:
-            Enhanced prompt string
-        """
-        try:
-            # Build conversation context
-            context_parts = [f"Original request: {original_prompt}"]
-            
-            # Add conversation history summary
-            if collected_messages:
-                context_parts.append("\nConversation progress so far:")
-                for i, msg in enumerate(collected_messages[-5:]):  # Last 5 messages for context
-                    if hasattr(msg, 'content'):
-                        context_parts.append(f"- {msg.content[:200]}...")
-            
-            # Add injected messages
-            if injected_messages:
-                context_parts.append("\nAdditional instructions:")
-                for msg in injected_messages:
-                    context_parts.append(f"- {msg}")
-            
-            # Combine into enhanced prompt
-            enhanced_prompt = "\n".join(context_parts)
-            logger.info(f"Built enhanced prompt with {len(injected_messages)} injected messages")
-            
-            return enhanced_prompt
-            
-        except Exception as e:
-            logger.error(f"Error building enhanced prompt: {e}")
-            # Fallback to original prompt
-            return original_prompt
     
     async def execute_simple(
         self, 
@@ -261,6 +78,10 @@ class ExecutionStrategies:
         agent_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute claude task with simplified logic and process tracking."""
+        # Check if stream-json input format is requested
+        if hasattr(request, 'input_format') and request.input_format == "stream-json":
+            return await self._execute_with_stream_input(request, agent_context)
+        
         start_time = time.time()
         session_id = request.session_id or str(uuid4())
         run_id = request.run_id or str(uuid4())
@@ -279,8 +100,8 @@ class ExecutionStrategies:
         if hasattr(request, 'run_id') and request.run_id:
             await self.process_manager.register_workflow_process(request.run_id, request, agent_context)
         
-        # Ensure Node.js is available
-        ensure_node_in_path()
+        # Ensure Claude CLI is available
+        claude_cli = self.cli_manager.ensure_claude_cli_available()
         
         # Start heartbeat updates
         heartbeat_task = None
@@ -307,7 +128,12 @@ class ExecutionStrategies:
             logger.info(f"Using temporary workspace: {workspace_path} (user_id: {user_id})")
         else:
             # Extract workspace from agent context (normal flow)
-            workspace_path = Path(agent_context.get('workspace', '.'))
+            workspace_path = Path(agent_context.get('workspace', f'/tmp/claude-code-temp/{request.run_id}'))
+            
+            # Ensure the workspace directory exists
+            if not workspace_path.exists():
+                workspace_path.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created workspace directory: {workspace_path}")
         
         # Update database with workspace_path immediately after determining it
         if hasattr(request, 'run_id') and request.run_id:
@@ -344,132 +170,80 @@ class ExecutionStrategies:
         log_writer = None
         log_writer_context = None
         
+        # Initialize progress tracker
+        progress_tracker = SDKProgressTracker(
+            run_id=run_id,
+            workflow_name=request.workflow_name if hasattr(request, 'workflow_name') else None,
+            max_turns=request.max_turns
+        )
+        
+        # Set tracing context if available
+        if trace_id:
+            progress_tracker.set_tracing_context(trace_id, parent_span_id, tracing)
+        
+        # Initialize message processor
+        message_processor = SDKMessageProcessor(
+            workflow_name=request.workflow_name if hasattr(request, 'workflow_name') else None
+        )
+        
         try:
-            # Add real-time progress tracking
-            turn_count = 0
-            token_count = 0
-            
             # Execute SDK query directly (SDK handles max_turns properly)
             try:
-                # Initialize streaming buffer for large responses (especially brain workflow)
-                streaming_buffer = None
-                if hasattr(request, 'workflow_name') and request.workflow_name == 'brain':
-                    from .stream_utils import StreamingBuffer
-                    streaming_buffer = StreamingBuffer(max_chunk_size=16384, max_buffer_size=512000)
-                    logger.info(f"Initialized streaming buffer for brain workflow with 512KB max size")
+                
+                logger.info(f"🚀 Starting query with prompt: {request.message[:100]}...")
+                logger.info(f"📁 Working directory: {options.cwd}")
+                logger.info(f"📝 System prompt length: {len(options.system_prompt) if options.system_prompt else 0} chars")
+                
+                # Debug environment
+                logger.info(f"🔍 CLAUDECODE env: {os.environ.get('CLAUDECODE', 'not set')}")
+                logger.info(f"🔍 CLAUDE_CODE_ENTRYPOINT env: {os.environ.get('CLAUDE_CODE_ENTRYPOINT', 'not set')}")
+                logger.info(f"🔍 PATH contains claude: {'claude' in os.environ.get('PATH', '')}")
+                
+                # Additional debugging for PM2
+                logger.info(f"🔍 Current PID: {os.getpid()}")
+                logger.info(f"🔍 Python executable: {sys.executable}")
+                logger.info(f"🔍 Working directory (cwd): {os.getcwd()}")
+                logger.info(f"🔍 PM2_HOME: {os.environ.get('PM2_HOME', 'not set')}")
+                import shutil
+                logger.info(f"🔍 Which claude: {shutil.which('claude')}")
+                
+                message_count = 0
+                logger.info("📡 About to start SDK query async generator...")
                 
                 async for message in query(prompt=request.message, options=options):
+                    message_count += 1
+                    logger.info(f"📨 Received message {message_count}: {type(message).__name__}")
+                    
+                    # TEMPORARILY DISABLED: Blocking database operations causing workflow hang
+                    # TODO: Move these checks outside the message processing loop
+                    
                     # Check for kill signal before processing each message
                     if hasattr(request, 'run_id') and request.run_id:
                         try:
-                            process_info = self.process_manager.get_process_info(request.run_id)
-                            if process_info and process_info.status == "killed":
-                                logger.info(f"🛑 Workflow {request.run_id} killed during execution, stopping...")
-                                break
+                            # TEMPORARILY DISABLED: This blocks the async generator
+                            # process_info = self.process_manager.get_process_info(request.run_id)
+                            # if process_info and process_info.status == "killed":
+                            #     logger.info(f"🛑 Workflow {request.run_id} killed during execution, stopping...")
+                            #     break
+                            pass
                         except Exception as kill_check_error:
                             logger.error(f"Kill signal check failed: {kill_check_error}")
                     
-                    # Check for pending injected messages
-                    if hasattr(request, 'run_id') and request.run_id and workspace_path:
-                        try:
-                            injected_messages = await self._check_and_process_pending_messages(
-                                workspace_path, request.run_id
-                            )
-                            
-                            if injected_messages:
-                                logger.info(f"📨 Found {len(injected_messages)} injected messages for run {request.run_id}")
-                                
-                                # IMPLEMENT PROPER MESSAGE INJECTION VIA CONVERSATION RESTART
-                                # Instead of just appending to messages, we need to restart the conversation
-                                # with the injected messages included as user input
-                                
-                                # Build enhanced prompt with conversation history + injected messages
-                                enhanced_prompt = await self._build_enhanced_prompt_with_injected_messages(
-                                    request.message, collected_messages, injected_messages
-                                )
-                                
-                                # Log the injection for debugging
-                                if log_writer:
-                                    for injected_msg in injected_messages:
-                                        try:
-                                            await log_writer(
-                                                f"💉 Injecting message: {injected_msg[:100]}...",
-                                                "message_injection"
-                                            )
-                                        except Exception as log_error:
-                                            logger.error(f"Failed to log injected message: {log_error}")
-                                
-                                # Restart conversation with enhanced prompt
-                                logger.info(f"🔄 Restarting conversation with {len(injected_messages)} injected messages")
-                                
-                                # OPTION A: Conversation restart (complex but comprehensive)
-                                # This approach restarts the conversation with injected messages
-                                try:
-                                    # Create new query with enhanced prompt that includes injected messages
-                                    enhanced_request = request
-                                    enhanced_request.message = enhanced_prompt
-                                    
-                                    # Recursively call with enhanced prompt (conversation restart)
-                                    enhanced_result = await self._execute_with_enhanced_context(
-                                        enhanced_request, workspace_path, options, collected_messages, injected_messages
-                                    )
-                                    
-                                    # Return the enhanced result immediately
-                                    if enhanced_result:
-                                        return enhanced_result
-                                        
-                                except Exception as restart_error:
-                                    logger.error(f"Failed to restart conversation with injected messages: {restart_error}")
-                                
-                                # OPTION B: Direct injection (simpler, more reliable)
-                                # Add injected messages as system notices in the conversation flow
-                                logger.info(f"📢 Using direct message injection for {len(injected_messages)} messages")
-                                
-                                # Add injected messages to the conversation as system notices
-                                for i, injected_msg in enumerate(injected_messages):
-                                    injection_notice = f"""
-━━━ NEW USER MESSAGE #{i+1} ━━━
-{injected_msg}
-━━━ END MESSAGE #{i+1} ━━━
-
-Please acknowledge this additional request and incorporate it into your ongoing work.
-"""
-                                    messages.append(injection_notice)
-                                    logger.info(f"💬 Added injected message {i+1} to conversation flow")
-                                    
-                                    # Log the injection
-                                    if log_writer:
-                                        try:
-                                            await log_writer(
-                                                f"💉 DIRECT INJECTION: {injected_msg[:100]}...", 
-                                                "message_injection"
-                                            )
-                                        except Exception as log_error:
-                                            logger.error(f"Failed to log injected message: {log_error}")
-                                
-                        except Exception as message_check_error:
-                            logger.error(f"Failed to check pending messages: {message_check_error}")
                     
-                    # Process message with streaming buffer for brain workflow
-                    if streaming_buffer:
-                        message_str = str(message)
-                        completed_messages = streaming_buffer.add_chunk(message_str)
-                        
-                        # Add completed messages to our collection
-                        for completed_msg in completed_messages:
-                            messages.append(completed_msg)
-                        
-                        # Always add the raw message to collected_messages for SDK tracking
-                        collected_messages.append(message)
-                        
-                        # Log buffer stats periodically
-                        if len(messages) % 10 == 0:
-                            buffer_stats = streaming_buffer.get_stats()
-                            logger.debug(f"Buffer stats: {buffer_stats}")
-                    else:
-                        # Standard processing for non-brain workflows
-                        messages.append(str(message))
-                        collected_messages.append(message)
+                    # Process message using the message processor
+                    processing_result = message_processor.process_message(message, messages, collected_messages)
+                    
+                    # Track progress
+                    progress_tracker.track_turn(processing_result["message_type"])
+                    
+                    # Extract session ID if present
+                    if "session_id" in processing_result.get("metadata", {}):
+                        actual_claude_session_id = processing_result["metadata"]["session_id"]
+                        progress_tracker.set_session_id(actual_claude_session_id)
+                    
+                    # Update token count if usage data available
+                    if "usage" in processing_result.get("metadata", {}):
+                        progress_tracker.update_tokens(processing_result["metadata"]["usage"])
                     
                     # Log message to individual workflow log file
                     if log_writer:
@@ -478,84 +252,11 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                         except Exception as log_error:
                             logger.error(f"Failed to write to workflow log: {log_error}")
                     
-                    # Track turns and tokens for real-time progress
-                    if hasattr(message, 'type') and message.type == 'assistant':
-                        turn_count += 1
-                        
-                        # Log message turn span if tracing is enabled
-                        if tracing and trace_id:
-                            # Get LangWatch provider if available
-                            langwatch_provider = None
-                            if tracing.observability:
-                                for provider in tracing.observability.providers.values():
-                                    if hasattr(provider, 'log_metadata'):
-                                        langwatch_provider = provider
-                                        break
-                            
-                            if langwatch_provider:
-                                turn_span_id = str(uuid4())
-                                langwatch_provider.log_metadata({
-                                    "trace_id": trace_id,
-                                    "span_id": turn_span_id,
-                                    "parent_span_id": parent_span_id,
-                                    "event_type": "span_start",
-                                    "name": f"claude_code.message.turn_{turn_count}",
-                                    "attributes": {
-                                        "turn_number": turn_count,
-                                        "workflow_name": request.workflow_name,
-                                        "message_type": "assistant"
-                                    },
-                                    "timestamp": datetime.utcnow().isoformat()
-                                })
-                                
-                                # Log turn completion with token usage
-                                langwatch_provider.log_metadata({
-                                    "trace_id": trace_id,
-                                    "span_id": turn_span_id,
-                                    "parent_span_id": parent_span_id,
-                                    "event_type": "span_end",
-                                    "name": f"claude_code.message.turn_{turn_count}",
-                                    "attributes": {
-                                        "tokens_used": token_count - last_token_count if 'last_token_count' in locals() else token_count
-                                    },
-                                    "timestamp": datetime.utcnow().isoformat()
-                                })
-                                last_token_count = token_count
-                        
-                    if hasattr(message, 'usage') and message.usage:
-                        if hasattr(message.usage, 'total_tokens'):
-                            token_count = message.usage.total_tokens
+                    # Update database progress if needed
+                    if hasattr(request, 'run_id') and request.run_id and progress_tracker.should_update_progress(processing_result["message_type"]):
+                        await progress_tracker.update_database_progress()
                     
-                    # Real-time progress update every turn
-                    if hasattr(request, 'run_id') and request.run_id and turn_count > 0:
-                        try:
-                            from ...db.models import WorkflowRunUpdate
-                            from ...db.repository.workflow_run import update_workflow_run_by_run_id
-                            
-                            # Build metadata with current progress
-                            progress_metadata = {
-                                "current_turns": turn_count,
-                                "max_turns": request.max_turns,
-                                "total_tokens": token_count,
-                                "last_activity": datetime.utcnow().isoformat(),
-                                "run_status": "running"
-                            }
-                            
-                            # Update database with real-time progress
-                            progress_update = WorkflowRunUpdate(
-                                total_tokens=token_count,
-                                metadata=progress_metadata
-                            )
-                            update_workflow_run_by_run_id(request.run_id, progress_update)
-                            
-                        except Exception as progress_error:
-                            logger.error(f"Real-time progress update failed: {progress_error}")
-                    
-                    # Capture session ID from first SystemMessage
-                    if (hasattr(message, 'subtype') and message.subtype == 'init' and 
-                        hasattr(message, 'data') and 'session_id' in message.data):
-                        actual_claude_session_id = message.data['session_id']
-                        logger.info(f"SDK Executor: Captured REAL Claude session ID: {actual_claude_session_id}")
+                    # Session ID capture is now handled by progress tracker
                         
                         # Create individual workflow log file NOW with correct naming
                         if log_manager and hasattr(request, 'run_id') and request.run_id and hasattr(request, 'workflow_name') and request.workflow_name:
@@ -737,7 +438,7 @@ Please acknowledge this additional request and incorporate it into your ongoing 
         execution_time = time.time() - start_time
         result_text = '\n'.join(messages) if messages else "Subprocess execution completed"
         
-        logger.info(f"SDK Executor: Completed successfully - Turns: {metrics_handler.total_turns}, Tools: {len(metrics_handler.tools_used)}")
+        logger.info(f"SDK Executor: Completed successfully - Turns: {progress_tracker.turn_count}, Tokens: {progress_tracker.token_count}, Tools: {len(metrics_handler.tools_used)}")
         
         # Update workflow_runs table with success BEFORE marking process completed
         if hasattr(request, 'run_id') and request.run_id:
@@ -750,69 +451,55 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                 total_cost = 0.0
                 total_tokens = 0
                 
-                # Look for completion result in messages (success OR max_turns)
+                # Look for ResultMessage in collected messages
                 for msg in collected_messages:
                     try:
-                        # Check if msg is a dictionary (Claude SDK JSON format)
-                        if isinstance(msg, dict) and msg.get('subtype') in ['success', 'error_max_turns']:
-                            logger.info(f"Processing completion message: {msg.get('subtype')}")
+                        # Check for ResultMessage from Claude SDK
+                        if hasattr(msg, '__class__') and msg.__class__.__name__ == 'ResultMessage':
+                            logger.info("Processing ResultMessage")
                             
-                            # For max_turns, create a meaningful result message
-                            if msg.get('subtype') == 'error_max_turns':
-                                final_result = f"Workflow completed {msg.get('num_turns', 0)} turns (max_turns limit reached)"
+                            # Extract result based on error status
+                            if hasattr(msg, 'is_error') and msg.is_error:
+                                final_result = f"Workflow completed {getattr(msg, 'num_turns', 0)} turns (error or limit reached)"
                             else:
-                                final_result = msg.get('result')
+                                final_result = getattr(msg, 'result', "Workflow completed successfully")
                             
-                            total_cost = msg.get('total_cost_usd', 0.0)
-                            if 'usage' in msg and isinstance(msg['usage'], dict):
-                                usage = msg['usage']
-                                total_tokens = (usage.get('input_tokens', 0) + 
-                                              usage.get('cache_creation_input_tokens', 0) + 
-                                              usage.get('cache_read_input_tokens', 0) + 
-                                              usage.get('output_tokens', 0))
+                            # Extract metrics
+                            total_cost = getattr(msg, 'total_cost_usd', 0.0)
+                            
+                            # Extract usage - check if it's a dict or object
+                            if hasattr(msg, 'usage'):
+                                usage = msg.usage
+                                if isinstance(usage, dict):
+                                    # Calculate total from components
+                                    input_tokens = usage.get('input_tokens', 0)
+                                    output_tokens = usage.get('output_tokens', 0)
+                                    cache_creation = usage.get('cache_creation_input_tokens', 0)
+                                    cache_read = usage.get('cache_read_input_tokens', 0)
+                                    total_tokens = input_tokens + output_tokens + cache_creation + cache_read
+                                elif hasattr(usage, 'total_tokens'):
+                                    total_tokens = usage.total_tokens
+                                else:
+                                    # Try to calculate from components
+                                    total_tokens = (getattr(usage, 'input_tokens', 0) + 
+                                                  getattr(usage, 'output_tokens', 0))
                                 logger.info(f"Extracted metrics: cost={total_cost}, tokens={total_tokens}")
                             break  # Found the completion result, stop looking
-                    except Exception as msg_error:
-                        logger.error(f"Error processing completion message: {msg_error}")
-                        continue
-                    
-                    # Check for completion result in object attributes
-                    if hasattr(msg, 'subtype') and msg.subtype in ['success', 'error_max_turns']:
-                        # For max_turns, create a meaningful result message
-                        if msg.subtype == 'error_max_turns':
-                            final_result = f"Workflow completed {getattr(msg, 'num_turns', 0)} turns (max_turns limit reached)"
-                        else:
-                            final_result = getattr(msg, 'result', None)
-                        
-                        total_cost = getattr(msg, 'total_cost_usd', 0.0)
-                        if hasattr(msg, 'usage'):
-                            usage = msg.usage
-                            total_tokens = (usage.get('input_tokens', 0) + 
-                                          usage.get('cache_creation_input_tokens', 0) + 
-                                          usage.get('cache_read_input_tokens', 0) + 
-                                          usage.get('output_tokens', 0))
-                        break  # Found the completion result, stop looking
-                    
-                    # Check for completion result in msg.data structure
-                    elif hasattr(msg, 'data') and isinstance(msg.data, dict):
-                        if msg.data.get('subtype') in ['success', 'error_max_turns']:
-                            # For max_turns, create a meaningful result message
-                            if msg.data.get('subtype') == 'error_max_turns':
-                                final_result = f"Workflow completed {msg.data.get('num_turns', 0)} turns (max_turns limit reached)"
-                            else:
-                                final_result = msg.data.get('result')
                             
-                            total_cost = msg.data.get('total_cost_usd', 0.0)
-                            if 'usage' in msg.data:
-                                usage = msg.data['usage']
-                                total_tokens = (usage.get('input_tokens', 0) + 
-                                              usage.get('cache_creation_input_tokens', 0) + 
-                                              usage.get('cache_read_input_tokens', 0) + 
-                                              usage.get('output_tokens', 0))
-                            break  # Found the completion result, stop looking
+                    except Exception as msg_error:
+                        logger.error(f"Error processing result message: {msg_error}")
+                        continue
                 
                 if not final_result:
                     final_result = result_text
+                
+                # Also include turn count in final update
+                final_metadata = {
+                    "final_turns": progress_tracker.turn_count,
+                    "max_turns": request.max_turns,
+                    "total_tokens": total_tokens,
+                    "run_status": "completed"
+                }
                 
                 update_data = WorkflowRunUpdate(
                     status="completed",
@@ -821,7 +508,8 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                     result=final_result,
                     total_tokens=total_tokens,
                     cost_estimate=total_cost,
-                    duration_seconds=int(execution_time)
+                    duration_seconds=int(execution_time),
+                    metadata=final_metadata
                 )
                 
                 update_success = update_workflow_run_by_run_id(request.run_id, update_data)
@@ -885,17 +573,159 @@ Please acknowledge this additional request and incorporate it into your ongoing 
                 else:
                     logger.info(f"Keeping persistent workspace for workflow {request.run_id}")
 
+        # Get final metrics from progress tracker
+        final_metrics = progress_tracker.get_final_metrics()
+        
         return {
             'success': True,
-            'session_id': actual_claude_session_id or session_id,
+            'session_id': progress_tracker.actual_claude_session_id or session_id,
             'result': result_text,
             'exit_code': 0,
             'execution_time': execution_time,
             'logs': f"SDK execution completed in {execution_time:.2f}s",
             'workspace_path': str(workspace_path),
             **metrics_handler.get_summary(),
-            'result_metadata': metrics_handler.final_metrics or {}
+            'result_metadata': final_metrics
         }
+    
+    async def _execute_with_stream_input(
+        self, 
+        request: ClaudeCodeRunRequest, 
+        agent_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute workflow with real-time stdin monitoring for stream-json input."""
+        import sys
+        from .stream_utils import parse_stream_json_line
+        
+        start_time = time.time()
+        session_id = request.session_id or str(uuid4())
+        run_id = request.run_id or str(uuid4())
+        
+        logger.info(f"SDK Executor: Starting stream-json execution for run_id: {run_id}, session: {session_id}")
+        
+        try:
+            # Initialize metrics handler
+            metrics_handler = MetricsHandler()
+            
+            # Build workspace path
+            workspace_path = self._get_workspace_path(request, session_id)
+            
+            # Build options for Claude CLI
+            options = self.build_options(workspace_path, request=request)
+            
+            # Import the query function from claude_code_sdk
+            from claude_code_sdk import query
+            
+            # Prepare the initial message
+            messages = [{"role": "user", "content": request.message}]
+            
+            # Create a stdin reader for stream-json input
+            stdin_reader = asyncio.StreamReader()
+            protocol = asyncio.StreamReaderProtocol(stdin_reader)
+            
+            # Connect to stdin (if available)
+            try:
+                await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, sys.stdin)
+                stdin_available = True
+            except Exception as e:
+                logger.debug(f"Stdin not available for stream input: {e}")
+                stdin_available = False
+            
+            # Start Claude Code execution with initial message
+            logger.info(f"Starting Claude Code with initial message: {request.message[:100]}...")
+            
+            # Create the query task
+            query_task = asyncio.create_task(
+                query(
+                    prompt=request.message,
+                    options=options
+                )
+            )
+            
+            # Create stdin monitoring task (if stdin is available)
+            async def stdin_monitor():
+                """Monitor stdin for new stream-json messages."""
+                if not stdin_available:
+                    return
+                    
+                logger.info("Starting stdin monitor for stream-json input...")
+                
+                while True:
+                    try:
+                        line = await stdin_reader.readline()
+                        if not line:
+                            logger.debug("EOF reached on stdin")
+                            break
+                            
+                        decoded_line = line.decode('utf-8')
+                        logger.debug(f"Received stdin line: {decoded_line.strip()}")
+                        
+                        # Parse the stream-json line
+                        message_data = parse_stream_json_line(decoded_line)
+                        if message_data and message_data.get("type") == "user":
+                            user_message = message_data.get("message", "").strip()
+                            if user_message:
+                                logger.info(f"Processing stream-json user message: {user_message[:100]}...")
+                                
+                                # Note: For now, we log the additional messages
+                                # In a full implementation, we would need to send these
+                                # to the running Claude process via stdin
+                                logger.info(f"Additional user message received: {user_message}")
+                                
+                    except Exception as e:
+                        logger.error(f"Error processing stdin line: {e}")
+                        break
+            
+            # Run both tasks concurrently
+            if stdin_available:
+                stdin_task = asyncio.create_task(stdin_monitor())
+                done, pending = await asyncio.wait(
+                    [query_task, stdin_task], 
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel remaining tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+            else:
+                # Just run the query task
+                await query_task
+            
+            # Get the result from query task
+            if query_task.done() and not query_task.cancelled():
+                result = query_task.result()
+                logger.info(f"Claude Code execution completed successfully")
+            else:
+                result = "Claude Code execution was cancelled or failed"
+                logger.warning("Claude Code execution did not complete normally")
+            
+            # Calculate execution time
+            execution_time = time.time() - start_time
+            
+            return {
+                'status': 'completed',
+                'result': result,
+                'session_id': session_id,
+                'run_id': run_id,
+                'execution_time': execution_time,
+                'input_format': 'stream-json',
+                'workspace_path': str(workspace_path),
+                'logs': f"Stream-JSON execution completed in {execution_time:.2f}s",
+                **metrics_handler.get_summary()
+            }
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error(f"Stream-JSON execution failed: {e}")
+            
+            return self._build_error_result(
+                e, execution_time, session_id, run_id, 
+                workspace_path if 'workspace_path' in locals() else None
+            )
     
     async def execute_first_response(
         self, 
@@ -1076,107 +906,3 @@ class CancellationManager:
             logger.error(f"Failed to cancel session {execution_id}: {e}")
             return False
 
-    async def _build_enhanced_prompt_with_injected_messages(
-        self,
-        original_message: str,
-        conversation_history: List[str],
-        injected_messages: List[str]
-    ) -> str:
-        """
-        Build an enhanced prompt that includes conversation history and injected messages.
-        This creates a new conversation context that incorporates all previous exchanges
-        plus the newly injected user messages.
-        """
-        try:
-            # Build conversation reconstruction
-            enhanced_prompt_parts = []
-            
-            # Add original user message
-            enhanced_prompt_parts.append(f"ORIGINAL REQUEST:\n{original_message}")
-            
-            # Add conversation history if any
-            if conversation_history:
-                enhanced_prompt_parts.append("\nCONVERSATION HISTORY:")
-                for i, msg in enumerate(conversation_history[-5:]):  # Last 5 messages for context
-                    enhanced_prompt_parts.append(f"[{i+1}] {msg}")
-            
-            # Add injected messages as new user input
-            enhanced_prompt_parts.append("\nADDITIONAL USER REQUESTS:")
-            for i, injected_msg in enumerate(injected_messages):
-                enhanced_prompt_parts.append(f"[INJECTED-{i+1}] {injected_msg}")
-            
-            # Add instruction for Claude to handle the enhanced context
-            enhanced_prompt_parts.append("""
-INSTRUCTIONS: 
-Please continue your work taking into account both the original request and the additional user requests above. 
-Integrate the new requirements seamlessly with your current progress. 
-Acknowledge the additional requests and incorporate them into your ongoing work.
-""")
-            
-            enhanced_prompt = "\n".join(enhanced_prompt_parts)
-            logger.debug(f"Built enhanced prompt with {len(injected_messages)} injected messages")
-            
-            return enhanced_prompt
-            
-        except Exception as e:
-            logger.error(f"Failed to build enhanced prompt: {e}")
-            # Fallback to original message with simple injection
-            fallback = f"{original_message}\n\nADDITIONAL REQUESTS: " + " ".join(injected_messages)
-            return fallback
-    
-    async def _execute_with_enhanced_context(
-        self,
-        enhanced_request,
-        workspace_path: Path,
-        options: dict,
-        previous_messages: List[str],
-        injected_messages: List[str]
-    ):
-        """
-        Execute a new Claude conversation with enhanced context that includes injected messages.
-        This effectively restarts the conversation with the injected messages incorporated.
-        """
-        try:
-            logger.info(f"🔄 Starting enhanced conversation with {len(injected_messages)} injected messages")
-            
-            # Create a new SDK execution with the enhanced prompt
-            # This will start a fresh conversation with Claude that includes the injected messages
-            from claude_tools import create_claude_client
-            client = create_claude_client()
-            
-            # Use the enhanced prompt as the new conversation starter
-            enhanced_result = await client.query(
-                enhanced_request.message,
-                **options
-            )
-            
-            # Process the enhanced result
-            enhanced_messages = []
-            enhanced_output = ""
-            
-            async for message in enhanced_result:
-                enhanced_messages.append(str(message))
-                enhanced_output += str(message)
-                
-                # Log the enhanced conversation
-                logger.debug(f"Enhanced conversation message: {str(message)[:100]}...")
-            
-            logger.info(f"✅ Enhanced conversation completed with {len(enhanced_messages)} messages")
-            
-            return {
-                'success': True,
-                'session_id': f"enhanced_{enhanced_request.run_id or 'unknown'}",
-                'result': enhanced_output,
-                'exit_code': 0,
-                'execution_time': time.time() - time.time(),  # Quick execution
-                'logs': f"Enhanced execution with {len(injected_messages)} injected messages",
-                'workspace_path': str(workspace_path),
-                'enhanced_context': True,  # Flag to indicate this was an enhanced execution
-                'injected_message_count': len(injected_messages),
-                'messages': enhanced_messages,
-                'final_output': enhanced_output
-            }
-            
-        except Exception as e:
-            logger.error(f"Enhanced context execution failed: {e}")
-            return None

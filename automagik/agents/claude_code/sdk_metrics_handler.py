@@ -3,7 +3,6 @@
 This module handles token counting, cost calculation, and tool usage tracking.
 """
 
-import json
 import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional

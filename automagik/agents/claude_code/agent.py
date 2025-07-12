@@ -866,6 +866,10 @@ class ClaudeCodeAgent(AutomagikAgent):
                         git_branch=request.git_branch
                     )
                     logger.info(f"Created workspace for run {run_id}: {workspace_path}")
+                    
+                    # Setup workflow configuration from database in the worktree workspace
+                    await self.executor.environment_manager.copy_configs(workspace_path, workflow_name)
+                    logger.info(f"Configured workflow '{workflow_name}' from database in workspace {workspace_path}")
             
             # Log workspace creation completion
             log_workflow_trace(
