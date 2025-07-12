@@ -7,6 +7,12 @@ for long-running, autonomous AI workflows.
 from typing import Dict, Optional, Any
 import logging
 
+# Apply critical patches to claude-code-sdk
+try:
+    import automagik.vendors.claude_code_sdk_patches
+except ImportError:
+    pass  # Patches are optional
+
 # Setup logging first
 logger = logging.getLogger(__name__)
 
