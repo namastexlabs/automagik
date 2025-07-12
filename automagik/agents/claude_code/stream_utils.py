@@ -304,6 +304,61 @@ def parse_claude_stream_line(line: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def parse_stream_json_line(line: str) -> Optional[Dict[str, Any]]:
+    """Parse a single line from stream-json input format.
+    
+    This function parses JSONL (line-delimited JSON) input where each line
+    contains a complete JSON object representing user messages or system commands.
+    
+    Expected format:
+    {"type": "user", "message": "Add error handling"}
+    {"type": "system", "message": "Focus on performance"}
+    
+    Args:
+        line: Raw line from stream-json input
+        
+    Returns:
+        Parsed message data or None if not valid
+    """
+    try:
+        # Strip whitespace and check for empty lines
+        line = line.strip()
+        if not line:
+            return None
+            
+        # Parse the JSON line
+        data = parse_json_safely(line)
+        if not data:
+            return None
+            
+        # Validate required fields for stream-json input
+        if not isinstance(data, dict):
+            logger.debug(f"Stream-json line is not a dictionary: {type(data)}")
+            return None
+            
+        # Require type and message fields
+        if "type" not in data or "message" not in data:
+            logger.debug(f"Stream-json line missing required fields (type, message): {data.keys()}")
+            return None
+            
+        # Validate type field
+        valid_types = ["user", "system"]
+        if data["type"] not in valid_types:
+            logger.debug(f"Invalid stream-json type '{data['type']}', expected one of: {valid_types}")
+            return None
+            
+        # Validate message field
+        if not isinstance(data["message"], str) or not data["message"].strip():
+            logger.debug(f"Stream-json message must be a non-empty string")
+            return None
+            
+        return data
+        
+    except Exception as e:
+        logger.debug(f"Failed to parse stream-json line: {e}")
+        return None
+
+
 def extract_session_id_from_stream(data: Dict[str, Any]) -> Optional[str]:
     """Extract session ID from Claude stream events.
     

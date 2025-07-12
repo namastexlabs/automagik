@@ -62,6 +62,7 @@ dependencies = [
     # "claude-code-sdk>=0.0.11",  # Using local patched version from src/vendors/claude-code-sdk
     "claude-code-sdk>=0.0.11",
     "agno>=1.7.0",
+    "anyio>=4.9.0",
 ]
 
 [project.optional-dependencies]
@@ -122,3 +123,8 @@ tests-root = "tests"
 test-framework = "pytest"
 ignore-paths = []
 formatter-cmds = ["ruff check --exit-zero --fix $file", "ruff format $file"]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+]
