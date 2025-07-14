@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import traceback
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
@@ -532,12 +533,16 @@ class ExecutionStrategies:
         # Clean up workspace based on persistence settings and workspace type
         # Logic: 
         # - temp_workspace=true: always cleanup (ignore persistent)
+        # - workspace in /tmp/claude-code-temp: always cleanup (temp workspace)
         # - persistent=true: keep workspace
         # - persistent=false: cleanup workspace
         # - Environment variable CLAUDE_LOCAL_CLEANUP is fallback when persistent not set
         if hasattr(request, 'run_id') and request.run_id:
-            # Check if this is a temp workspace
-            is_temp_workspace = hasattr(request, 'temp_workspace') and request.temp_workspace
+            # Check if this is a temp workspace (either explicitly marked or in temp directory)
+            is_temp_workspace = (
+                (hasattr(request, 'temp_workspace') and request.temp_workspace) or
+                str(workspace_path).startswith("/tmp/claude-code-temp")
+            )
             
             if is_temp_workspace:
                 # Always cleanup temp workspaces
@@ -593,9 +598,10 @@ class ExecutionStrategies:
         request: ClaudeCodeRunRequest, 
         agent_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute workflow with real-time stdin monitoring for stream-json input."""
-        import sys
-        from .stream_utils import parse_stream_json_line
+        """Execute workflow with message queue monitoring for stream-json input."""
+        from .message_queue import message_queue_manager
+        from claude_code_sdk import query
+        import subprocess
         
         start_time = time.time()
         session_id = request.session_id or str(uuid4())
@@ -613,101 +619,143 @@ class ExecutionStrategies:
             # Build options for Claude CLI
             options = self.build_options(workspace_path, request=request)
             
-            # Import the query function from claude_code_sdk
-            from claude_code_sdk import query
+            # We need to use subprocess to control stdin
+            # Build the claude command
+            cli_manager = SDKCLIManager()
+            claude_path = await cli_manager.find_claude_cli()
             
-            # Prepare the initial message
-            messages = [{"role": "user", "content": request.message}]
+            if not claude_path:
+                raise RuntimeError("Claude CLI not found")
             
-            # Create a stdin reader for stream-json input
-            stdin_reader = asyncio.StreamReader()
-            protocol = asyncio.StreamReaderProtocol(stdin_reader)
+            # Build command with stream-json input format
+            cmd = [
+                str(claude_path),
+                "--input-format", "stream-json",
+                "--output-format", "stream-json"
+            ]
             
-            # Connect to stdin (if available)
-            try:
-                await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, sys.stdin)
-                stdin_available = True
-            except Exception as e:
-                logger.debug(f"Stdin not available for stream input: {e}")
-                stdin_available = False
+            # Add other options
+            if options.get("permission_mode"):
+                cmd.extend(["--permission-mode", options["permission_mode"]])
+            if options.get("working_directory"):
+                cmd.extend(["--working-directory", str(options["working_directory"])])
             
-            # Start Claude Code execution with initial message
-            logger.info(f"Starting Claude Code with initial message: {request.message[:100]}...")
-            
-            # Create the query task
-            query_task = asyncio.create_task(
-                query(
-                    prompt=request.message,
-                    options=options
-                )
+            # Start Claude process with pipes for stdin/stdout
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(workspace_path)
             )
             
-            # Create stdin monitoring task (if stdin is available)
-            async def stdin_monitor():
-                """Monitor stdin for new stream-json messages."""
-                if not stdin_available:
-                    return
-                    
-                logger.info("Starting stdin monitor for stream-json input...")
+            logger.info(f"Started Claude process with PID: {process.pid}")
+            
+            # Send initial message as stream-json
+            initial_message = json.dumps({
+                "type": "user",
+                "message": request.message
+            }) + "\n"
+            
+            process.stdin.write(initial_message.encode())
+            await process.stdin.drain()
+            
+            # Create message queue monitoring task
+            async def message_queue_monitor():
+                """Monitor message queue and inject messages in batch."""
+                logger.info(f"Starting message queue monitor for {run_id}")
                 
-                while True:
+                while process.returncode is None:
                     try:
-                        line = await stdin_reader.readline()
-                        if not line:
-                            logger.debug("EOF reached on stdin")
-                            break
-                            
-                        decoded_line = line.decode('utf-8')
-                        logger.debug(f"Received stdin line: {decoded_line.strip()}")
+                        # Wait a bit before checking queue
+                        await asyncio.sleep(2.0)
                         
-                        # Parse the stream-json line
-                        message_data = parse_stream_json_line(decoded_line)
-                        if message_data and message_data.get("type") == "user":
-                            user_message = message_data.get("message", "").strip()
-                            if user_message:
-                                logger.info(f"Processing stream-json user message: {user_message[:100]}...")
-                                
-                                # Note: For now, we log the additional messages
-                                # In a full implementation, we would need to send these
-                                # to the running Claude process via stdin
-                                logger.info(f"Additional user message received: {user_message}")
+                        # Get all queued messages
+                        messages = message_queue_manager.get_messages_for_injection(run_id)
+                        
+                        if messages:
+                            logger.info(f"Injecting {len(messages)} queued messages for {run_id}")
+                            
+                            # Send all messages as a batch
+                            for msg_json in messages:
+                                process.stdin.write((msg_json + "\n").encode())
+                            
+                            # Flush to ensure messages are sent
+                            await process.stdin.drain()
+                            logger.info(f"Successfully injected {len(messages)} messages")
                                 
                     except Exception as e:
-                        logger.error(f"Error processing stdin line: {e}")
-                        break
+                        logger.error(f"Error in message queue monitor: {e}")
+                        if process.returncode is not None:
+                            break
             
-            # Run both tasks concurrently
-            if stdin_available:
-                stdin_task = asyncio.create_task(stdin_monitor())
-                done, pending = await asyncio.wait(
-                    [query_task, stdin_task], 
-                    return_when=asyncio.FIRST_COMPLETED
-                )
+            # Create output processing task
+            async def process_output():
+                """Process Claude output stream."""
+                output_lines = []
+                try:
+                    while True:
+                        line = await process.stdout.readline()
+                        if not line:
+                            break
+                        
+                        decoded = line.decode('utf-8')
+                        output_lines.append(decoded)
+                        
+                        # Log streaming output for debugging
+                        if decoded.strip():
+                            logger.debug(f"Claude output: {decoded.strip()}")
+                            
+                except Exception as e:
+                    logger.error(f"Error processing output: {e}")
                 
-                # Cancel remaining tasks
-                for task in pending:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
-            else:
-                # Just run the query task
-                await query_task
+                return output_lines
             
-            # Get the result from query task
-            if query_task.done() and not query_task.cancelled():
-                result = query_task.result()
-                logger.info(f"Claude Code execution completed successfully")
+            # Create error monitoring task
+            async def monitor_stderr():
+                """Monitor stderr for errors."""
+                try:
+                    stderr_output = await process.stderr.read()
+                    if stderr_output:
+                        logger.error(f"Claude stderr: {stderr_output.decode('utf-8')}")
+                except Exception as e:
+                    logger.error(f"Error reading stderr: {e}")
+            
+            # Run all tasks concurrently
+            queue_task = asyncio.create_task(message_queue_monitor())
+            output_task = asyncio.create_task(process_output())
+            stderr_task = asyncio.create_task(monitor_stderr())
+            
+            # Wait for process to complete
+            return_code = await process.wait()
+            
+            # Cancel monitoring task
+            queue_task.cancel()
+            try:
+                await queue_task
+            except asyncio.CancelledError:
+                pass
+            
+            # Get output
+            output_lines = await output_task
+            await stderr_task
+            
+            # Process results
+            if return_code == 0:
+                logger.info(f"Claude process completed successfully")
+                result = "".join(output_lines)
             else:
-                result = "Claude Code execution was cancelled or failed"
-                logger.warning("Claude Code execution did not complete normally")
+                logger.error(f"Claude process failed with return code: {return_code}")
+                result = f"Process failed with return code: {return_code}"
             
             # Calculate execution time
             execution_time = time.time() - start_time
             
+            # Clean up message queue
+            message_queue_manager.remove_queue(run_id)
+            
             return {
-                'status': 'completed',
+                'status': 'completed' if return_code == 0 else 'failed',
                 'result': result,
                 'session_id': session_id,
                 'run_id': run_id,
@@ -715,12 +763,16 @@ class ExecutionStrategies:
                 'input_format': 'stream-json',
                 'workspace_path': str(workspace_path),
                 'logs': f"Stream-JSON execution completed in {execution_time:.2f}s",
+                'return_code': return_code,
                 **metrics_handler.get_summary()
             }
             
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(f"Stream-JSON execution failed: {e}")
+            
+            # Clean up message queue on error
+            message_queue_manager.remove_queue(run_id)
             
             return self._build_error_result(
                 e, execution_time, session_id, run_id, 
