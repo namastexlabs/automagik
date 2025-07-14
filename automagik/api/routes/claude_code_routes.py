@@ -98,6 +98,11 @@ class ClaudeWorkflowRequest(BaseModel):
         description="Execution timeout in seconds (1-4 hours)",
         example=10800,
     )
+    input_format: Optional[str] = Field(
+        None,
+        description="Input format for the workflow (text or stream-json)",
+        example="stream-json",
+    )
 
 
 class ClaudeWorkflowResponse(BaseModel):
@@ -1158,6 +1163,7 @@ async def cleanup_claude_code_workspace(
         
         try:
             from automagik.db.models import WorkflowRunUpdate
+            from automagik.db.repository.workflow_run import update_workflow_run_by_run_id
             update_data = WorkflowRunUpdate(
                 workspace_cleaned_up=True,
                 metadata={
@@ -1193,6 +1199,141 @@ async def cleanup_claude_code_workspace(
         logger.error(f"Error cleaning up workspace for run {run_id}: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to cleanup workspace: {str(e)}"
+        )
+
+
+@claude_code_router.post("/run/{run_id}/add-message")
+async def add_message_to_workflow(
+    run_id: str,
+    message_type: str = Body(..., description="Message type: 'user' or 'system'"),
+    content: str = Body(..., description="Message content"),
+    api_key: str = Depends(verify_api_key)
+) -> Dict[str, Any]:
+    """
+    Add a message to a running workflow's queue for injection.
+    
+    Messages are queued and will be injected in batch when the workflow
+    is ready to process them (all queued messages are sent together).
+    
+    **Parameters:**
+    - `run_id`: The workflow run ID
+    - `message_type`: Type of message ('user' or 'system')
+    - `content`: Message content to add
+    
+    **Returns:**
+    Queue status including current queue size
+    
+    **Example:**
+    ```
+    POST /api/v1/workflows/claude-code/run/run_abc123/add-message
+    {
+        "message_type": "user",
+        "content": "Add error handling to the authentication function"
+    }
+    ```
+    """
+    try:
+        # Validate message type
+        if message_type not in ["user", "system"]:
+            raise HTTPException(
+                status_code=400,
+                detail="message_type must be 'user' or 'system'"
+            )
+        
+        # Validate content
+        if not content or not content.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="content cannot be empty"
+            )
+        
+        # Check if workflow exists and is running
+        workflow_run = get_workflow_run_by_run_id(run_id)
+        if not workflow_run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow run {run_id} not found"
+            )
+        
+        if workflow_run.status not in ["pending", "running"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot add messages to workflow in {workflow_run.status} state"
+            )
+        
+        # Add message to queue
+        from automagik.agents.claude_code.message_queue import message_queue_manager
+        
+        queue_size = message_queue_manager.add_message(
+            run_id=run_id,
+            message_type=message_type,
+            content=content.strip(),
+            metadata={
+                "api_key": str(api_key)[:8] + "..." if api_key else "unknown",  # Log partial key for audit
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+        logger.info(f"Added {message_type} message to workflow {run_id}. Queue size: {queue_size}")
+        
+        # Get queue stats
+        stats = message_queue_manager.get_queue_stats(run_id)
+        
+        return {
+            "success": True,
+            "message": f"Message added to queue",
+            "queue_size": queue_size,
+            "run_id": run_id,
+            "queue_stats": stats
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding message to workflow {run_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to add message: {str(e)}"
+        )
+
+
+@claude_code_router.get("/run/{run_id}/message-queue")
+async def get_message_queue_status(
+    run_id: str,
+    api_key: str = Depends(verify_api_key)
+) -> Dict[str, Any]:
+    """
+    Get the current message queue status for a workflow.
+    
+    **Parameters:**
+    - `run_id`: The workflow run ID
+    
+    **Returns:**
+    Queue statistics including size and message details
+    """
+    try:
+        from automagik.agents.claude_code.message_queue import message_queue_manager
+        
+        stats = message_queue_manager.get_queue_stats(run_id)
+        if not stats:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No message queue found for workflow {run_id}"
+            )
+        
+        return {
+            "success": True,
+            "run_id": run_id,
+            "queue_stats": stats
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting queue status for {run_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get queue status: {str(e)}"
         )
 
 
