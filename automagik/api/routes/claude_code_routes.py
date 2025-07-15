@@ -373,6 +373,7 @@ async def run_claude_workflow(
                 "auto_merge": auto_merge,
                 "temp_workspace": temp_workspace,
                 "user_id": user_id,  # Pass user_id to agent execution
+                "input_format": request.input_format,  # Add input format for stream-json support
             }
             
             # SURGICAL FIX: Create workflow run record in database BEFORE execution starts
