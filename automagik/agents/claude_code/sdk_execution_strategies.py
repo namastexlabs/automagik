@@ -737,8 +737,12 @@ class ExecutionStrategies:
                 pass
             
             # Get output
-            output_lines = await output_task
-            await stderr_task
+            try:
+                output_lines = await output_task
+                await stderr_task
+            except Exception as e:
+                logger.error(f"Error getting task results: {e}")
+                output_lines = []
             
             # Process results
             if return_code == 0:
@@ -775,8 +779,9 @@ class ExecutionStrategies:
             message_queue_manager.remove_queue(run_id)
             
             return self._build_error_result(
-                e, execution_time, session_id, run_id, 
-                workspace_path if 'workspace_path' in locals() else None
+                e, session_id, 
+                workspace_path if 'workspace_path' in locals() else Path.cwd(), 
+                execution_time
             )
     
     async def execute_first_response(
