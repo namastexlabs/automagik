@@ -82,8 +82,14 @@ def resolve_workspace_from_run_id(run_id: str) -> list[Path]:
     # Check temp workspaces
     temp_base = Path("/tmp/claude-code-temp")
     if temp_base.exists():
+        # Check direct run_id directories
+        direct_temp_workspace = temp_base / run_id
+        if direct_temp_workspace.exists():
+            workspace_candidates.append(direct_temp_workspace)
+        
+        # Check nested user directories (legacy pattern)
         for user_dir in temp_base.iterdir():
-            if user_dir.is_dir():
+            if user_dir.is_dir() and user_dir.name != run_id:
                 temp_workspace = user_dir / f"workspace_{run_id}"
                 if temp_workspace.exists():
                     workspace_candidates.append(temp_workspace)
