@@ -16,6 +16,13 @@ def _get_version():
     except Exception:
         pass
     
+    # Try to get version from package metadata (for installed packages)
+    try:
+        from importlib import metadata
+        return metadata.version("automagik")
+    except Exception:
+        pass
+    
     # If that fails, check for version in environment variable
     env_version = os.environ.get("AUTOMAGIK_VERSION")
     if env_version:
