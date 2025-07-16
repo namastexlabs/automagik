@@ -52,7 +52,8 @@ def start_server_from_pip(
             host=host,
             port=port,
             reload=reload,
-            log_level="info"
+            log_level="info",
+            access_log=False  # Disable Uvicorn access logging since we have custom RequestLoggingMiddleware
         )
     except ImportError as e:
         typer.echo(f"❌ Failed to import FastAPI app: {e}", err=True)
