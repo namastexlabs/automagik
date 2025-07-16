@@ -217,6 +217,10 @@ def create_app() -> FastAPI:
     # Set up lifespan context manager
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Log version information
+        logger.info(f"🚀 Starting Automagik API v{SERVICE_INFO['version']}")
+        logger.info(f"📦 Service: {SERVICE_INFO['name']} - {SERVICE_INFO['description']}")
+        
         # Initialize database if needed
         # The database needs to be available first before any agent operations
         try:

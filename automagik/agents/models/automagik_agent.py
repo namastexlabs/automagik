@@ -407,12 +407,16 @@ class AutomagikAgent(ABC, Generic[T]):
             import inspect
             
             # Determine if prompt_source is a file path or direct text
+            # Check for file extensions first
             is_file = (
                 prompt_source.endswith('.md') or 
-                prompt_source.endswith('.txt') or
-                '/' in prompt_source or
-                '\\' in prompt_source
+                prompt_source.endswith('.txt')
             )
+            
+            # Only check for path separators if it's a short string (likely a path)
+            # Long strings with newlines are likely prompt text, not file paths
+            if not is_file and len(prompt_source) < 200:
+                is_file = '/' in prompt_source or '\\' in prompt_source
             
             if is_file:
                 # Load from file
@@ -515,11 +519,20 @@ class AutomagikAgent(ABC, Generic[T]):
             
             # Initialize with tools and dependencies
             tools_to_register = tools or list(self.tool_registry.get_registered_tools().values())
-            await self.ai_framework.initialize(
-                tools=tools_to_register,
-                dependencies_type=dependencies_type,
-                mcp_servers=mcp_servers
-            )
+            
+            # Pass the current system prompt if available
+            init_kwargs = {
+                "tools": tools_to_register,
+                "dependencies_type": dependencies_type,
+                "mcp_servers": mcp_servers
+            }
+            
+            # Add system prompt if we have one loaded
+            if self.current_prompt_template:
+                init_kwargs["system_prompt"] = self.current_prompt_template
+                logger.info(f"Passing loaded prompt to framework initialization: {self.current_prompt_template[:100]}...")
+            
+            await self.ai_framework.initialize(**init_kwargs)
             
             self._framework_initialized = True
             logger.info(f"Successfully initialized {actual_framework_type} framework for {self.name}")
@@ -661,6 +674,11 @@ class AutomagikAgent(ABC, Generic[T]):
         Returns:
             AgentResponse object
         """
+        # Load prompts BEFORE initializing framework
+        if self.db_id and not self.current_prompt_template:
+            logger.debug(f"Loading prompts before framework initialization for agent {self.db_id}")
+            await self._ensure_prompts_ready()
+        
         if not self.is_framework_ready:
             # Try to initialize framework if not ready
             if not await self.initialize_framework(
@@ -699,8 +717,9 @@ class AutomagikAgent(ABC, Generic[T]):
             # 1. Handle Evolution/WhatsApp payload
             await self._process_channel_payload(channel_payload)
             
-            # 2. Register and load prompts
-            await self._ensure_prompts_ready()
+            # 2. Register and load prompts (if not already done)
+            if not self.current_prompt_template:
+                await self._ensure_prompts_ready()
             
             # 3. Initialize memory variables
             await self._ensure_memory_ready()
@@ -720,8 +739,10 @@ class AutomagikAgent(ABC, Generic[T]):
                             pass
                 
                 system_prompt = await self.get_filled_system_prompt(user_id=user_id)
+                logger.info(f"Agent {self.db_id} system prompt loaded: {system_prompt[:100] if system_prompt else 'None'}...")
             
             # 5. Add system message to history
+            logger.debug(f"Using system prompt for execution: {system_prompt[:200] if system_prompt else 'None'}...")
             if system_prompt and message_history:
                 message_history = self._add_system_message_to_history(message_history, system_prompt)
             
@@ -845,6 +866,7 @@ class AutomagikAgent(ABC, Generic[T]):
                     return mock_result  # Assume it's already an AgentResponse
             else:
                 # Use the real framework
+                logger.debug(f"Calling framework.run with system_prompt: {system_prompt[:200] if system_prompt else 'None'}...")
                 result = await self.ai_framework.run(
                     user_input=processed_input,
                     dependencies=self.dependencies,
@@ -1064,6 +1086,7 @@ class AutomagikAgent(ABC, Generic[T]):
     
     async def _ensure_prompts_ready(self) -> None:
         """Ensure agent prompts are registered and loaded."""
+        logger.debug(f"_ensure_prompts_ready called for agent {self.db_id}")
         try:
             # Register all prompts that were loaded via load_prompt()
             if hasattr(self, '_prompts_by_status'):
@@ -1071,13 +1094,14 @@ class AutomagikAgent(ABC, Generic[T]):
                     # Set the current prompt text for registration
                     self._code_prompt_text = prompt_text
                     # Register this prompt with its status key
-                    await self._register_code_defined_prompt(status_key=status_key)
+                    await self._register_code_defined_prompt(prompt_text, status_key=status_key)
             
             # Also handle legacy _code_prompt_text if set directly
             elif hasattr(self, '_code_prompt_text') and self._code_prompt_text:
-                await self._register_code_defined_prompt(status_key="default")
+                await self._register_code_defined_prompt(self._code_prompt_text, status_key="default")
             
             # Load the default active prompt
+            logger.debug(f"Loading active prompt template for agent {self.db_id}")
             await self.load_active_prompt_template(status_key="default")
             
         except Exception as e:
@@ -1573,8 +1597,10 @@ class AutomagikAgent(ABC, Generic[T]):
         # Check if there's a system_prompt override in the context
         if self.context and 'system_prompt' in self.context:
             prompt_template = self.context['system_prompt']
+            logger.debug(f"Using context system_prompt for agent {self.db_id}")
         elif self.current_prompt_template:
             prompt_template = self.current_prompt_template
+            logger.info(f"Using current_prompt_template for agent {self.db_id}: {prompt_template[:100]}...")
         else:
             logger.error("No prompt template available")
             return "ERROR: No prompt template available."
@@ -1601,6 +1627,7 @@ class AutomagikAgent(ABC, Generic[T]):
             user_id=user_id
         )
         
+        logger.info(f"Agent {self.db_id} filled prompt: {filled_prompt[:100] if filled_prompt else 'None'}...")
         return filled_prompt
     
     async def fetch_memory_variables(self, user_id: Optional[int] = None) -> Dict[str, Any]:
@@ -1880,21 +1907,29 @@ class AutomagikAgent(ABC, Generic[T]):
         try:
             # Import locally to avoid module-level import issues
             try:
-                from automagik.db.repository.prompt import get_active_prompt as local_get_active_prompt
+                from automagik.db.repository.prompt import get_active_prompt_async as local_get_active_prompt
             except ImportError:
-                logger.error("get_active_prompt function not available")
+                logger.error("get_active_prompt_async function not available")
                 return False
                 
-            active_prompt = local_get_active_prompt(self.db_id, status_key)
+            active_prompt = await local_get_active_prompt(self.db_id, status_key)
             
             if not active_prompt:
                 if status_key != "default":
                     logger.warning(f"No active prompt found for agent {self.db_id}, status {status_key}. Trying default.")
-                    active_prompt = local_get_active_prompt(self.db_id, "default")
+                    active_prompt = await local_get_active_prompt(self.db_id, "default")
                     
                 if not active_prompt:
-                    logger.error(f"No active prompt found for agent {self.db_id}")
-                    return False
+                    logger.warning(f"No active prompt found for agent {self.db_id}")
+                    # Fall back to code-defined prompt if available
+                    if hasattr(self, '_code_prompt_text') and self._code_prompt_text:
+                        logger.info(f"Using code-defined prompt for agent {self.db_id}")
+                        self.current_prompt_template = self._code_prompt_text
+                        self.template_vars = PromptBuilder.extract_template_variables(self.current_prompt_template)
+                        return True
+                    else:
+                        logger.error(f"No active prompt or code-defined prompt found for agent {self.db_id}")
+                        return False
             
             self.current_prompt_template = active_prompt.prompt_text
             self.template_vars = PromptBuilder.extract_template_variables(self.current_prompt_template)
