@@ -379,6 +379,55 @@ class AutomagikAgent(ABC, Generic[T]):
         except Exception as e:
             logger.error(f"Failed to load prompt from file {prompt_file}: {e}")
     
+    @classmethod
+    def load_prompt_file(cls, prompt_filename: str = "prompt.md") -> Optional[str]:
+        """Utility method for external agents to load prompt files.
+        
+        This method loads a prompt file relative to the agent class location
+        and returns the content. External agents can use this in their __init__
+        to set self._code_prompt_text before calling super().__init__().
+        
+        Example usage in external agent:
+            class MyAgent(AutomagikAgent):
+                def __init__(self, config: Dict[str, str] = None):
+                    # Load prompt file (supports database overrides)
+                    prompt_text = self.load_prompt_file("prompt.md")
+                    if prompt_text:
+                        self._code_prompt_text = prompt_text
+                    
+                    super().__init__(config or {})
+        
+        Args:
+            prompt_filename: Name of the prompt file (default: "prompt.md")
+            
+        Returns:
+            The prompt text content, or None if file not found
+        """
+        try:
+            from pathlib import Path
+            import inspect
+            
+            # Get the directory of the calling class
+            agent_module = inspect.getmodule(cls)
+            if agent_module and hasattr(agent_module, '__file__'):
+                agent_dir = Path(agent_module.__file__).parent
+            else:
+                # Fallback to current directory
+                agent_dir = Path.cwd()
+            
+            prompt_path = agent_dir / prompt_filename
+            
+            if prompt_path.exists():
+                logger.info(f"Loading prompt file for {cls.__name__}: {prompt_filename}")
+                return prompt_path.read_text(encoding='utf-8')
+            else:
+                logger.warning(f"Prompt file not found for {cls.__name__}: {prompt_path}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to load prompt file {prompt_filename} for {cls.__name__}: {e}")
+            return None
+    
     def register_tools(self, tools) -> None:
         """Convenience method for bulk tool registration.
         
