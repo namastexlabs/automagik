@@ -994,12 +994,14 @@ class AutomagikAgent(ABC, Generic[T]):
     async def _ensure_prompts_ready(self) -> None:
         """Ensure agent prompts are registered and loaded."""
         try:
-            # Register code-defined prompt if available
-            if hasattr(self, '_code_prompt_text') and not getattr(self, '_prompt_registered', False):
+            # First, try to load active prompt from database
+            loaded = await self.load_active_prompt_template(status_key="default")
+            
+            # If no active prompt found and we have code-defined prompt, register it
+            if not loaded and hasattr(self, '_code_prompt_text') and not getattr(self, '_prompt_registered', False):
                 await self._check_and_register_prompt()
-                
-            # Load active prompt template
-            await self.load_active_prompt_template(status_key="default")
+                # Try loading again after registration
+                await self.load_active_prompt_template(status_key="default")
             
         except Exception as e:
             logger.warning(f"Error ensuring prompts ready: {e}")
@@ -1714,35 +1716,61 @@ class AutomagikAgent(ABC, Generic[T]):
             if existing_prompt:
                 logger.info(f"Found existing code-defined prompt for agent {self.db_id}")
                 
-                # Update the prompt text to ensure code and DB stay in sync
-                try:
-                    update_success = _update_prompt(
-                        existing_prompt.id,
-                        PromptUpdate(prompt_text=code_prompt_text)
-                    )
-                    if update_success:
-                        logger.info(f"Updated prompt text for existing code-defined prompt {existing_prompt.id}")
-                    else:
-                        logger.warning(f"Failed to update prompt text for existing code-defined prompt {existing_prompt.id}")
-                except Exception as e:
-                    logger.error(f"Error updating existing prompt: {str(e)}")
+                # Only update the prompt text if it has changed
+                if existing_prompt.prompt_text != code_prompt_text:
+                    try:
+                        update_success = _update_prompt(
+                            existing_prompt.id,
+                            PromptUpdate(prompt_text=code_prompt_text)
+                        )
+                        if update_success:
+                            logger.info(f"Updated prompt text for existing code-defined prompt {existing_prompt.id}")
+                            # Warn if this prompt isn't active but code has changed
+                            if not existing_prompt.is_active:
+                                from automagik.db.repository.prompt import get_active_prompt as check_active
+                                active_prompt = check_active(self.db_id, status_key)
+                                if active_prompt:
+                                    logger.warning(
+                                        f"CODE PROMPT UPDATED: The code-defined prompt for '{self.name}' has been updated but is NOT active. "
+                                        f"Currently active prompt: ID={active_prompt.id}, name='{active_prompt.name}'. "
+                                        f"Consider reviewing if you want to use the updated code prompt."
+                                    )
+                        else:
+                            logger.warning(f"Failed to update prompt text for existing code-defined prompt {existing_prompt.id}")
+                    except Exception as e:
+                        logger.error(f"Error updating existing prompt: {str(e)}")
+                else:
+                    logger.debug(f"Code-defined prompt text unchanged for prompt {existing_prompt.id}")
 
-                # If is_primary_default is True and the prompt is not already active, set it as active
+                # Don't automatically set as active - let API-created prompts take precedence
+                # Only set as active if there are no other active prompts
                 if is_primary_default and not existing_prompt.is_active:
-                    set_prompt_active(existing_prompt.id, True)
-                    logger.info(f"Set existing prompt {existing_prompt.id} as active")
+                    # Check if there's any other active prompt
+                    from automagik.db.repository.prompt import get_active_prompt as check_active
+                    if not check_active(self.db_id, status_key):
+                        set_prompt_active(existing_prompt.id, True)
+                        logger.info(f"Set existing prompt {existing_prompt.id} as active (no other active prompt found)")
+                    else:
+                        logger.debug(f"Not setting prompt {existing_prompt.id} as active - another active prompt exists")
                 
                 return existing_prompt.id
                 
             # No existing prompt found, create a new one
             if not prompt_name:
                 prompt_name = f"{self.name} {status_key} Prompt"
+            
+            # Check if there's already an active prompt
+            from automagik.db.repository.prompt import get_active_prompt as check_active
+            existing_active = check_active(self.db_id, status_key)
+            
+            # Only set as active if is_primary_default is True AND no other active prompt exists
+            should_be_active = is_primary_default and not existing_active
                 
             prompt_data = PromptCreate(
                 agent_id=self.db_id,
                 prompt_text=code_prompt_text,
                 version=1,
-                is_active=is_primary_default,
+                is_active=should_be_active,
                 is_default_from_code=True,
                 status_key=status_key,
                 name=prompt_name
@@ -1789,7 +1817,7 @@ class AutomagikAgent(ABC, Generic[T]):
             self.current_prompt_template = active_prompt.prompt_text
             self.template_vars = PromptBuilder.extract_template_variables(self.current_prompt_template)
             
-            logger.info(f"Loaded active prompt for agent {self.db_id}")
+            logger.info(f"Loaded active prompt for agent {self.db_id}: ID={active_prompt.id}, name='{active_prompt.name}', from_code={active_prompt.is_default_from_code}")
             return True
             
         except Exception as e:
