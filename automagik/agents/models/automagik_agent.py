@@ -200,10 +200,10 @@ class AutomagikAgent(ABC, Generic[T]):
         if external_keys:
             self._register_external_keys(external_keys)
         
-        # NEW: Load prompt from file if PROMPT_FILE is specified
+        # Handle legacy PROMPT_FILE for backward compatibility
         prompt_file = getattr(self, 'PROMPT_FILE', None)
-        if prompt_file:
-            self._load_prompt_from_file(prompt_file)
+        if prompt_file and not hasattr(self, '_prompts_by_status'):
+            self.load_prompt(prompt_file)
         
         # Initialize core components
         self.tool_registry = ToolRegistry()
@@ -379,53 +379,74 @@ class AutomagikAgent(ABC, Generic[T]):
         except Exception as e:
             logger.error(f"Failed to load prompt from file {prompt_file}: {e}")
     
-    def load_prompt_file(self, prompt_filename: str = "prompt.md") -> Optional[str]:
-        """Utility method for external agents to load prompt files.
+    def load_prompt(self, prompt_source: str, status_key: str = "default") -> None:
+        """Load a prompt from either a file path or direct text.
         
-        This method loads a prompt file relative to the agent class location
-        and returns the content. External agents can use this in their __init__
-        to set self._code_prompt_text before calling super().__init__().
-        
-        Example usage in external agent:
-            class MyAgent(AutomagikAgent):
-                def __init__(self, config: Dict[str, str] = None):
-                    # Load prompt file (supports database overrides)
-                    prompt_text = self.load_prompt_file("prompt.md")
-                    if prompt_text:
-                        self._code_prompt_text = prompt_text
-                    
-                    super().__init__(config or {})
+        This is the unified method for all agents to load prompts. It supports:
+        - Loading from files (if prompt_source looks like a path)
+        - Direct prompt text (if prompt_source is the actual prompt)
+        - Different status keys for multiple prompts (e.g., "pro", "free")
+        - Automatic database registration and override support
         
         Args:
-            prompt_filename: Name of the prompt file (default: "prompt.md")
+            prompt_source: Either a file path (e.g., "prompt.md") or direct prompt text
+            status_key: The status key for this prompt (default: "default")
             
-        Returns:
-            The prompt text content, or None if file not found
+        Example usage:
+            # Load from file
+            self.load_prompt("prompt.md")
+            
+            # Load from file with custom status
+            self.load_prompt("prompt_pro.md", status_key="pro")
+            
+            # Load direct text
+            self.load_prompt("You are a helpful assistant", status_key="simple")
         """
         try:
             from pathlib import Path
             import inspect
             
-            # Get the directory of the agent class
-            agent_module = inspect.getmodule(self.__class__)
-            if agent_module and hasattr(agent_module, '__file__'):
-                agent_dir = Path(agent_module.__file__).parent
-            else:
-                # Fallback to current directory
-                agent_dir = Path.cwd()
+            # Determine if prompt_source is a file path or direct text
+            is_file = (
+                prompt_source.endswith('.md') or 
+                prompt_source.endswith('.txt') or
+                '/' in prompt_source or
+                '\\' in prompt_source
+            )
             
-            prompt_path = agent_dir / prompt_filename
-            
-            if prompt_path.exists():
-                logger.info(f"Loading prompt file for {self.__class__.__name__}: {prompt_filename}")
-                return prompt_path.read_text(encoding='utf-8')
+            if is_file:
+                # Load from file
+                agent_module = inspect.getmodule(self.__class__)
+                if agent_module and hasattr(agent_module, '__file__'):
+                    agent_dir = Path(agent_module.__file__).parent
+                else:
+                    agent_dir = Path.cwd()
+                
+                prompt_path = agent_dir / prompt_source
+                
+                if prompt_path.exists():
+                    prompt_text = prompt_path.read_text(encoding='utf-8')
+                    logger.info(f"Loaded prompt from file: {prompt_source} (status_key: {status_key})")
+                else:
+                    logger.error(f"Prompt file not found: {prompt_path}")
+                    return
             else:
-                logger.warning(f"Prompt file not found for {self.__class__.__name__}: {prompt_path}")
-                return None
+                # Direct prompt text
+                prompt_text = prompt_source
+                logger.info(f"Loaded direct prompt text (status_key: {status_key})")
+            
+            # Store the prompt for the given status_key
+            if not hasattr(self, '_prompts_by_status'):
+                self._prompts_by_status = {}
+            
+            self._prompts_by_status[status_key] = prompt_text
+            
+            # If this is the default prompt, set it as the code prompt
+            if status_key == "default":
+                self._code_prompt_text = prompt_text
                 
         except Exception as e:
-            logger.error(f"Failed to load prompt file {prompt_filename} for {self.__class__.__name__}: {e}")
-            return None
+            logger.error(f"Failed to load prompt: {e}")
     
     def register_tools(self, tools) -> None:
         """Convenience method for bulk tool registration.
@@ -1044,14 +1065,20 @@ class AutomagikAgent(ABC, Generic[T]):
     async def _ensure_prompts_ready(self) -> None:
         """Ensure agent prompts are registered and loaded."""
         try:
-            # First, try to load active prompt from database
-            loaded = await self.load_active_prompt_template(status_key="default")
+            # Register all prompts that were loaded via load_prompt()
+            if hasattr(self, '_prompts_by_status'):
+                for status_key, prompt_text in self._prompts_by_status.items():
+                    # Set the current prompt text for registration
+                    self._code_prompt_text = prompt_text
+                    # Register this prompt with its status key
+                    await self._register_code_defined_prompt(status_key=status_key)
             
-            # If no active prompt found and we have code-defined prompt, register it
-            if not loaded and hasattr(self, '_code_prompt_text') and not getattr(self, '_prompt_registered', False):
-                await self._check_and_register_prompt()
-                # Try loading again after registration
-                await self.load_active_prompt_template(status_key="default")
+            # Also handle legacy _code_prompt_text if set directly
+            elif hasattr(self, '_code_prompt_text') and self._code_prompt_text:
+                await self._register_code_defined_prompt(status_key="default")
+            
+            # Load the default active prompt
+            await self.load_active_prompt_template(status_key="default")
             
         except Exception as e:
             logger.warning(f"Error ensuring prompts ready: {e}")
