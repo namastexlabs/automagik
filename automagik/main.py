@@ -612,5 +612,6 @@ if __name__ == "__main__":
         host=args.host,
         port=args.port,
         reload=args.reload,
-        timeout_graceful_shutdown=5
+        timeout_graceful_shutdown=5,
+        access_log=False  # Disable Uvicorn access logging since we have custom RequestLoggingMiddleware
     )

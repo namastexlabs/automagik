@@ -33,10 +33,14 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Get request details
         method = request.method
         path = request.url.path
+        query_params = str(request.url.query) if request.url.query else ""
         client_host = request.client.host if request.client else "unknown"
         
+        # Build URL with query params if present
+        full_path = f"{path}?{query_params}" if query_params else path
+        
         # Log request
-        logger.info(f"[{request_id}] 📨 {method} {path} - Client: {client_host}")
+        logger.info(f"[{request_id}] 📨 {method} {full_path} - Client: {client_host}")
         
         # Get request headers (excluding sensitive ones)
         safe_headers = {}
@@ -57,7 +61,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             
             # Log response
             status_emoji = "✅" if 200 <= response.status_code < 300 else "❌" if response.status_code >= 400 else "⚠️"
-            logger.info(f"[{request_id}] {status_emoji} {method} {path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+            logger.info(f"[{request_id}] {status_emoji} {method} {full_path} - Status: {response.status_code} - Time: {process_time:.3f}s")
             
             # Add custom headers
             response.headers["X-Process-Time"] = str(process_time)
@@ -68,7 +72,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Log error
             process_time = time.time() - start_time
-            logger.error(f"[{request_id}] ❌ {method} {path} - Error: {str(e)} - Time: {process_time:.3f}s")
+            logger.error(f"[{request_id}] ❌ {method} {full_path} - Error: {str(e)} - Time: {process_time:.3f}s")
             raise
 
 
