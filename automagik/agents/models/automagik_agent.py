@@ -369,6 +369,8 @@ class AutomagikAgent(ABC, Generic[T]):
             prompt_path = agent_dir / prompt_file
             
             if prompt_path.exists():
+                # Store the file path for later use
+                self._prompt_file_path = prompt_path
                 self._code_prompt_text = prompt_path.read_text(encoding='utf-8')
                 logger.info(f"Loaded prompt from file: {prompt_file}")
             else:
@@ -1747,11 +1749,16 @@ class AutomagikAgent(ABC, Generic[T]):
                 if is_primary_default and not existing_prompt.is_active:
                     # Check if there's any other active prompt
                     from automagik.db.repository.prompt import get_active_prompt as check_active
-                    if not check_active(self.db_id, status_key):
+                    active_prompt = check_active(self.db_id, status_key)
+                    if not active_prompt:
                         set_prompt_active(existing_prompt.id, True)
                         logger.info(f"Set existing prompt {existing_prompt.id} as active (no other active prompt found)")
                     else:
-                        logger.debug(f"Not setting prompt {existing_prompt.id} as active - another active prompt exists")
+                        logger.info(
+                            f"NOT setting code-defined prompt {existing_prompt.id} as active - "
+                            f"active prompt already exists: ID={active_prompt.id}, name='{active_prompt.name}', "
+                            f"from_code={active_prompt.is_default_from_code}"
+                        )
                 
                 return existing_prompt.id
                 
