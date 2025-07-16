@@ -379,8 +379,7 @@ class AutomagikAgent(ABC, Generic[T]):
         except Exception as e:
             logger.error(f"Failed to load prompt from file {prompt_file}: {e}")
     
-    @classmethod
-    def load_prompt_file(cls, prompt_filename: str = "prompt.md") -> Optional[str]:
+    def load_prompt_file(self, prompt_filename: str = "prompt.md") -> Optional[str]:
         """Utility method for external agents to load prompt files.
         
         This method loads a prompt file relative to the agent class location
@@ -407,8 +406,8 @@ class AutomagikAgent(ABC, Generic[T]):
             from pathlib import Path
             import inspect
             
-            # Get the directory of the calling class
-            agent_module = inspect.getmodule(cls)
+            # Get the directory of the agent class
+            agent_module = inspect.getmodule(self.__class__)
             if agent_module and hasattr(agent_module, '__file__'):
                 agent_dir = Path(agent_module.__file__).parent
             else:
@@ -418,14 +417,14 @@ class AutomagikAgent(ABC, Generic[T]):
             prompt_path = agent_dir / prompt_filename
             
             if prompt_path.exists():
-                logger.info(f"Loading prompt file for {cls.__name__}: {prompt_filename}")
+                logger.info(f"Loading prompt file for {self.__class__.__name__}: {prompt_filename}")
                 return prompt_path.read_text(encoding='utf-8')
             else:
-                logger.warning(f"Prompt file not found for {cls.__name__}: {prompt_path}")
+                logger.warning(f"Prompt file not found for {self.__class__.__name__}: {prompt_path}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Failed to load prompt file {prompt_filename} for {cls.__name__}: {e}")
+            logger.error(f"Failed to load prompt file {prompt_filename} for {self.__class__.__name__}: {e}")
             return None
     
     def register_tools(self, tools) -> None:
