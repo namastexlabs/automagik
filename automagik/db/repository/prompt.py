@@ -3,7 +3,7 @@
 import logging
 from typing import List, Optional
 
-from automagik.db.connection import execute_query
+from automagik.db.connection import execute_query, async_execute_query
 from automagik.db.models import Prompt, PromptCreate, PromptUpdate
 
 # Configure logger
@@ -55,6 +55,31 @@ def get_active_prompt(agent_id: int, status_key: str = "default") -> Optional[Pr
         return None
 
 
+async def get_active_prompt_async(agent_id: int, status_key: str = "default") -> Optional[Prompt]:
+    """Get the active prompt for an agent and status key (async version).
+    
+    Args:
+        agent_id: The agent ID
+        status_key: The status key to look for (default: "default")
+        
+    Returns:
+        Active Prompt object if found, None otherwise
+    """
+    try:
+        result = await async_execute_query(
+            """
+            SELECT * FROM prompts 
+            WHERE agent_id = %s AND status_key = %s AND is_active = TRUE
+            LIMIT 1
+            """,
+            (agent_id, status_key)
+        )
+        return Prompt.from_db_row(result[0]) if result else None
+    except Exception as e:
+        logger.error(f"Error getting active prompt for agent {agent_id}, status {status_key}: {str(e)}")
+        return None
+
+
 def find_code_default_prompt(agent_id: int, status_key: str = "default") -> Optional[Prompt]:
     """Find the default prompt from code for an agent and status key.
     
@@ -67,6 +92,31 @@ def find_code_default_prompt(agent_id: int, status_key: str = "default") -> Opti
     """
     try:
         result = execute_query(
+            """
+            SELECT * FROM prompts 
+            WHERE agent_id = %s AND status_key = %s AND is_default_from_code = TRUE
+            ORDER BY version DESC LIMIT 1
+            """,
+            (agent_id, status_key)
+        )
+        return Prompt.from_db_row(result[0]) if result else None
+    except Exception as e:
+        logger.error(f"Error finding code default prompt for agent {agent_id}, status {status_key}: {str(e)}")
+        return None
+
+
+async def find_code_default_prompt_async(agent_id: int, status_key: str = "default") -> Optional[Prompt]:
+    """Find the default prompt from code for an agent and status key (async version).
+    
+    Args:
+        agent_id: The agent ID
+        status_key: The status key to look for (default: "default")
+        
+    Returns:
+        Prompt object marked as default from code if found, None otherwise
+    """
+    try:
+        result = await async_execute_query(
             """
             SELECT * FROM prompts 
             WHERE agent_id = %s AND status_key = %s AND is_default_from_code = TRUE

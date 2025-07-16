@@ -80,8 +80,10 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Only apply to POST/PUT/PATCH requests to /api/v1/agent endpoints
+        # Skip prompt endpoints as they handle their own JSON validation
         if (request.method in ["POST", "PUT", "PATCH"] and 
             "/api/v1/agent" in request.url.path and
+            "/prompt" not in request.url.path and
             request.headers.get("content-type", "").startswith("application/json")):
             
             try:
