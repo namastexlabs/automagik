@@ -29,7 +29,7 @@ def _get_version():
         return env_version
     
     # Fallback to hardcoded version (should match pyproject.toml)
-    return "0.6.1"
+    return "0.6.2"
 
 __version__ = _get_version()
 
