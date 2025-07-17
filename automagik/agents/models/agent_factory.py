@@ -466,9 +466,7 @@ class AgentFactory:
             "pydanticai": "simple",
             "agno": "simple",  # Fallback to simple if agno doesn't have its own
             "claude": "claude_code",  # Alias for claude_code
-            "claude_code": "claude_code",
-            "langchain": "simple",  # Future framework
-            "langgraph": "simple"   # Future framework
+            "claude_code": "claude_code"
         }
         
         default_agent_type = default_agents.get(framework, "simple")

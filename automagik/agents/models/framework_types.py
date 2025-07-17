@@ -13,7 +13,6 @@ class FrameworkType(str, Enum):
     PYDANTIC_AI = "pydanticai"
     AGNO = "agno"
     CLAUDE_CODE = "claude_code"
-    LANGCHAIN = "langchain"
     AUTO = "auto"  # Allow auto-selection based on content type
     
     @classmethod
@@ -47,7 +46,6 @@ class FrameworkType(str, Enum):
             "claude": cls.CLAUDE_CODE,  # Allow "claude" as alias for "claude_code"
             "claude_code": cls.CLAUDE_CODE,
             "claude-code": cls.CLAUDE_CODE,
-            "langchain": cls.LANGCHAIN,
         }
         
         # Check direct mappings first
