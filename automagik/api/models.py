@@ -182,6 +182,8 @@ class AgentCreateRequest(BaseResponseModel):
     model: str = Field(default="openai:gpt-4o-mini", description="Default model")
     description: Optional[str] = Field(None, description="Agent description")
     config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Agent configuration")
+    error_message: Optional[str] = Field(None, description="Custom error message to display when agent encounters an error")
+    error_webhook_url: Optional[str] = Field(None, description="Webhook URL to call when agent encounters an error")
 
 class AgentUpdateRequest(BaseResponseModel):
     """Request model for updating an existing agent."""
@@ -190,6 +192,8 @@ class AgentUpdateRequest(BaseResponseModel):
     description: Optional[str] = Field(None, description="Agent description")
     config: Optional[Dict[str, Any]] = Field(None, description="Agent configuration")
     active: Optional[bool] = Field(None, description="Whether agent is active")
+    error_message: Optional[str] = Field(None, description="Custom error message to display when agent encounters an error")
+    error_webhook_url: Optional[str] = Field(None, description="Webhook URL to call when agent encounters an error")
 
 class AgentCreateResponse(BaseResponseModel):
     """Response model for agent creation."""
