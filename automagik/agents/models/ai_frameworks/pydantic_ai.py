@@ -21,7 +21,8 @@ class PydanticAIFramework(AgentAIFramework):
     async def initialize(self, 
                         tools: List[Any], 
                         dependencies_type: Type[BaseDependencies],
-                        mcp_servers: Optional[List[Any]] = None) -> None:
+                        mcp_servers: Optional[List[Any]] = None,
+                        system_prompt: Optional[str] = None) -> None:
         """Initialize the PydanticAI agent instance."""
         try:
             from pydantic_ai import Agent
@@ -34,12 +35,16 @@ class PydanticAIFramework(AgentAIFramework):
             converted_tools = self.convert_tools(self._tools)
             
             # Create PydanticAI agent (without tools initially)
+            # Use the provided system prompt or a default
+            actual_system_prompt = system_prompt or "You are a helpful assistant."
+            logger.debug(f"Creating PydanticAI agent with system prompt: {actual_system_prompt[:100]}...")
+            
             self._agent_instance = Agent(
                 model=self.config.model,
                 deps_type=dependencies_type,
                 retries=self.config.retries,
                 output_type=str,  # Default to string result (updated API)
-                system_prompt=""  # Will be provided at runtime
+                system_prompt=actual_system_prompt
             )
             
             # Register converted tools using the decorator approach
@@ -77,8 +82,28 @@ class PydanticAIFramework(AgentAIFramework):
             # Format message history for PydanticAI
             formatted_history = self.format_message_history(message_history or [])
             
-            # Add system prompt to message history if provided
+            # Update the agent's system prompt if provided
             if system_prompt:
+                # Try to update the internal system prompt dynamically
+                # This is a workaround since PydanticAI sets system prompt at init time
+                logger.debug(f"Attempting to update system prompt. Agent instance attributes: {[attr for attr in dir(self._agent_instance) if not attr.startswith('__')]}")
+                
+                # Check various possible attribute names
+                updated = False
+                for attr_name in ['_system_prompt', 'system_prompt', '_system', 'system']:
+                    if hasattr(self._agent_instance, attr_name):
+                        try:
+                            setattr(self._agent_instance, attr_name, system_prompt)
+                            logger.info(f"Successfully updated PydanticAI {attr_name} to: {system_prompt[:100]}...")
+                            updated = True
+                            break
+                        except Exception as e:
+                            logger.debug(f"Could not update {attr_name}: {e}")
+                
+                if not updated:
+                    logger.warning("Could not update PydanticAI system prompt - no writable attribute found")
+                
+                # Also add system prompt to message history
                 from pydantic_ai.messages import ModelRequest, SystemPromptPart
                 
                 # Check if there's already a system message in the history
@@ -93,6 +118,7 @@ class PydanticAIFramework(AgentAIFramework):
                     system_message = ModelRequest(parts=[SystemPromptPart(content=system_prompt)])
                     # Insert system message at the beginning of history
                     formatted_history.insert(0, system_message)
+                    logger.debug(f"Added system prompt to message history: {system_prompt[:100]}...")
             
             # Run the agent
             result = await self._agent_instance.run(
@@ -132,8 +158,21 @@ class PydanticAIFramework(AgentAIFramework):
             logger.error(f"Error running PydanticAI agent: {e}")
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            # Send error notification
+            from automagik.utils.error_notifications import notify_agent_error
+            import asyncio
+            asyncio.create_task(notify_agent_error(
+                error=e,
+                agent_name=getattr(dependencies, 'agent_name', 'unknown'),
+                user_id=str(getattr(dependencies, 'user_id', None)),
+                session_id=str(getattr(dependencies, 'session_id', None)),
+                context={"framework": "pydantic_ai", "model": self.config.model}
+            ))
+            
+            # Return user-friendly message
             return AgentResponse(
-                text=f"Error running agent: {str(e)}",
+                text="I apologize, but I encountered an issue processing your request. Please try again in a moment. If the problem persists, our team has been notified and is working on it.",
                 success=False,
                 error_message=str(e)
             )

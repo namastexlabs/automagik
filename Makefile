@@ -796,6 +796,9 @@ bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$NF = $$NF + 1;} 1' | sed 's/ /./g'); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	if [ -f "automagik/utils/version.py" ]; then \
+		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
+	fi; \
 	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
 
 bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
@@ -803,6 +806,9 @@ bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
 	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	if [ -f "automagik/utils/version.py" ]; then \
+		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
+	fi; \
 	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
 
 bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
@@ -810,6 +816,9 @@ bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
 	@CURRENT_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 	NEW_VERSION=$$(echo $$CURRENT_VERSION | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	if [ -f "automagik/utils/version.py" ]; then \
+		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
+	fi; \
 	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
 
 bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
@@ -824,6 +833,9 @@ bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2
 		NEW_VERSION="$${CURRENT_VERSION}pre1"; \
 	fi; \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$NEW_VERSION\"/" pyproject.toml; \
+	if [ -f "automagik/utils/version.py" ]; then \
+		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
+	fi; \
 	echo -e "$(FONT_GREEN)✅ Dev version created: $$CURRENT_VERSION → $$NEW_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish-dev$(FONT_RESET)"
 
@@ -857,6 +869,9 @@ finalize-version: ## ✅ Remove 'pre' from version (0.1.2pre3 -> 0.1.2)
 	fi; \
 	FINAL_VERSION=$$(echo "$$CURRENT_VERSION" | cut -d'p' -f1); \
 	sed -i "s/version = \"$$CURRENT_VERSION\"/version = \"$$FINAL_VERSION\"/" pyproject.toml; \
+	if [ -f "automagik/utils/version.py" ]; then \
+		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$FINAL_VERSION\"/" automagik/utils/version.py; \
+	fi; \
 	echo -e "$(FONT_GREEN)✅ Version finalized: $$CURRENT_VERSION → $$FINAL_VERSION$(FONT_RESET)"; \
 	echo -e "$(FONT_CYAN)💡 Ready for: make publish$(FONT_RESET)"
 
