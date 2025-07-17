@@ -151,7 +151,7 @@ wheels = [
 
 [[package]]
 name = "automagik"
-version = "0.6.2"
+version = "0.6.6"
 source = { editable = "." }
 dependencies = [
     { name = "agno" },

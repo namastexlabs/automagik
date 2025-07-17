@@ -449,8 +449,38 @@ class AutomagikAgent(ABC, Generic[T]):
             if status_key == "default":
                 self._code_prompt_text = prompt_text
                 
+            # Schedule prompt registration if we have a db_id
+            if hasattr(self, 'db_id') and self.db_id:
+                self._schedule_prompt_registration(prompt_text, status_key)
+                
         except Exception as e:
             logger.error(f"Failed to load prompt: {e}")
+    
+    def _schedule_prompt_registration(self, prompt_text: str, status_key: str) -> None:
+        """Schedule prompt registration for database storage."""
+        try:
+            import asyncio
+            
+            async def register_prompt():
+                prompt_name = f"Default {self.__class__.__name__} Prompt" if status_key == "default" else f"{self.__class__.__name__} {status_key.title()} Prompt"
+                await self._register_code_defined_prompt(
+                    prompt_text,
+                    status_key=status_key,
+                    prompt_name=prompt_name,
+                    is_primary_default=(status_key == "default")
+                )
+                logger.debug(f"Registered {status_key} prompt for {self.__class__.__name__}")
+            
+            # Try to run it immediately if we're in an async context
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(register_prompt())
+                logger.debug(f"Scheduled prompt registration for {self.__class__.__name__} (status: {status_key})")
+            except RuntimeError:
+                # No event loop running, will be registered during first execution
+                logger.debug(f"No event loop, prompt will be registered on first execution for {self.__class__.__name__} (status: {status_key})")
+        except Exception as e:
+            logger.debug(f"Could not schedule prompt registration for {self.__class__.__name__}: {e}")
     
     def register_tools(self, tools) -> None:
         """Convenience method for bulk tool registration.
