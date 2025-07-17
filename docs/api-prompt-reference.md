@@ -292,6 +292,53 @@ curl -X POST http://localhost:48881/api/v1/agent/assistant/run \
 }
 ```
 
+## Error Handling Configuration
+
+### Setting Custom Error Messages
+
+Configure how your agent handles errors by setting custom error messages and webhook notifications.
+
+```bash
+# Update agent with error handling configuration
+curl -X PUT http://localhost:48881/api/v1/agents/{agent_name} \
+  -H "Authorization: Bearer namastex888" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "error_message": "We encountered an issue. Please try again or contact support@example.com",
+    "error_webhook_url": "https://your-webhook-endpoint.com/errors"
+  }' | jq .
+```
+
+**Configuration Fields:**
+- `error_message`: Custom message shown to users when agent encounters an error
+- `error_webhook_url`: URL to receive error notifications (POST request with error details)
+
+### Error Webhook Payload
+
+When an error occurs, the webhook receives:
+```json
+{
+  "event": "agent_error",
+  "agent": "agent_name",
+  "error": {
+    "type": "ExceptionType",
+    "message": "Error details",
+    "traceback": "Full stack trace"
+  },
+  "context": {
+    "user_id": "user-123",
+    "session_id": "session-456",
+    "timestamp": "2025-01-17T13:45:00Z",
+    "environment": "production"
+  },
+  "metadata": {
+    "agent_type": "SimpleAgent",
+    "framework": "pydantic_ai",
+    "multimodal": false
+  }
+}
+```
+
 ## Notes
 
 1. **Prompt Priority**: When multiple prompt options are provided:
@@ -303,3 +350,9 @@ curl -X POST http://localhost:48881/api/v1/agent/assistant/run \
 2. **Performance**: Prompt lookups are cached at the agent level, so using `prompt_id` or `prompt_status_key` adds minimal overhead.
 
 3. **Security**: Ensure proper access controls are implemented in production to prevent unauthorized prompt modifications.
+
+4. **Error Handling**: 
+   - Default error message is user-friendly and doesn't expose technical details
+   - Custom error messages allow branding and support information
+   - Webhook notifications enable real-time error monitoring
+   - Team notifications are sent automatically for critical errors
