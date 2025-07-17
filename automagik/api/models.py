@@ -99,6 +99,10 @@ class AgentRunRequest(BaseResponseModel):
     system_prompt: Optional[str] = None  # Optional system prompt override
     user: Optional[UserCreate] = None  # Optional user data for creation/update
     
+    # Prompt selection parameters
+    prompt_id: Optional[int] = None  # Specific prompt ID to use for this run
+    prompt_status_key: Optional[str] = None  # Status key to select prompt (e.g., "premium", "free")
+    
     # Agent Execution Parameters
     run_count: int = 1  # Number of agent iterations to run (default 1 for cost control)
     enable_rollback: bool = True  # Git rollback capability
