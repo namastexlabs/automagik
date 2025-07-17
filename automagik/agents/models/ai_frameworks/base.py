@@ -29,7 +29,7 @@ class AgentAIFramework(ABC):
     """Abstract base class for AI framework integration.
     
     This class defines the interface for integrating different AI frameworks
-    (e.g., PydanticAI, LangChain, CrewAI) with AutomagikAgent.
+    (e.g., PydanticAI, Agno, CrewAI) with AutomagikAgent.
     """
     
     def __init__(self, config: AgentConfig):
