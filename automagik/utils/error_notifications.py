@@ -43,6 +43,28 @@ class ErrorNotifier:
                 "context": context
             }
             
+            # Extract additional details for HTTP errors
+            if hasattr(error, 'status'):
+                error_details['http_status'] = error.status
+            
+            if hasattr(error, 'url'):
+                error_details['url'] = str(error.url)
+                
+            if hasattr(error, 'response'):
+                try:
+                    # Try to get response body for API errors
+                    if hasattr(error.response, 'text'):
+                        error_details['response_body'] = error.response.text[:1000]  # Limit size
+                except:
+                    pass
+                    
+            # For aiohttp ClientResponseError
+            if type(error).__name__ == 'ClientResponseError':
+                error_details['error_message'] = f"HTTP {getattr(error, 'status', 'Unknown')}: {getattr(error, 'message', str(error))}"
+                if hasattr(error, 'request_info'):
+                    error_details['request_method'] = error.request_info.method
+                    error_details['request_url'] = str(error.request_info.url)
+            
             # Log the error
             logger.error(f"Agent error for {agent_name}: {error}", extra=error_details)
             
@@ -180,19 +202,42 @@ async def send_to_webhook(webhook_url: str, error: Exception, agent_name: str, *
     """Send error notification to a custom webhook."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
+            error_info = {
+                "type": type(error).__name__,
+                "message": str(error),
+                "traceback": traceback.format_exc()
+            }
+            
+            # Add HTTP error details if available
+            if hasattr(error, 'status'):
+                error_info['http_status'] = error.status
+            if hasattr(error, 'url'):
+                error_info['url'] = str(error.url)
+            if hasattr(error, 'response'):
+                try:
+                    if hasattr(error.response, 'text'):
+                        error_info['response_body'] = error.response.text[:1000]
+                except:
+                    pass
+            
+            # For aiohttp ClientResponseError
+            if type(error).__name__ == 'ClientResponseError':
+                error_info['message'] = f"HTTP {getattr(error, 'status', 'Unknown')}: {getattr(error, 'message', str(error))}"
+                if hasattr(error, 'request_info'):
+                    error_info['request_method'] = error.request_info.method
+                    error_info['request_url'] = str(error.request_info.url)
+            
             payload = {
                 "event": "agent_error",
                 "agent": agent_name,
-                "error": {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "traceback": traceback.format_exc()
-                },
+                "error": error_info,
                 "context": {
                     "user_id": kwargs.get("user_id"),
                     "session_id": kwargs.get("session_id"),
                     "timestamp": datetime.utcnow().isoformat(),
-                    "environment": os.getenv("ENVIRONMENT", "development")
+                    "environment": os.getenv("ENVIRONMENT", "development"),
+                    "request_content": kwargs.get("request_content"),
+                    "request_data": kwargs.get("request_data")
                 },
                 "metadata": kwargs.get("context", {})
             }
