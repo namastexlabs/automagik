@@ -672,11 +672,7 @@ check-release: ## 🔍 Check if ready for release (clean working directory)
 				echo -e "$(FONT_CYAN)Auto-committing version bump...$(FONT_RESET)"; \
 				NEW_VERSION=$$(grep "^version" pyproject.toml | cut -d'"' -f2); \
 				git add pyproject.toml; \
-				git commit -m "chore: bump version to $$NEW_VERSION" \
-					-m "" \
-					-m "🧞 Automagik Genie" \
-					-m "" \
-					-m "Co-Authored-By: Automagik Genie <genie@namastex.ai>"; \
+				git commit -m "chore: bump version to $$NEW_VERSION"; \
 				echo -e "$(FONT_GREEN)$(SUCCESS) Version bump committed automatically$(FONT_RESET)"; \
 			else \
 				echo -e "$(FONT_RED)$(ERROR) pyproject.toml has non-version changes!$(FONT_RESET)"; \
@@ -799,7 +795,9 @@ bump-patch: ## 📈 Bump patch version (0.1.0 -> 0.1.1)
 	if [ -f "automagik/utils/version.py" ]; then \
 		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
 	fi; \
-	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"; \
+	git add pyproject.toml automagik/utils/version.py 2>/dev/null || git add pyproject.toml; \
+	git commit -m "chore: bump version to $$NEW_VERSION"
 
 bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
 	$(call print_status,Bumping minor version...)
@@ -809,7 +807,9 @@ bump-minor: ## 📈 Bump minor version (0.1.0 -> 0.2.0)
 	if [ -f "automagik/utils/version.py" ]; then \
 		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
 	fi; \
-	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"; \
+	git add pyproject.toml automagik/utils/version.py 2>/dev/null || git add pyproject.toml; \
+	git commit -m "chore: bump version to $$NEW_VERSION"
 
 bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
 	$(call print_status,Bumping major version...)
@@ -819,7 +819,9 @@ bump-major: ## 📈 Bump major version (0.1.0 -> 1.0.0)
 	if [ -f "automagik/utils/version.py" ]; then \
 		sed -i "s/return \"$$CURRENT_VERSION\"/return \"$$NEW_VERSION\"/" automagik/utils/version.py; \
 	fi; \
-	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"
+	echo -e "$(FONT_GREEN)✅ Version bumped from $$CURRENT_VERSION to $$NEW_VERSION$(FONT_RESET)"; \
+	git add pyproject.toml automagik/utils/version.py 2>/dev/null || git add pyproject.toml; \
+	git commit -m "chore: bump version to $$NEW_VERSION"
 
 bump-dev: ## 🧪 Create dev version (0.1.2 -> 0.1.2pre1, 0.1.2pre1 -> 0.1.2pre2)
 	$(call print_status,Creating dev pre-release version...)
