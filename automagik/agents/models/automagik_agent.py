@@ -927,8 +927,40 @@ class AutomagikAgent(ABC, Generic[T]):
                     logger.debug(f"Failed to track error in telemetry: {tel_error}")
             
             logger.error(f"Framework run failed: {e}")
+            
+            # Get agent configuration from database for error handling
+            error_message = None
+            error_webhook_url = None
+            if self.db_id:
+                try:
+                    from automagik.db import get_agent
+                    agent_db = get_agent(self.db_id)
+                    if agent_db:
+                        error_message = agent_db.error_message
+                        error_webhook_url = agent_db.error_webhook_url
+                except Exception as db_error:
+                    logger.debug(f"Failed to get agent error config from DB: {db_error}")
+            
+            # Send error notification
+            from automagik.utils.error_notifications import notify_agent_error
+            asyncio.create_task(notify_agent_error(
+                error=e,
+                agent_name=self.name,
+                error_webhook_url=error_webhook_url,
+                user_id=str(user_id) if user_id else None,
+                session_id=str(session_id) if session_id else None,
+                context={
+                    "agent_type": self.__class__.__name__,
+                    "framework": self.ai_framework_name,
+                    "multimodal": bool(multimodal_content)
+                }
+            ))
+            
+            # Use custom error message if configured, otherwise use default
+            default_message = "I apologize, but I encountered an issue processing your request. Please try again in a moment. If the problem persists, our team has been notified and is working on it."
+            
             return AgentResponse(
-                text=f"Error running agent: {str(e)}",
+                text=error_message or default_message,
                 success=False,
                 error_message=str(e)
             )
@@ -1811,11 +1843,15 @@ class AutomagikAgent(ABC, Generic[T]):
             return None
             
         try:
-            from automagik.db.repository.prompt import find_code_default_prompt, create_prompt, update_prompt as _update_prompt, set_prompt_active
+            from automagik.db.repository.prompt import (
+                find_code_default_prompt_async, create_prompt_async, 
+                update_prompt_async as _update_prompt_async, set_prompt_active_async,
+                get_active_prompt_async as check_active_async
+            )
             from automagik.db.models import PromptCreate, PromptUpdate
             
             # Check if a prompt with is_default_from_code=True exists
-            existing_prompt = find_code_default_prompt(self.db_id, status_key)
+            existing_prompt = await find_code_default_prompt_async(self.db_id, status_key)
             
             if existing_prompt:
                 logger.info(f"Found existing code-defined prompt for agent {self.db_id}")
@@ -1823,7 +1859,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 # Only update the prompt text if it has changed
                 if existing_prompt.prompt_text != code_prompt_text:
                     try:
-                        update_success = _update_prompt(
+                        update_success = await _update_prompt_async(
                             existing_prompt.id,
                             PromptUpdate(prompt_text=code_prompt_text)
                         )
@@ -1831,8 +1867,7 @@ class AutomagikAgent(ABC, Generic[T]):
                             logger.info(f"Updated prompt text for existing code-defined prompt {existing_prompt.id}")
                             # Warn if this prompt isn't active but code has changed
                             if not existing_prompt.is_active:
-                                from automagik.db.repository.prompt import get_active_prompt as check_active
-                                active_prompt = check_active(self.db_id, status_key)
+                                active_prompt = await check_active_async(self.db_id, status_key)
                                 if active_prompt:
                                     logger.warning(
                                         f"CODE PROMPT UPDATED: The code-defined prompt for '{self.name}' has been updated but is NOT active. "
@@ -1850,10 +1885,9 @@ class AutomagikAgent(ABC, Generic[T]):
                 # Only set as active if there are no other active prompts
                 if is_primary_default and not existing_prompt.is_active:
                     # Check if there's any other active prompt
-                    from automagik.db.repository.prompt import get_active_prompt as check_active
-                    active_prompt = check_active(self.db_id, status_key)
+                    active_prompt = await check_active_async(self.db_id, status_key)
                     if not active_prompt:
-                        set_prompt_active(existing_prompt.id, True)
+                        await set_prompt_active_async(existing_prompt.id, True)
                         logger.info(f"Set existing prompt {existing_prompt.id} as active (no other active prompt found)")
                     else:
                         logger.info(
@@ -1869,8 +1903,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 prompt_name = f"{self.name} {status_key} Prompt"
             
             # Check if there's already an active prompt
-            from automagik.db.repository.prompt import get_active_prompt as check_active
-            existing_active = check_active(self.db_id, status_key)
+            existing_active = await check_active_async(self.db_id, status_key)
             
             # Only set as active if is_primary_default is True AND no other active prompt exists
             should_be_active = is_primary_default and not existing_active
@@ -1885,7 +1918,7 @@ class AutomagikAgent(ABC, Generic[T]):
                 name=prompt_name
             )
             
-            prompt_id = create_prompt(prompt_data)
+            prompt_id = await create_prompt_async(prompt_data)
             
             if prompt_id:
                 logger.info(f"Registered new code-defined prompt for agent {self.db_id}")
