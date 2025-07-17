@@ -14,7 +14,6 @@ class FrameworkType(str, Enum):
     AGNO = "agno"
     CLAUDE_CODE = "claude_code"
     LANGCHAIN = "langchain"
-    LANGGRAPH = "langgraph"
     AUTO = "auto"  # Allow auto-selection based on content type
     
     @classmethod
@@ -49,7 +48,6 @@ class FrameworkType(str, Enum):
             "claude_code": cls.CLAUDE_CODE,
             "claude-code": cls.CLAUDE_CODE,
             "langchain": cls.LANGCHAIN,
-            "langgraph": cls.LANGGRAPH,
         }
         
         # Check direct mappings first
