@@ -55,6 +55,10 @@ def get_active_prompt(agent_id: int, status_key: str = "default") -> Optional[Pr
         return None
 
 
+# Alias for API consistency
+get_active_prompt_by_status_key = get_active_prompt
+
+
 async def get_active_prompt_async(agent_id: int, status_key: str = "default") -> Optional[Prompt]:
     """Get the active prompt for an agent and status key (async version).
     
