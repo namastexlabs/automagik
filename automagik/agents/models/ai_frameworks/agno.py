@@ -312,8 +312,20 @@ class AgnoFramework(AgentAIFramework):
             logger.error(f"Error running Agno agent: {e}")
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            # Send error notification
+            from automagik.utils.error_notifications import notify_agent_error
+            asyncio.create_task(notify_agent_error(
+                error=e,
+                agent_name=getattr(dependencies, 'agent_name', 'unknown'),
+                user_id=str(getattr(dependencies, 'user_id', None)),
+                session_id=str(getattr(dependencies, 'session_id', None)),
+                context={"framework": "agno", "model": self.config.model}
+            ))
+            
+            # Return user-friendly message
             return AgentResponse(
-                text=f"Error running agent: {str(e)}",
+                text="I apologize, but I encountered an issue processing your request. Please try again in a moment. If the problem persists, our team has been notified and is working on it.",
                 success=False,
                 error_message=str(e)
             )

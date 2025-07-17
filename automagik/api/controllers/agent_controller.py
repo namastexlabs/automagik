@@ -807,6 +807,38 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
         # Run the agent
         response_content = None
+        
+        # Apply prompt overrides right before execution (after all initialization)
+        if request.prompt_id or request.prompt_status_key:
+            from automagik.db.repository.prompt import get_prompt_by_id, get_active_prompt_by_status_key
+            
+            override_prompt = None
+            if request.prompt_id:
+                logger.info(f"Applying prompt ID override: {request.prompt_id}")
+                override_prompt = await run_in_threadpool(get_prompt_by_id, request.prompt_id)
+                if override_prompt:
+                    logger.info(f"Found prompt ID {request.prompt_id}, applying override")
+                else:
+                    logger.warning(f"Prompt ID {request.prompt_id} not found, using agent default")
+                    
+            elif request.prompt_status_key and agent_id:
+                logger.info(f"Applying prompt status key override: '{request.prompt_status_key}'")
+                override_prompt = await run_in_threadpool(get_active_prompt_by_status_key, agent_id, request.prompt_status_key)
+                if override_prompt:
+                    logger.info(f"Found prompt with status key '{request.prompt_status_key}', applying override")
+                else:
+                    logger.warning(f"No active prompt with status key '{request.prompt_status_key}', using agent default")
+                    
+            # Apply the override immediately before processing
+            if override_prompt:
+                # Store the override in context so it gets passed through
+                context["system_prompt"] = override_prompt.prompt_text
+                # Also update the agent's prompt for logging
+                agent.system_prompt = override_prompt.prompt_text
+                if hasattr(agent, 'framework') and agent.framework:
+                    agent.framework.system_prompt = override_prompt.prompt_text
+                logger.info(f"Applied prompt override just before processing: {override_prompt.prompt_text[:50]}...")
+        
         try:
             # Update context with the effective user_id if available
             if effective_user_id:
@@ -837,8 +869,33 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 )
         except Exception as e:
             logger.error(f"Agent execution error: {str(e)}")
+            
+            # Get agent error configuration if available
+            error_message = "We encountered an issue processing your request. Please try again later."
+            error_webhook_url = None
+            
+            if agent_db:
+                error_message = agent_db.error_message or error_message
+                error_webhook_url = agent_db.error_webhook_url
+            
+            # Send error notification
+            try:
+                from automagik.utils.error_notifications import notify_agent_error
+                await notify_agent_error(
+                    error=e,
+                    agent_name=agent_name,
+                    error_webhook_url=error_webhook_url,
+                    session_id=str(session_id) if session_id else None,
+                    user_id=str(effective_user_id) if effective_user_id else None,
+                    request_content=content,
+                    context=context
+                )
+            except Exception as notif_error:
+                logger.error(f"Failed to send error notification: {notif_error}")
+            
+            # Return user-friendly error message
             raise HTTPException(
-                status_code=500, detail=f"Agent execution failed: {str(e)}"
+                status_code=500, detail=error_message
             )
 
         # Process the response

@@ -59,6 +59,8 @@ class Agent(BaseDBModel):
     run_id: int = Field(0, description="Current run ID")
     system_prompt: Optional[str] = Field(None, description="System prompt for the agent")
     active_default_prompt_id: Optional[int] = Field(None, description="ID of the active default prompt")
+    error_message: Optional[str] = Field(None, description="Custom error message to display when agent encounters an error")
+    error_webhook_url: Optional[str] = Field(None, description="Webhook URL to call when agent encounters an error")
     created_at: Optional[datetime] = Field(None, description="Created at timestamp")
     updated_at: Optional[datetime] = Field(None, description="Updated at timestamp")
 
