@@ -32,18 +32,6 @@ from automagik.db.repository.user import list_users
 logger = logging.getLogger(__name__)
 
 
-def is_langgraph_agent(agent_name: str) -> bool:
-    """Check if an agent name follows legacy orchestration naming pattern."""
-    return agent_name.startswith("langgraph-")
-
-
-def should_use_orchestration(agent_name: str, request: AgentRunRequest) -> bool:
-    """Determine if a request attempts to use orchestration features (deprecated)."""
-    return (
-        is_langgraph_agent(agent_name)
-    )
-
-
 async def handle_orchestrated_agent_run(
     agent_name: str, request: AgentRunRequest
 ) -> AgentRunResponse:
