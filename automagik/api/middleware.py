@@ -83,9 +83,8 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
     """
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Only apply to POST/PUT/PATCH requests to /api/v1/agent endpoints
+        # Only apply to POST/PUT/PATCH requests with JSON content type
         if (request.method in ["POST", "PUT", "PATCH"] and 
-            "/api/v1/agent" in request.url.path and
             request.headers.get("content-type", "").startswith("application/json")):
             
             try:
@@ -200,22 +199,23 @@ class JSONParsingMiddleware(BaseHTTPMiddleware):
         """
         Clean content string for use in JSON.
         """
-        # Remove or escape all special characters
+        # First handle already escaped characters
         result = content
-        # Escape newlines
-        result = result.replace('\n', '\\n')
-        result = result.replace('\r', '\\r')
-        # Escape tabs 
-        result = result.replace('\t', '\\t')
-        # Escape quotes
-        result = result.replace('"', '\\"')
-        # Fix any double escapes that might have been created
-        result = result.replace('\\\\n', '\\n')
-        result = result.replace('\\\\r', '\\r')
-        result = result.replace('\\\\t', '\\t')
-        result = result.replace('\\\\"', '\\"')
+        
+        # Replace backslashes that aren't part of escape sequences
+        # This regex looks for backslashes not followed by valid escape chars
+        import re
+        result = re.sub(r'\\(?!["\\/bfnrt])', r'\\\\', result)
+        
+        # Now escape unescaped special characters
+        # But be careful not to double-escape
+        result = re.sub(r'(?<!\\)"', r'\\"', result)
+        result = re.sub(r'(?<!\\)\n', r'\\n', result)
+        result = re.sub(r'(?<!\\)\r', r'\\r', result)
+        result = re.sub(r'(?<!\\)\t', r'\\t', result)
+        
         # Remove other control characters
-        result = ''.join(c if ord(c) >= 32 or c in ['\\n', '\\r', '\\t'] else ' ' for c in result)
+        result = ''.join(c if ord(c) >= 32 or c in ['\n', '\r', '\t'] else ' ' for c in result)
         
         return result
     

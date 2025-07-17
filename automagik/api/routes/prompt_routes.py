@@ -157,6 +157,9 @@ async def update_prompt(
         prompt_id: The prompt ID
         prompt_data: The updated prompt data
     """
+    logger.debug(f"Updating prompt {prompt_id} for agent {agent_identifier}")
+    logger.debug(f"Prompt data received: {prompt_data}")
+    
     # Resolve agent by identifier
     agent = resolve_agent_by_identifier(agent_identifier)
     if not agent:

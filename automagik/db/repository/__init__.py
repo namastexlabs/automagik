@@ -71,7 +71,9 @@ from automagik.db.repository.memory import (
 from automagik.db.repository.prompt import (
     get_prompt_by_id,
     get_active_prompt,
+    get_active_prompt_async,
     find_code_default_prompt,
+    find_code_default_prompt_async,
     get_latest_version_for_status,
     create_prompt,
     update_prompt,
@@ -179,7 +181,9 @@ __all__ = [
     # Prompt functions
     "get_prompt_by_id",
     "get_active_prompt",
+    "get_active_prompt_async",
     "find_code_default_prompt",
+    "find_code_default_prompt_async",
     "get_latest_version_for_status",
     "create_prompt",
     "update_prompt",

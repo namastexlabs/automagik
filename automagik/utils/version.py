@@ -2,16 +2,34 @@
 
 import tomllib
 from pathlib import Path
+import os
 
 def _get_version():
-    """Get version from pyproject.toml"""
+    """Get version from pyproject.toml or fallback to hardcoded version"""
+    # First try to get version from pyproject.toml (development)
     try:
         pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
-        with open(pyproject_path, "rb") as f:
-            data = tomllib.load(f)
-        return data["project"]["version"]
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+            return data["project"]["version"]
     except Exception:
-        return "unknown"
+        pass
+    
+    # Try to get version from package metadata (for installed packages)
+    try:
+        from importlib import metadata
+        return metadata.version("automagik")
+    except Exception:
+        pass
+    
+    # If that fails, check for version in environment variable
+    env_version = os.environ.get("AUTOMAGIK_VERSION")
+    if env_version:
+        return env_version
+    
+    # Fallback to hardcoded version (should match pyproject.toml)
+    return "0.6.5"
 
 __version__ = _get_version()
 
