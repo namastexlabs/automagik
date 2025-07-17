@@ -141,6 +141,17 @@ class AgentFactory:
             try:
                 agent = cls._agent_classes[agent_type](config)
                 logger.debug(f"Successfully created {agent_type} agent using agent class")
+                
+                # Check if this agent exists in the database and set db_id
+                try:
+                    from automagik.db.repository.agent import get_agent_by_name as get_db_agent
+                    db_agent = get_db_agent(agent_type)
+                    if db_agent:
+                        agent.db_id = db_agent.id
+                        logger.debug(f"Set db_id {db_agent.id} on agent {agent_type} created from class")
+                except Exception as e:
+                    logger.debug(f"Could not load db_id for agent {agent_type}: {e}")
+                
                 return agent
             except Exception as e:
                 logger.error(f"Error creating {agent_type} agent: {str(e)}")
@@ -536,10 +547,14 @@ class AgentFactory:
             }
             
             # Check if this is a virtual agent by looking in the database
+            db_agent_id = None
             try:
                 from automagik.db.repository.agent import get_agent_by_name as get_db_agent
                 db_agent = get_db_agent(agent_name)
                 if db_agent:
+                    # Store the database ID
+                    db_agent_id = db_agent.id
+                    
                     # Load model from database
                     if db_agent.model:
                         config["model"] = db_agent.model
@@ -558,11 +573,16 @@ class AgentFactory:
             logger.debug(f"Creating fresh agent instance for {agent_name}")
             agent = cls.create_agent(agent_name, config) 
             
+            # Set the database ID if we have one
+            if db_agent_id:
+                agent.db_id = db_agent_id
+                logger.debug(f"Set db_id {db_agent_id} on agent {agent_name}")
+            
             # Set important template attributes like db_id if we had a previous template
             if agent_name in cls._agent_templates:
                 # Copy DB ID if available - one bit of state we do want to preserve
                 template = cls._agent_templates[agent_name]
-                if hasattr(template, "db_id") and template.db_id:
+                if hasattr(template, "db_id") and template.db_id and not agent.db_id:
                     logger.debug(f"Copying db_id {template.db_id} from template to new agent instance")
                     agent.db_id = template.db_id
             else:
