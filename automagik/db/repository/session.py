@@ -259,11 +259,11 @@ def update_session(session: Session) -> Optional[uuid.UUID]:
         execute_query(
             """
             UPDATE sessions SET 
-                user_id = %s,
-                agent_id = %s,
-                name = %s,
-                platform = %s,
-                metadata = %s,
+                user_id = COALESCE(%s, user_id),
+                agent_id = COALESCE(%s, agent_id),
+                name = COALESCE(%s, name),
+                platform = COALESCE(%s, platform),
+                metadata = COALESCE(%s, metadata),
                 updated_at = NOW(),
                 run_finished_at = %s
             WHERE id = %s
