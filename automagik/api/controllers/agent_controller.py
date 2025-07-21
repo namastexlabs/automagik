@@ -450,30 +450,6 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         sanitized_request = _sanitize_payload_for_logging(request)
         logger.debug(f"Request payload: {sanitized_request}")
 
-        # Check if this should use LangGraph orchestration
-        if should_use_orchestration(agent_name, request):
-            logger.info(f"Routing to orchestrated execution for agent: {agent_name}")
-            response = await handle_orchestrated_agent_run(agent_name, request)
-            # Convert to Dict format for backward compatibility
-            response_data = {
-                "status": response.status,
-                "message": response.message,
-                "session_id": response.session_id,
-                "agent_name": response.agent_name,
-                "execution_time": response.execution_time,
-                "orchestration": response.orchestration.model_dump()
-                if response.orchestration
-                else None,
-                "data": response.data,
-                "errors": response.errors,
-            }
-            
-            # Add usage information if available
-            if hasattr(response, 'usage') and response.usage:
-                response_data["usage"] = response.usage
-                
-            return response_data
-
         # Payload already logged above with sanitization
 
         # Continue with regular agent execution for non-orchestrated agents
@@ -1017,7 +993,7 @@ async def get_or_create_session(
             else:
                 session = Session(
                     id=uuid.UUID(session_id) if isinstance(session_id, str) else session_id,
-                    name=session_name,
+                    name=session_name or f"Session-{session_id}",
                     agent_id=agent_id,
                     user_id=user_id,
                 )
