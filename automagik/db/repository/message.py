@@ -105,6 +105,8 @@ def list_messages_for_user(session_id: uuid.UUID, user_id: Optional[uuid.UUID] =
         List of Message objects
     """
     try:
+        logger.debug(f"list_messages_for_user called: session_id={session_id}, user_id={user_id}, limit={limit}, sort_desc={sort_desc}")
+        
         # Build query with user filtering
         sort_direction = "DESC" if sort_desc else "ASC"
         
