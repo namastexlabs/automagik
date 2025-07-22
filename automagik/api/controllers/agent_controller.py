@@ -524,12 +524,14 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 session_name = f"whatsapp-{agent_name}-{whatsapp_number}"
                 logger.info(f"🔄 Created WhatsApp session name: {session_name}")
         
+        logger.info(f"🔍 Getting/creating session: session_id={request.session_id}, session_name={session_name}, agent_id={agent_id}, user_id={user_id}")
         session_id, message_history = await get_or_create_session(
             session_id=request.session_id,
             session_name=session_name,
             agent_id=agent_id,
             user_id=user_id,
         )
+        logger.info(f"✅ Session ready: session_id={session_id}, has_message_history={message_history is not None}")
 
         # For agents that don't exist, avoid creating any messages in the database
         if agent_name.startswith("nonexistent_") or "_nonexistent_" in agent_name:
@@ -558,19 +560,21 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 session_name=session_name  # Pass API-determined session name to agent
             )
             
-            # MEMORY FIX: For cached agents, update the agent's MessageHistory to use the current session
+            # MEMORY FIX: For cached agents, update the agent's session context
             if (agent and hasattr(agent, 'context') and 
                 agent.context.get('_conversation_history_restored')):
-                logger.debug(f"💾 Updating MessageHistory for cached agent session {session_id}")
-                # Replace the cached agent's old MessageHistory with the current session's MessageHistory
+                logger.info(f"💾 Detected cached agent for session {session_id}")
+                # Update the agent's context with current session info
                 try:
-                    # Set the agent's dependencies to use the new MessageHistory
-                    if hasattr(agent, 'dependencies') and hasattr(agent.dependencies, 'message_history'):
-                        logger.debug(f"💾 Replacing cached agent's MessageHistory with current session {session_id}")
-                        agent.dependencies.message_history = message_history
-                        logger.debug(f"💾 Updated agent MessageHistory for session continuity")
+                    # Update session-related context
+                    agent.context['session_id'] = str(session_id)
+                    agent.context['user_id'] = str(effective_user_id) if effective_user_id else None
+                    logger.debug(f"💾 Updated cached agent's session context: session_id={session_id}, user_id={effective_user_id}")
+                    
+                    # Note: The actual MessageHistory will be passed directly to process_message
+                    # so we don't need to update agent.dependencies.message_history here
                 except Exception as e:
-                    logger.warning(f"Failed to update MessageHistory for cached agent: {str(e)}")
+                    logger.warning(f"Failed to update cached agent context: {str(e)}")
                     # Continue with standard behavior if update fails
 
             # Check if agent exists
@@ -727,10 +731,10 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             # Use provided messages
             pass
         elif message_history:
-            # Use message history
-            history_messages, _ = await run_in_threadpool(
-                message_history.get_messages, 1, 100, False
-            )
+            # Use message history - but this is now handled directly by the agent
+            # The agent will call message_history.get_formatted_pydantic_messages()
+            # when it needs the messages in the proper format for the AI framework
+            pass
 
         # -----------------------------------------------
         # Prepare context (system prompt + multimodal + user data)
@@ -809,6 +813,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 context["user_id"] = str(effective_user_id)
             
             if content:
+                # Log message history status before processing
+                if message_history:
+                    logger.info(f"📚 Passing MessageHistory to agent.process_message: session_id={session_id}, has_history=True")
+                else:
+                    logger.warning(f"⚠️ No MessageHistory object available for session_id={session_id}")
+                    
                 response_content = await agent.process_message(
                     user_message=content,
                     session_id=session_id,
@@ -821,6 +831,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 )
             else:
                 # No content, run with empty string but still pass context for multimodal content
+                # Log message history status before processing
+                if message_history:
+                    logger.info(f"📚 Passing MessageHistory to agent.process_message (no content): session_id={session_id}, has_history=True")
+                else:
+                    logger.warning(f"⚠️ No MessageHistory object available for session_id={session_id} (no content)")
+                    
                 response_content = await agent.process_message(
                     user_message="",
                     session_id=session_id,

@@ -81,6 +81,10 @@ class PydanticAIFramework(AgentAIFramework):
             
             # Format message history for PydanticAI
             formatted_history = self.format_message_history(message_history or [])
+            if formatted_history:
+                logger.info(f"📚 PydanticAI: Formatted {len(formatted_history)} messages from history")
+            else:
+                logger.debug("📭 PydanticAI: No message history to format")
             
             # Update the agent's system prompt if provided
             if system_prompt:
@@ -121,6 +125,7 @@ class PydanticAIFramework(AgentAIFramework):
                     logger.debug(f"Added system prompt to message history: {system_prompt[:100]}...")
             
             # Run the agent
+            logger.info(f"🚀 PydanticAI: Running agent with {len(formatted_history)} messages in history")
             result = await self._agent_instance.run(
                 user_input,
                 deps=dependencies,

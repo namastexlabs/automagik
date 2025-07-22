@@ -682,7 +682,7 @@ class MessageHistory:
         """
         try:
             # Get the last N messages from the database (most recent first)
-            logger.debug(f"Retrieving latest {limit} messages for session {self.session_id}, user {self.user_id}")
+            logger.info(f"🔍 MessageHistory: Retrieving latest {limit} messages for session {self.session_id}, user {self.user_id}")
             # Use user-filtered retrieval when user_id is available to prevent history contamination
             from automagik.db import list_messages_for_user
             db_messages = list_messages_for_user(
@@ -692,6 +692,8 @@ class MessageHistory:
                 limit=limit
             )
             
+            logger.info(f"📊 MessageHistory: Retrieved {len(db_messages) if db_messages else 0} messages from database")
+            
             # Reverse the list to get chronological order (oldest first)
             # This is important for proper context in conversation
             db_messages.reverse()
@@ -699,8 +701,10 @@ class MessageHistory:
             # Convert to PydanticAI format
             messages = self._convert_db_messages_to_model_messages(db_messages)
             if messages:
-                logger.debug(f"Retrieved and converted {len(messages)} messages for session {self.session_id}")
+                logger.info(f"✅ MessageHistory: Successfully converted {len(messages)} messages for session {self.session_id}")
                 return messages
+            else:
+                logger.debug("📭 MessageHistory: No messages to convert")
             # Fallback to in-memory messages (unit-test mode)
             return self._local_messages
         except Exception as e:
