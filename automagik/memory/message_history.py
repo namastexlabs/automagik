@@ -838,8 +838,19 @@ class MessageHistory:
             List of PydanticAI ModelMessage objects
         """
         model_messages = []
+        logger.debug(f"Converting {len(db_messages)} DB messages to ModelMessage format")
         
         for db_message in db_messages:
+            # Skip if no text content
+            if not db_message.text_content:
+                logger.debug(f"Skipping message {db_message.id} with no text content")
+                continue
+                
+            # Log the message being converted
+            logger.debug(f"Converting message: role={db_message.role}, "
+                        f"text_length={len(db_message.text_content)}, "
+                        f"created_at={db_message.created_at}")
+            
             # Convert database message to ModelMessage
             if db_message.role == "system":
                 # Create system message
