@@ -1720,10 +1720,25 @@ class AutomagikAgent(ABC, Generic[T]):
         Default implementation uses the framework to handle all complexity.
         Agents can override this if they need custom behavior.
         """
+        # Load session messages if available
+        loaded_messages = []
+        if message_history_obj:
+            try:
+                loaded_messages = message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20)
+                if loaded_messages:
+                    logger.info(f"✅ Loaded {len(loaded_messages)} messages from session history")
+                else:
+                    logger.debug("📭 No messages found in session history")
+            except Exception as e:
+                logger.error(f"❌ Failed to load session messages: {e}")
+                loaded_messages = []
+        else:
+            logger.debug("🔍 No message_history_obj provided - starting fresh conversation")
+        
         return await self._run_agent(
             input_text=input_text,
             system_prompt=system_message,
-            message_history=message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20) if message_history_obj else [],
+            message_history=loaded_messages,
             multimodal_content=multimodal_content,
             channel_payload=channel_payload
         )
