@@ -269,13 +269,20 @@ async def get_or_create_user(
                 except ValueError:
                     logger.warning(f"Invalid external_user_id format for new user: {external_user_id}")
         
+        # Generate new UUID if we still don't have one
+        if not user_id:
+            user_id = generate_uuid()
+            logger.info(f"🆕 Generated new user_id: {user_id}")
+            
         new_user = User(
-            id=user_id if user_id else generate_uuid(),
+            id=user_id,
             email=user_data.email,
             phone_number=user_data.phone_number,
             user_data=user_data.user_data,
         )
+        logger.info(f"👤 Creating new user with ID {user_id}, email={user_data.email}, phone={user_data.phone_number}")
         created_id = await run_in_threadpool(create_user, new_user)
+        logger.info(f"✅ Successfully created user with ID: {created_id}")
         return created_id
 
     # If user doesn't exist and we don't have user_data, create minimal user
@@ -545,6 +552,11 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
 
         # Determine effective user ID before creating agent
         effective_user_id = user_id
+        
+        # Update effective_user_id if a user was created during the request
+        if user_id and not effective_user_id:
+            effective_user_id = user_id
+            logger.info(f"Updated effective_user_id to {effective_user_id} from created user")
         if user_id is None and message_history and hasattr(message_history, 'user_id'):
             effective_user_id = message_history.user_id
             logger.debug(f"Using user_id {effective_user_id} from message_history for agent creation")
@@ -932,6 +944,12 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Add the current user_id to the response
         # First check if the agent updated the user_id during execution
         final_user_id = effective_user_id
+        
+        # If we still don't have a user_id but created one earlier, use it
+        if not final_user_id and user_id:
+            final_user_id = user_id
+            logger.info(f"Using created user_id {final_user_id} for response")
+            
         if hasattr(agent, 'user_id') and agent.user_id:
             final_user_id = agent.user_id
         elif message_history and hasattr(message_history, 'user_id') and message_history.user_id:
@@ -939,6 +957,9 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         
         if final_user_id:
             response_data["user_id"] = str(final_user_id)
+            logger.info(f"✅ Including user_id in response: {final_user_id}")
+        else:
+            logger.warning("⚠️ No user_id available to include in response")
         
         # Add usage information if available
         if usage_info:
