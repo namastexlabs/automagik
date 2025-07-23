@@ -491,10 +491,14 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Use normalized name for all operations
         agent_name = normalized_agent_name
 
-        # Get or create user - special handling for WhatsApp
-        # Check if this is a WhatsApp request that should defer user creation
-        if not request.user_id and request.channel_payload:
-            # Try WhatsApp-specific user handling first
+        # Get or create user
+        # If we have user data in the request, always create a user
+        if request.user and not request.user_id:
+            logger.info(f"Creating user from request.user data: {request.user}")
+            user_id = await get_or_create_user(None, request.user, request.context)
+            logger.info(f"✅ Created user with ID: {user_id}")
+        elif not request.user_id and request.channel_payload:
+            # Try WhatsApp-specific user handling only if no user data provided
             user_id = await get_or_create_user_for_whatsapp(request.channel_payload, request.context)
             if user_id is None:
                 # WhatsApp request - let agent handle user identification
@@ -553,13 +557,16 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
         # Determine effective user ID before creating agent
         effective_user_id = user_id
         
-        # Update effective_user_id if a user was created during the request
-        if user_id and not effective_user_id:
-            effective_user_id = user_id
-            logger.info(f"Updated effective_user_id to {effective_user_id} from created user")
-        if user_id is None and message_history and hasattr(message_history, 'user_id'):
+        # If we still don't have a user_id, try to get it from message history
+        if effective_user_id is None and message_history and hasattr(message_history, 'user_id'):
             effective_user_id = message_history.user_id
             logger.debug(f"Using user_id {effective_user_id} from message_history for agent creation")
+        
+        # Log the effective user_id we're using
+        if effective_user_id:
+            logger.info(f"🆔 Using effective_user_id: {effective_user_id}")
+        else:
+            logger.warning("⚠️ No effective_user_id available for agent creation")
 
         # Use get_agent_with_session for conversational agents to maintain memory
         logger.info(f"🔍 Creating agent with session caching: agent={agent_type}, session_id={session_id}, user_id={effective_user_id}")
