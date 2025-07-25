@@ -175,6 +175,22 @@ class AgentInfo(BaseResponseModel):
     name: str
     description: Optional[str] = None
 
+class AgentDetail(BaseResponseModel):
+    """Detailed information about an agent including configuration."""
+    id: int
+    name: str
+    type: str
+    model: str
+    description: Optional[str] = None
+    version: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+    active: bool = True
+    system_prompt: Optional[str] = None
+    error_message: Optional[str] = None
+    error_webhook_url: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
 class AgentCreateRequest(BaseResponseModel):
     """Request model for creating a new agent."""
     name: str = Field(..., description="Agent name")
