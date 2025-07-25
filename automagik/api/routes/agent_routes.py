@@ -10,7 +10,7 @@ from starlette.responses import JSONResponse
 from starlette import status
 from pydantic import ValidationError, BaseModel, Field
 from automagik.api.models import (
-    AgentInfo, AgentRunRequest, AgentCreateRequest, AgentUpdateRequest, 
+    AgentInfo, AgentDetail, AgentRunRequest, AgentCreateRequest, AgentUpdateRequest, 
     AgentCreateResponse, AgentUpdateResponse, AgentDeleteResponse,
     AgentCopyRequest, AgentCopyResponse
 )
@@ -653,6 +653,57 @@ async def list_agents(_: bool = Depends(verify_api_key)):
     Get a list of all registered agents
     """
     return await list_registered_agents()
+
+@agent_router.get("/agent/{agent_identifier}", response_model=AgentDetail, tags=["Agents"],
+           summary="Get Agent Details",
+           description="Get detailed information about a specific agent including its configuration.")
+async def get_agent_details(agent_identifier: str, _: bool = Depends(verify_api_key)):
+    """
+    Get detailed information about a specific agent.
+    
+    Args:
+        agent_identifier: Agent name or ID
+        
+    Returns:
+        AgentDetail with full agent information including config
+    """
+    from automagik.api.models import AgentDetail
+    
+    try:
+        # Resolve agent by name or ID
+        agent = resolve_agent_by_identifier(agent_identifier)
+        
+        if not agent:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent not found: {agent_identifier}"
+            )
+        
+        # Convert to AgentDetail model
+        return AgentDetail(
+            id=agent.id,
+            name=agent.name,
+            type=agent.type,
+            model=agent.model,
+            description=agent.description,
+            version=agent.version,
+            config=agent.config,
+            active=agent.active,
+            system_prompt=agent.system_prompt,
+            error_message=agent.error_message,
+            error_webhook_url=agent.error_webhook_url,
+            created_at=agent.created_at,
+            updated_at=agent.updated_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting agent details: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get agent details: {str(e)}"
+        )
 
 @agent_router.post("/agent/{agent_identifier}/run", response_model=Dict[str, Any], tags=["Agents"],
             summary="Run Agent",
