@@ -114,7 +114,9 @@ class AutomagikAgent(ABC, Generic[T]):
     # Declarative model configuration (can be overridden by subclasses)
     DEFAULT_MODEL: str = "openai:gpt-4o-mini"
     FALLBACK_MODELS: List[str] = []
-    DEFAULT_CONFIG: Dict[str, Any] = {}
+    DEFAULT_CONFIG: Dict[str, Any] = {
+        "message_limit": 20  # Default message history limit
+    }
     
     # Declarative prompt file (can be overridden by subclasses)
     PROMPT_FILE: str = None  # e.g., "prompt.md"
@@ -1724,9 +1726,14 @@ class AutomagikAgent(ABC, Generic[T]):
         loaded_messages = []
         if message_history_obj:
             try:
-                loaded_messages = message_history_obj.get_formatted_pydantic_messages(limit=message_limit or 20)
+                # Use message_limit from API request, then agent config, then hardcoded default
+                default_limit = self.config.get("message_limit", 20)
+                actual_limit = message_limit or default_limit
+                logger.debug(f"📊 Using message limit: {actual_limit} (API: {message_limit}, Config: {default_limit})")
+                
+                loaded_messages = message_history_obj.get_formatted_pydantic_messages(limit=actual_limit)
                 if loaded_messages:
-                    logger.info(f"✅ Loaded {len(loaded_messages)} messages from session history")
+                    logger.info(f"✅ Loaded {len(loaded_messages)} messages from session history (limit: {actual_limit})")
                 else:
                     logger.debug("📭 No messages found in session history")
             except Exception as e:
