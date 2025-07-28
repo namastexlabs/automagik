@@ -43,6 +43,7 @@ class AgentDescriptor:
     package_env_file: Optional[str] = None
     external_api_keys: List[tuple] = field(default_factory=list)
     enabled: bool = True
+    external: bool = False
     
     # Factory function (optional - for backward compatibility)
     factory_function: Optional[Callable] = None
@@ -68,7 +69,8 @@ class AgentRegistry:
         package_env_file: Optional[str] = None,
         external_api_keys: List[tuple] = None,
         enabled: bool = True,
-        factory_function: Optional[Callable] = None
+        factory_function: Optional[Callable] = None,
+        external: bool = False
     ) -> None:
         """Register an agent declaratively.
         
@@ -86,6 +88,7 @@ class AgentRegistry:
             external_api_keys: External API keys to register
             enabled: Whether this agent is enabled
             factory_function: Optional factory function for compatibility
+            external: Whether this agent is from external directory
         """
         model_config = ModelConfig(
             default_model=default_model,
@@ -104,7 +107,8 @@ class AgentRegistry:
             package_env_file=package_env_file,
             external_api_keys=external_api_keys or [],
             enabled=enabled,
-            factory_function=factory_function
+            factory_function=factory_function,
+            external=external
         )
         
         cls._agents[name] = descriptor
@@ -121,6 +125,22 @@ class AgentRegistry:
     def get_agent_descriptor(cls, name: str) -> Optional[AgentDescriptor]:
         """Get agent descriptor by name."""
         return cls._agents.get(name)
+    
+    @classmethod
+    def get(cls, name: str) -> Optional[Dict[str, Any]]:
+        """Get agent info as dictionary (for backward compatibility)."""
+        descriptor = cls.get_agent_descriptor(name)
+        if not descriptor:
+            return None
+        
+        return {
+            'name': descriptor.name,
+            'framework': descriptor.framework.value,
+            'description': descriptor.description,
+            'external': descriptor.external,
+            'enabled': descriptor.enabled,
+            'model': descriptor.model_config.default_model
+        }
     
     @classmethod
     def list_agents(cls, framework: Optional[Framework] = None, enabled_only: bool = True) -> List[str]:

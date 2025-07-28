@@ -217,7 +217,8 @@ def _discover_external_agents():
                         fallback_models=["openai:gpt-4.1", "anthropic:claude-3-5-sonnet-20241022"],
                         factory_function=create_agent_fn,  # For backward compatibility
                         external_api_keys=getattr(agent_class, 'EXTERNAL_API_KEYS', []),
-                        package_env_file=getattr(agent_class, 'PACKAGE_ENV_FILE', None)
+                        package_env_file=getattr(agent_class, 'PACKAGE_ENV_FILE', None),
+                        external=True  # Mark as external agent
                     )
                     
                     logger.info(f"✅ Registered external agent: {agent_dir.name}")

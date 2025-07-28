@@ -89,9 +89,9 @@ class Settings(BaseSettings):
         default="UTC", 
         description="Timezone for the agent to operate in (e.g., 'UTC', 'America/New_York', 'America/Sao_Paulo')"
     )
-    AUTOMAGIK_AGENT_NAMES: Optional[str] = Field(
-        default=None,
-        description="Comma-separated list of agent names to pre-instantiate at startup (e.g., 'simple,stan')"
+    AUTOMAGIK_DISABLE_DEFAULT_AGENTS: bool = Field(
+        default=False,
+        description="Disable built-in agents from source code. Defaults to True when AUTOMAGIK_EXTERNAL_AGENTS_DIR is set. Virtual agents created via API are always loaded."
     )
 
     # Claude Code Integration
@@ -149,6 +149,15 @@ class Settings(BaseSettings):
     # External agents can add their own API keys dynamically via environment or database settings
     _external_api_keys: Dict[str, Optional[str]] = {}
     _external_urls: Dict[str, Optional[str]] = {}
+    
+    def __init__(self, **values):
+        """Initialize settings with smart defaults."""
+        # If AUTOMAGIK_EXTERNAL_AGENTS_DIR is set and AUTOMAGIK_DISABLE_DEFAULT_AGENTS is not explicitly set,
+        # default AUTOMAGIK_DISABLE_DEFAULT_AGENTS to True
+        if 'AUTOMAGIK_DISABLE_DEFAULT_AGENTS' not in values and os.environ.get('AUTOMAGIK_EXTERNAL_AGENTS_DIR'):
+            values['AUTOMAGIK_DISABLE_DEFAULT_AGENTS'] = True
+        
+        super().__init__(**values)
     
     def add_external_api_key(self, key_name: str, key_value: Optional[str] = None, description: str = "External API key"):
         """Add an external API key for client-specific agents.
