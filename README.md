@@ -89,12 +89,20 @@ automagik-server --agents-dir /path/to/my/agents
 # Or use environment variables
 export AUTOMAGIK_API_PORT=38881
 export AUTOMAGIK_EXTERNAL_AGENTS_DIR=/path/to/my/agents
+export AUTOMAGIK_DISABLE_DEFAULT_AGENTS=true  # Optional: disable built-in agents
 automagik-server
 ```
 
 **Default External Agents Directory:** `./automagik_agents`
 
 This is where you can place custom agents that will be automatically discovered when the server starts. The directory is created relative to your current working directory. Each agent should be in its own subdirectory with an `agent.py` file containing a `create_agent` factory function.
+
+**Agent Loading Behavior:**
+- When `AUTOMAGIK_EXTERNAL_AGENTS_DIR` is set, `AUTOMAGIK_DISABLE_DEFAULT_AGENTS` defaults to `true`
+- This means only external agents (from your directory) and virtual agents (created via API) will be available
+- Built-in agents from the source code will be disabled
+- To keep built-in agents active, explicitly set `AUTOMAGIK_DISABLE_DEFAULT_AGENTS=false`
+- Virtual agents created through the API are always available regardless of this setting
 
 **Creating an External Agent:**
 ```python

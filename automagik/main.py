@@ -30,8 +30,9 @@ logger = logging.getLogger(__name__)
 async def initialize_all_agents():
     """Initialize agents at startup.
     
-    If AUTOMAGIK_AGENT_NAMES environment variable is set, activate only those specific agents
-    and deactivate all others. Otherwise, all agents remain in their current active state.
+    If AUTOMAGIK_DISABLE_DEFAULT_AGENTS is True (defaults to True when AUTOMAGIK_EXTERNAL_AGENTS_DIR is set),
+    built-in agents from source code are deactivated while external and virtual agents remain active.
+    Otherwise, all available agents are activated.
     
     This ensures that agents are created and registered in the database
     before any API requests are made, rather than waiting for the first
@@ -95,49 +96,56 @@ async def initialize_all_agents():
         if registered_count > 0:
             logger.info(f"✅ Registered {registered_count} new agents in database")
         
-        # Handle AUTOMAGIK_AGENT_NAMES to update active status in database
-        if settings.AUTOMAGIK_AGENT_NAMES:
-            # Parse comma-separated list of agent names
-            specified_agents = [name.strip() for name in settings.AUTOMAGIK_AGENT_NAMES.split(',')]
-            logger.info(f"🔧 AUTOMAGIK_AGENT_NAMES environment variable specified: {', '.join(specified_agents)}")
+        # Handle AUTOMAGIK_DISABLE_DEFAULT_AGENTS to control which agents are activated
+        if settings.AUTOMAGIK_DISABLE_DEFAULT_AGENTS:
+            logger.info("🔧 AUTOMAGIK_DISABLE_DEFAULT_AGENTS is True - disabling built-in agents")
             
+            # Get list of built-in agents (from source code)
+            # These are agents that are not external and not virtual
+            from automagik.agents.registry import AgentRegistry
+            built_in_agents = set()
             
-            # First, deactivate all agents
+            # Built-in agents are those registered in the manifest from source code
+            # We'll identify them as agents that are available but not from external directory
+            for agent_name in available_agents:
+                # Check if this agent was loaded from external directory
+                agent_info = AgentRegistry.get(agent_name)
+                if agent_info and not agent_info.get('external', False):
+                    built_in_agents.add(agent_name)
+            
+            logger.info(f"📋 Built-in agents to disable: {', '.join(built_in_agents)}")
+            
+            # Deactivate built-in agents, keep external and virtual agents active
             all_db_agents = list_agents(active_only=False)
             deactivated_count = 0
-            for db_agent in all_db_agents:
-                if db_agent.active:
-                    db_agent.active = False
-                    if update_agent(db_agent):
-                        deactivated_count += 1
-                        logger.debug(f"Deactivated agent: {db_agent.name}")
-            
-            if deactivated_count > 0:
-                logger.info(f"📌 Deactivated {deactivated_count} agents")
-            
-            # Activate only the specified agents
             activated_count = 0
-            for agent_name in specified_agents:
-                # Try exact name first
-                db_agent = get_agent_by_name(agent_name)
+            
+            for db_agent in all_db_agents:
+                # Check if this is a virtual agent (created via API)
+                is_virtual = db_agent.config and db_agent.config.get('agent_source') == 'virtual'
                 
-                # If not found, try with _agent suffix
-                if not db_agent and f"{agent_name}_agent" in available_agents:
-                    db_agent = get_agent_by_name(f"{agent_name}_agent")
-                
-                if db_agent:
-                    if not db_agent.active:
+                if db_agent.name in built_in_agents and not is_virtual:
+                    # This is a built-in agent - deactivate it
+                    if db_agent.active:
+                        db_agent.active = False
+                        if update_agent(db_agent):
+                            deactivated_count += 1
+                            logger.debug(f"Deactivated built-in agent: {db_agent.name}")
+                else:
+                    # This is an external or virtual agent - ensure it's active
+                    if not db_agent.active and db_agent.name in available_agents:
                         db_agent.active = True
                         if update_agent(db_agent):
                             activated_count += 1
-                            logger.info(f"✅ Activated agent: {db_agent.name}")
-                else:
-                    logger.warning(f"⚠️ Agent '{agent_name}' not found in database")
+                            logger.info(f"✅ Activated agent: {db_agent.name} ({'virtual' if is_virtual else 'external'})")
             
-            logger.info(f"✅ Activated {activated_count} agents based on AUTOMAGIK_AGENT_NAMES")
+            if deactivated_count > 0:
+                logger.info(f"📌 Deactivated {deactivated_count} built-in agents")
+            if activated_count > 0:
+                logger.info(f"✅ Activated {activated_count} external/virtual agents")
         else:
-            # AUTOMAGIK_AGENT_NAMES is not set - activate all available agents
-            logger.info("🔧 AUTOMAGIK_AGENT_NAMES not specified - activating all available agents")
+            # AUTOMAGIK_DISABLE_DEFAULT_AGENTS is False - activate all available agents
+            logger.info("🔧 AUTOMAGIK_DISABLE_DEFAULT_AGENTS is False - activating all available agents")
             
             all_db_agents = list_agents(active_only=False)
             activated_count = 0
