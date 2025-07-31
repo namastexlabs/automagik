@@ -140,6 +140,13 @@ cython_debug/
 !.env.example
 .env.*
 .env
+.env.prod
+.env.production
+.env.dev
+.env.development
+.env.staging
+.env.test
+.env.local
 .venv
 env/
 venv/
