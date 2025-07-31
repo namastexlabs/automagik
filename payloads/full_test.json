@@ -1,9 +1,0 @@
-{
-  "workflow_name": "test",
-  "message": "What are your most powerful tools for code analysis and manipulation? List top 5 with examples.",
-  "max_turns": 2,
-  "repository_url": "https://github.com/namastexlabs/automagik.git",
-  "git_branch": "main",
-  "timeout": 3600,
-  "session_name": "test-code-analysis-tools"
-}
