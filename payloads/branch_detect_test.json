@@ -1,5 +1,0 @@
-{
-  "workflow_name": "test",
-  "message": "Use git status and git branch commands to tell me what branch you are currently on and what files are modified.",
-  "max_turns": 1
-}
