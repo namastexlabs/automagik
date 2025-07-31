@@ -277,7 +277,7 @@ for test in all_tests:
     test_results.append(test_result)
     
     # Write results incrementally
-    Write(file_path=f"/home/namastex/workspace/am-agents-labs/qa_test_{test['id']}_result.json", 
+    Write(file_path=f"/home/namastex/workspace/automagik/qa_test_{test['id']}_result.json", 
           content=json.dumps(test_result, indent=2))
     
     # Update progress
@@ -386,7 +386,7 @@ All {total_tests} tests were executed systematically with autonomous monitoring.
 """
 
 # Write the final report
-Write(file_path="/home/namastex/workspace/am-agents-labs/AUTONOMOUS_QA_REPORT.md", content=final_report)
+Write(file_path="/home/namastex/workspace/automagik/AUTONOMOUS_QA_REPORT.md", content=final_report)
 
 # Update final todo
 TodoWrite(todos=[

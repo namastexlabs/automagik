@@ -51,7 +51,7 @@ server_config = MCPServerConfig(
     name="filesystem",
     server_type=MCPServerType.STDIO,
     command=["secure-filesystem-server"],
-    allowed_directories=["/home/namastex/workspace/am-agents-labs"],
+    allowed_directories=["/home/namastex/workspace/automagik"],
     auto_start=True
 )
 ```
@@ -324,7 +324,7 @@ from src.db.models import MCPConfig
 ```bash
 # Ensure you're in the correct environment
 source .venv/bin/activate
-cd /home/namastex/workspace/am-agents-labs
+cd /home/namastex/workspace/automagik
 
 # Verify MCP module exists
 python -c "from src.mcp import MCPClientManager; print('Import successful')"

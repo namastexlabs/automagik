@@ -98,7 +98,7 @@ Add to crontab for periodic cleanup:
 
 ```bash
 # Run cleanup daily at 2 AM
-0 2 * * * /path/to/python /path/to/am-agents-labs/scripts/cleanup_orphaned_worktrees.py --max-age-hours=48
+0 2 * * * /path/to/python /path/to/automagik/scripts/cleanup_orphaned_worktrees.py --max-age-hours=48
 ```
 
 ## Configuration

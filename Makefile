@@ -371,7 +371,7 @@ prod: ## 🏭 Start production Docker stack
 
 stop: ## 🛑 Stop development automagik-agents container only
 	$(call print_status,Stopping development automagik-agents container...)
-	@pm2 stop am-agents-labs 2>/dev/null || true
+	@pm2 stop automagik 2>/dev/null || true
 	@docker stop automagik-agents-dev 2>/dev/null || true
 	@pkill -f "python.*automagik" 2>/dev/null || true
 	$(call print_success,Development automagik-agents stopped!)
@@ -383,7 +383,7 @@ stop-prod: ## 🛑 Stop production automagik-agents container only
 
 stop-all: ## 🛑 Stop all services (preserves containers)
 	$(call print_status,Stopping all services...)
-	@pm2 stop am-agents-labs 2>/dev/null || true
+	@pm2 stop automagik 2>/dev/null || true
 	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_DEV) --env-file .env stop 2>/dev/null || true
 	@if [ -f ".env.prod" ]; then \
 		env $(shell cat .env.prod | grep -v '^#' | xargs) $(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_PROD) stop 2>/dev/null || true; \
@@ -406,7 +406,7 @@ restart-service: ## 🔄 Restart local PM2 service
 uninstall-service: ## 🗑️ Uninstall local PM2 service
 	$(call print_status,Uninstalling local PM2 service...)
 	@$(call check_pm2)
-	@pm2 delete am-agents-labs 2>/dev/null || true
+	@pm2 delete automagik 2>/dev/null || true
 	@pm2 save --force
 	@echo -e "$(FONT_GREEN)$(CHECKMARK) Local PM2 service uninstalled!$(FONT_RESET)"
 
@@ -427,7 +427,7 @@ status: ## 📊 Show service status
 .PHONY: start-local stop-local restart-local
 
 start-local: ## 🚀 Start service using local PM2 ecosystem
-	$(call print_status,Starting am-agents-labs with local PM2...)
+	$(call print_status,Starting automagik with local PM2...)
 	@$(call check_pm2)
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(call print_error,Virtual environment not found); \
@@ -439,15 +439,15 @@ start-local: ## 🚀 Start service using local PM2 ecosystem
 	@$(call print_success,Service started with local PM2!)
 
 stop-local: ## 🛑 Stop service using local PM2 ecosystem
-	$(call print_status,Stopping am-agents-labs with local PM2...)
+	$(call print_status,Stopping automagik with local PM2...)
 	@$(call check_pm2)
-	@pm2 stop am-agents-labs 2>/dev/null || true
+	@pm2 stop automagik 2>/dev/null || true
 	@$(call print_success,Service stopped!)
 
 restart-local: ## 🔄 Restart service using local PM2 ecosystem
-	$(call print_status,Restarting am-agents-labs with local PM2...)
+	$(call print_status,Restarting automagik with local PM2...)
 	@$(call check_pm2)
-	@pm2 restart am-agents-labs 2>/dev/null || pm2 start ecosystem.config.js
+	@pm2 restart automagik 2>/dev/null || pm2 start ecosystem.config.js
 	@$(call print_success,Service restarted!)
 
 # ===========================================
@@ -456,11 +456,11 @@ restart-local: ## 🔄 Restart service using local PM2 ecosystem
 .PHONY: logs health logs-follow
 logs: ## 📄 View logs (use N=lines)
 	@echo -e "$(FONT_PURPLE)🪄 Showing last $(N) log lines$(FONT_RESET)"
-	@pm2 logs am-agents-labs --lines $(N) --nostream 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
+	@pm2 logs automagik --lines $(N) --nostream 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
 logs-follow: ## 📄 Follow logs in real-time
 	@echo -e "$(FONT_PURPLE)🪄 Following logs - Press Ctrl+C to stop$(FONT_RESET)"
-	@pm2 logs am-agents-labs 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
+	@pm2 logs automagik 2>/dev/null || echo -e "$(FONT_YELLOW)⚠️ Service not found or not running$(FONT_RESET)"
 
 health: ## 💊 Check service health
 	$(call print_status,Health Check)
@@ -474,8 +474,8 @@ update: ## 🔄 Update and restart services
 	$(call print_status,Updating Automagik Agents...)
 	@$(MAKE) stop-all
 	@git pull
-	@if pm2 list 2>/dev/null | grep -q am-agents-labs; then \
-		$(MAKE) install && pm2 restart am-agents-labs; \
+	@if pm2 list 2>/dev/null | grep -q automagik; then \
+		$(MAKE) install && pm2 restart automagik; \
 	elif docker ps -a --filter "name=automagik-agents-prod" --format "{{.Names}}" | grep -q prod; then \
 		$(MAKE) install-prod; \
 	elif docker ps -a --filter "name=automagik-agents-dev" --format "{{.Names}}" | grep -q dev; then \
@@ -574,12 +574,12 @@ define check_pm2
 endef
 
 define show_pm2_status
-	if pm2 list 2>/dev/null | grep -q "am-agents-labs.*online"; then \
-		pid=$$(pm2 list --no-color 2>/dev/null | awk "/am-agents-labs.*online/ {print \$$10}"); \
+	if pm2 list 2>/dev/null | grep -q "automagik.*online"; then \
+		pid=$$(pm2 list --no-color 2>/dev/null | awk "/automagik.*online/ {print \$$10}"); \
 		port="8881"; \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_GREEN)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 			"pm2-service" "running" "$$port" "$$pid"; \
-	elif pm2 list 2>/dev/null | grep -q "am-agents-labs"; then \
+	elif pm2 list 2>/dev/null | grep -q "automagik"; then \
 		printf "$(FONT_PURPLE)│$(FONT_RESET) %-23s $(FONT_PURPLE)│$(FONT_RESET) $(FONT_YELLOW)%-8s$(FONT_RESET) $(FONT_PURPLE)│$(FONT_RESET) %-7s $(FONT_PURPLE)│$(FONT_RESET) %-8s $(FONT_PURPLE)│$(FONT_RESET)\n" \
 			"pm2-service" "stopped" "-" "-"; \
 	else \
@@ -611,7 +611,7 @@ endef
 
 define check_health
 	@healthy=0; \
-	if pm2 list 2>/dev/null | grep -q "am-agents-labs.*online"; then \
+	if pm2 list 2>/dev/null | grep -q "automagik.*online"; then \
 		echo -e "$(FONT_GREEN)$(CHECKMARK) PM2 service: running$(FONT_RESET)"; \
 		healthy=1; \
 	fi; \
@@ -744,11 +744,11 @@ publish: check-release ## 🚀 Create GitHub release (triggers automated PyPI pu
 			--generate-notes || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
 	else \
 		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - creating release manually$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)Go to: https://github.com/namastexlabs/am-agents-labs/releases/new$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Go to: https://github.com/namastexlabs/automagik/releases/new$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)Tag: v$$VERSION$(FONT_RESET)"; \
 	fi; \
 	echo -e "$(FONT_PURPLE)🚀 GitHub Actions will now build and publish to PyPI automatically!$(FONT_RESET)"; \
-	echo -e "$(FONT_CYAN)Monitor progress: https://github.com/namastexlabs/am-agents-labs/actions$(FONT_RESET)"
+	echo -e "$(FONT_CYAN)Monitor progress: https://github.com/namastexlabs/automagik/actions$(FONT_RESET)"
 	$(call print_success,GitHub release created! PyPI publishing in progress...)
 
 publish-github: check-release ## 🚀 Create GitHub release (triggers GitHub Actions for PyPI)
@@ -770,11 +770,11 @@ publish-github: check-release ## 🚀 Create GitHub release (triggers GitHub Act
 			--generate-notes || echo -e "$(FONT_YELLOW)$(WARNING) GitHub release creation failed (may already exist)$(FONT_RESET)"; \
 	else \
 		echo -e "$(FONT_YELLOW)$(WARNING) GitHub CLI (gh) not found - creating release manually$(FONT_RESET)"; \
-		echo -e "$(FONT_CYAN)Go to: https://github.com/namastexlabs/am-agents-labs/releases/new$(FONT_RESET)"; \
+		echo -e "$(FONT_CYAN)Go to: https://github.com/namastexlabs/automagik/releases/new$(FONT_RESET)"; \
 		echo -e "$(FONT_CYAN)Tag: v$$VERSION$(FONT_RESET)"; \
 	fi; \
 	echo -e "$(FONT_PURPLE)🚀 GitHub Actions will now build and publish to PyPI automatically!$(FONT_RESET)"; \
-	echo -e "$(FONT_CYAN)Monitor progress: https://github.com/namastexlabs/am-agents-labs/actions$(FONT_RESET)"
+	echo -e "$(FONT_CYAN)Monitor progress: https://github.com/namastexlabs/automagik/actions$(FONT_RESET)"
 	$(call print_success,GitHub release created! PyPI publishing in progress...)
 
 clean-build: ## 🧹 Clean build artifacts

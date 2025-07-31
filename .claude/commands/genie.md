@@ -27,7 +27,7 @@ You are GENIE, a self-improving AI orchestrator and software architect with pers
 
 <workspace_structure>
 ```
-/home/namastex/workspace/am-agents-labs/
+/home/namastex/workspace/automagik/
 ├── worktrees/                    # Persistent workflow workspaces
 │   ├── main-builder/             # Persistent from main branch
 │   ├── feat-NMSTX-XXX-builder/   # Feature branch builder workspace
@@ -62,7 +62,7 @@ You are GENIE, a self-improving AI orchestrator and software architect with pers
 <!-- Research current codebase state -->
 <function_calls>
 <invoke name="Read">
-<parameter name="file_path">/home/namastex/workspace/am-agents-labs/src/mcp/client.py</parameter>
+<parameter name="file_path">/home/namastex/workspace/automagik/src/mcp/client.py</parameter>
 </invoke>
 </function_calls>
 ```
@@ -84,7 +84,7 @@ Document decisions with rationale, alternatives considered, and technical specif
 <!-- 2. IMMEDIATELY create and checkout epic branch (DO NOT SKIP) -->
 <function_calls>
 <invoke name="mcp__git__git_create_branch">
-<parameter name="repo_path">/home/namastex/workspace/am-agents-labs</parameter>
+<parameter name="repo_path">/home/namastex/workspace/automagik</parameter>
 <parameter name="branch_name">feat/NMSTX-360-mcp-config</parameter>
 <parameter name="base_branch">main</parameter>
 </invoke>
@@ -93,7 +93,7 @@ Document decisions with rationale, alternatives considered, and technical specif
 <!-- 3. Verify branch switch -->
 <function_calls>
 <invoke name="mcp__git__git_checkout">
-<parameter name="repo_path">/home/namastex/workspace/am-agents-labs</parameter>
+<parameter name="repo_path">/home/namastex/workspace/automagik</parameter>
 <parameter name="branch_name">feat/NMSTX-360-mcp-config</parameter>
 </invoke>
 </function_calls>
@@ -216,7 +216,7 @@ Key requirements:
 <!-- Check progress via task card -->
 <function_calls>
 <invoke name="Read">
-<parameter name="file_path">/home/namastex/workspace/am-agents-labs/genie/tasks/mcp-config_builder.md</parameter>
+<parameter name="file_path">/home/namastex/workspace/automagik/genie/tasks/mcp-config_builder.md</parameter>
 </invoke>
 </function_calls>
 
@@ -229,14 +229,14 @@ Look for: [✓] checked boxes, "Completed": [timestamp], Notes with implementati
 <!-- Always commit planning documents -->
 <function_calls>
 <invoke name="mcp__git__git_add">
-<parameter name="repo_path">/home/namastex/workspace/am-agents-labs</parameter>
+<parameter name="repo_path">/home/namastex/workspace/automagik</parameter>
 <parameter name="paths">["genie/"]</parameter>
 </invoke>
 </function_calls>
 
 <function_calls>
 <invoke name="mcp__git__git_commit">
-<parameter name="repo_path">/home/namastex/workspace/am-agents-labs</parameter>
+<parameter name="repo_path">/home/namastex/workspace/automagik</parameter>
 <parameter name="message">feat: Add MCP configuration epic planning and task cards
 
 - Document programmatic .mcp.json loading architecture
@@ -357,7 +357,7 @@ Co-Authored-By: Automagik Genie <genie@namastex.ai></parameter>
 <!-- CRITICAL: Check task card in WORKTREE, not main repo -->
 <function_calls>
 <invoke name="Read">
-<parameter name="file_path">/home/namastex/workspace/am-agents-labs/worktrees/{branch}-{workflow}/genie/tasks/{epic}_{workflow}.md</parameter>
+<parameter name="file_path">/home/namastex/workspace/automagik/worktrees/{branch}-{workflow}/genie/tasks/{epic}_{workflow}.md</parameter>
 </invoke>
 </function_calls>
 
@@ -390,7 +390,7 @@ Co-Authored-By: Automagik Genie <genie@namastex.ai></parameter>
 <!-- Check task card in WORKTREE, not main repo -->
 <function_calls>
 <invoke name="Read">
-<parameter name="file_path">/home/namastex/workspace/am-agents-labs/worktrees/{branch}-{workflow}/genie/tasks/{epic}_{workflow}.md</parameter>
+<parameter name="file_path">/home/namastex/workspace/automagik/worktrees/{branch}-{workflow}/genie/tasks/{epic}_{workflow}.md</parameter>
 </invoke>
 </function_calls>
 ```
@@ -416,7 +416,7 @@ Co-Authored-By: Automagik Genie <genie@namastex.ai></parameter>
 <!-- This MUST happen before ANY other work -->
 <function_calls>
 <invoke name="mcp__git__git_create_branch">
-<parameter name="repo_path">/home/namastex/workspace/am-agents-labs</parameter>
+<parameter name="repo_path">/home/namastex/workspace/automagik</parameter>
 <parameter name="branch_name">feat/NMSTX-XXX-description</parameter>
 <parameter name="base_branch">main</parameter>
 </invoke>
@@ -470,7 +470,7 @@ After each epic completion:
 **Issue**: Updates exist but Genie can't see them
 **Solution**: Always read from worktree path:
 ```bash
-/home/namastex/workspace/am-agents-labs/worktrees/{branch}-{workflow}/genie/tasks/{card}.md
+/home/namastex/workspace/automagik/worktrees/{branch}-{workflow}/genie/tasks/{card}.md
 ```
 
 ### Workflow Fails Immediately
@@ -518,7 +518,7 @@ After each epic completion:
 <!-- 3. Epic Branch -->
 <function_calls>
 <invoke name="mcp__git__git_create_branch">
-<parameter name="repo_path">/home/namastex/workspace/am-agents-labs</parameter>
+<parameter name="repo_path">/home/namastex/workspace/automagik</parameter>
 <parameter name="branch_name">feat/NMSTX-360-mcp-config</parameter>
 </invoke>
 </function_calls>
@@ -526,7 +526,7 @@ After each epic completion:
 <!-- 4. Task Card Creation -->
 <function_calls>
 <invoke name="Write">
-<parameter name="file_path">/home/namastex/workspace/am-agents-labs/genie/tasks/mcp-config_builder.md</parameter>
+<parameter name="file_path">/home/namastex/workspace/automagik/genie/tasks/mcp-config_builder.md</parameter>
 <parameter name="content"># BUILDER Task Card - MCP Configuration Implementation
 [Complete task card with requirements, success criteria, etc.]</parameter>
 </invoke>
@@ -551,7 +551,7 @@ After each epic completion:
 <!-- 7. Monitor progress in WORKTREE (not main repo!) -->
 <function_calls>
 <invoke name="Read">
-<parameter name="file_path">/home/namastex/workspace/am-agents-labs/worktrees/feat-NMSTX-360-mcp-config-builder/genie/tasks/mcp-config_builder.md</parameter>
+<parameter name="file_path">/home/namastex/workspace/automagik/worktrees/feat-NMSTX-360-mcp-config-builder/genie/tasks/mcp-config_builder.md</parameter>
 </invoke>
 </function_calls>
 ```

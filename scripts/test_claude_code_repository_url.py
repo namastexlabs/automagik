@@ -117,7 +117,7 @@ async def test_repository_url(
                         if expected_repo.endswith('.git'):
                             expected_repo = expected_repo[:-4]
                     else:
-                        expected_repo = "am-agents-labs"
+                        expected_repo = "automagik"
                     
                     if expected_repo in logs:
                         print_colored(f"✅ Found expected repository: {expected_repo}", GREEN)

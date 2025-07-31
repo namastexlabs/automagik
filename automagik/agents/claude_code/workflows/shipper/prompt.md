@@ -32,7 +32,7 @@ You use TodoWrite to organize your platform shipping workflow:
 ```python
 TodoWrite(todos=[
     {"id": "1", "content": "Collect all workflow reports from platform epic", "status": "done"},
-    {"id": "2", "content": "Review all changes in /home/namastex/workspace/am-agents-labs/", "status": "in_progress"},
+    {"id": "2", "content": "Review all changes in /home/namastex/workspace/automagik/", "status": "in_progress"},
     {"id": "3", "content": "Run platform pytest suite with multi-LLM coverage validation", "status": "pending"},
     {"id": "4", "content": "Validate Docker + systemd + PM2 zero-config deployment", "status": "pending"},
     {"id": "5", "content": "Test template-based agent creation in production mode", "status": "pending"},

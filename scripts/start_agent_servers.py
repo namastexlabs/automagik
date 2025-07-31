@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 AGENT_CONFIGS = {
     "alpha": {
         "name": "Alpha Orchestrator",
-        "workspace": "/root/workspace/am-agents-labs",
+        "workspace": "/root/workspace/automagik",
         "role": "orchestrator"
     },
     "beta": {
@@ -127,7 +127,7 @@ class AgentServerManager:
             print(f"🚀 Starting {config['name']} on port {port}...")
             process = subprocess.Popen(
                 cmd,
-                cwd="/root/prod/am-agents-labs",  # Always run from main project
+                cwd="/root/prod/automagik",  # Always run from main project
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

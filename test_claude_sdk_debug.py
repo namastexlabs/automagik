@@ -23,7 +23,7 @@ async def test_claude_sdk():
     
     # Create options with brain workflow workspace
     options = ClaudeCodeOptions()
-    options.cwd = "/home/cezar/automagik/am-agents-labs/worktrees/main-brain-36faafc4-36faafc4"
+    options.cwd = "/home/cezar/automagik/automagik/worktrees/main-brain-36faafc4-36faafc4"
     
     # Load prompt from brain workflow
     prompt_file = Path(options.cwd) / "prompt.md"

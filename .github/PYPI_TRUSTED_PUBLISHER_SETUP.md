@@ -13,7 +13,7 @@ This guide helps you configure PyPI Trusted Publisher for secure, automated publ
 3. **Fill in the details**:
    - **PyPI project name**: `automagik`
    - **Owner**: `namastexlabs`
-   - **Repository name**: `am-agents-labs`
+   - **Repository name**: `automagik`
    - **Workflow filename**: `publish-to-pypi.yml`
    - **Environment name**: `pypi` (optional but recommended)
 
@@ -26,7 +26,7 @@ This guide helps you configure PyPI Trusted Publisher for secure, automated publ
 2. **Repeat the same process** with these details:
    - **PyPI project name**: `automagik`
    - **Owner**: `namastexlabs`
-   - **Repository name**: `am-agents-labs`
+   - **Repository name**: `automagik`
    - **Workflow filename**: `publish-to-pypi.yml`
    - **Environment name**: `testpypi`
 
@@ -34,7 +34,7 @@ This guide helps you configure PyPI Trusted Publisher for secure, automated publ
 
 ### Create Environments (Recommended)
 
-1. **Go to your GitHub repository**: [https://github.com/namastexlabs/am-agents-labs](https://github.com/namastexlabs/am-agents-labs)
+1. **Go to your GitHub repository**: [https://github.com/namastexlabs/automagik](https://github.com/namastexlabs/automagik)
 
 2. **Navigate to Settings** → Environments
 
