@@ -279,6 +279,40 @@ docs/qa/
 # UV lock file - removed, applications should commit lock files for reproducibility
 # uv.lock
 
+####################
+# Large Build Artifacts & Caches
+####################
+
+# Webpack/Build caches
+.cache/
+*.cache
+webpack-cache/
+build-cache/
+
+# Large temporary files
+*.tmp.large
+*.temp.large
+
+# Database dumps and large data files
+*.sql.gz
+*.db.large
+*.sqlite.large
+
+####################
+# Security & Sensitive Files
+####################
+
+# MCP configuration files (may contain API keys)
+.mcp*.json
+mcp*.json
+
+# Additional secret patterns
+**/secrets/
+**/.secrets/
+*.secret
+*.key.json
+*.credentials
+
 # Backup files
 *.bak
 external_repos/
