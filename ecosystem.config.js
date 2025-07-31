@@ -1,13 +1,13 @@
 // ===================================================================
-// 🎭 AM-Agents-Labs - Standalone PM2 Configuration
+// 🎭 Automagik - Standalone PM2 Configuration
 // ===================================================================
-// This file enables am-agents-labs to run independently
+// This file enables automagik to run independently
 // It extracts the same configuration from the central ecosystem
 
 const path = require('path');
 const fs = require('fs');
 
-// Get the current directory (am-agents-labs)
+// Get the current directory (automagik)
 const PROJECT_ROOT = __dirname;
 
 /**
@@ -60,7 +60,7 @@ if (fs.existsSync(envPath)) {
 module.exports = {
   apps: [
     {
-      name: 'am-agents-labs',
+      name: 'automagik',
       cwd: PROJECT_ROOT,
       script: '.venv/bin/python',
       args: '-m automagik',

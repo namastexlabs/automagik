@@ -8,7 +8,7 @@ The `.mcp.json` file provides MCP (Model Context Protocol) server configuration 
 
 The `.mcp.json` file must be placed at the project root:
 ```
-am-agents-labs-mcp/
+automagik-mcp/
 ├── .mcp.json          ← Configuration file
 ├── src/
 ├── tests/

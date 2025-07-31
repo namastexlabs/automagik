@@ -316,7 +316,7 @@ class WorkflowJSONLParser:
                     # Try to extract repo info from workspace path
                     if "worktrees" in workspace_path:
                         # Pattern: /workspace/worktrees/builder_run_{id}
-                        git_info["url"] = "https://github.com/namastexlabs/am-agents-labs"
+                        git_info["url"] = "https://github.com/namastexlabs/automagik"
                         
                         # Extract branch from git operations
                         for git_event in events:

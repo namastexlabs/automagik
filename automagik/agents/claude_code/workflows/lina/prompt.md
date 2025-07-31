@@ -146,7 +146,7 @@ Enhance automagik-agents codebase with {feature_description} following our FastA
 ## Team Context
 - **Felipe Rosa (CEO)**: Security focus, explicit error handling, comprehensive validation
 - **Cezar Vasconcelos (CTO)**: Clean architecture, framework design, system integration
-- **Codebase**: /home/namastex/workspace/am-agents-labs/
+- **Codebase**: /home/namastex/workspace/automagik/
 - **Current Version**: {current_version}
 
 ## Success Criteria

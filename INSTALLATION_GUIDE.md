@@ -7,8 +7,8 @@ This guide will help you install and test Automagik Agents with the Flashinho ex
 ### 1. Install from Local Build
 
 ```bash
-# Clone or navigate to the am-agents-labs directory
-cd /path/to/am-agents-labs
+# Clone or navigate to the automagik directory
+cd /path/to/automagik
 
 # Create a virtual environment
 python3 -m venv test_env

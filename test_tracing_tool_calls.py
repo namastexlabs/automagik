@@ -25,7 +25,7 @@ import time
 from typing import Dict, Any
 
 # Add the project root to the Python path
-sys.path.insert(0, '/home/cezar/automagik/am-agents-labs')
+sys.path.insert(0, '/home/cezar/automagik/automagik')
 
 from automagik.agents.pydanticai.simple.agent import SimpleAgent
 from automagik.tracing import get_tracing_manager

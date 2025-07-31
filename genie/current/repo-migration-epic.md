@@ -1,18 +1,18 @@
-# Epic: Repository Migration - am-agents-labs → namastexlabs/automagik
+# Epic: Repository Migration - automagik → namastexlabs/automagik
 
 ## 🎯 Epic Objective
-Migrate the current am-agents-labs repository to namastexlabs/automagik with complete reference updates, tag preservation, and forced synchronization.
+Migrate the current automagik repository to namastexlabs/automagik with complete reference updates, tag preservation, and forced synchronization.
 
 ## 🏗️ Architecture Overview
 The migration involves three parallel tracks:
-1. **Reference Updates** - Update all am-agents-labs references to automagik
+1. **Reference Updates** - Update all automagik references to automagik
 2. **Git Operations** - Handle branch creation, origin changes, and pushing
 3. **Verification** - Ensure all changes are complete and functional
 
 ## 📊 Current Analysis Results
-- **Origin**: `https://github.com/namastexlabs/am-agents-labs.git`
+- **Origin**: `https://github.com/namastexlabs/automagik.git`
 - **Tags**: 26 release tags (v0.4.0 to v0.6.19) 
-- **References**: 442+ occurrences of "am-agents-labs" to update
+- **References**: 442+ occurrences of "automagik" to update
 - **Target**: `https://github.com/namastexlabs/automagik.git`
 
 ## 🔄 Workflow Strategy
@@ -21,7 +21,7 @@ The migration involves three parallel tracks:
 3. **GUARDIAN** - Verification and rollback safety
 
 ## ✅ Success Criteria
-- [ ] All am-agents-labs references updated to automagik
+- [ ] All automagik references updated to automagik
 - [ ] New origin set to namastexlabs/automagik
 - [ ] All 26 tags successfully pushed
 - [ ] Repository force-pushed with complete history
