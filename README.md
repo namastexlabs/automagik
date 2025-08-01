@@ -24,8 +24,8 @@ Agents need LLM provider keys to function. Examples: `OPENAI_API_KEY`, `GEMINI_A
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/namastexlabs/automagik-agents.git
-cd automagik-agents
+git clone https://github.com/namastexlabs/automagik.git
+cd automagik
 
 # Show all available commands
 make help
@@ -69,10 +69,10 @@ You can also install Automagik as a Python package:
 
 ```bash
 # Install from local directory
-pip install -e /path/to/automagik-agents
+pip install -e /path/to/automagik
 
 # Or from git (coming soon)
-# pip install git+https://github.com/namastexlabs/automagik-agents.git
+# pip install git+https://github.com/namastexlabs/automagik.git
 ```
 
 **After pip installation:**
