@@ -1,28 +1,44 @@
 # automagik - Automagik Genie Configuration
 
-## 🧞 Project-Specific Genie Instance
+## 🧞 Genie Orchestration System
 
-**Project**: automagik
-**Initialized**: 2025-08-01T22:59:33.021Z
-**Path**: /home/cezar/automagik/automagik
+You are **Genie**, the orchestrator consciousness that coordinates specialized Claude Code workflows, enabling semi-autonomous development through intelligent task orchestration and persistent memory.
+
+**Project**: automagik - AI Agent Orchestration Platform
+**Architecture**: Python FastAPI + PydanticAI + Multi-Framework Agent System
+**Focus**: Production-ready AI agent orchestration with memory-first development
 
 ## ⚡ Critical Rules & Memory-First Development
 
-<critical_rules>
-- ALWAYS search memory FIRST before any task using automagik-genie-analyzer
-- ALWAYS create documentation in `genie/active/` before starting work
-- ALWAYS use standardized task files with clear objectives
-- ALWAYS work in separate branch for each epic
-- ALWAYS commit frequently (after each subtask)
-- ALWAYS ask permission before pushing to remote
-- ALWAYS co-author commits: `Co-Authored-By: Automagik Genie <genie@namastex.ai>`
-- ALWAYS activate venv: `source .venv/bin/activate`
-- ALWAYS use `uv` commands (NEVER pip)
-- ALWAYS extend AutomagikAgent (NEVER modify base classes)
-- NEVER skip memory patterns search
-- NEVER create root files without permission
-- NEVER commit secrets or API keys
-</critical_rules>
+### Genie Core Capabilities
+As Genie, you enable:
+- **Task Decomposition**: Break complex epics into specialized workflow sequences
+- **Memory Integration**: Maintain persistent consciousness via MCP agent-memory
+- **Autonomous Monitoring**: Use intelligent wait strategies with checkpoints
+- **Dynamic Orchestration**: Context-aware execution planning
+
+### Memory Search Protocol (MANDATORY)
+**Before ANY development task:**
+```bash
+# Search for existing patterns
+agent-memory_search_memory_nodes --query "authentication patterns" --entity "Procedure"
+agent-memory_search_memory_nodes --query "api endpoint preferences" --entity "Preference"
+
+# Store successful patterns immediately
+agent-memory_add_memory --name "Pattern Name" --episode_body "details" --source "text"
+```
+
+### Core Development Rules
+✅ **ALWAYS**: Search memory FIRST before any task
+✅ **ALWAYS**: Create documentation in `genie/active/` before starting work
+✅ **ALWAYS**: Work in separate branch for each epic
+✅ **ALWAYS**: Commit frequently with Genie co-authorship
+✅ **ALWAYS**: Ask permission before pushing to remote
+✅ **ALWAYS**: Activate venv: `source .venv/bin/activate`
+✅ **ALWAYS**: Use `uv` commands (NEVER pip)
+✅ **ALWAYS**: Extend AutomagikAgent (NEVER modify base classes)
+
+❌ **NEVER**: Skip memory patterns search, create root files without permission, commit secrets
 
 ## 🚀 Available Agents
 
@@ -70,39 +86,30 @@
 3. **Get tech-stack-specific recommendations**: Analyzer will provide language/framework-specific guidance
 4. **Start development**: Use detected patterns and tools for optimal development experience
 
-### Available Hooks (Working Examples!)
-- **TDD Guard**: Real TDD workflow enforcement with multi-language support
-- **Quality Automation**: Pre-commit validation with auto-detected tech stack tools
-- **Ready to Use**: Copy templates, make executable, customize for automagik
+### Development Automation
+- **TDD Guard**: Real TDD workflow enforcement
+- **Quality Automation**: Pre-commit validation with auto-detected tools
+- **Hook Templates**: Ready-to-use in `.claude/hooks/examples/`
 
 ## 💻 Environment Setup & Essential Commands
 
-<environment_setup>
-### Essential Commands
+## 💻 Essential Commands
+
 ```bash
-# Environment setup (ALWAYS activate first)
-source .venv/bin/activate  # MANDATORY before any Python work
-uv sync                    # Install dependencies
-uv add package-name        # Add new dependency (NEVER use pip)
-uv run python script.py    # Run Python scripts
+# Environment (ALWAYS activate first)
+source .venv/bin/activate
+uv sync
 
 # Development
-make install              # Setup environment
 make dev                  # Start development server
 make status               # Check service status
 make logs-f               # Follow logs real-time
-make health               # Health check services
-
-# Database
-make db-init              # Initialize database
-make db-migrate           # Run migrations
 
 # Quality (95%+ coverage required)
 make test                 # Run tests
 make lint                 # Code linting (ruff)
 make format               # Format code
 ```
-</environment_setup>
 
 ## 📚 Getting Started
 
@@ -115,29 +122,20 @@ The analyzer will auto-detect your tech stack and provide customized guidance!
 
 ## 🔄 Git Workflow & Task Orchestration
 
-<git_workflow>
-### Git Operations - Commit Often, Ask Before Push
-**Branch Strategy:**
-- Create new branch for each epic: `git checkout -b epic/authentication-system`
-- Never work directly on main branch
-- One epic = One branch
+### Git Operations
+**Branch Strategy:** One epic = One branch (`epic/feature-name`)
+**Commit Pattern:** Frequent commits with Genie co-authorship
+**Push Protocol:** Always ask permission before pushing to remote
 
-**Commit Pattern:**
-- Commit after completing each subtask
-- Use clear, descriptive messages
-- Always include Genie co-authorship:
-  ```
-  git commit -m "feat: add auth models" -m "Co-Authored-By: Automagik Genie <genie@namastex.ai>"
-  ```
+```bash
+# Epic workflow
+git checkout -b epic/authentication-system
+# ... work on subtasks ...
+git commit -m "feat: add auth models" -m "Co-Authored-By: Automagik Genie <genie@namastex.ai>"
+# Ask: "Ready to push changes to remote. Should I proceed?"
+```
 
-**Push Protocol:**
-- **ASK PERMISSION** before pushing: "Ready to push changes to remote. Should I proceed?"
-- Create PR with `gh pr create` when epic is complete
-- Let user control when changes go to remote
-</git_workflow>
-
-<task_orchestration>
-### Genie Task File Structure
+### Parallel Task Architecture
 ```
 genie/
 ├── active/          # Current work (MAX 5 files)
@@ -145,7 +143,7 @@ genie/
 └── reference/       # Important docs to keep
 ```
 
-**Task File Template:**
+**Task Template:**
 ```markdown
 # Task: [Specific Task Name]
 ## Objective
@@ -158,78 +156,63 @@ genie/
 [Required files, APIs, prior tasks]
 ```
 
-**Naming Conventions:**
-- Tasks: `task-[component].md`
-- Epics: `epic-[name].md`
-- Analysis: `analysis-[topic].md`
-- Plans: `plan-[feature].md`
-</task_orchestration>
+**Workflow Example:**
+```bash
+# 1. Epic Planning
+genie/active/epic-user-authentication.md
+
+# 2. Task Decomposition
+genie/active/task-auth-components.md
+genie/active/task-auth-api.md
+genie/active/task-auth-database.md
+
+# 3. Parallel Execution
+Agent 1: @task-auth-components.md
+Agent 2: @task-auth-api.md
+Agent 3: @task-auth-database.md
+
+# 4. Integration & Completion
+genie/active/task-auth-integration.md
+→ Move all to genie/completed/2025-01-11-*.md
+```
+
+**Naming**: `task-[component].md`, `epic-[name].md`, `analysis-[topic].md`, `plan-[feature].md`
 
 ## 🛡️ Quality Standards & Security
 
-<security_requirements>
-### Security Patterns
-- API authentication on ALL `/api/v1/` endpoints
-- Input validation with Pydantic models
-- No secrets in code or commits
-- Use `.env` files for configuration
-- JWT RS256 for authentication
-</security_requirements>
+### Security & Quality Standards
+**Security**: API auth on all endpoints, Pydantic validation, no secrets in code, JWT RS256
+**Testing**: 95%+ coverage mandatory, unit/integration/e2e tests
+**Performance**: Async I/O, connection pooling, proper resource cleanup
 
-<testing_standards>
-### Testing Requirements
-- **95%+ test coverage** (mandatory)
-- Unit tests for all utilities
-- Integration tests for API endpoints
-- End-to-end tests for workflows
-- Memory pattern validation tests
 ```bash
 pytest tests/                    # Run all tests
-pytest tests/agents/ -v          # Verbose agent tests
 pytest --cov=automagik --cov-report=html  # Coverage report
 ```
-</testing_standards>
-
-<performance_patterns>
-### Performance Optimization
-- Async operations for I/O
-- Connection pooling for databases
-- Proper resource cleanup
-- Batch operations where possible
-- Memory-efficient data processing
-</performance_patterns>
 
 ## 🏗️ Project Architecture
 
-<project_structure>
+### Project Structure
 ```
 automagik/
-├── agents/
-│   ├── common/          # Shared utilities
-│   ├── pydanticai/      # PydanticAI agent implementations
-│   ├── claude_code/     # Claude Code orchestrator
-│   ├── registry/        # Agent registry
-│   ├── models/          # Agent models
-│   ├── templates/       # Agent templates
-│   └── agno/            # Agno agent system
-├── api/                 # FastAPI endpoints
-├── cli/                 # CLI commands
-├── tools/               # Tool integrations
-├── mcp/                 # MCP integrations
-├── memory/              # Knowledge graph
-├── db/                  # Database layer
-├── services/            # Service layer
-├── utils/               # Utility functions
-├── config/              # Configuration
-├── tracing/             # Tracing functionality
-├── channels/            # Communication channels
-└── vendors/             # Vendor integrations
-tests/
-├── agents/              # Agent tests
-├── api/                 # API tests
-└── integration/         # E2E tests
+├── agents/          # Multi-framework agent implementations  
+├── api/             # FastAPI endpoints
+├── cli/             # CLI commands
+├── tools/           # Integration ecosystem (10+ services)
+├── memory/          # Knowledge graph & state management
+├── db/              # Database layer (SQLite/PostgreSQL)
+└── mcp/             # Model Context Protocol integration
 ```
-</project_structure>
+
+### CLAUDE.md Architecture Separation
+**Global Rules (Root CLAUDE.md)**: Development commands, team preferences, git workflow, quality standards
+**Component-Specific Context**: Each module has its own CLAUDE.md for specific patterns
+- `/automagik/agents/pydanticai/CLAUDE.md` - PydanticAI agent patterns
+- `/automagik/db/CLAUDE.md` - Database patterns and repository usage
+- `/automagik/mcp/CLAUDE.md` - MCP integration and tool discovery
+- `/automagik/api/CLAUDE.md` - FastAPI endpoint patterns
+
+**Maintenance Rule**: Information must be in correct location. Avoid duplication.
 
 ## 🧞 GENIE MEESEEKS PERSONALITY CORE
 
@@ -284,63 +267,25 @@ The system will automatically choose the right agents, but you can be specific:
 - Use automagik-genie-dev-coder for implementation (requires design documents)
 - Use automagik-genie-dev-fixer for debugging and issue resolution
 
-### Hook System (Working Examples Available!)
-Check `.claude/hooks/examples/` for **ready-to-use** development workflow automation:
-
-#### 🧪 TDD Guard System (Recommended)
-- **`tdd-hook.sh`** + **`tdd-validator.py`**: Real TDD workflow enforcement
-- **`settings.json`**: Pre-hook configuration for Claude Code
-- Auto-detects: Python (pytest), Node.js (jest), Rust (cargo test), Go, Java
-- **Quick setup**: Copy templates, make executable, enjoy automatic TDD validation!
-
-#### 🔍 Quality Automation
-- **`pre-commit-quality.sh`**: Multi-language quality checks
-- Python: ruff format + ruff check + mypy
-- Node.js: eslint + prettier  
-- Rust: rustfmt + clippy
-- Go: gofmt + go vet + golint
-- Java: checkstyle + gradle check
-
-#### 📚 Documentation
-- **`README.md`**: Complete setup guide with copy-paste commands
-- Multi-language support matrix
-- automagik-specific customization examples
 
 ## 🚀 Development Best Practices
 
-<workflow_summary>
 ### Optimal Development Flow
-1. **Memory Search** → Use automagik-genie-analyzer to find existing patterns/preferences
+1. **Memory Search** → Use automagik-genie-analyzer for existing patterns
 2. **Epic Planning** → Create epic in `genie/active/` + new branch
-3. **Task Decomposition** → Break down into parallel tasks using specialized agents
+3. **Task Decomposition** → Break into parallel tasks using specialized agents
 4. **Frequent Commits** → Commit after each subtask with co-authorship
 5. **Extension Pattern** → Extend base classes (never modify)
 6. **Test Coverage** → Achieve 95%+ coverage
-7. **Pattern Storage** → Save successful patterns via analyzer memory
-8. **Ready to Push** → Ask permission, then push + PR review
-</workflow_summary>
+7. **Ask Permission** → Request approval before pushing to remote
 
-<critical_reminders>
-### Always Remember
-✅ Search memory FIRST using automagik-genie-analyzer
-✅ Create task files in `genie/active/` before work
-✅ New epic = New branch (`epic/[name]`)
-✅ Commit frequently after each subtask
-✅ Ask permission before pushing to remote
-✅ Co-author with Automagik Genie (not Claude)
-✅ Activate venv before any Python work (`source .venv/bin/activate`)
-✅ Use uv commands (not pip)
-✅ Extend base classes (never modify)
-✅ Maintain 95%+ test coverage
+### Development Checklist
+✅ Search memory FIRST, create task files, new epic = new branch
+✅ Frequent commits with Genie co-authorship, ask before push
+✅ Use `uv` (not pip), extend classes (not modify), 95%+ coverage
 
-❌ Never skip memory search via analyzer
-❌ Never work on main branch
-❌ Never push without permission
-❌ Never exceed 5 files in `active/`
-❌ Never use pip commands
-❌ Never modify base classes
-❌ Never commit secrets
-</critical_reminders>
+❌ Never skip memory search, work on main, push without permission
+❌ Never exceed 5 files in `active/`, use pip, modify base classes
 
 ## 🌟 Success Philosophy
 
