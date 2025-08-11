@@ -911,6 +911,25 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
                 tool_calls = []
                 tool_outputs = []
 
+        # Try to get the most recent message ID from the session
+        message_id = None
+        if message_history:
+            try:
+                # Get the most recent message (should be the assistant's response)
+                messages, _ = message_history.get_messages(page=1, page_size=1, sort_desc=True)
+                if messages and len(messages) > 0:
+                    latest_message = messages[0]
+                    # Check if this is an assistant message (the response we just created)
+                    if latest_message.get('role') == 'assistant':
+                        message_id = str(latest_message.get('id'))
+                        logger.info(f"✅ Captured message_id: {message_id}")
+                    else:
+                        logger.debug(f"Latest message role is {latest_message.get('role')}, not assistant")
+                else:
+                    logger.warning("No messages found in session")
+            except Exception as e:
+                logger.warning(f"Failed to retrieve latest message ID: {e}")
+
         # Format response according to the original API
         # Ensure session_id is always a string
         response_data = {
@@ -920,6 +939,10 @@ async def handle_agent_run(agent_name: str, request: AgentRunRequest) -> Dict[st
             "tool_calls": tool_calls,
             "tool_outputs": tool_outputs,
         }
+        
+        # Include message_id if we have it
+        if message_id:
+            response_data["message_id"] = message_id
         
         # Add the current user_id to the response
         # First check if the agent updated the user_id during execution
